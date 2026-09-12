@@ -1,0 +1,10 @@
+numbers: int[] = [10, 20, 30]
+copied: int[] = numbers
+copied[1] = 25
+
+for number in copied {
+    if number == 10 { continue }
+    print(number)
+}
+print(numbers[1]) // コピー元は20
+print(copied.length)

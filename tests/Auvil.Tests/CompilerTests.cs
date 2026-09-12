@@ -4,7 +4,7 @@ using PowerShellParser = System.Management.Automation.Language.Parser;
 
 namespace Auvil.Tests;
 
-public class CompilerTests
+public partial class CompilerTests
 {
     private static CompilationResult Compile(string source) => new Compiler().Compile(source);
     private static string Success(string source)

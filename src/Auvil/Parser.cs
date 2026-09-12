@@ -17,7 +17,7 @@ internal sealed class Parser(Source source, List<Token> tokens)
     {
         var token = Current;
         if (token.StringValue is not null || token.Text.Length == 0 || !(char.IsLetter(token.Text[0]) || token.Text[0] == '_') ||
-            token.Text is "function" or "return" or "if" or "else" or "import" or "true" or "false" or "powershell" or "print")
+            token.Text is "function" or "func" or "struct" or "self" or "class" or "return" or "if" or "else" or "import" or "true" or "false" or "powershell" or "print" or "for" or "in" or "break" or "continue")
             return Fail("Expected an identifier (reserved words cannot be used as names).");
         return Take();
     }
@@ -43,25 +43,43 @@ internal sealed class Parser(Source source, List<Token> tokens)
     }
     private ValueType Type()
     {
-        var token = Take();
-        var type = token.Text switch { "int" => ValueType.Int, "string" => ValueType.String, "bool" => ValueType.Bool, "void" => ValueType.Void, _ => ValueType.Error };
-        if (type == ValueType.Error) source.Error("AUV1001", $"Unsupported type '{token.Text}'.", token);
+        var name = Identifier().Text;
+        if (Match(".")) name += "." + Identifier().Text;
+        var type = new ValueType(name);
+        while (Match("[")) { Expect("]"); type = ValueType.ArrayOf(type); }
         return type;
+    }
+    private Function FunctionDeclaration()
+    {
+        var name = Identifier(); Expect("("); NewLines();
+        var parameters = new List<Parameter>();
+        if (Current.Text != ")")
+            do { NewLines(); var parameter = Identifier(); Expect(":"); parameters.Add(new(parameter, Type())); NewLines(); } while (Match(","));
+        Expect(")"); Expect(":"); var type = Type();
+        return new Function(name, name.Text, parameters, type, Block());
+    }
+    private StructDeclaration StructDeclaration()
+    {
+        var name = Identifier(); NewLines(); Expect("{"); Separators();
+        var fields = new List<Field>(); var methods = new List<Function>();
+        while (Current.Text is not ("}" or "<eof>"))
+        {
+            if (Match("func") || Match("function")) methods.Add(FunctionDeclaration());
+            else { var field = Identifier(); Expect(":"); fields.Add(new(field, Type())); }
+            EndStatement();
+        }
+        Expect("}");
+        return new StructDeclaration(name, fields, methods);
     }
     private Statement Statement()
     {
         var token = Current;
         if (Match("import")) return new Import(token, Identifier().Text);
-        if (Match("function"))
-        {
-            var name = Identifier(); Expect("("); NewLines();
-            var parameters = new List<Parameter>();
-            if (Current.Text != ")")
-                do { NewLines(); var parameter = Identifier(); Expect(":"); parameters.Add(new(parameter, Type())); NewLines(); } while (Match(","));
-            Expect(")"); Expect(":"); var type = Type();
-            return new Function(name, name.Text, parameters, type, Block());
-        }
+        if (Match("struct")) return StructDeclaration();
+        if (Match("func") || Match("function")) return FunctionDeclaration();
         if (Match("return")) return new Return(token, Current.Text is "\n" or ";" or "}" or "<eof>" ? null : Expression());
+        if (Match("for")) { var item = Identifier(); Expect("in"); var items = Expression(); return new For(item, items, Block()); }
+        if (Match("break") || Match("continue")) return new LoopControl(token);
         if (Match("if"))
         {
             var condition = Expression(); var then = Block();
@@ -76,7 +94,15 @@ internal sealed class Parser(Source source, List<Token> tokens)
             return new Variable(name, type, Expression());
         }
         if (Next.Text == "=") { var name = Identifier(); Expect("="); NewLines(); return new Assignment(name, Expression()); }
-        return new ExpressionStatement(Expression());
+        var expression = Expression();
+        if (Match("="))
+        {
+            NewLines();
+            if (expression is Member member) return new FieldAssignment(member, Expression());
+            if (expression is Index index) return new IndexAssignment(index, Expression());
+            Fail("Field assignment requires a field on a variable.");
+        }
+        return new ExpressionStatement(expression);
     }
     private static int Precedence(string op) => op switch
     {
@@ -95,6 +121,25 @@ internal sealed class Parser(Source source, List<Token> tokens)
     }
     private Expression Primary()
     {
+        var expression = Atom();
+        while (Current.Text is "." or "[")
+        {
+            if (Match("."))
+            {
+                var member = Identifier();
+                expression = Current.Text == "(" ? new Call(member, expression, member.Text, Arguments())
+                    : new Member(member, expression, member.Text);
+            }
+            else
+            {
+                var bracket = Take(); NewLines(); var offset = Expression(); NewLines(); Expect("]");
+                expression = new Index(bracket, expression, offset);
+            }
+        }
+        return expression;
+    }
+    private Expression Atom()
+    {
         var token = Current;
         if (Current.Text is "-" or "+" or "!")
         {
@@ -102,6 +147,17 @@ internal sealed class Parser(Source source, List<Token> tokens)
             // The minimum signed integer has a magnitude outside Int32's positive range.
             if (token.Text == "-" && Current.Text == "2147483648") { Take(); return new Literal(token, int.MinValue); }
             return new Unary(token, Primary());
+        }
+        if (Match("["))
+        {
+            NewLines(); var items = new List<Expression>();
+            while (Current.Text != "]")
+            {
+                items.Add(Expression()); NewLines();
+                if (!Match(",")) break;
+                NewLines();
+            }
+            Expect("]"); return new ArrayLiteral(token, items);
         }
         if (Match("(")) { NewLines(); var expression = Expression(); NewLines(); Expect(")"); return expression; }
         if (token.StringValue is not null) { Take(); return new Literal(token, token.StringValue); }
@@ -118,8 +174,8 @@ internal sealed class Parser(Source source, List<Token> tokens)
             return new Call(token, null, "powershell", Arguments(), type);
         }
         if (Match("print")) return new Call(token, null, "print", Arguments());
+        if (Match("self")) return new Name(token);
         var name = Identifier();
-        if (Match(".")) return new Call(name, name.Text, Identifier().Text, Arguments());
         return Current.Text == "(" ? new Call(name, null, name.Text, Arguments()) : new Name(name);
     }
     private List<Argument> Arguments()

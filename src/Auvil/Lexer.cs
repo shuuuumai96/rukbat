@@ -55,7 +55,7 @@ internal sealed class Lexer(Source source)
                 var pair = c.ToString() + Peek();
                 if (pair is "==" or "!=" or "<=" or ">=" or "&&" or "||")
                 { position++; tokens.Add(new(pair, start)); }
-                else if ("(){}:,.=+-*/%!<>;".Contains(c)) tokens.Add(new(c.ToString(), start));
+                else if ("(){}[]:,.=+-*/%!<>;".Contains(c)) tokens.Add(new(c.ToString(), start));
                 else source.Error("AUV1000", c == '$'
                     ? "Auvil variables have no '$' prefix. Use 'name: string = ...'."
                     : $"Unexpected character '{c}'.", new(c.ToString(), start));

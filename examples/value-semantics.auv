@@ -1,0 +1,18 @@
+struct Counter {
+    value: int
+
+    func increment(): void {
+        self.value = self.value + 1
+    }
+}
+
+struct Box {
+    counter: Counter
+}
+
+a: Box = Box(counter: Counter(value: 30))
+b: Box = a
+b.counter.increment()
+
+print(a.counter.value) // 30: コピー元は変わらない
+print(b.counter.value) // 31: メソッドを呼んだ変数だけ更新する

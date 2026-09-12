@@ -3,13 +3,14 @@ using System.Text;
 
 namespace Auvil;
 
-internal sealed class Emitter(TypeChecker checker)
+internal sealed partial class Emitter(TypeChecker checker)
 {
     private readonly StringBuilder output = new();
     private Module module = null!;
     private int indentation;
+    private int temporaryId;
     private static string Quote(string value) => "'" + value.Replace("'", "''") + "'";
-    private static string TypeName(ValueType type) => type.ToString().ToLowerInvariant();
+    private static string TypeName(ValueType type) => type.Element is not null ? "object[]" : type.Struct is null ? type.Name : "hashtable";
     private void Line(string text) => output.Append(' ', indentation * 4).AppendLine(text);
 
     public string Emit(List<Module> modules)
@@ -19,28 +20,19 @@ internal sealed class Emitter(TypeChecker checker)
         Line("$ErrorActionPreference = 'Stop'");
         Line("Set-StrictMode -Version Latest");
         Line("$__auv_modules = @{}");
-        Line("$__auv_runtime = {"); indentation++;
-        Line("param([string]$__auv_kind, [string]$__auv_command, [object[]]$__auv_positional, [hashtable]$__auv_named, [string]$__auv_location)");
-        Line("$ErrorActionPreference = 'Stop'");
-        Line("$__auv_result = @(& $__auv_command @__auv_positional @__auv_named)");
-        Line("if ($__auv_kind -eq 'void') { return }");
-        Line("if ($__auv_result.Count -ne 1) { throw \"${__auv_location}: PowerShell call '$__auv_command' expected one $__auv_kind result, got $($__auv_result.Count).\" }");
-        Line("$__auv_value = $__auv_result[0]");
-        Line("$__auv_valid = switch ($__auv_kind) { 'int' { $__auv_value -is [int] }; 'string' { $__auv_value -is [string] }; 'bool' { $__auv_value -is [bool] } }");
-        Line("if (-not $__auv_valid) { throw \"${__auv_location}: PowerShell call '$__auv_command' returned a value incompatible with $__auv_kind.\" }");
-        Line("return $__auv_value");
-        indentation--; Line("}");
+        EmitRuntime();
         foreach (var current in modules)
         {
             module = current;
-            Line($"$__auv_modules[{Quote(current.Id)}] = New-Module -AsCustomObject -ArgumentList $__auv_modules, $__auv_runtime -ScriptBlock {{");
+            Line($"$__auv_modules[{Quote(current.Id)}] = New-Module -AsCustomObject -ArgumentList $__auv_modules, $__auv_runtime, $__auv_clone, $__auv_index -ScriptBlock {{");
             indentation++;
-            Line("param($__auv_dependencies, $__auv_runtime)");
+            Line("param($__auv_dependencies, $__auv_runtime, $__auv_clone, $__auv_index)");
             Line("Set-StrictMode -Version Latest");
             Line("$ErrorActionPreference = 'Stop'");
-            foreach (var function in current.Statements.OfType<Function>()) EmitFunction(function);
-            EmitStatements(current.Statements.Where(s => s is not Function).ToList());
-            var exports = current.Statements.OfType<Function>().Select(f => Quote(checker.Functions[f].PowerShellName));
+            var functions = checker.Functions.Values.Where(f => f.Module == current).ToArray();
+            foreach (var function in functions) EmitFunction(function.Function);
+            EmitStatements(current.Statements.Where(s => s is not Function and not StructDeclaration).ToList());
+            var exports = functions.Select(f => Quote(f.PowerShellName));
             Line($"Export-ModuleMember -Function @({string.Join(", ", exports)})");
             indentation--; Line("}");
         }
@@ -50,7 +42,9 @@ internal sealed class Emitter(TypeChecker checker)
     private void EmitFunction(Function function)
     {
         Line($"function {checker.Functions[function].PowerShellName} {{"); indentation++;
-        Line($"param({string.Join(", ", function.Parameters.Select(p => $"[{TypeName(p.Type)}]{checker.Variables[p].PowerShellName}"))})");
+        var parameters = function.Parameters.Select(p => $"[{TypeName(checker.Variables[p].Type)}]{checker.Variables[p].PowerShellName}");
+        if (checker.Functions[function].Owner is not null) parameters = parameters.Prepend("[hashtable]$__auv_self");
+        Line($"param({string.Join(", ", parameters)})");
         EmitStatements(function.Body);
         indentation--; Line("}");
     }
@@ -60,9 +54,21 @@ internal sealed class Emitter(TypeChecker checker)
         {
             switch (statement)
             {
-                case Variable variable: Line($"[{TypeName(variable.Type)}]{checker.Variables[variable].PowerShellName} = {Expr(variable.Value)}"); break;
+                case Variable variable: Line($"[{TypeName(checker.Variables[variable].Type)}]{checker.Variables[variable].PowerShellName} = {Expr(variable.Value)}"); break;
                 case Assignment assignment: Line($"{checker.Variables[assignment].PowerShellName} = {Expr(assignment.Value)}"); break;
-                case Return result: Line(result.Value is null ? "return" : $"return {Expr(result.Value)}"); break;
+                case FieldAssignment assignment: Line($"{Address(assignment.Target)} = {Expr(assignment.Value)}"); break;
+                case IndexAssignment assignment: Line($"{Address(assignment.Target)} = {Expr(assignment.Value)}"); break;
+                case Return result:
+                    Line(result.Value is null ? "return" : checker.Types[result.Value].Element is not null
+                        ? $"return ,({Expr(result.Value)})" : $"return {Expr(result.Value)}");
+                    break;
+                case For loop:
+                    var item = "$__auv_item" + temporaryId++;
+                    Line($"foreach ({item} in {Expr(loop.Items)}) {{"); indentation++;
+                    Line($"[{TypeName(checker.Variables[loop].Type)}]{checker.Variables[loop].PowerShellName} = {Clone(item, checker.Variables[loop].Type)}");
+                    EmitStatements(loop.Body); indentation--; Line("}");
+                    break;
+                case LoopControl control: Line(control.Token.Text); break;
                 // Suppressing every unused value prevents PowerShell's implicit function output.
                 case ExpressionStatement expression: Line($"$null = {Expr(expression.Value)}"); break;
                 case Conditional conditional:
@@ -74,14 +80,38 @@ internal sealed class Emitter(TypeChecker checker)
             }
         }
     }
-    private string Expr(Expression expression) => expression switch
+    private string Expr(Expression expression)
+    {
+        var value = RawExpr(expression);
+        return Clone(value, checker.Types[expression]);
+    }
+    private static string Clone(string value, ValueType type) => type.IsComposite ? $"(& $script:__auv_clone ({value}) $script:__auv_clone)" : value;
+    private string Location(Node node) => Quote(module.Source.Path + ":" + (module.Source.Text[..node.Token.Offset].Count(c => c == '\n') + 1));
+    private string IndexAddress(Index index)
+    {
+        var slot = "$__auv_slot" + temporaryId++;
+        Line($"{slot} = & $script:__auv_index ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) {Location(index)} $true");
+        return $"{slot}.array[{slot}.offset]";
+    }
+    private string Address(Expression expression) => expression switch
+    {
+        Name name => checker.Variables[name].PowerShellName,
+        Member member => $"{Address(member.Receiver)}[{Quote(checker.Fields[member].Key)}]",
+        Index index => IndexAddress(index),
+        _ => throw new InvalidOperationException("Invalid field assignment target.")
+    };
+    private string RawExpr(Expression expression) => expression switch
     {
         Literal literal => literal.Value switch
         {
             string value => Quote(value), bool value => value ? "$true" : "$false",
             int value => value.ToString(CultureInfo.InvariantCulture), _ => throw new InvalidOperationException()
         },
+        ArrayLiteral array => $"@({string.Join("; ", array.Items.Select(item => ",(" + Expr(item) + ")"))})",
+        Index index => $"(& $script:__auv_index ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) {Location(index)})",
         Name name => checker.Variables[name].PowerShellName,
+        Member member when checker.Types[member.Receiver].Element is not null => $"(({RawExpr(member.Receiver)}).Length)",
+        Member member => $"(({RawExpr(member.Receiver)})[{Quote(checker.Fields[member].Key)}])",
         Unary unary => unary.Token.Text == "!" ? $"(-not {Expr(unary.Value)})" : $"([int]({unary.Token.Text}{Expr(unary.Value)}))",
         Binary binary => Binary(binary),
         Call call => Call(call),
@@ -101,17 +131,23 @@ internal sealed class Emitter(TypeChecker checker)
     }
     private string Call(Call call)
     {
-        if (call.PowerShellType is { } type)
+        if (checker.Constructions.ContainsKey(call))
+            return $"@{{{string.Join("; ", call.Arguments.Select(a => $"{Quote(checker.ConstructionFields[a].Key)} = {Expr(a.Value)}"))}}}";
+        if (call.PowerShellType is not null)
         {
-            var positional = string.Join("; ", call.Arguments.Skip(1).Where(a => a.Name is null).Select(a => Expr(a.Value)));
+            var positional = string.Join("; ", call.Arguments.Skip(1).Where(a => a.Name is null).Select(a => ",(" + Expr(a.Value) + ")"));
             var named = string.Join("; ", call.Arguments.Skip(1).Where(a => a.Name is not null).Select(a => $"{Quote(a.Name!)} = {Expr(a.Value)}"));
             var line = module.Source.Text[..call.Token.Offset].Count(c => c == '\n') + 1;
-            return $"(& $script:__auv_runtime {Quote(TypeName(type))} ({Expr(call.Arguments[0].Value)}) @({positional}) @{{{named}}} {Quote(module.Source.Path + ":" + line)})";
+            return $"(& $script:__auv_runtime {Schema(checker.Types[call])} ({Expr(call.Arguments[0].Value)}) @({positional}) @{{{named}}} {Quote(module.Source.Path + ":" + line)})";
         }
-        if (call.Module is null && call.Name == "print") return $"([Console]::WriteLine([object]({Expr(call.Arguments[0].Value)})))";
+        if (call.Receiver is null && call.Name == "print") return $"([Console]::WriteLine([object]({Expr(call.Arguments[0].Value)})))";
         var function = checker.Calls[call];
+        var arguments = call.Arguments.Select(a => Expr(a.Value));
+        // Only a method receiver is borrowed for mutation. Ordinary arguments remain values.
+        if (function.Owner is not null) arguments = arguments.Prepend(RawExpr(call.Receiver!));
+        var values = arguments.ToArray();
         if (function.Module == module)
-            return $"({function.PowerShellName}{string.Concat(call.Arguments.Select(a => " (" + Expr(a.Value) + ")"))})";
-        return $"($script:__auv_dependencies[{Quote(function.Module.Id)}].{function.PowerShellName}({string.Join(", ", call.Arguments.Select(a => Expr(a.Value)))}))";
+            return $"({function.PowerShellName}{string.Concat(values.Select(a => " (" + a + ")"))})";
+        return $"($script:__auv_dependencies[{Quote(function.Module.Id)}].{function.PowerShellName}({string.Join(", ", values)}))";
     }
 }

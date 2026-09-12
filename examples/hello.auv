@@ -1,13 +1,24 @@
 import math
 
-name: string = "Taro"
-age: int = 30
-result: int = math.add(age, 2)
+struct User {
+    name: string
+    age: int
 
-print(name)
+    func is_adult(): bool {
+        return self.age >= 20
+    }
+}
+
+user: User = User(
+    name: "Taro",
+    age: 30
+)
+
+result: int = math.add(user.age, 2)
+print(user.name)
 print(result)
 
-if result >= 20 {
+if user.is_adult() {
     print("adult")
 }
 

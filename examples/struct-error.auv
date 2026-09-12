@@ -1,0 +1,6 @@
+struct User {
+    name: string
+    age: int
+}
+
+user: User = User(name: "Taro", age: "30")

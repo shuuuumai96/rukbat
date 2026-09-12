@@ -1,8 +1,0 @@
-import math
-
-age: int = "thirty"
-result: int = math.add("two", 3)
-
-function wrong(): int {
-    return "not an integer"
-}
