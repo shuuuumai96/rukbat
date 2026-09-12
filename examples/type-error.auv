@@ -1,0 +1,7 @@
+$age: int = "thirty"
+
+function Add($a: int, $b: int): int {
+    return "not an integer"
+}
+
+Add "two" 3

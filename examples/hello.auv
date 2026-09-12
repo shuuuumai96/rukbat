@@ -1,0 +1,9 @@
+$name: string = "Taro"
+$age: int = 30
+
+function Add($a: int, $b: int): int {
+    return $a + $b
+}
+
+Write-Output "$name ($age)"
+Add 2 3

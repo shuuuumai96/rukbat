@@ -1,0 +1,36 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{EA505390-79B9-48F6-8458-6723238A53E8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Auvil", "src\Auvil\Auvil.csproj", "{A221BA14-8E88-41C2-A806-9D78BFB52E70}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{BE260324-507D-4121-A972-27B194A85BD7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Auvil.Tests", "tests\Auvil.Tests\Auvil.Tests.csproj", "{63FDDFEC-2167-473D-8F6C-9F30AE1A3BC9}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{A221BA14-8E88-41C2-A806-9D78BFB52E70}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A221BA14-8E88-41C2-A806-9D78BFB52E70}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A221BA14-8E88-41C2-A806-9D78BFB52E70}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A221BA14-8E88-41C2-A806-9D78BFB52E70}.Release|Any CPU.Build.0 = Release|Any CPU
+		{63FDDFEC-2167-473D-8F6C-9F30AE1A3BC9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{63FDDFEC-2167-473D-8F6C-9F30AE1A3BC9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{63FDDFEC-2167-473D-8F6C-9F30AE1A3BC9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{63FDDFEC-2167-473D-8F6C-9F30AE1A3BC9}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{A221BA14-8E88-41C2-A806-9D78BFB52E70} = {EA505390-79B9-48F6-8458-6723238A53E8}
+		{63FDDFEC-2167-473D-8F6C-9F30AE1A3BC9} = {BE260324-507D-4121-A972-27B194A85BD7}
+	EndGlobalSection
+EndGlobal
