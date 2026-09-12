@@ -1,0 +1,5 @@
+import "../models/user.auv" as model
+
+func load(): model.User {
+    return model.User(name: "Taro")
+}

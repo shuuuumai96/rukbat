@@ -92,6 +92,7 @@ dotnet publish src/Auvil -c Release -o artifacts/auvil
 
 - 読み書きしやすい一貫した構文を優先します。
 - `import math` は読み込み元と同じディレクトリの `math.auv` を読み込みます。
+- `import "./models/user.auv" as model` でディレクトリをまたいで読み込めます。パスはimportを書いたファイルが基準です。
 - モジュールごとに変数・関数を分離し、共通の依存モジュールは1回だけ初期化します。
 - Auvilの関数は明示的な `return` の値だけを返します。途中の式の値は捨てます。
 - `print(value)` は画面出力です。関数の戻り値に混ざりません。
@@ -110,6 +111,39 @@ structは名前付き引数で生成し、フィールド操作と内部の `fun
 `powershell<User[]>` で外部の複数オブジェクトを型検査して取り込めます。配列もネストした要素まで値コピーします。
 型推論（`:=`）・汎用オブジェクト型・union型・パイプライン解析・パッケージ管理は実装していません。
 詳細な構文、モジュールの規則、制限は [言語仕様](docs/language.md) を参照してください。
+
+## ディレクトリで処理を分ける
+
+```text
+app/
+├── main.auv
+├── models/
+│   └── user.auv
+└── services/
+    └── users.auv
+```
+
+`main.auv`:
+
+```text
+import "./models/user.auv" as model
+import "./services/users.auv" as users
+
+user: model.User = users.load()
+print(user.name)
+```
+
+`services/users.auv` からは `import "../models/user.auv" as model` で共通の型を使えます。
+文字列パスには `.auv` と `as 別名` が必要です。区切りにはWindowsでも `/` を使います。
+`import math` と `import math as calc` も使えます。
+同じファイルは別名や異なる相対パスで参照しても、正規化した絶対パスで識別して1回だけ初期化します。
+生成物は従来どおり1つの `.ps1` です。
+
+動作するサンプル:
+
+```powershell
+.\auvil.cmd run examples/app/main.auv
+```
 
 ## 配列・ループと外部データ
 

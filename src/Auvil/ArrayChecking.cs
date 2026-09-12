@@ -7,6 +7,7 @@ internal sealed partial class TypeChecker
 
     private ValueType ArrayType(ArrayLiteral array, Symbols scope, ValueType? expected)
     {
+        // Empty arrays need an element type from the destination or parameter declaration.
         var element = expected?.Element;
         if (element is null && array.Items.Count == 0)
         {
@@ -17,7 +18,11 @@ internal sealed partial class TypeChecker
         {
             var actual = TypeOf(item, scope, element);
             element ??= actual;
-            if (actual == ValueType.Void) Error("AUV2001", "Array elements cannot have type void.", item);
+            if (actual == ValueType.Void)
+            {
+                Error("AUV2001", "Array elements cannot have type void.", item);
+            }
+
             Match(element, actual, item, "array element");
         }
         return ValueType.ArrayOf(element!);
@@ -27,8 +32,16 @@ internal sealed partial class TypeChecker
     {
         var receiver = TypeOf(index.Receiver, scope);
         Match(ValueType.Int, TypeOf(index.Offset, scope), index.Offset, "array index");
-        if (receiver.Element is { } element) return element;
-        if (receiver != ValueType.Error) Error("AUV2001", $"Cannot index {receiver}; expected an array.", index);
+        if (receiver.Element is { } element)
+        {
+            return element;
+        }
+
+        if (receiver != ValueType.Error)
+        {
+            Error("AUV2001", $"Cannot index {receiver}; expected an array.", index);
+        }
+
         return ValueType.Error;
     }
 }

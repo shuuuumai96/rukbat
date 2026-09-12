@@ -276,7 +276,11 @@ public partial class CompilerTests
         public string DirectoryPath { get; } = Path.Combine(Path.GetTempPath(), "auvil-tests-" + Guid.NewGuid());
         public Project() => Directory.CreateDirectory(DirectoryPath);
         public string PathFor(string file) => Path.Combine(DirectoryPath, file);
-        public void Write(string file, string source) => File.WriteAllText(PathFor(file), source);
+        public void Write(string file, string source)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(PathFor(file))!);
+            File.WriteAllText(PathFor(file), source);
+        }
         public CompilationResult Compile() => new Compiler().CompileFile(PathFor("main.auv"));
         public Task<RunResult> Run()
         {

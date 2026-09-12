@@ -4,3 +4,4 @@ obj/
 artifacts/
 TestResults/
 examples/*.ps1
+examples/**/*.ps1
