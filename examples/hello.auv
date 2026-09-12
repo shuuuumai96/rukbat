@@ -1,9 +1,15 @@
-$name: string = "Taro"
-$age: int = 30
+import math
 
-function Add($a: int, $b: int): int {
-    return $a + $b
+name: string = "Taro"
+age: int = 30
+result: int = math.add(age, 2)
+
+print(name)
+print(result)
+
+if result >= 20 {
+    print("adult")
 }
 
-Write-Output "$name ($age)"
-Add 2 3
+year: string = powershell<string>("Get-Date", Format: "yyyy")
+print(year)

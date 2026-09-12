@@ -18,9 +18,9 @@ public static class Cli
         try
         {
             var input = Path.GetFullPath(args[1]);
-            var result = new Compiler().Compile(File.ReadAllText(input));
+            var result = new Compiler().CompileFile(input);
             foreach (var diagnostic in result.Diagnostics)
-                stderr.WriteLine($"{input}({diagnostic.Line},{diagnostic.Column}): error {diagnostic.Code}: {diagnostic.Message}");
+                stderr.WriteLine($"{diagnostic.FilePath}({diagnostic.Line},{diagnostic.Column}): error {diagnostic.Code}: {diagnostic.Message}");
             if (!result.Success) return CompilationFailure;
             var output = Path.ChangeExtension(input, ".ps1");
             File.WriteAllText(output, result.Output, new System.Text.UTF8Encoding(false));

@@ -1,172 +1,178 @@
-using System.Management.Automation.Language;
-
 namespace Auvil;
 
-internal sealed class TypeChecker(Syntax syntax)
+internal sealed record VariableSymbol(string Name, ValueType Type, string PowerShellName);
+internal sealed record FunctionSymbol(Module Module, Function Function, string PowerShellName);
+internal sealed class Symbols(Symbols? parent = null)
 {
-    private readonly Dictionary<ScriptBlockAst, Dictionary<string, SimpleType>> scopes = [];
-    private readonly Dictionary<ParameterAst, SimpleType> parameters = [];
-    private readonly Dictionary<FunctionDefinitionAst, SimpleType> returns = [];
+    public Dictionary<string, VariableSymbol> Variables { get; } = new(StringComparer.Ordinal);
+    public VariableSymbol? Find(string name) => Variables.GetValueOrDefault(name) ?? parent?.Find(name);
+}
 
-    private static ScriptBlockAst Scope(Ast node)
-    {
-        for (Ast? current = node; current is not null; current = current.Parent)
-            if (current is ScriptBlockAst block) return block;
-        throw new InvalidOperationException("AST has no script scope.");
-    }
+internal sealed class TypeChecker
+{
+    public Dictionary<Node, VariableSymbol> Variables { get; } = new(ReferenceEqualityComparer.Instance);
+    public Dictionary<Function, FunctionSymbol> Functions { get; } = new(ReferenceEqualityComparer.Instance);
+    public Dictionary<Call, FunctionSymbol> Calls { get; } = new(ReferenceEqualityComparer.Instance);
+    public Dictionary<Expression, ValueType> Types { get; } = new(ReferenceEqualityComparer.Instance);
+    private int variableId;
+    private Module module = null!;
 
-    private static FunctionDefinitionAst? Function(Ast node)
+    public void Check(List<Module> modules)
     {
-        for (var current = node.Parent; current is not null; current = current.Parent)
-            if (current is FunctionDefinitionAst function) return function;
-        return null;
-    }
-
-    public void Check(ScriptBlockAst root)
-    {
-        var nodes = root.FindAll(_ => true, true).ToArray();
-        // Untyped local bindings shadow outer declarations without inferring their types.
-        foreach (var variable in nodes.OfType<VariableExpressionAst>())
+        foreach (var current in modules)
         {
-            if (variable.Parent is not ParameterAst &&
-                !(variable.Parent is AssignmentStatementAst assignment && assignment.Left == variable)) continue;
-            var scope = variable.Parent is ParameterAst { Parent: FunctionDefinitionAst owner } ? owner.Body : Scope(variable);
-            if (!scopes.TryGetValue(scope, out var symbols)) scopes[scope] = symbols = new(StringComparer.OrdinalIgnoreCase);
-            symbols.TryAdd(variable.VariablePath.UserPath, SimpleType.Unknown);
-        }
-        foreach (var annotation in syntax.Variables)
-        {
-            var variable = nodes.OfType<VariableExpressionAst>()
-                .FirstOrDefault(v => v.Extent.StartOffset == annotation.VariableOffset);
-            if (variable is null) continue;
-            var parameter = variable.Parent as ParameterAst;
-            var assignment = variable.Parent as AssignmentStatementAst;
-            if (parameter is null && (assignment?.Left != variable || assignment.Operator != TokenKind.Equals))
+            foreach (var function in current.Statements.OfType<Function>())
             {
-                syntax.Error("AUV1004", "Type annotations require a variable assignment or a function parameter.", annotation.Start);
-                continue;
+                if (!current.Functions.TryAdd(function.Name, function))
+                    current.Source.Error("AUV2002", $"Duplicate function '{function.Name}'.", function.Token);
+                Functions[function] = new(current, function, $"__auv_f{Functions.Count}");
             }
-            var scope = parameter?.Parent is FunctionDefinitionAst owner ? owner.Body : Scope(variable);
-            if (!scopes.TryGetValue(scope, out var symbols))
-                scopes[scope] = symbols = new(StringComparer.OrdinalIgnoreCase);
-            var name = variable.VariablePath.UserPath;
-            if (symbols.TryGetValue(name, out var existing) && existing != SimpleType.Unknown && existing != annotation.Type)
-                syntax.Error("AUV2002", $"Conflicting types for '${name}'.", annotation.VariableOffset);
-            else symbols[name] = annotation.Type;
-            if (parameter is not null) parameters[parameter] = annotation.Type;
         }
-        foreach (var annotation in syntax.Returns)
+        foreach (var current in modules)
         {
-            var function = nodes.OfType<FunctionDefinitionAst>().FirstOrDefault(f => f.Extent.StartOffset == annotation.FunctionOffset);
-            if (function is not null) returns[function] = annotation.Type;
-        }
-        foreach (var node in nodes)
-        {
-            switch (node)
+            module = current;
+            var globals = new Symbols();
+            CheckStatements(current.Statements.Where(s => s is not Function).ToList(), globals, null, true);
+            foreach (var function in current.Statements.OfType<Function>())
             {
-                case AssignmentStatementAst assignment when assignment.Left is VariableExpressionAst variable:
-                    if (assignment.Operator == TokenKind.Equals)
-                        Match(Lookup(variable), TypeOf(assignment.Right), assignment.Right, $"assignment to '{variable.Extent.Text}'");
-                    break;
-                case ParameterAst parameter when parameters.TryGetValue(parameter, out var type) && parameter.DefaultValue is not null:
-                    Match(type, TypeOf(parameter.DefaultValue), parameter.DefaultValue, "parameter default");
-                    break;
-                case ReturnStatementAst statement:
-                    var function = Function(statement);
-                    if (function is not null && Scope(statement) == function.Body && returns.TryGetValue(function, out var returnType))
-                        Match(returnType, statement.Pipeline is null ? SimpleType.Void : TypeOf(statement.Pipeline), statement, "return value");
-                    break;
-                case CommandAst command:
-                    CheckCall(command, nodes.OfType<FunctionDefinitionAst>());
-                    break;
+                if (current.Imports.ContainsKey(function.Name)) Error("AUV2002", $"Name '{function.Name}' is already an import.", function);
+                var locals = new Symbols(globals);
+                foreach (var parameter in function.Parameters) Declare(parameter, parameter.Type, locals, false);
+                CheckStatements(function.Body, locals, function.Type, false);
+                if (function.Type != ValueType.Void && !AlwaysReturns(function.Body))
+                    Error("AUV2003", $"Function '{function.Name}' must return a value on every path.", function);
             }
         }
     }
+    private static bool AlwaysReturns(List<Statement> body) => body.Any(s => s is Return ||
+        s is Conditional condition && AlwaysReturns(condition.Then) && AlwaysReturns(condition.Else));
 
-    private SimpleType Lookup(VariableExpressionAst variable)
+    private void Declare(Node node, ValueType type, Symbols scope, bool global)
     {
-        var name = variable.VariablePath.UserPath;
-        if (name.Equals("true", StringComparison.OrdinalIgnoreCase) || name.Equals("false", StringComparison.OrdinalIgnoreCase))
-            return SimpleType.Bool;
-        var parameterOwner = variable.Parent?.Parent as FunctionDefinitionAst;
-        Ast? current = parameterOwner?.Body ?? Scope(variable);
-        while (current is not null)
-        {
-            if (current is ScriptBlockAst block && scopes.TryGetValue(block, out var symbols) && symbols.TryGetValue(name, out var type))
-                return type;
-            current = current.Parent;
-        }
-        return SimpleType.Unknown;
+        if (type == ValueType.Void) Error("AUV2001", "Variables and parameters cannot have type void.", node);
+        var name = node.Token.Text;
+        if (module.Functions.ContainsKey(name) || module.Imports.ContainsKey(name))
+            Error("AUV2002", $"Name '{name}' is already a function or import.", node);
+        var symbol = new VariableSymbol(name, type, $"${(global ? "script:" : "")}__auv_v{variableId++}");
+        if (!scope.Variables.TryAdd(name, symbol)) Error("AUV2002", $"Duplicate declaration '{name}'.", node);
+        Variables[node] = symbol;
     }
-
-    // Only locally known expression types; never infer a declaration's type.
-    private SimpleType TypeOf(Ast ast) => ast switch
+    private void CheckStatements(List<Statement> statements, Symbols scope, ValueType? returnType, bool topLevel)
     {
-        StringConstantExpressionAst or ExpandableStringExpressionAst => SimpleType.String,
-        ConstantExpressionAst constant => constant.Value switch
+        foreach (var statement in statements)
         {
-            int => SimpleType.Int,
-            string => SimpleType.String,
-            bool => SimpleType.Bool,
-            _ => SimpleType.Other
-        },
-        VariableExpressionAst variable => Lookup(variable),
-        CommandExpressionAst expression => TypeOf(expression.Expression),
-        PipelineAst pipeline when pipeline.PipelineElements.Count == 1 => TypeOf(pipeline.PipelineElements[0]),
-        ParenExpressionAst paren => TypeOf(paren.Pipeline),
-        BinaryExpressionAst binary => BinaryType(binary),
-        UnaryExpressionAst unary when unary.TokenKind is TokenKind.Minus or TokenKind.Plus && TypeOf(unary.Child) == SimpleType.Int => SimpleType.Int,
-        _ => SimpleType.Unknown
-    };
-
-    private SimpleType BinaryType(BinaryExpressionAst binary)
-    {
-        var left = TypeOf(binary.Left);
-        var right = TypeOf(binary.Right);
-        if (left == SimpleType.Int && right == SimpleType.Int && binary.Operator is TokenKind.Plus or TokenKind.Minus or TokenKind.Multiply)
-            return SimpleType.Int;
-        if (left == SimpleType.String && right == SimpleType.String && binary.Operator == TokenKind.Plus)
-            return SimpleType.String;
-        return SimpleType.Unknown;
-    }
-
-    private void CheckCall(CommandAst command, IEnumerable<FunctionDefinitionAst> functions)
-    {
-        if (command.InvocationOperator != TokenKind.Unknown || command.Parent is not PipelineAst { PipelineElements.Count: 1 }) return;
-        var name = command.GetCommandName();
-        var candidates = functions.Where(f => Scope(f) == Scope(command) && f.Name.Equals(name, StringComparison.OrdinalIgnoreCase)).ToArray();
-        if (candidates.Length != 1 || candidates[0].Parameters is not { } signature) return;
-        var bound = new List<(ParameterAst Parameter, Ast Argument)>();
-        var used = new HashSet<ParameterAst>();
-        var positional = 0;
-        for (var i = 1; i < command.CommandElements.Count; i++)
-        {
-            var argument = command.CommandElements[i];
-            ParameterAst? parameter;
-            if (argument is CommandParameterAst named)
+            switch (statement)
             {
-                parameter = signature.FirstOrDefault(p => p.Name.VariablePath.UserPath.Equals(named.ParameterName, StringComparison.OrdinalIgnoreCase));
-                if (parameter is null) return;
-                if (named.Argument is not null) argument = named.Argument;
-                else if (++i < command.CommandElements.Count) argument = command.CommandElements[i];
-                else return;
+                case Import import when !topLevel: Error("AUV3000", "Imports are allowed only at module level.", import); break;
+                case Function function: Error("AUV1002", "Nested functions are not supported yet.", function); break;
+                case Variable variable:
+                    var actual = TypeOf(variable.Value, scope);
+                    Declare(variable, variable.Type, scope, topLevel);
+                    Match(variable.Type, actual, variable.Value);
+                    break;
+                case Assignment assignment:
+                    var target = scope.Find(assignment.Token.Text);
+                    if (target is null) Error("AUV2004", $"Unknown variable '{assignment.Token.Text}'. Declare it with a type first.", assignment);
+                    else { Variables[assignment] = target; Match(target.Type, TypeOf(assignment.Value, scope), assignment.Value); }
+                    break;
+                case Return result:
+                    var resultType = result.Value is null ? ValueType.Void : TypeOf(result.Value, scope);
+                    if (returnType is null) Error("AUV2003", "return is allowed only inside a function.", result);
+                    else Match(returnType.Value, resultType, result);
+                    break;
+                case Conditional conditional:
+                    Match(ValueType.Bool, TypeOf(conditional.Condition, scope), conditional.Condition);
+                    CheckStatements(conditional.Then, new Symbols(scope), returnType, false);
+                    CheckStatements(conditional.Else, new Symbols(scope), returnType, false);
+                    break;
+                case ExpressionStatement expression: TypeOf(expression.Value, scope); break;
             }
-            else
-            {
-                while (positional < signature.Count && used.Contains(signature[positional])) positional++;
-                if (positional >= signature.Count) return;
-                parameter = signature[positional++];
-            }
-            if (argument is VariableExpressionAst { Splatted: true } || !used.Add(parameter)) return;
-            bound.Add((parameter, argument));
         }
-        foreach (var (parameter, argument) in bound)
-            if (parameters.TryGetValue(parameter, out var type)) Match(type, TypeOf(argument), argument, $"argument '{parameter.Name.Extent.Text}'");
     }
-
-    private void Match(SimpleType expected, SimpleType actual, Ast node, string context)
+    private ValueType TypeOf(Expression expression, Symbols scope)
     {
-        if (expected != SimpleType.Unknown && actual != SimpleType.Unknown && expected != actual)
-            syntax.Error("AUV2001", $"Type mismatch in {context}: expected {expected.ToString().ToLowerInvariant()}, got {actual.ToString().ToLowerInvariant()}.", node.Extent.StartOffset);
+        var type = expression switch
+        {
+            Literal literal => literal.Value switch { int => ValueType.Int, string => ValueType.String, bool => ValueType.Bool, _ => ValueType.Error },
+            Name name => Resolve(name, scope),
+            Unary unary => UnaryType(unary, scope),
+            Binary binary => BinaryType(binary, scope),
+            Call call => CallType(call, scope),
+            _ => ValueType.Error
+        };
+        Types[expression] = type;
+        return type;
     }
+    private ValueType Resolve(Name name, Symbols scope)
+    {
+        var symbol = scope.Find(name.Token.Text);
+        if (symbol is null) { Error("AUV2004", $"Unknown variable '{name.Token.Text}'.", name); return ValueType.Error; }
+        Variables[name] = symbol;
+        return symbol.Type;
+    }
+    private ValueType UnaryType(Unary unary, Symbols scope)
+    {
+        var expected = unary.Token.Text == "!" ? ValueType.Bool : ValueType.Int;
+        Match(expected, TypeOf(unary.Value, scope), unary);
+        return expected;
+    }
+    private ValueType BinaryType(Binary binary, Symbols scope)
+    {
+        var left = TypeOf(binary.Left, scope); var right = TypeOf(binary.Right, scope);
+        if (left == ValueType.Error || right == ValueType.Error) return ValueType.Error;
+        var op = binary.Token.Text;
+        if (left == right && left != ValueType.Void && op is "==" or "!=") return ValueType.Bool;
+        if (left == ValueType.Bool && right == ValueType.Bool && op is "&&" or "||") return ValueType.Bool;
+        if (left == ValueType.Int && right == ValueType.Int)
+            return op is "<" or "<=" or ">" or ">=" ? ValueType.Bool :
+                op is "+" or "-" or "*" or "/" or "%" ? ValueType.Int : Invalid();
+        if (left == ValueType.String && right == ValueType.String && op == "+") return ValueType.String;
+        return Invalid();
+        ValueType Invalid() { Error("AUV2001", $"Operator '{op}' cannot combine {left} and {right}.", binary); return ValueType.Error; }
+    }
+    private ValueType CallType(Call call, Symbols scope)
+    {
+        var arguments = call.Arguments.Select(a => TypeOf(a.Value, scope)).ToArray();
+        if (call.PowerShellType is { } powerShellType)
+        {
+            if (arguments.Length == 0 || call.Arguments[0].Name is not null)
+                Error("AUV2005", "powershell<T> requires a command name as its first positional argument.", call);
+            else Match(ValueType.String, arguments[0], call.Arguments[0]);
+            var named = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var sawNamed = false;
+            for (var i = 0; i < call.Arguments.Count; i++)
+            {
+                var argument = call.Arguments[i];
+                if (arguments[i] == ValueType.Void) Error("AUV2001", "A void result cannot be passed as an argument.", argument);
+                if (argument.Name is { } name)
+                {
+                    sawNamed = true;
+                    if (!named.Add(name)) Error("AUV2005", $"Duplicate PowerShell parameter '{name}'.", argument);
+                }
+                else if (sawNamed) Error("AUV2005", "Positional arguments must precede named arguments.", argument);
+            }
+            return powerShellType;
+        }
+        if (call.Module is null && call.Name == "print")
+        {
+            if (arguments.Length != 1 || call.Arguments.Any(a => a.Name is not null))
+                Error("AUV2005", "print requires one positional argument.", call);
+            else if (arguments[0] == ValueType.Void) Error("AUV2001", "Cannot print a void result.", call);
+            return ValueType.Void;
+        }
+        Module? target = call.Module is null ? module : module.Imports.GetValueOrDefault(call.Module);
+        if (target is null || !target.Functions.TryGetValue(call.Name, out var function))
+        { Error("AUV2004", $"Unknown function '{(call.Module is null ? "" : call.Module + ".")}{call.Name}'.", call); return ValueType.Error; }
+        Calls[call] = Functions[function];
+        if (call.Arguments.Any(a => a.Name is not null)) Error("AUV2005", "Auvil function calls currently use positional arguments.", call);
+        if (arguments.Length != function.Parameters.Count) Error("AUV2005", $"'{call.Name}' expects {function.Parameters.Count} arguments, got {arguments.Length}.", call);
+        for (var i = 0; i < Math.Min(arguments.Length, function.Parameters.Count); i++) Match(function.Parameters[i].Type, arguments[i], call.Arguments[i]);
+        return function.Type;
+    }
+    private void Match(ValueType expected, ValueType actual, Node node)
+    {
+        if (expected != actual && expected != ValueType.Error && actual != ValueType.Error)
+            Error("AUV2001", $"Expected {expected.ToString().ToLowerInvariant()}, got {actual.ToString().ToLowerInvariant()}.", node);
+    }
+    private void Error(string code, string message, Node node) => module.Source.Error(code, message, node.Token);
 }

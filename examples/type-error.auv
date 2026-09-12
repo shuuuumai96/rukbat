@@ -1,7 +1,8 @@
-$age: int = "thirty"
+import math
 
-function Add($a: int, $b: int): int {
+age: int = "thirty"
+result: int = math.add("two", 3)
+
+function wrong(): int {
     return "not an integer"
 }
-
-Add "two" 3
