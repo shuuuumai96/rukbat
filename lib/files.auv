@@ -1,0 +1,16 @@
+// ディレクトリ直下のファイル名を、PowerShellのFilterで絞り込みます。
+fn list_files(directory: string, pattern: string): string[] {
+    if !powershell<bool>("Test-Path", LiteralPath: directory, PathType: "Container") {
+        throw Error(message: "ディレクトリを参照できません: " + directory)
+    }
+    return powershell<string[]>(
+        "Get-ChildItem", LiteralPath: directory, Filter: pattern, File: true, Name: true
+    )
+}
+
+// UTF-8・末尾改行なしで保存します。既存ファイルは上書きします。
+fn write_text(path: string, text: string): void {
+    powershell<void>(
+        "Set-Content", LiteralPath: path, Value: text, Encoding: "utf8", NoNewline: true
+    )
+}

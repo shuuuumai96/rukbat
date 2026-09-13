@@ -5,10 +5,10 @@ public partial class CompilerTests
     [Theory]
     [InlineData("try { throw Error(message: 'failed'); print('unreachable') } catch err { print(err.message) }; print('after')", "failed\nafter")]
     [InlineData("try { print('ok') } catch err { print('unexpected') }", "ok")]
-    [InlineData("func f(): int { throw Error(message: 'failed') }; try { print(f()) } catch err { print(err.message) }", "failed")]
-    [InlineData("func f(): int { try { throw Error(message: 'failed') } catch err { return 42 } }; print(f())", "42")]
-    [InlineData("func f(): int { try { return 42 } catch err { throw err } }; print(f())", "42")]
-    [InlineData("func f(): void { try { return } catch err { print('unexpected') }; print('unreachable') }; f(); print('after')", "after")]
+    [InlineData("fn f(): int { throw Error(message: 'failed') }; try { print(f()) } catch err { print(err.message) }", "failed")]
+    [InlineData("fn f(): int { try { throw Error(message: 'failed') } catch err { return 42 } }; print(f())", "42")]
+    [InlineData("fn f(): int { try { return 42 } catch err { throw err } }; print(f())", "42")]
+    [InlineData("fn f(): void { try { return } catch err { print('unexpected') }; print('unreachable') }; f(); print('after')", "after")]
     [InlineData("try { try { throw Error(message: 'original') } catch inner { throw inner } } catch outer { print(outer.message) }", "original")]
     [InlineData("try { try { throw Error(message: 'original') } catch inner { throw Error(message: 'replacement') } } catch outer { print(outer.message) }", "replacement")]
     [InlineData("err: string = 'outer'; try { throw Error(message: 'inner') } catch err { print(err.message) }; print(err)", "inner\nouter")]
@@ -21,8 +21,8 @@ public partial class CompilerTests
     [InlineData("try { powershell<void>('Missing-Auvil-Command') }\ncatch err { print('missing') }", "missing")]
     [InlineData("try { print(2147483647 + 1) } catch err { print('overflow') }", "overflow")]
     [InlineData("try { powershell<void>('pwsh', '-NoLogo', '-NoProfile', '-Command', 'exit 0'); print('success') } catch err { print('wrong') }", "success")]
-    [InlineData("struct S { n: int; func fail(): void { self.n = 2; throw Error(message: 'failure') } }; s: S = S(n: 1); try { s.fail() } catch err { print(s.n) }", "2")]
-    [InlineData("func message(err: Error): string { err.message = 'local'; return err.message }; try { throw Error(message: 'original') } catch err { print(message(err)); print(err.message) }", "local\noriginal")]
+    [InlineData("struct S { n: int; fn fail(): void { self.n = 2; throw Error(message: 'failure') } }; s: S = S(n: 1); try { s.fail() } catch err { print(s.n) }", "2")]
+    [InlineData("fn message(err: Error): string { err.message = 'local'; return err.message }; try { throw Error(message: 'original') } catch err { print(message(err)); print(err.message) }", "local\noriginal")]
     public async Task ExecutesErrorHandling(string source, string expected)
     {
         using var project = new Project();
@@ -44,13 +44,13 @@ public partial class CompilerTests
     [InlineData("try {} catch err { err.message = 1 }")]
     [InlineData("try {} catch err {}; print(err.message)")]
     [InlineData("try { n: int = 1 } catch err { print(n) }")]
-    [InlineData("func f(): int { try { throw Error(message: 'x') } catch err {} }")]
-    [InlineData("func f(): int { try {} catch err { return 1 } }")]
+    [InlineData("fn f(): int { try { throw Error(message: 'x') } catch err {} }")]
+    [InlineData("fn f(): int { try {} catch err { return 1 } }")]
     [InlineData("Error()")]
     [InlineData("Error(message: 1)")]
     [InlineData("Error('wrong')")]
     [InlineData("struct Error {}")]
-    [InlineData("func Error(): void {}")]
+    [InlineData("fn Error(): void {}")]
     [InlineData("Error: int = 1")]
     [InlineData("try: int = 1")]
     [InlineData("try {} catch err { import other }")]
@@ -69,7 +69,7 @@ public partial class CompilerTests
     public async Task RethrowAcrossModulesPreservesOriginAndErrorValueSemantics()
     {
         using var project = new Project();
-        project.Write("service.auv", "func fail(): int {\n    throw Error(message: 'original')\n}\nfunc forward(): int { try { return fail() } catch err { saved: Error = err; saved.message = 'copied'; throw saved } }");
+        project.Write("service.auv", "fn fail(): int {\n    throw Error(message: 'original')\n}\nfunc forward(): int { try { return fail() } catch err { saved: Error = err; saved.message = 'copied'; throw saved } }");
         project.Write("main.auv", "import service\nprint('before'); print(service.forward()); print('unreachable')");
         var result = await RunCli(project, ["run", project.PathFor("main.auv")]);
         Assert.Equal(1, result.ExitCode);
@@ -115,7 +115,7 @@ public partial class CompilerTests
     public async Task ArithmeticAfterFunctionCallReportsCallerLocation()
     {
         using var project = new Project();
-        project.Write("main.auv", "func zero(): int {\n return 0\n}\nprint(1 / zero())");
+        project.Write("main.auv", "fn zero(): int {\n return 0\n}\nprint(1 / zero())");
         var result = await project.Run();
         Assert.Equal(1, result.ExitCode);
         Assert.StartsWith($"{project.PathFor("main.auv")}:4: error:", result.Error);
@@ -126,7 +126,7 @@ public partial class CompilerTests
     public async Task ErrorTypeIsSharedAcrossModulesAndArrayReturnsRemainSingleValues()
     {
         using var project = new Project();
-        project.Write("service.auv", "func relay(err: Error): Error { return err }; func values(): Error[] { try { throw Error(message: 'array') } catch err { return [err] } }");
+        project.Write("service.auv", "fn relay(err: Error): Error { return err }; fn values(): Error[] { try { throw Error(message: 'array') } catch err { return [err] } }");
         project.Write("main.auv", "import service\ntry { throw service.relay(service.values()[0]) } catch err { print(err.message) }");
         var result = await project.Run();
         Assert.Equal(0, result.ExitCode);

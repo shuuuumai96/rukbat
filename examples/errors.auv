@@ -1,4 +1,4 @@
-func require_directory(directory: string): void {
+fn require_directory(directory: string): void {
     if directory == "" {
         throw Error(message: "ディレクトリを指定してください")
     }

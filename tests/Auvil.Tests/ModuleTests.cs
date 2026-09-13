@@ -21,9 +21,9 @@ public partial class CompilerTests
     public async Task SupportsSameFileNamesAndLegacyImportAliases()
     {
         using var project = new Project();
-        project.Write("left/math.auv", "func get(): int { return 1 }");
-        project.Write("right/math.auv", "func get(): int { return 2 }");
-        project.Write("math.auv", "func get(): int { return 3 }");
+        project.Write("left/math.auv", "fn get(): int { return 1 }");
+        project.Write("right/math.auv", "fn get(): int { return 2 }");
+        project.Write("math.auv", "fn get(): int { return 3 }");
         project.Write("main.auv", "import 'left/math.auv' as left\nimport 'right/math.auv' as right\nimport math as local\nprint(left.get()); print(right.get()); print(local.get())");
         var result = await project.Run();
         Assert.True(result.ExitCode == 0, result.Error);
@@ -39,7 +39,7 @@ public partial class CompilerTests
         var cycle = Assert.Single(project.Compile().Diagnostics);
         Assert.Equal("AUV3001", cycle.Code);
         Assert.Equal(Path.GetFullPath(project.PathFor("services/users.auv")), cycle.FilePath);
-        project.Write("services/users.auv", "func load(): int { return 'wrong' }");
+        project.Write("services/users.auv", "fn load(): int { return 'wrong' }");
         var error = Assert.Single(project.Compile().Diagnostics);
         Assert.Equal("AUV2001", error.Code);
         Assert.Equal(Path.GetFullPath(project.PathFor("services/users.auv")), error.FilePath);
@@ -54,10 +54,10 @@ public partial class CompilerTests
     [InlineData("import 'bad\\n.auv' as bad", "AUV3002")]
     [InlineData("import './models' as bad", "AUV3002")]
     [InlineData("import './models/user.auv'", "AUV1000")]
-    [InlineData("import './models/user.auv' as func", "AUV1000")]
+    [InlineData("import './models/user.auv' as fn", "AUV1000")]
     [InlineData("import './models/user.auv' as model\nimport './models/user.auv' as model", "AUV3000")]
     [InlineData("import './models/user.auv' as model\nmodel: int = 1", "AUV2002")]
-    [InlineData("func f(): void { import './models/user.auv' as model }", "AUV3000")]
+    [InlineData("fn f(): void { import './models/user.auv' as model }", "AUV3000")]
     public void RejectsInvalidDirectoryImports(string source, string code)
     {
         using var project = new Project();

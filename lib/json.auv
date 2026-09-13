@@ -1,0 +1,4 @@
+// 空配列と1要素の配列も、必ずJSON配列として出力します。
+fn encode_strings(values: string[]): string {
+    return powershell<string>("ConvertTo-Json", InputObject: values, Compress: true)
+}

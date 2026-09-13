@@ -1,348 +1,82 @@
-# Auvilの言語方針と試作仕様
+# Auvil Language Specification
 
-この文書は現在の試作で実装した規則を記載します。一般的なPowerShell構文はAuvilの文法に含めません。
-目的は、PowerShellの実行基盤とコマンドを利用しながら、通常のプログラムとして読み書き・分割しやすくすることです。
+## Confirmed specification
 
-## コンパイルと実行
+Auvil is a typed, procedural language for Windows system scripting. It is not PowerShell syntax. Successful compilation produces one standalone Windows PowerShell 5.1-compatible `.ps1` file.
 
-- `auvil build input.auv` は型検査して同じ場所に `input.ps1` を生成します。
-- `auvil run input.auv` は同じコンパイルを行い、成功した場合だけ `pwsh -NoLogo -NoProfile -File` で生成物を実行します。
-- `run` は生成先のパスを画面出力せず、スクリプトの標準入出力と呼び出し元のカレントディレクトリを引き継ぎます。
-- コンパイルエラー時は終了コード1で停止し、既存の `.ps1` は変更も実行もしません。CLI引数・入出力・PowerShell起動エラーは2です。
-- 実行できた場合はPowerShellプロセスの終了コードをそのまま返します。未処理のAuvil実行時エラーは説明を標準エラーへ出力して終了コード1になります。
-- PATH上に `pwsh` が必要です。WindowsでリポジトリをPATHに追加していない場合は `.\auvil.cmd run input.auv` を使います。
-- スクリプトへの追加引数は現時点では未対応です。
+## Commands and arguments
 
-## 基本構文
+`auvil build input.auv` writes `input.ps1`. `auvil run input.auv -- arguments...` builds and executes it with Windows PowerShell. `build` does not accept program arguments. A compilation failure exits with code 1 without changing an existing output; command-line and I/O failures exit with code 2.
 
-```text
-name: string = "Taro"
+`args(): string[]` returns the arguments supplied to the entry program. The compiler command, source path, and `--` separator are excluded.
+
+## Declarations and assignment
+
+```auv
+name := "Taro"
 age: int = 30
-active: bool = true
-age = age + 1
+age = 31
 
-func add(a: int, b: int): int {
-    return a + b
-}
-
-func greet(name: string): void {
-    print("Hello, " + name)
-}
-
-if age >= 20 && active {
-    greet(name)
-} else {
-    print("not active")
+fn greet(person: string): void {
+    print("Hello, " + person)
 }
 ```
 
-- 宣言は `名前: 型 = 式`。型と初期値が必要です。
-- 宣言済み変数への再代入は `名前 = 式`。型を変えられません。
-- 引数と関数戻り値にも型注釈が必要です。関数はモジュール直下に定義します。
-- 関数定義の標準表記は `func` です。既存コード向けに `function` も受け付けます。
-- 関数呼び出しは `add(1, 2)`。引数は現在、位置引数だけです。
-- 名前は大文字小文字を区別します。`name` と `Name` は別名です。
-- 関数とstructと変数とimport名を重複させられません。同一スコープ内の再宣言もエラーです。
-- 文は改行または `;` で区切ります。ブロックは `{ ... }` です。
-- 引数リスト、括弧、二項演算子直後では改行できます。
-- コメントは `//` または `#` から行末までです。
-- 文字列は一重・二重引用符。どちらも補間せず、`\n`、`\r`、`\t`、`\\`、`\"`、`\'` を解釈します。
-- `$` やPowerShellのバッククォートは、文字列の中では通常の文字です。
+- `name := value` declares a new variable and infers its type.
+- `name: Type = value` declares a new variable with an explicit type.
+- `name = value` assigns to an existing variable.
+- A declaration requires an initial value. `:=` requires an inferable type; `items := []` is invalid.
+- Redeclaring a name in the same scope is invalid. `:=` never means assignment.
+- `fn` is the only function declaration syntax. Functions are defined at module scope.
 
-## 型と演算子
+Names are case-sensitive. Statements are separated by a newline or `;`. Blocks use braces. Comments begin with `//` or `#`.
 
-| 型 | 値 |
-|---|---|
-| `int` | 符号付き32ビット整数 |
-| `string` | 文字列 |
-| `bool` | `true` / `false` |
-| `void` | 戻り値なし。変数・引数の型には使用不可 |
-| `Error` | `message: string` を持つ組み込みのエラー値 |
+## Not yet specified / TBD
 
-暗黙変換を認めません。`age: int = "30"` はエラーです。
-型なしの宣言や「型不明のまま通す」挙動はありません。
+The following are not confirmed language specification. Existing behavior must not be treated as a public contract: scope and shadowing; array and struct assignment semantics; null; function overloads; main and top-level execution; the error model; equality semantics; implicit conversions; integer arithmetic details; and return omission rules.
 
-| 演算子 | 対応 |
-|---|---|
-| `+ - * / %` | 整数同士。`/` はゼロ方向へ切り捨てる整数除算 |
-| `+` | 文字列同士の連結 |
-| `== !=` | 同じプリミティブ型の値の比較。文字列は大文字小文字を区別 |
-| `< <= > >=` | 整数比較 |
-| `&& \|\| !` | 真偽値。`&&` と `\|\|` は短絡評価 |
-| 単項 `+ -` | 整数 |
+Formatting is not yet specified. A formatter, Tree-sitter grammar, syntax highlighting, and LSP are not implemented.
 
-優先順位は高い方から単項演算、乗除算、加減算、大小比較、等値比較、`&&`、`||` です。
-括弧で明示できます。範囲外の整数リテラルはコンパイルエラーです。
-計算による整数オーバーフローとゼロ除算は実行時エラーです。
+## Current implementation behavior
 
-## 型付き配列とループ
+The following describes the current implementation only. It is not confirmed language specification: the primitive types currently recognized, array operations, control-flow analysis, module initialization, and the PowerShell value boundary.
 
-```text
-values: int[] = [10, 20, 30]
-values[1] = 25
-print(values.length)
+## Types and expressions
 
-for value in values {
-    if value == 10 { continue }
-    print(value)
-    if value == 25 { break }
-}
+The primitive types are `int`, `string`, `bool`, and the return-only type `void`. Auvil also has user-defined `struct` types and typed arrays `T[]`. There are no implicit conversions.
 
-empty: string[] = []
-matrix: int[][] = [[], [1, 2]]
-```
+- Arithmetic operators apply to `int`; division truncates toward zero.
+- `+` concatenates two strings.
+- Equality compares values of the same primitive type and string equality is case-sensitive.
+- Boolean `&&` and `||` short-circuit.
+- Array literals use `[value, ...]`; arrays are fixed length.
+- `items[index]` reads or writes an element, and `items.length` is read-only.
 
-- 型は `T[]`。プリミティブ、struct、他の配列を要素にできます。`void[]` は認めません。
-- リテラルは `[式, 式]`。改行と末尾のカンマを使えます。すべての要素は同じ型です。
-- 宣言・関数引数・戻り値・フィールド・代入先の型がある場所では、空配列 `[]` も使えます。型を確定できない単独の `[]` はエラーです。`:=` は未対応です。
-- `items[index]` で読み書きし、`items.length` で要素数を取得します。lengthは読み取り専用です。
-- 添字はintで、0以上length未満です。負の添字も範囲外も、Auvilのファイル・行を含む実行時エラーになります。添字式は1回だけ評価します。
-- 要素更新は変数を起点にします。`box.users[0].age = 31` や `users[0].birthday()` は元の要素を更新します。一時値への要素代入は認めません。
-- 配列は固定長です。append・削除・スライス・配列同士の比較・配列全体のprintは未対応です。
-- 代入・引数・戻り値では、配列とその中のstruct・配列を深くコピーします。コピー後の変更は元の値へ影響しません。
-- `for item in expression` は配列式を開始時に1回評価し、コピーした配列を先頭から読みます。空配列なら0回です。
-- itemの型は配列の要素型で確定し、ループ内だけで使えます。各itemも値コピーです。itemの変更やループ中の元配列の変更は、残りの反復対象に影響しません。
-- `break` は最も内側のループを終了し、`continue` はその次の反復へ進みます。ループ外ではコンパイルエラーです。
-- ループ内のreturnは関数を終了します。ただしループは0回の場合があるため、ループ内のreturnやthrowだけでは非void関数の全経路が終了するとは認めません。
+## Control flow
 
-## 戻り値と表示
+`if` / `else`, `for item in items`, `break`, `continue`, and `return` are explicit control-flow constructs. A non-void function must return a value on every reachable path. A loop alone does not prove this because it may execute zero times.
 
-```text
-func answer(): int {
-    100                    // 値を捨てる
-    print("calculating")   // 表示する
-    return 42              // 呼び出し側に返す値は42だけ
-}
+## Structs and modules
 
-result: int = answer()
-```
-
-- 非void関数は、すべての経路が値を伴うreturnかthrowで終わる必要があります。
-- `if / else` の両側がreturnかthrowで終わる場合、または後続にreturnかthrowがある場合を認めます。
-- 条件式の定数評価はしません。`if true { return 1 }` だけでは全経路returnと認めません。
-- void関数ではreturnを省略できます。`return` だけで早期終了できます。
-- 関数外のreturnはエラーです。
-- 使わない式や関数呼び出しの結果は捨てます。
-- `print` は1つの値をプロセスの標準出力に表示します。PowerShellの成功出力ストリームには流さないため、関数の戻り値に混ざりません。
-- ホスト向けの表示やPowerShellの警告・情報ストリームは、戻り値とは別に扱われます。
-
-## エラー処理
-
-エラー処理は `try / catch / throw` に統一します。通常の関数の戻り値の型は変えず、未処理のエラーは呼び出し元へ伝わります。関数の型にエラーの発生可能性を記載する仕組みはありません。
-
-```text
-func names(directory: string): string[] {
-    if directory == "" {
-        throw Error(message: "ディレクトリを指定してください")
-    }
-    return powershell<string[]>(
-        "Get-ChildItem", LiteralPath: directory, Name: true
-    )
-}
-
-try {
-    for name in names(".") {
-        print(name)
-    }
-} catch err {
-    print(err.message)
-}
-```
-
-- `Error(message: 式)` でエラー値を生成します。messageは必須のstringです。生成しただけでは処理を中断しません。
-- Errorはすべてのモジュールで同じ組み込み型です。Errorという名前を変数・引数・関数・struct・importの別名・catch変数に使えません。ユーザー定義のエラー型、継承、型別のcatchはありません。
-- Errorは変数・引数・戻り値・フィールド・配列要素として利用でき、structと同じ値コピーの規則に従います。`err.message` の読み書きも可能です。Error全体のprintやPowerShellへの直接送出は、structと同様に認めません。
-- `throw 式` の式はError型に限ります。文字列や任意のstructはthrowできません。最も内側の実行中のtryに対応するcatchへ移り、try内の残りの文は実行しません。
-- `try { ... } catch 名前 { ... }` の形式で、catchは必ず一つです。catch変数の型は常にErrorで、型注釈は書きません。tryとcatchの間の改行は許可します。
-- tryブロックとcatchブロックは別のスコープです。try内で宣言した変数をcatchから参照できません。catch変数はcatch内だけで使え、外側の同名変数を隠せます。
-- catchが最後まで実行された場合は、try/catchの次の文へ進みます。return・break・continueは通常の規則に従います。catch内のエラーを同じcatchが再び捕捉することはありません。
-- `throw err` で再送出できます。捕捉したErrorをコピー、引数渡し、returnしても、再送出時には最初の発生位置を保ちます。messageを変更しても位置は変わりません。新しい位置で別のエラーを発生させる場合は、新しいErrorを生成してthrowします。
-- 非void関数の全経路検査では、try側とcatch側の両方がreturnかthrowで終わる必要があります。その後にreturnかthrowを置く形も認めます。
-- PowerShellの伝播したエラー、取り込み時の型不一致、配列の添字範囲外、ゼロ除算・整数オーバーフローもErrorとして捕捉できます。PowerShell側で明示的に抑制されたエラーは対象外です。
-- 未処理のエラーは `ファイル.auv:行: error: 内容` の形式で標準エラーへ出力し、終了コード1で停止します。PowerShell呼び出し・添字操作・throwはそれぞれの発生位置、その他の実行時エラーは実行中のAuvil文の位置を示します。
-- import先の初期化はエントリーファイルの実行前に行います。import先の初期化失敗をエントリーファイルのtryで捕捉することはできません。回復が必要な処理は関数へ移し、その呼び出しをtryに入れてください。
-- 捕捉によって、すでに行った変数更新やファイル操作が取り消されることはありません。プロセスの強制終了や明示的な終了を回復する仕組みでもありません。
-- `try`・`catch`・`throw` は予約語です。複数のcatch、finally、引数なしのthrow、throws宣言は未対応です。
-
-実行例は `examples/errors.auv` です。
-
-## スコープ
-
-変数は宣言されたモジュール・関数・ifブロック・forブロックのスコープを持ちます。
-内側のスコープでは型付き宣言で外側の同名変数を隠せます。
-単なる再代入は、名前解決で見つかった最も内側の既存変数を更新します。
-関数からモジュール変数を参照・更新できますが、呼び出し元関数のローカル変数は参照しません。
-
-関数定義はモジュールの初期化より先に用意します。トップレベルの実行文は上から実行します。
-関数を経由した初期化前のモジュール変数の読み取りは、現時点ではコンパイル時に検出しません。
-その場合はPowerShellのStrictModeによって実行時に失敗します。モジュール変数の初期化は、それを使う呼び出しより前に書いてください。
-
-## モジュール
-
-```text
-import math
-result: int = math.add(1, 2)
-
-import "./models/user.auv" as model
-import "./services/users.auv" as users
-user: model.User = users.load()
-```
-
-- `import math` は、そのソースファイルと同じディレクトリの `math.auv` を参照します。
-- `import math as calc` で参照名を変えられます。`as` はimport内で別名を導入する語です。既存の変数名などとしての使用は維持します。
-- `import "./models/user.auv" as model` は、importを書いたファイルからの相対パスで参照します。文字列パスでは `.auv` 拡張子と別名が必須です。一重引用符も使えます。
-- `../` で親ディレクトリを参照できます。`./` は省略できます。Windowsでも区切りは `/` を使います。絶対パス、バックスラッシュ、コロン、制御文字は認めません。
-- CLIのカレントディレクトリやPATHを、モジュール探索に使いません。
-- すべてのimportは静的に解決します。依存先の初期化後に、そのモジュールの実行文を実行します。
-- 同じファイルは、生成したスクリプトの1回の実行につき1回だけ初期化します。
-- ファイルの識別には `.` と `..` を正規化した絶対パスを使います。別名や相対パスが違っても同じパスならモジュール状態とstruct型を共有します。シンボリックリンク経由の同一性は解決しません。
-- 循環import、同じ参照名の重複import、存在しないモジュールはコンパイルエラーです。同じファイルを異なる別名で参照することは認めます。
-- モジュール直下の関数とstructを公開します。`model.User` の型名と `model.User(name: ..., age: ...)` の生成を使えます。モジュール変数の直接公開は行いません。
-- `math.add(...)` の引数・戻り値も静的に検査します。
-- 関数内・if内のimport、`from ... import ...`、ディレクトリ全体の自動読み込み、パッケージ探索・配布は未対応です。ディレクトリ内でも1ファイルが1モジュールです。
-- 依存ソースを含めて1つの `.ps1` にまとめます。実行時に `.auv` やAuvilのコンパイラは不要です。
-
-実行時はPowerShellの動的モジュールを使って名前空間を分離します。
-Auvilの名前は生成時に内部名へ変換するため、PowerShellの予約変数や名前の大文字小文字の扱いに影響されません。
-
-## PowerShellとの接続
-
-```text
-year: string = powershell<string>("Get-Date", Format: "yyyy")
-value: int = powershell<int>("Write-Output", 42)
-powershell<void>("Write-Output", "discard this result")
-```
-
-`powershell<T>` はコンパイラ組み込み構文です。一般的なジェネリクスを実装したものではありません。
-
-- 最初の位置引数はコマンド名の文字列です。以降は位置引数、続いて `名前: 値` の名前付き引数を渡せます。
-- コマンド名をコードとして評価しません。PowerShellの呼び出し演算子とスプラッティングで値として渡します。
-- `int / string / bool` とstructは、成功出力がちょうど1個で、指定した型の検査に通る場合だけ受け取ります。
-- 単一値を要求して0個・複数個の結果が返る場合や、結果の型が異なる場合は、呼び出し元のAuvilファイルと行を含む実行時エラーです。
-- `void` は成功出力を捨てます。PowerShellのエラーは捨てません。
-- PowerShellのコマンドや既存モジュールの探索・引数バインドはPowerShellに委譲します。
-- コマンドが返す型や引数名の正しさを、コンパイル時に調査・推論することはありません。
-- 必要なPowerShellモジュールは実行環境に用意してください。生成物には外部モジュールを含めません。
-- `powershell<T>` で直接呼び出すネイティブ実行ファイルは、終了コード0を成功、それ以外をErrorにします。ネイティブ実行ファイルへのPowerShellエイリアスも同じ規則です。出力の個数・型の検査より先に終了コードを検査し、voidでも失敗を捨てません。
-- catchで処理した場合は後続の処理を続けられます。未処理ならAuvilの終了コードは1で、外部コマンド名と元の終了コードを説明に含めます。非ゼロを正常な結果とするコマンドも、この接続方法ではErrorになります。成功コードのカスタマイズは未対応です。
-- PowerShell関数・スクリプトの内部で実行されたネイティブコマンドの終了判定は、その関数・スクリプト側の責任です。パイプライン構文は未対応です。
-
-### 外部オブジェクトの取り込み
-
-```text
-struct User {
-    name: string
-    age: int
-}
-
-users: User[] = powershell<User[]>(
-    "ConvertFrom-Json",
-    '[{"name":"Taro","age":30},{"name":"Hanako","age":25}]'
-)
-
-for user in users {
-    print(user.name)
-    print(user.age)
-}
-```
-
-- `powershell<T[]>` は成功出力の0個・1個・複数個を、常に配列として受け取ります。
-- 最外層はPowerShellの成功出力ストリームそのものです。コマンドが配列を1つの値として出力する場合、それをさらに平坦化しません。`ConvertFrom-Json` の一覧には通常の列挙動作を使い、`NoEnumerate: true` は付けません。
-- `powershell<User>` はちょうど1個のオブジェクトを受け取ります。`powershell<User[]>` は各結果をUserとして検査します。importしたstructも指定できます。
-- structのフィールド名と外部のプロパティ名／辞書の文字列キーを、大文字小文字も含めて一致させます。余分な外部フィールドは無視します。
-- すべての宣言フィールドが必要です。欠損・null・型不一致は実行時エラーです。呼び出し元の位置と `result[1].age` のような要素・フィールドの経路を表示します。
-- ネストしたstructと配列も再帰的に検査します。配列フィールドには実際の.NET配列が必要で、単一値を自動で配列化しません。
-- intには.NET整数型のうち32ビット符号付き整数に収まる値を受け入れます。JSON由来のInt64も対象です。文字列、真偽値、小数、範囲外の整数からは変換しません。stringとboolにも型の一致が必要です。
-- 取り込んだ値はAuvil専用のデータへコピーします。通常のstruct生成と同じく、代入・引数の値コピーとメソッドのself更新を使えます。
-- PowerShellへ渡す引数はプリミティブとその配列（ネストを含む）に対応します。配列は1つの引数としてコピーして渡します。structおよびstructを含む配列の送出は未対応です。
-- 生のPowerShellオブジェクトをそのまま保持する型や、汎用的なプロパティアクセスは追加していません。
-
-## structとmethod
-
-```text
+```auv
 struct User {
     name: string
     age: int
 
-    func is_adult(): bool {
+    fn is_adult(): bool {
         return self.age >= 20
     }
-
-    func birthday(): void {
-        self.age = self.age + 1
-    }
 }
-
-a: User = User(name: "Taro", age: 30)
-b: User = a
-b.birthday()
-print(a.age) // 30
-print(b.age) // 31
 ```
 
-### 生成と型
+Struct fields are data. Methods use `fn` and may update `self`. Imports are static and resolved before execution. Relative project modules use an explicit relative `.auv` path and an alias. Standard-library modules use their canonical module names as defined in `STDLIB.md`.
 
-- structはモジュール直下に定義します。フィールドは `name: Type` の形式です。
-- 生成はstruct名と名前付き引数を使います。すべてのフィールドを一度ずつ指定します。順序は自由です。
-- フィールド不足、未知のフィールド、重複、型不一致はコンパイルエラーです。
-- フィールド型にはプリミティブ型、他のstruct、配列を使えます。voidフィールドは認めません。
-- 型は定義元のモジュールとstruct名で識別します。同じフィールド構成でも別のstructには代入できません。
-- 自分自身を直接・間接にフィールドとして含む再帰型は未対応です。配列を介した再帰型も現在は拒否します。
-- フィールド値のデフォルトやユーザー定義constructorはありません。
+## PowerShell boundary
 
-### 値のコピーと変更
+`powershell<T>(command, ...)` is the explicit escape hatch for a PowerShell operation not covered by Auvil. It checks the returned value against `T`; a scalar result requires exactly one value and `T[]` collects values into an array. PowerShell failures and incompatible results are runtime errors.
 
-- 通常の代入、再代入、引数渡し、戻り値、フィールド初期化・代入では、struct全体をコピーします。
-- コピーはネストしたstructにも及びます。文字列・整数・真偽値はそのまま値として扱います。
-- `b: User = a` の後に `b.age = 31` としても `a.age` は変わりません。
-- `x: Address = user.address` は独立したコピーです。一方、`user.address.city = "Tokyo"` はuser内のフィールドを更新します。
-- フィールド代入の左辺は変数から始まるフィールドパスに限定します。`make().age = 31` のような一時値への代入はエラーです。
+Generated scripts do not require the Auvil compiler or a PowerShell 7 installation. PowerShell is the target implementation, not part of Auvil source syntax or standard-library semantics.
 
-### methodとself
+## Current exclusions
 
-- methodはstructの内部に `func` で定義します。引数・戻り値の型表記は通常関数と同じです。
-- `self` はメソッド内だけで使えます。引数に書く必要はありません。self自体の再代入や同名の宣言は認めません。
-- `self.field = ...` は呼び出した変数のフィールドを更新します。メソッドの受け手だけは通常引数と異なり、更新対象を渡します。
-- `b: User = a; b.birthday()` はbだけを変更します。通常の引数にstructを渡した場合はコピーなので、引数を変更しても呼び出し元は変わりません。
-- ネストした受け手 `box.user.birthday()` はbox内のuserを更新します。
-- 一時値への `User(...).birthday()` も呼べますが、変更はその一時値に限定されます。
-- `return self` や `snapshot: User = self` は値コピーです。呼び出し元への共有参照を返しません。
-- メソッドも明示returnだけを返します。引数は通常関数と同様に位置引数です。
-- フィールドとメソッドで同名を使えません。継承・override・static・access modifierはありません。
-
-### バックエンドと現在の範囲
-
-structは内部キーを持つPowerShellのhashtableとして生成します。値の受け渡しで深いコピーを挟み、参照の共有をAuvilへ漏らしません。
-メソッドは定義元モジュールの関数に変換し、型検査時に呼び出し先を確定します。動的なmethod dispatchやPowerShell classは使いません。
-独立IRは増やさず、既存ASTと型検査結果をコード生成に使用します。
-
-コピーのコストはフィールド数とネストの大きさに比例します。コピー最適化は未実装です。
-structの比較、struct全体のprint、PowerShellへの直接送出は未対応としてコンパイル時に拒否します。PowerShellからの取り込みは指定したstruct型で検査します。
-`print(user.name)` や `powershell<string>("Write-Output", user.name)` のようにプリミティブのフィールドを使ってください。
-
-## コンパイラの構成
-
-| ファイル | 責務 |
-|---|---|
-| `Syntax.cs` | ソース位置、診断、型、AST、モジュールのデータ構造 |
-| `Lexer.cs` | コメント・文字列・演算子を区別する字句解析 |
-| `Parser.cs` | 文の再帰下降解析と式の優先順位解析 |
-| `ModuleLoader.cs` | ファイル解決、依存関係と循環の検査、初期化順序 |
-| `TypeChecker.cs` | 名前解決、スコープ、明示型、引数、returnの検査 |
-| `ArrayChecking.cs` | 配列リテラルと添字の型検査 |
-| `RuntimeEmission.cs` | 配列・structのコピー、添字検査、外部データの実行時検査と変換 |
-| `ErrorEmission.cs` | エラー値への変換、再送出時の発生位置保持、関数・モジュールのエラー伝播 |
-| `StructChecking.cs` | struct型登録、フィールドとメソッドの解決、生成と値型の循環検査 |
-| `Emitter.cs` | 検査済みASTからPowerShellのモジュール・関数・式を生成 |
-| `Compiler.cs` | 段階の統括、生成PowerShellの構文検証 |
-| `Program.cs` | CLIとファイル入出力 |
-
-`Compiler.Compile(source)` は単一のメモリ上のソースを扱います。
-`Compiler.CompileFile(path)` はエントリーファイルとimport先を扱います。
-いずれも失敗時の `CompilationResult.Output` はnullです。
-
-## この試作に含めないもの
-
-型推論（`:=`）、汎用オブジェクト型、union型、パイプライン解析、型別catch・finally、関数値、クロージャ、パッケージ配布、ソースマップ、IDE連携。
-PowerShellの型注釈を外す旧プロトタイプとの構文互換性も維持しません。
-まず「普通に書ける」「別ファイルへ分けられる」「PowerShellの処理につなげられる」という一連の使い勝手を評価します。
+Auvil does not provide union types, arbitrary object types, pipelines, closures, function values, package management, multiple catch clauses, `finally`, or generic language syntax. Standard-library API design is specified separately and must not be inferred from the current compiler layout.

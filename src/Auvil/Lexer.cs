@@ -94,7 +94,7 @@ internal sealed class Lexer(Source source)
             else
             {
                 var pair = c.ToString() + Peek();
-                if (pair is "==" or "!=" or "<=" or ">=" or "&&" or "||")
+                if (pair is ":=" or "==" or "!=" or "<=" or ">=" or "&&" or "||")
                 {
                     position++;
                     tokens.Add(new(pair, start));

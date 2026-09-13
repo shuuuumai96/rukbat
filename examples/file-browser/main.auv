@@ -1,14 +1,17 @@
 import "./services/file-listing.auv" as listing
+import "./options.auv" as options
+import "../../lib/files.auv" as files
+import "../../lib/json.auv" as json
 
-print("Auvil file browser")
-directory: string = powershell<string>("Read-Host", Prompt: "Directory path")
-items: string[] = listing.names(directory)
-
-if items.length == 0 {
-    print("No items found.")
+settings: options.Options = options.parse(args())
+if settings.help {
+    print(options.usage())
 } else {
-    print("Items:")
-    for item in items {
-        print(item)
+    items: string[] = listing.matching_files(settings.directory, settings.pattern)
+    output: string = json.encode_strings(items)
+    if settings.output == "" {
+        print(output)
+    } else {
+        files.write_text(settings.output, output)
     }
 }

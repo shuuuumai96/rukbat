@@ -4,7 +4,7 @@ struct User {
     name: string
     age: int
 
-    func is_adult(): bool {
+    fn is_adult(): bool {
         return self.age >= 20
     }
 }

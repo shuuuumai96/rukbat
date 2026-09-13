@@ -9,7 +9,7 @@
 `math.auv`:
 
 ```text
-func add(a: int, b: int): int {
+fn add(a: int, b: int): int {
     return a + b
 }
 ```
@@ -23,7 +23,7 @@ struct User {
     name: string
     age: int
 
-    func is_adult(): bool {
+    fn is_adult(): bool {
         return self.age >= 20
     }
 }
@@ -50,7 +50,7 @@ print(year)
 
 ## 実行
 
-ビルドには .NET 8 SDK、生成スクリプトの実行には PowerShell 7.4以降が必要です。
+ビルドには .NET 8 SDK、生成スクリプトの実行には Windows PowerShell 5.1 以降が必要です。
 初回の依存パッケージ復元にはネットワーク接続が必要です。
 
 ```powershell
@@ -70,9 +70,13 @@ auvil run examples/import-data.auv
 .\build examples/hello.auv
 ```
 
-`run` は型検査・コンパイルに成功した場合だけ、生成した `.ps1` を `pwsh -NoLogo -NoProfile -File` で実行します。
+`run` は型検査・コンパイルに成功した場合だけ、生成した `.ps1` を `powershell -NoLogo -NoProfile -File` で実行します。
 実行時は呼び出し元のカレントディレクトリと標準入出力を引き継ぎ、PowerShellプロセスの終了コードを返します。
-コンパイルエラー時は、古い `.ps1` が残っていても実行しません。PATH上に `pwsh` が必要です。
+コンパイルエラー時は、古い `.ps1` が残っていても実行しません。PATH上に Windows PowerShell の `powershell` が必要です。
+
+`auvil run input.auv -- 引数...` で、`--` より後ろを実行するプログラムへ渡せます。
+Auvil側は `args(): string[]` で取得します。引数がなければ空配列です。
+生成済みの `.ps1` を直接実行する場合は `powershell -File input.ps1 引数...` です。
 
 `build` と `run` の出力先はエントリーファイルと同じディレクトリの同名 `.ps1` です。
 成功時は上書きします。構文・型・importエラー時は出力せず、既存の出力も変更しません。
@@ -103,14 +107,15 @@ dotnet publish src/Auvil -c Release -o artifacts/auvil
 既存 `.ps1` の構文互換性より、Auvilとしての書き味と動作の一貫性を優先します。
 
 現在の型は `int`、`string`、`bool`、戻り値用の `void`、組み込みの `Error`、ユーザー定義の `struct` と型付き配列 `T[]` です。
-structは名前付き引数で生成し、フィールド操作と内部の `func` メソッドを利用できます。
+structは名前付き引数で生成し、フィールド操作と内部の `fn` メソッドを利用できます。
 代入・引数・戻り値ではネストしたフィールドまで値コピーします。メソッドの `self` は呼び出した変数を更新します。
 `examples/value-semantics.auv` でコピー元が変わらない動作を確認できます。
-通常関数も `func` を標準表記とし、旧 `function` は互換表記として受け付けます。
+通常関数とstructメソッドは `fn` で定義します。`func` と `function` は受け付けません。
 配列リテラル `[1, 2]`、添字の読み書き、`.length`、`for item in items`、`break`、`continue` を使えます。
 `powershell<User[]>` で外部の複数オブジェクトを型検査して取り込めます。配列もネストした要素まで値コピーします。
-型推論（`:=`）・汎用オブジェクト型・union型・パイプライン解析・パッケージ管理は実装していません。
-詳細な構文、モジュールの規則、制限は [言語仕様](docs/language.md) を参照してください。
+型推論付き宣言は `name := "Taro"` と書きます。`:=` は新規宣言だけに使え、既存変数への代入には使えません。
+汎用オブジェクト型・union型・パイプライン解析・パッケージ管理は実装していません。
+詳細な構文、モジュールの規則、制限は [言語仕様](docs/LANGUAGE.md) を参照してください。
 
 ## ディレクトリで処理を分ける
 
@@ -145,25 +150,32 @@ print(user.name)
 .\auvil.cmd run examples/app/main.auv
 ```
 
-## 作れるCLIの例: 対話式ファイル一覧
+## 作れるCLIの例: ファイル一覧をJSONへ出力
 
-`examples/file-browser` は、入力したディレクトリにある項目名を表示する小さなCLIです。
-エントリーファイルとPowerShell呼び出しを分けているため、一覧取得の処理を他のCLIからも再利用できます。
+`examples/file-browser` は、引数で指定したディレクトリ直下のファイルを絞り込み、名前の一覧をJSON配列で出力するCLIです。
+エントリーファイル、引数の検査、一覧取得、共通ライブラリを別モジュールに分けています。
 
 ```powershell
-.\auvil.cmd run examples/file-browser/main.auv
+# README.mdなど、直下のMarkdownファイル名を標準出力へ
+.\auvil.cmd run examples/file-browser/main.auv -- . --pattern '*.md'
+# JSONファイルへ保存
+.\auvil.cmd run examples/file-browser/main.auv -- . --pattern '*.md' --output files.json
+# ヘルプ
+.\auvil.cmd run examples/file-browser/main.auv -- --help
 ```
 
-```text
-Auvil file browser
-Directory path: .
-Items:
-README.md
-src
-tests
+```json
+["README.md"]
 ```
 
-これは現時点でのAuvilが得意な形です。対話入力は `powershell<string>("Read-Host", ...)`、OS機能の呼び出しは `powershell<T>(...)` に集約し、値の加工や表示をAuvilで書けます。生成したCLIへ追加引数を渡す機能は未対応です。
+最初の引数にディレクトリを指定します。`--pattern` は省略すると `*` です。PowerShellのファイルシステムFilterを利用し、サブディレクトリを再帰的には調べません。通常は隠しファイルを含めず、名前の並び順は保証しません。
+一致するファイルが0件なら `[]`、1件でもJSON配列になります。通常の標準出力にはJSONだけを出します。
+`--output` の指定時は標準出力を空にして保存します。テキストのエンコーディングとBOM方針は、標準ライブラリ仕様では未確定です。
+パスは実行時のカレントディレクトリが基準です。空白のあるパスやパターンは引用符で囲んでください。
+引数の不足・不明なオプション・ディレクトリの参照失敗・保存失敗は、説明を標準エラーへ出し、終了コード1になります。成功とヘルプ表示は0です。
+
+`lib/files.auv` はファイル一覧取得とテキスト保存、`lib/json.auv` は文字列配列のJSON化を型付き関数として提供します。別のAuvilプログラムからも相対importで利用できます。
+これらはリポジトリに含めた小さなライブラリです。自分のプロジェクトへコピーして使うこともでき、コンパイル後は生成された一つの `.ps1` に含まれます。詳しいAPIは [ライブラリの説明](lib/README.md) を参照してください。
 
 ## 配列・ループと外部データ
 
@@ -224,6 +236,6 @@ regex置換や入力スクリプトの実行には依存しません。
 dotnet test
 ```
 
-テストには構文・型・診断位置・CLIに加え、生成した `.ps1` を実際に `pwsh` で実行する検証を含みます。
-`pwsh` をPATHに用意してください。実行テストを黙ってスキップすることはありません。
+テストには構文・型・診断位置・CLIに加え、生成した `.ps1` を実際に Windows PowerShell 5.1 と PowerShell 7 で実行する検証を含みます。
+`powershell` と `pwsh` をPATHに用意してください。実行テストを黙ってスキップすることはありません。
 structの値コピーとself更新、明示return、スコープ、PowerShellとの型境界、共有モジュールの初期化、ソースファイルなしでの実行を検証します。

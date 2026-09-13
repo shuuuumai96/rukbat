@@ -18,17 +18,19 @@ public partial class CompilerTests
 
     [Theory]
     [InlineData("name: string = 'Taro'\nage: int = 30")]
-    [InlineData("function add(a: int, b: int): int { return a + b }\nprint(add(2, 3))")]
+    [InlineData("name := 'Taro'\nage := 30\nactive := true")]
+    [InlineData("items := [1, 2]\nprint(items.length)")]
+    [InlineData("fn add(a: int, b: int): int { return a + b }\nprint(add(2, 3))")]
     [InlineData("flag: bool = true && !false\nif flag { print('ok') } else { print('no') }")]
-    [InlineData("function f(): void { print('ok'); return }")]
-    [InlineData("function f(x: int): int { if x > 0 { return x } else { return -x } }")]
+    [InlineData("fn f(): void { print('ok'); return }")]
+    [InlineData("fn f(x: int): int { if x > 0 { return x } else { return -x } }")]
     [InlineData("x: int = -2147483648\ny: int = 2147483647")]
-    [InlineData("function f(): string { return 'line\\nquote\\\" apostrophe\\\' slash\\\\' }")]
+    [InlineData("fn f(): string { return 'line\\nquote\\\" apostrophe\\\' slash\\\\' }")]
     [InlineData("// return fake(): int {\n# name: int = 'bad'\ns: string = '$x: int; $(throw); { return }'")]
     [InlineData("year: string = powershell<string>('Get-Date', Format: 'yyyy')")]
-    [InlineData("function f(\n a: int,\n b: int\n): int { return a +\n b }\nprint(f(\n1,\n2\n))")]
-    [InlineData("function f(): int { return 1 }\nfunction F(): int { return 2 }\nprint(f() + F())")]
-    [InlineData("x: int = 1\nfunction f(x: string): string { return x }")]
+    [InlineData("fn f(\n a: int,\n b: int\n): int { return a +\n b }\nprint(f(\n1,\n2\n))")]
+    [InlineData("fn f(): int { return 1 }\nfn F(): int { return 2 }\nprint(f() + F())")]
+    [InlineData("x: int = 1\nfn f(x: string): string { return x }")]
     public void AcceptsModernSyntax(string source) => Success(source);
 
     [Theory]
@@ -41,6 +43,8 @@ public partial class CompilerTests
     [InlineData("x: int = missing")]
     [InlineData("x: int = x")]
     [InlineData("x: int = 1\nx: int = 2")]
+    [InlineData("x := 1\nx := 2")]
+    [InlineData("items := []")]
     [InlineData("x: void = print('hello')")]
     [InlineData("x: int = true + 1")]
     [InlineData("x: int = 'hello' - 'world'")]
@@ -50,18 +54,18 @@ public partial class CompilerTests
     [InlineData("x: int = -true")]
     [InlineData("if 1 { print('bad') }")]
     [InlineData("if true { x: int = 1 }\nprint(x)")]
-    [InlineData("function f(): int { return 'bad' }")]
-    [InlineData("function f(): int { return }")]
-    [InlineData("function f(): int { 1 }")]
-    [InlineData("function f(x: bool): int { if x { return 1 } }")]
-    [InlineData("function f(): void { return 1 }")]
-    [InlineData("function f(x: void): void {}")]
-    [InlineData("function f(x: int, x: int): int { return x }")]
-    [InlineData("function f(): int { return 1 }; function f(): int { return 2 }")]
-    [InlineData("function f(x: int): int { return x }\nf('bad')")]
-    [InlineData("function f(x: int): int { return x }\nf()")]
-    [InlineData("function f(x: int): int { return x }\nf(1, 2)")]
-    [InlineData("function f(x: int): int { return x }\nf(x: 1)")]
+    [InlineData("fn f(): int { return 'bad' }")]
+    [InlineData("fn f(): int { return }")]
+    [InlineData("fn f(): int { 1 }")]
+    [InlineData("fn f(x: bool): int { if x { return 1 } }")]
+    [InlineData("fn f(): void { return 1 }")]
+    [InlineData("fn f(x: void): void {}")]
+    [InlineData("fn f(x: int, x: int): int { return x }")]
+    [InlineData("fn f(): int { return 1 }; fn f(): int { return 2 }")]
+    [InlineData("fn f(x: int): int { return x }\nf('bad')")]
+    [InlineData("fn f(x: int): int { return x }\nf()")]
+    [InlineData("fn f(x: int): int { return x }\nf(1, 2)")]
+    [InlineData("fn f(x: int): int { return x }\nf(x: 1)")]
     [InlineData("return 1")]
     [InlineData("missing()")]
     [InlineData("missing.f()")]
@@ -81,18 +85,29 @@ public partial class CompilerTests
         Assert.Contains(result.Diagnostics, d => d.Code.StartsWith("AUV2"));
     }
 
+    [Fact]
+    public void InferredDeclarationIsADeclarationRatherThanAssignment()
+    {
+        var result = Compile("x: int = 1\nx := 2");
+        var error = Assert.Single(result.Diagnostics);
+        Assert.Equal("AUV2002", error.Code);
+        Assert.Contains("Duplicate declaration 'x'", error.Message);
+    }
+
     [Theory]
     [InlineData("$name: string = 'Taro'")]
-    [InlineData("function f() { return 1 }")]
-    [InlineData("function f(): int { return 1")]
-    [InlineData("function f(): void { function g(): void {} }")]
+    [InlineData("fn f() { return 1 }")]
+    [InlineData("fn f(): int { return 1")]
+    [InlineData("fn f(): void { function g(): void {} }")]
+    [InlineData("func value(): int { return 1 }")]
+    [InlineData("function value(): int { return 1 }")]
     [InlineData("x: object = 'bad'")]
     [InlineData("x: int = 2147483648")]
     [InlineData("x: string = 'not closed")]
     [InlineData("x: string = 'bad\\q'")]
     [InlineData("x: int = 1 y: int = 2")]
     [InlineData("import '../outside'")]
-    [InlineData("function print(): void {}")]
+    [InlineData("fn print(): void {}")]
     public void RejectsUnsupportedSyntax(string source)
     {
         var result = Compile(source);
@@ -116,7 +131,7 @@ public partial class CompilerTests
     {
         using var project = new Project();
         project.Write("main.auv", "import math\nprint(math.add(1, 2))");
-        project.Write("math.auv", "function add(a: int, b: int): int { return 'bad' }");
+        project.Write("math.auv", "fn add(a: int, b: int): int { return 'bad' }");
         var result = project.Compile();
         var error = Assert.Single(result.Diagnostics);
         Assert.Equal(project.PathFor("math.auv"), error.FilePath);
@@ -128,7 +143,7 @@ public partial class CompilerTests
     {
         using var project = new Project();
         project.Write("main.auv", "import math\nprint(math.add('bad', 2))");
-        project.Write("math.auv", "function add(a: int, b: int): int { return a + b }");
+        project.Write("math.auv", "fn add(a: int, b: int): int { return a + b }");
         Assert.Contains(project.Compile().Diagnostics, d => d.Code == "AUV2001");
     }
 
@@ -141,22 +156,22 @@ public partial class CompilerTests
         project.Write("main.auv", "import other");
         project.Write("other.auv", "import main");
         Assert.Contains(project.Compile().Diagnostics, d => d.Code == "AUV3001");
-        project.Write("other.auv", "function f(): int { return 1 }");
+        project.Write("other.auv", "fn f(): int { return 1 }");
         project.Write("main.auv", "import other\nimport other");
         Assert.Contains(project.Compile().Diagnostics, d => d.Code == "AUV3000");
-        project.Write("main.auv", "function f(): void { import other }");
+        project.Write("main.auv", "fn f(): void { import other }");
         Assert.Contains(project.Compile().Diagnostics, d => d.Code == "AUV3000");
         Assert.Contains(Compile("import other").Diagnostics, d => d.Code == "AUV3000");
     }
 
     [Theory]
-    [InlineData("function f(): int { 99; powershell<int>('Write-Output', 88); print('log'); return 7 }\nx: int = f(); print(x)", "log\n7")]
-    [InlineData("function f(): void { 99; powershell<int>('Write-Output', 88) }; f(); print('done')", "done")]
+    [InlineData("fn f(): int { 99; powershell<int>('Write-Output', 88); print('log'); return 7 }\nx: int = f(); print(x)", "log\n7")]
+    [InlineData("fn f(): void { 99; powershell<int>('Write-Output', 88) }; f(); print('done')", "done")]
     [InlineData("x: int = 1\nfunction f(): int { x: int = 2; return x }\nprint(f()); print(x)", "2\n1")]
     [InlineData("x: int = 1\nif true { x: int = 2; print(x) }; print(x)", "2\n1")]
     [InlineData("x: int = 1\nX: int = 2\nprint(x + X)", "3")]
-    [InlineData("function f(): int { return 1 }; function F(): int { return 2 }; print(f() + F())", "3")]
-    [InlineData("function f(n: int): int { if n <= 1 { return 1 } else { return n * f(n - 1) } }; print(f(5))", "120")]
+    [InlineData("fn f(): int { return 1 }; fn F(): int { return 2 }; print(f() + F())", "3")]
+    [InlineData("fn f(n: int): int { if n <= 1 { return 1 } else { return n * f(n - 1) } }; print(f(5))", "120")]
     [InlineData("print(2 + 3 * 4); print(-7 / 2); print('A' == 'a'); print(true && !false)", "14\n-3\nFalse\nTrue")]
     [InlineData("print('$x; $(throw) `n'); print('it\\'s fine')", "$x; $(throw) `n\nit's fine")]
     [InlineData("print(powershell<string>('Write-Output', 'hello')); print(powershell<int>('Write-Output', 42)); print(powershell<bool>('Write-Output', false))", "hello\n42\nFalse")]
@@ -287,7 +302,7 @@ public partial class CompilerTests
             var result = Compile(); Assert.True(result.Success, string.Join("\n", result.Diagnostics));
             return RunOutput(result.Output!);
         }
-        public async Task<RunResult> RunOutput(string output)
+        public async Task<RunResult> RunOutput(string output, params string[] arguments)
         {
             Write("main.ps1", output);
             var info = new ProcessStartInfo("pwsh")
@@ -296,6 +311,24 @@ public partial class CompilerTests
                 WorkingDirectory = Path.GetTempPath(), CreateNoWindow = true
             };
             foreach (var argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-File", PathFor("main.ps1") }) info.ArgumentList.Add(argument);
+            foreach (var argument in arguments) info.ArgumentList.Add(argument);
+            using var process = Process.Start(info)!;
+            var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            try { await process.WaitForExitAsync(timeout.Token); }
+            catch (OperationCanceledException) { process.Kill(true); throw new TimeoutException("Generated PowerShell did not finish in 20 seconds."); }
+            return new(process.ExitCode, (await stdout).Replace("\r\n", "\n"), await stderr);
+        }
+        public async Task<RunResult> RunOutputWithWindowsPowerShell(string output, params string[] arguments)
+        {
+            Write("main.ps1", output);
+            var info = new ProcessStartInfo("powershell")
+            {
+                UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
+                WorkingDirectory = Path.GetTempPath(), CreateNoWindow = true
+            };
+            foreach (var argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-File", PathFor("main.ps1") }) info.ArgumentList.Add(argument);
+            foreach (var argument in arguments) info.ArgumentList.Add(argument);
             using var process = Process.Start(info)!;
             var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));

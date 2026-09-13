@@ -2,7 +2,7 @@ struct User {
     name: string
     age: int
 
-    func birthday(): void {
+    fn birthday(): void {
         self.age = self.age + 1
     }
 }

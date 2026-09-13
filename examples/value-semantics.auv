@@ -1,7 +1,7 @@
 struct Counter {
     value: int
 
-    func increment(): void {
+    fn increment(): void {
         self.value = self.value + 1
     }
 }

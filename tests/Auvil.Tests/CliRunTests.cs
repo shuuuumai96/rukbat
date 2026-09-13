@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 
 namespace Auvil.Tests;
 
@@ -8,7 +9,7 @@ public partial class CompilerTests
     public async Task CliRunCompilesImportsAndHandlesPathsWithSpaces()
     {
         using var project = new Project();
-        project.Write("math.auv", "func add(a: int, b: int): int { return a + b }");
+        project.Write("math.auv", "fn add(a: int, b: int): int { return a + b }");
         project.Write("run input.auv", "import math\nprint(math.add(2, 3)); print(powershell<string>('Get-Content', 'data.txt', Raw: true))");
         project.Write("data.txt", "relative path");
         var result = await RunCli(project, ["run", project.PathFor("run input.auv")]);
@@ -60,7 +61,7 @@ public partial class CompilerTests
         project.Write("main.auv", "print('hello')");
         var result = await RunCli(project, ["run", project.PathFor("main.auv")], hidePowerShell: true);
         Assert.Equal(2, result.ExitCode);
-        Assert.Contains("Could not start pwsh", result.Error);
+        Assert.Contains("Could not start Windows PowerShell", result.Error);
         Assert.Equal("", result.Output);
     }
 
@@ -69,6 +70,8 @@ public partial class CompilerTests
     [InlineData("unknown", "main.auv")]
     [InlineData("run", "main.ps1")]
     [InlineData("run", "main.auv", "unexpected")]
+    [InlineData("build", "main.auv", "--")]
+    [InlineData("build", "main.auv", "--", "argument")]
     public void CliRunRejectsInvalidArguments(params string[] args)
     {
         using var error = new StringWriter();
@@ -88,7 +91,8 @@ public partial class CompilerTests
         var info = new ProcessStartInfo(host)
         {
             UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
-            CreateNoWindow = true, WorkingDirectory = project.DirectoryPath
+            CreateNoWindow = true, WorkingDirectory = project.DirectoryPath,
+            StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8
         };
         info.ArgumentList.Add(typeof(Cli).Assembly.Location);
         foreach (var argument in args) info.ArgumentList.Add(argument);

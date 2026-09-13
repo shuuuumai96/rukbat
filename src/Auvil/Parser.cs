@@ -62,9 +62,9 @@ internal sealed class Parser(Source source, List<Token> tokens)
     }
 
     private static bool IsReservedWord(string text) => text is
-        "function" or "func" or "struct" or "self" or "class" or
+        "fn" or "function" or "func" or "struct" or "self" or "class" or
         "return" or "if" or "else" or "import" or "true" or "false" or
-        "powershell" or "print" or "for" or "in" or "break" or "continue" or
+        "powershell" or "print" or "args" or "for" or "in" or "break" or "continue" or
         "try" or "catch" or "throw";
     public List<Statement> Parse()
     {
@@ -161,7 +161,7 @@ internal sealed class Parser(Source source, List<Token> tokens)
         var methods = new List<Function>();
         while (Current.Text is not ("}" or "<eof>"))
         {
-            if (Match("func") || Match("function"))
+            if (Match("fn"))
             {
                 methods.Add(FunctionDeclaration());
             }
@@ -190,7 +190,7 @@ internal sealed class Parser(Source source, List<Token> tokens)
             return StructDeclaration();
         }
 
-        if (Match("func") || Match("function"))
+        if (Match("fn"))
         {
             return FunctionDeclaration();
         }
@@ -237,6 +237,13 @@ internal sealed class Parser(Source source, List<Token> tokens)
             Expect("=");
             NewLines();
             return new Variable(name, type, Expression());
+        }
+        if (Next.Text == ":=")
+        {
+            var name = Identifier();
+            Expect(":=");
+            NewLines();
+            return new Variable(name, ValueType.Error, Expression(), true);
         }
         if (Next.Text == "=")
         {
@@ -409,9 +416,9 @@ internal sealed class Parser(Source source, List<Token> tokens)
             Expect(">");
             return new Call(token, null, "powershell", Arguments(), type);
         }
-        if (Match("print"))
+        if (Match("print") || Match("args"))
         {
-            return new Call(token, null, "print", Arguments());
+            return new Call(token, null, token.Text, Arguments());
         }
 
         if (Match("self"))

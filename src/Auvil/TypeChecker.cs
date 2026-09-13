@@ -107,9 +107,9 @@ internal sealed partial class TypeChecker
                     Error("AUV1002", "Nested functions are not supported yet.", function);
                     break;
                 case Variable variable:
-                    var declaredType = BindType(variable.Type, variable);
+                    var declaredType = variable.IsInferred ? null : BindType(variable.Type, variable);
                     var actual = TypeOf(variable.Value, scope, declaredType);
-                    Declare(variable, variable.Type, scope, topLevel);
+                    Declare(variable, declaredType ?? actual, scope, topLevel);
                     Match(Variables[variable].Type, actual, variable.Value);
                     break;
                 case Assignment assignment:
@@ -294,12 +294,20 @@ internal sealed partial class TypeChecker
 
     private ValueType CallType(Call call, Symbols scope)
     {
-        if (call.PowerShellType is null && (call.Receiver is not null || call.Name != "print"))
+        if (call.PowerShellType is null && (call.Receiver is not null || call.Name is not ("print" or "args")))
         {
             return ResolveCall(call, scope);
         }
 
         var arguments = call.Arguments.Select(a => TypeOf(a.Value, scope)).ToArray();
+        if (call.Receiver is null && call.Name == "args")
+        {
+            if (arguments.Length != 0)
+            {
+                Error("AUV2005", "args requires no arguments.", call);
+            }
+            return ValueType.ArrayOf(ValueType.String);
+        }
         if (call.PowerShellType is { } powerShellType)
         {
             powerShellType = BindType(powerShellType, call);

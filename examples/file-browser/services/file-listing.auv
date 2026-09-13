@@ -1,3 +1,9 @@
-func names(directory: string): string[] {
+import "../../../lib/files.auv" as files
+
+fn names(directory: string): string[] {
     return powershell<string[]>("Get-ChildItem", directory, Name: true)
+}
+
+fn matching_files(directory: string, pattern: string): string[] {
+    return files.list_files(directory, pattern)
 }

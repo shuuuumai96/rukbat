@@ -24,4 +24,9 @@
     <ProjectReference Include="..\..\src\Auvil\Auvil.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="../../lib/**/*.auv" Link="Fixtures/lib/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../examples/file-browser/**/*.auv" Link="Fixtures/examples/file-browser/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

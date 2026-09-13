@@ -9,12 +9,18 @@ public static class Cli
     private const int Success = 0;
     private const int CompilationFailure = 1;
     private const int UsageOrIoFailure = 2;
+    private const int CompilerArgumentCount = 2;
+    private const int ApplicationArgumentsOffset = CompilerArgumentCount + 1;
 
-    private static int Execute(string output)
+    private static int Execute(string output, IEnumerable<string> arguments)
     {
         // Inherit the caller's directory and standard streams, including interactive input.
-        var start = new ProcessStartInfo("pwsh") { UseShellExecute = false };
+        var start = new ProcessStartInfo("powershell") { UseShellExecute = false };
         foreach (var argument in new[] { "-NoLogo", "-NoProfile", "-File", output })
+        {
+            start.ArgumentList.Add(argument);
+        }
+        foreach (var argument in arguments)
         {
             start.ArgumentList.Add(argument);
         }
@@ -26,11 +32,12 @@ public static class Cli
 
     public static int Run(string[] args, TextWriter stdout, TextWriter stderr)
     {
-        if (args.Length != 2 ||
+        if (args.Length < CompilerArgumentCount ||
             args[0] is not ("build" or "run") ||
-            !Path.GetExtension(args[1]).Equals(".auv", StringComparison.OrdinalIgnoreCase))
+            !Path.GetExtension(args[1]).Equals(".auv", StringComparison.OrdinalIgnoreCase) ||
+            args.Length > CompilerArgumentCount && (args[0] != "run" || args[CompilerArgumentCount] != "--"))
         {
-            stderr.WriteLine("Usage: auvil <build|run> input.auv");
+            stderr.WriteLine("Usage: auvil <build|run> input.auv [-- arguments... (run only)]");
             return UsageOrIoFailure;
         }
         try
@@ -50,10 +57,11 @@ public static class Cli
             }
 
             var output = Path.ChangeExtension(input, ".ps1");
-            File.WriteAllText(output, result.Output, new System.Text.UTF8Encoding(false));
+            // Windows PowerShell 5.1 identifies UTF-8 source reliably only when it has a BOM.
+            File.WriteAllText(output, result.Output, new System.Text.UTF8Encoding(true));
             if (args[0] == "run")
             {
-                return Execute(output);
+                return Execute(output, args.Skip(ApplicationArgumentsOffset));
             }
 
             stdout.WriteLine(output);
@@ -62,7 +70,7 @@ public static class Cli
         catch (Win32Exception error)
         {
             stderr.WriteLine(
-                "error: Could not start pwsh. Install PowerShell 7.4 or later " +
+                "error: Could not start Windows PowerShell 5.1-compatible 'powershell' " +
                 $"and make it available on PATH. {error.Message}");
             return UsageOrIoFailure;
         }

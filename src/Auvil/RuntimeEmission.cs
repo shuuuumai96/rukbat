@@ -99,7 +99,9 @@ internal sealed partial class Emitter
                         }
                         'string' {
                             if ($value -is [string]) {
-                                return $value
+                                # Windows PowerShell 5.1 can attach adapted properties to string output
+                                # from commands such as Get-ChildItem -Name. Cast to keep an Auvil string scalar.
+                                return [string]$value
                             }
                         }
                         'bool' {
@@ -115,7 +117,6 @@ internal sealed partial class Emitter
                     $commandInfo = $commandInfo.ResolvedCommand
                 }
                 # Auvil normalizes native failures itself, independently of the host's preference.
-                $PSNativeCommandUseErrorActionPreference = $false
                 $result = @(& $command @positional @named)
                 if ($null -ne $commandInfo -and $commandInfo.CommandType -eq [System.Management.Automation.CommandTypes]::Application) {
                     $successExitCode = 0
