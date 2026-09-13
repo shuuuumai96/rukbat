@@ -6,6 +6,7 @@ namespace Auvil;
 internal sealed partial class Emitter(TypeChecker checker)
 {
     private const int IndentationWidth = 4;
+    private const int RuntimeFailureExitCode = 1;
 
     private readonly StringBuilder output = new();
     private Module module = null!;
@@ -32,11 +33,22 @@ internal sealed partial class Emitter(TypeChecker checker)
         Line("$ErrorActionPreference = 'Stop'");
         Line("Set-StrictMode -Version Latest");
         Line("$__auv_modules = @{}");
+        EmitErrorRuntime();
         EmitRuntime();
+        Line("try {");
+        indentation++;
         foreach (var current in modules)
         {
             EmitModule(current);
         }
+        indentation--;
+        Line("} catch {");
+        indentation++;
+        Line($"$__auv_failure = & $__auv_error $_ {Quote(modules[^1].Source.Path + ":1")}");
+        Line("[Console]::Error.WriteLine(('{0}: error: {1}' -f $__auv_failure.__auv_location, $__auv_failure.message))");
+        Line($"exit {RuntimeFailureExitCode}");
+        indentation--;
+        Line("}");
         indentation--;
         Line("}");
         return output.ToString();
@@ -46,9 +58,9 @@ internal sealed partial class Emitter(TypeChecker checker)
     {
         module = current;
         Line($"$__auv_modules[{Quote(current.Id)}] = New-Module -AsCustomObject " +
-            "-ArgumentList $__auv_modules, $__auv_runtime, $__auv_clone, $__auv_index -ScriptBlock {");
+            "-ArgumentList $__auv_modules, $__auv_runtime, $__auv_clone, $__auv_index, $__auv_error, $__auv_raise -ScriptBlock {");
         indentation++;
-        Line("param($__auv_dependencies, $__auv_runtime, $__auv_clone, $__auv_index)");
+        Line("param($__auv_dependencies, $__auv_runtime, $__auv_clone, $__auv_index, $__auv_error, $__auv_raise)");
         Line("Set-StrictMode -Version Latest");
         Line("$ErrorActionPreference = 'Stop'");
 
@@ -62,7 +74,7 @@ internal sealed partial class Emitter(TypeChecker checker)
         var statements = current.Statements
             .Where(statement => statement is not Function and not StructDeclaration)
             .ToList();
-        EmitStatements(statements);
+        EmitGuardedStatements(statements, Quote(current.Source.Path + ":1"));
 
         var exports = functions.Select(function => Quote(function.PowerShellName));
         Line($"Export-ModuleMember -Function @({string.Join(", ", exports)})");
@@ -82,7 +94,7 @@ internal sealed partial class Emitter(TypeChecker checker)
         }
 
         Line($"param({string.Join(", ", parameters)})");
-        EmitStatements(function.Body);
+        EmitGuardedStatements(function.Body, Location(function));
         indentation--;
         Line("}");
     }
@@ -91,6 +103,12 @@ internal sealed partial class Emitter(TypeChecker checker)
     {
         foreach (var statement in statements)
         {
+            if (statement is Import)
+            {
+                continue;
+            }
+            // A function has its own location variable, so calls cannot overwrite their caller's location.
+            Line($"$__auv_location = {Location(statement)}");
             switch (statement)
             {
                 case Variable variable:
@@ -108,6 +126,21 @@ internal sealed partial class Emitter(TypeChecker checker)
                     break;
                 case Return result:
                     EmitReturn(result);
+                    break;
+                case Throw failure:
+                    Line($"& $script:__auv_raise ({Expr(failure.Value)}) {Location(failure)}");
+                    break;
+                case TryCatch guarded:
+                    Line("try {");
+                    indentation++;
+                    EmitStatements(guarded.Body);
+                    indentation--;
+                    Line("} catch {");
+                    indentation++;
+                    Line($"[hashtable]{checker.Variables[guarded.Handler].PowerShellName} = & $script:__auv_error $_ $__auv_location");
+                    EmitStatements(guarded.Handler.Body);
+                    indentation--;
+                    Line("}");
                     break;
                 case For loop:
                     var item = "$__auv_item" + temporaryId++;
@@ -181,7 +214,7 @@ internal sealed partial class Emitter(TypeChecker checker)
     {
         // Evaluate a potentially side-effecting index only once and retain its target in a temporary.
         var slot = "$__auv_slot" + temporaryId++;
-        Line($"{slot} = & $script:__auv_index ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) {Location(index)} $true");
+        Line($"{slot} = & $script:__auv_index ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) {Location(index)} $true $script:__auv_raise");
         return $"{slot}.array[{slot}.offset]";
     }
 
@@ -203,7 +236,7 @@ internal sealed partial class Emitter(TypeChecker checker)
             _ => throw new InvalidOperationException()
         },
         ArrayLiteral array => $"@({string.Join("; ", array.Items.Select(item => ",(" + Expr(item) + ")"))})",
-        Index index => $"(& $script:__auv_index ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) {Location(index)})",
+        Index index => $"(& $script:__auv_index ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) {Location(index)} $false $script:__auv_raise)",
         Name name => checker.Variables[name].PowerShellName,
         Member member when checker.Types[member.Receiver].Element is not null => $"(({RawExpr(member.Receiver)}).Length)",
         Member member => $"(({RawExpr(member.Receiver)})[{Quote(checker.Fields[member].Key)}])",
@@ -287,6 +320,6 @@ internal sealed partial class Emitter(TypeChecker checker)
             .Select(argument => $"{Quote(argument.Name!)} = {Expr(argument.Value)}"));
 
         return $"(& $script:__auv_runtime {Schema(checker.Types[call])} " +
-            $"({Expr(call.Arguments[0].Value)}) @({positional}) @{{{named}}} {Location(call)})";
+            $"({Expr(call.Arguments[0].Value)}) @({positional}) @{{{named}}} {Location(call)} $script:__auv_error $script:__auv_raise)";
     }
 }

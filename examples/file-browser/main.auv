@@ -1,0 +1,14 @@
+import "./services/file-listing.auv" as listing
+
+print("Auvil file browser")
+directory: string = powershell<string>("Read-Host", Prompt: "Directory path")
+items: string[] = listing.names(directory)
+
+if items.length == 0 {
+    print("No items found.")
+} else {
+    print("Items:")
+    for item in items {
+        print(item)
+    }
+}

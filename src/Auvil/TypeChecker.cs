@@ -53,19 +53,20 @@ internal sealed partial class TypeChecker
                 }
 
                 CheckStatements(function.Body, locals, symbol.ReturnType, false);
-                if (symbol.ReturnType != ValueType.Void && !AlwaysReturns(function.Body))
+                if (symbol.ReturnType != ValueType.Void && !AlwaysExits(function.Body))
                 {
-                    Error("AUV2003", $"Function '{function.Name}' must return a value on every path.", function);
+                    Error("AUV2003", $"Function '{function.Name}' must return a value or throw on every path.", function);
                 }
             }
         }
     }
-    // A loop may execute zero times, so a return inside it cannot guarantee all paths return.
-    private static bool AlwaysReturns(List<Statement> body) => body.Any(statement =>
-        statement is Return ||
+    // A loop may execute zero times. Both paths of a try/catch must return or throw.
+    private static bool AlwaysExits(List<Statement> body) => body.Any(statement =>
+        statement is Return or Throw ||
         statement is Conditional condition &&
-            AlwaysReturns(condition.Then) &&
-            AlwaysReturns(condition.Else));
+            AlwaysExits(condition.Then) && AlwaysExits(condition.Else) ||
+        statement is TryCatch guarded &&
+            AlwaysExits(guarded.Body) && AlwaysExits(guarded.Handler.Body));
 
     private void Declare(Node node, ValueType type, Symbols scope, bool global)
     {
@@ -76,7 +77,7 @@ internal sealed partial class TypeChecker
         }
 
         var name = node.Token.Text;
-        if (module.Functions.ContainsKey(name) || module.Imports.ContainsKey(name) || module.Structs.ContainsKey(name))
+        if (name == "Error" || module.Functions.ContainsKey(name) || module.Imports.ContainsKey(name) || module.Structs.ContainsKey(name))
         {
             Error("AUV2002", $"Name '{name}' is already a function, struct or import.", node);
         }
@@ -178,6 +179,15 @@ internal sealed partial class TypeChecker
                         Match(returnType, resultType, result);
                     }
 
+                    break;
+                case Throw failure:
+                    Match(ErrorStructure.BoundType, TypeOf(failure.Value, scope), failure.Value, "throw");
+                    break;
+                case TryCatch guarded:
+                    CheckStatements(guarded.Body, new Symbols(scope), returnType, false);
+                    var handlerScope = new Symbols(scope);
+                    Declare(guarded.Handler, ErrorStructure.BoundType, handlerScope, false);
+                    CheckStatements(guarded.Handler.Body, handlerScope, returnType, false);
                     break;
                 case Conditional conditional:
                     Match(ValueType.Bool, TypeOf(conditional.Condition, scope), conditional.Condition);

@@ -1,0 +1,29 @@
+func require_directory(directory: string): void {
+    if directory == "" {
+        throw Error(message: "ディレクトリを指定してください")
+    }
+}
+
+try {
+    require_directory("")
+} catch err {
+    print(err.message)
+}
+
+try {
+    powershell<void>("Write-Error", "PowerShellの処理に失敗しました")
+} catch err {
+    print(err.message)
+}
+
+try {
+    try {
+        throw Error(message: "再送出したエラー")
+    } catch err {
+        throw err
+    }
+} catch err {
+    print(err.message)
+}
+
+print("エラー処理後も実行を続けます")

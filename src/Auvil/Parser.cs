@@ -64,7 +64,8 @@ internal sealed class Parser(Source source, List<Token> tokens)
     private static bool IsReservedWord(string text) => text is
         "function" or "func" or "struct" or "self" or "class" or
         "return" or "if" or "else" or "import" or "true" or "false" or
-        "powershell" or "print" or "for" or "in" or "break" or "continue";
+        "powershell" or "print" or "for" or "in" or "break" or "continue" or
+        "try" or "catch" or "throw";
     public List<Statement> Parse()
     {
         var statements = new List<Statement>();
@@ -197,6 +198,19 @@ internal sealed class Parser(Source source, List<Token> tokens)
         if (Match("return"))
         {
             return new Return(token, Current.Text is "\n" or ";" or "}" or "<eof>" ? null : Expression());
+        }
+
+        if (Match("throw"))
+        {
+            return new Throw(token, Expression());
+        }
+        if (Match("try"))
+        {
+            var body = Block();
+            NewLines();
+            Expect("catch");
+            var name = Identifier();
+            return new TryCatch(token, body, new Catch(name, Block()));
         }
 
         if (Match("for"))

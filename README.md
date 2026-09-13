@@ -102,7 +102,7 @@ dotnet publish src/Auvil -c Release -o artifacts/auvil
 以前の `$name: string` やPowerShellのコマンド記法をそのまま書いた `.auv` は受け付けません。
 既存 `.ps1` の構文互換性より、Auvilとしての書き味と動作の一貫性を優先します。
 
-現在の型は `int`、`string`、`bool`、戻り値用の `void`、ユーザー定義の `struct` と型付き配列 `T[]` です。
+現在の型は `int`、`string`、`bool`、戻り値用の `void`、組み込みの `Error`、ユーザー定義の `struct` と型付き配列 `T[]` です。
 structは名前付き引数で生成し、フィールド操作と内部の `func` メソッドを利用できます。
 代入・引数・戻り値ではネストしたフィールドまで値コピーします。メソッドの `self` は呼び出した変数を更新します。
 `examples/value-semantics.auv` でコピー元が変わらない動作を確認できます。
@@ -145,6 +145,26 @@ print(user.name)
 .\auvil.cmd run examples/app/main.auv
 ```
 
+## 作れるCLIの例: 対話式ファイル一覧
+
+`examples/file-browser` は、入力したディレクトリにある項目名を表示する小さなCLIです。
+エントリーファイルとPowerShell呼び出しを分けているため、一覧取得の処理を他のCLIからも再利用できます。
+
+```powershell
+.\auvil.cmd run examples/file-browser/main.auv
+```
+
+```text
+Auvil file browser
+Directory path: .
+Items:
+README.md
+src
+tests
+```
+
+これは現時点でのAuvilが得意な形です。対話入力は `powershell<string>("Read-Host", ...)`、OS機能の呼び出しは `powershell<T>(...)` に集約し、値の加工や表示をAuvilで書けます。生成したCLIへ追加引数を渡す機能は未対応です。
+
 ## 配列・ループと外部データ
 
 `examples/arrays.auv` は配列の更新とループ、`examples/import-data.auv` はJSONからのstruct配列の取り込みを実行します。
@@ -170,6 +190,28 @@ for user in users {
 
 フィールドの欠損・null・型違いは、取り込み時に位置とフィールド名を含むエラーになります。
 配列は固定長です。追加・削除や、structのPowerShellへの送出は未対応です。
+
+## エラーから回復する
+
+`try / catch / throw` と、`message: string` を持つ組み込みの `Error` を使えます。
+
+```text
+try {
+    throw Error(message: "処理に失敗しました")
+} catch err {
+    print(err.message)
+}
+```
+
+PowerShellのエラーや型の取り込み失敗も同じcatchで扱います。
+`throw err` で再送出すると最初の発生位置を保ちます。
+未処理のエラーはAuvilのファイル・行と説明を標準エラーへ出し、終了コード1で停止します。
+`powershell<T>` で直接呼ぶ外部実行ファイルは終了コード0を成功、それ以外をErrorとします。
+初期仕様はcatch一つに限定し、型別catch・finally・throws宣言はありません。
+
+```powershell
+.\auvil.cmd run examples/errors.auv
+```
 
 ## 実装と検証
 

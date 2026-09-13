@@ -50,6 +50,9 @@ internal sealed record IndexAssignment(Index Target, Expression Value) : Stateme
 internal sealed record For(Token Token, Expression Items, List<Statement> Body) : Statement(Token);
 internal sealed record LoopControl(Token Token) : Statement(Token);
 internal sealed record Return(Token Token, Expression? Value) : Statement(Token);
+internal sealed record Throw(Token Token, Expression Value) : Statement(Token);
+internal sealed record Catch(Token Token, List<Statement> Body) : Node(Token);
+internal sealed record TryCatch(Token Token, List<Statement> Body, Catch Handler) : Statement(Token);
 internal sealed record Conditional(
     Token Token,
     Expression Condition,

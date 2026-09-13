@@ -1,0 +1,3 @@
+func names(directory: string): string[] {
+    return powershell<string[]>("Get-ChildItem", directory, Name: true)
+}

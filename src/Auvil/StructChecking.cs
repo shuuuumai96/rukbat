@@ -13,6 +13,18 @@ internal sealed record FieldSymbol(Field Field, ValueType Type, string Key);
 
 internal sealed partial class TypeChecker
 {
+    public StructSymbol ErrorStructure { get; } = CreateErrorStructure();
+
+    private static StructSymbol CreateErrorStructure()
+    {
+        var declaration = new StructDeclaration(new("Error", 0), [], []);
+        var owner = new Module(new Source("", "<builtin>"), "builtin", []);
+        var structure = new StructSymbol(owner, declaration);
+        var field = new Field(new("message", 0), ValueType.String);
+        structure.Fields.Add("message", new(field, ValueType.String, "message"));
+        return structure;
+    }
+
     public Dictionary<Node, ValueType> DeclaredTypes { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Member, FieldSymbol> Fields { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Call, StructSymbol> Constructions { get; } = new(ReferenceEqualityComparer.Instance);
@@ -25,6 +37,11 @@ internal sealed partial class TypeChecker
         foreach (var current in modules)
         {
             module = current;
+            if (current.Imports.ContainsKey("Error"))
+            {
+                Error("AUV2002", "Import name 'Error' conflicts with the built-in type.",
+                    current.Statements.OfType<Import>().First(import => import.Name == "Error"));
+            }
             foreach (var declaration in current.Statements.OfType<StructDeclaration>())
             {
                 var name = declaration.Token.Text;
@@ -33,7 +50,7 @@ internal sealed partial class TypeChecker
                     Error("AUV2002", $"Duplicate struct '{name}'.", declaration);
                 }
 
-                if (IsPrimitive(name) || current.Imports.ContainsKey(name))
+                if (IsPrimitive(name) || name == "Error" || current.Imports.ContainsKey(name))
                 {
                     Error("AUV2002", $"Struct name '{name}' conflicts with an existing type or import.", declaration);
                 }
@@ -48,6 +65,10 @@ internal sealed partial class TypeChecker
                 if (current.Structs.ContainsKey(function.Name))
                 {
                     Error("AUV2002", $"Function '{function.Name}' conflicts with a struct.", function);
+                }
+                if (function.Name == "Error")
+                {
+                    Error("AUV2002", "Function 'Error' conflicts with the built-in type.", function);
                 }
 
                 Functions[function] = new(current, function, $"__auv_f{Functions.Count}");
@@ -123,6 +144,10 @@ internal sealed partial class TypeChecker
         if (IsPrimitive(type.Name))
         {
             return DeclaredTypes[node] = type;
+        }
+        if (type.Name == "Error")
+        {
+            return DeclaredTypes[node] = ErrorStructure.BoundType;
         }
 
         var parts = type.Name.Split('.');
@@ -207,6 +232,10 @@ internal sealed partial class TypeChecker
 
     private ValueType ResolveCall(Call call, Symbols scope)
     {
+        if (call.Receiver is null && call.Name == "Error")
+        {
+            return Construct(call, ErrorStructure, scope);
+        }
         // Dot syntax selects a module function for an import name, or a struct method for a value.
         Module? owner = module;
         FunctionSymbol? function = null;
