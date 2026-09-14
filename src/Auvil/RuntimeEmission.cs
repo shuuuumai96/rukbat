@@ -34,6 +34,13 @@ internal sealed partial class Emitter
             }
             return ,$values[$offset]
         }
+        $__auv_float = {
+            param([double]$value, [string]$location, [scriptblock]$raise)
+            if ([double]::IsNaN($value) -or [double]::IsInfinity($value)) {
+                & $raise @{ message = 'Float operation produced a non-finite value.' } $location
+            }
+            return $value
+        }
         $__auv_runtime = {
             param([hashtable]$schema, [string]$command, [object[]]$positional, [hashtable]$named, [string]$location,
                 [scriptblock]$normalize, [scriptblock]$raise)
@@ -41,10 +48,16 @@ internal sealed partial class Emitter
             try {
                 $convert = {
                     param([object]$value, [hashtable]$type, [string]$path, [scriptblock]$recurse)
+                    if ($null -eq $value -and $type.kind -eq 'nullable') {
+                        return $null
+                    }
                     if ($null -eq $value) {
                         throw "${path}: Null is incompatible with $($type.name)."
                     }
                     switch ($type.kind) {
+                        'nullable' {
+                            return (& $recurse $value $type.element $path $recurse)
+                        }
                         'array' {
                             if ($value -isnot [array]) {
                                 throw "${path}: Value is incompatible with $($type.name); expected an array."
@@ -109,6 +122,19 @@ internal sealed partial class Emitter
                                 return $value
                             }
                         }
+                        'float' {
+                            $numeric = $value -is [sbyte] -or $value -is [byte] -or
+                                $value -is [int16] -or $value -is [uint16] -or
+                                $value -is [int] -or $value -is [uint32] -or
+                                $value -is [long] -or $value -is [ulong] -or
+                                $value -is [single] -or $value -is [double] -or $value -is [decimal]
+                            if ($numeric) {
+                                $converted = [double]$value
+                                if (-not [double]::IsNaN($converted) -and -not [double]::IsInfinity($converted)) {
+                                    return $converted
+                                }
+                            }
+                        }
                     }
                     throw "${path}: Value is incompatible with $($type.name)."
                 }
@@ -132,6 +158,16 @@ internal sealed partial class Emitter
                     $value = & $convert $result $schema $path $convert
                     return ,$value
                 }
+                if ($schema.kind -eq 'nullable' -and $schema.element.kind -eq 'array') {
+                    if ($result.Count -eq 0) {
+                        throw "PowerShell call '$command' expected one $($schema.name) result, got 0."
+                    }
+                    if ($result.Count -eq 1 -and $null -eq $result[0]) {
+                        return $null
+                    }
+                    $value = & $convert $result $schema.element $path $convert
+                    return ,$value
+                }
                 if ($result.Count -ne 1) {
                     throw "PowerShell call '$command' expected one $($schema.name) result, got $($result.Count)."
                 }
@@ -149,6 +185,10 @@ internal sealed partial class Emitter
 
     private static string Schema(ValueType type)
     {
+        if (type.NullableElement is { } nullable)
+        {
+            return $"@{{kind = 'nullable'; name = {Quote(type.Name)}; element = {Schema(nullable)}}}";
+        }
         if (type.Element is { } element)
         {
             return $"@{{kind = 'array'; name = {Quote(type.Name)}; element = {Schema(element)}}}";

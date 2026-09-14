@@ -12,14 +12,23 @@ internal sealed partial class Emitter(TypeChecker checker)
     private Module module = null!;
     private int indentation;
     private int temporaryId;
+    private ValueType currentReturnType = ValueType.Void;
     private static string Quote(string value) => "'" + value.Replace("'", "''") + "'";
     private static string TypeName(ValueType type)
     {
+        if (type.IsNullable)
+        {
+            return "object";
+        }
         if (type.Element is not null)
         {
             return "object[]";
         }
 
+        if (type == ValueType.Float)
+        {
+            return "double";
+        }
         return type.Struct is null ? type.Name : "hashtable";
     }
 
@@ -37,6 +46,21 @@ internal sealed partial class Emitter(TypeChecker checker)
         Line("$__auv_modules = @{}");
         EmitErrorRuntime();
         EmitRuntime();
+        Line("$__auv_json_decode = $null");
+        Line("$__auv_json_encode = $null");
+        Line("$__auv_standard = $null");
+        if (modules.Any(current => current.StandardName == "json"))
+        {
+            EmitJsonRuntime();
+        }
+        var standardModules = modules
+            .Where(current => current.StandardName is "files" or "path" or "env" or "process")
+            .Select(current => current.StandardName!)
+            .ToHashSet(StringComparer.Ordinal);
+        if (standardModules.Count != 0)
+        {
+            EmitStandardRuntime(standardModules);
+        }
         Line("try {");
         indentation++;
         foreach (var current in modules)
@@ -60,9 +84,9 @@ internal sealed partial class Emitter(TypeChecker checker)
     {
         module = current;
         Line($"$__auv_modules[{Quote(current.Id)}] = New-Module -AsCustomObject " +
-            "-ArgumentList $__auv_modules, $__auv_runtime, $__auv_clone, $__auv_index, $__auv_error, $__auv_raise, $__auv_arguments -ScriptBlock {");
+            "-ArgumentList $__auv_modules, $__auv_runtime, $__auv_clone, $__auv_index, $__auv_float, $__auv_json_decode, $__auv_json_encode, $__auv_standard, $__auv_error, $__auv_raise, $__auv_arguments -ScriptBlock {");
         indentation++;
-        Line("param($__auv_dependencies, $__auv_runtime, $__auv_clone, $__auv_index, $__auv_error, $__auv_raise, [string[]]$__auv_arguments)");
+        Line("param($__auv_dependencies, $__auv_runtime, $__auv_clone, $__auv_index, $__auv_float, $__auv_json_decode, $__auv_json_encode, $__auv_standard, $__auv_error, $__auv_raise, [string[]]$__auv_arguments)");
         Line("Set-StrictMode -Version Latest");
         Line("$ErrorActionPreference = 'Stop'");
 
@@ -96,7 +120,10 @@ internal sealed partial class Emitter(TypeChecker checker)
         }
 
         Line($"param({string.Join(", ", parameters)})");
+        var previousReturnType = currentReturnType;
+        currentReturnType = checker.Functions[function].ReturnType;
         EmitGuardedStatements(function.Body, Location(function));
+        currentReturnType = previousReturnType;
         indentation--;
         Line("}");
     }
@@ -188,18 +215,41 @@ internal sealed partial class Emitter(TypeChecker checker)
             return;
         }
 
-        // Unary comma returns the array as one value instead of letting PowerShell enumerate it.
+        // Unary comma returns an array as one value instead of letting PowerShell enumerate it.
         var value = Expr(result.Value);
-        Line(checker.Types[result.Value].Element is not null
-            ? $"return ,({value})"
-            : $"return {value}");
+        if (currentReturnType.IsNullable && currentReturnType.NonNullable.Element is not null)
+        {
+            var temporary = $"$__auv_return{temporaryId++}";
+            Line($"{temporary} = {value}");
+            Line($"if ($null -eq {temporary}) {{ return $null }}");
+            Line($"return ,({temporary})");
+        }
+        else
+        {
+            Line(currentReturnType.Element is not null ? $"return ,({value})" : $"return {value}");
+        }
     }
 
     private string Expr(Expression expression)
     {
         // Ordinary expressions copy values; assignment targets and self use RawExpr or Address.
         var value = RawExpr(expression);
-        return Clone(value, checker.Types[expression]);
+        var actual = checker.Types[expression];
+        value = Clone(value, actual);
+        return checker.Conversions.TryGetValue(expression, out var expected)
+            ? Convert(value, actual, expected)
+            : value;
+    }
+
+    private static string Convert(string value, ValueType actual, ValueType expected)
+    {
+        if (expected.NonNullable == ValueType.Float && actual.NonNullable == ValueType.Int)
+        {
+            return actual.IsNullable
+                ? $"(& {{ param($v) if ($null -eq $v) {{ return $null }}; return [double]$v }} ({value}))"
+                : $"([double]({value}))";
+        }
+        return value;
     }
 
     private static string Clone(string value, ValueType type) => type.IsComposite
@@ -235,6 +285,8 @@ internal sealed partial class Emitter(TypeChecker checker)
             string value => Quote(value),
             bool value => value ? "$true" : "$false",
             int value => value.ToString(CultureInfo.InvariantCulture),
+            double value => $"([double]{value.ToString("R", CultureInfo.InvariantCulture)})",
+            NullValue => "$null",
             _ => throw new InvalidOperationException()
         },
         ArrayLiteral array => $"@({string.Join("; ", array.Items.Select(item => ",(" + Expr(item) + ")"))})",
@@ -244,7 +296,9 @@ internal sealed partial class Emitter(TypeChecker checker)
         Member member => $"(({RawExpr(member.Receiver)})[{Quote(checker.Fields[member].Key)}])",
         Unary unary => unary.Token.Text == "!"
             ? $"(-not {Expr(unary.Value)})"
-            : $"([int]({unary.Token.Text}{Expr(unary.Value)}))",
+            : checker.Types[unary] == ValueType.Float
+                ? $"([double]({unary.Token.Text}{Expr(unary.Value)}))"
+                : $"([int]({unary.Token.Text}{Expr(unary.Value)}))",
         Binary binary => Binary(binary),
         Call call => Call(call),
         _ => throw new InvalidOperationException("Unbound expression.")
@@ -269,12 +323,38 @@ internal sealed partial class Emitter(TypeChecker checker)
         {
             return op == "/" ? $"([int][Math]::Truncate({expression}))" : $"([int]{expression})";
         }
+        if (checker.Types[binary] == ValueType.Float)
+        {
+            return $"(& $script:__auv_float ([double]({expression})) {Location(binary)} $script:__auv_raise)";
+        }
 
         return expression;
     }
 
     private string Call(Call call)
     {
+        if (checker.StandardCalls.TryGetValue(call, out var standardCall))
+        {
+            if (standardCall == "json.decode")
+            {
+                return $"(& $script:__auv_json_decode ({Expr(call.Arguments[0].Value)}) {Schema(checker.Types[call])})";
+            }
+            if (standardCall == "json.encode")
+            {
+                return $"(& $script:__auv_json_encode ({Expr(call.Arguments[0].Value)}) {Schema(checker.Types[call.Arguments[0].Value])})";
+            }
+            var standardArguments = string.Join("; ", call.Arguments.Select(argument => ",(" + Expr(argument.Value) + ")"));
+            var invocation = $"(& $script:__auv_standard {Quote(standardCall)} @({standardArguments}))";
+            if (standardCall == "process.run")
+            {
+                var fields = checker.Types[call].Struct!.Fields;
+                return $"(& {{ $result = {invocation}; return @{{" +
+                    $"{Quote(fields["exit_code"].Key)} = [int]$result[0]; " +
+                    $"{Quote(fields["stdout"].Key)} = [string]$result[1]; " +
+                    $"{Quote(fields["stderr"].Key)} = [string]$result[2]" + "}})";
+            }
+            return invocation;
+        }
         if (checker.Constructions.ContainsKey(call))
         {
             var fields = call.Arguments.Select(argument =>

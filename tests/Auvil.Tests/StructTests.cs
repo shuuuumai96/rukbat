@@ -77,7 +77,7 @@ public partial class CompilerTests
     {
         using var project = new Project();
         project.Write("model.auv", "struct U { age: int; fn grow(): void { self.age = self.age + 1 } }; fn grow(u: U): U { u.grow(); return u }");
-        project.Write("main.auv", "import model\na: model.U = model.U(age: 30); b: model.U = model.grow(a); b.grow(); print(a.age); print(b.age)");
+        project.Write("main.auv", "import './model.auv' as model\na: model.U = model.U(age: 30); b: model.U = model.grow(a); b.grow(); print(a.age); print(b.age)");
         var result = await project.Run();
         Assert.True(result.ExitCode == 0, result.Error);
         Assert.Equal("30\n32", result.Output.TrimEnd('\n'));
@@ -89,7 +89,7 @@ public partial class CompilerTests
         using var project = new Project();
         project.Write("left.auv", "struct U { age: int }");
         project.Write("right.auv", "struct U { age: int }");
-        project.Write("main.auv", "import left\nimport right\nx: left.U = right.U(age: 1)");
+        project.Write("main.auv", "import './left.auv' as left\nimport './right.auv' as right\nx: left.U = right.U(age: 1)");
         Assert.Contains(project.Compile().Diagnostics, d => d.Code == "AUV2001" && d.Message.Contains("left.U") && d.Message.Contains("right.U"));
     }
 }

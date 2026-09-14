@@ -130,7 +130,7 @@ public partial class CompilerTests
     public void ImportedErrorsReferToImportedFile()
     {
         using var project = new Project();
-        project.Write("main.auv", "import math\nprint(math.add(1, 2))");
+        project.Write("main.auv", "import './math.auv' as math\nprint(math.add(1, 2))");
         project.Write("math.auv", "fn add(a: int, b: int): int { return 'bad' }");
         var result = project.Compile();
         var error = Assert.Single(result.Diagnostics);
@@ -142,7 +142,7 @@ public partial class CompilerTests
     public void ChecksImportedFunctionSignatures()
     {
         using var project = new Project();
-        project.Write("main.auv", "import math\nprint(math.add('bad', 2))");
+        project.Write("main.auv", "import './math.auv' as math\nprint(math.add('bad', 2))");
         project.Write("math.auv", "fn add(a: int, b: int): int { return a + b }");
         Assert.Contains(project.Compile().Diagnostics, d => d.Code == "AUV2001");
     }
@@ -151,23 +151,23 @@ public partial class CompilerTests
     public void RejectsCyclesMissingAndDuplicateImports()
     {
         using var project = new Project();
-        project.Write("main.auv", "import missing");
+        project.Write("main.auv", "import './missing.auv' as missing");
         Assert.Contains(project.Compile().Diagnostics, d => d.Code == "AUV3002");
-        project.Write("main.auv", "import other");
-        project.Write("other.auv", "import main");
+        project.Write("main.auv", "import './other.auv' as other");
+        project.Write("other.auv", "import './main.auv' as main");
         Assert.Contains(project.Compile().Diagnostics, d => d.Code == "AUV3001");
         project.Write("other.auv", "fn f(): int { return 1 }");
-        project.Write("main.auv", "import other\nimport other");
+        project.Write("main.auv", "import './other.auv' as other\nimport './other.auv' as other");
         Assert.Contains(project.Compile().Diagnostics, d => d.Code == "AUV3000");
-        project.Write("main.auv", "fn f(): void { import other }");
+        project.Write("main.auv", "fn f(): void { import './other.auv' as other }");
         Assert.Contains(project.Compile().Diagnostics, d => d.Code == "AUV3000");
-        Assert.Contains(Compile("import other").Diagnostics, d => d.Code == "AUV3000");
+        Assert.Contains(Compile("import './other.auv' as other").Diagnostics, d => d.Code == "AUV3000");
     }
 
     [Theory]
     [InlineData("fn f(): int { 99; powershell<int>('Write-Output', 88); print('log'); return 7 }\nx: int = f(); print(x)", "log\n7")]
     [InlineData("fn f(): void { 99; powershell<int>('Write-Output', 88) }; f(); print('done')", "done")]
-    [InlineData("x: int = 1\nfunction f(): int { x: int = 2; return x }\nprint(f()); print(x)", "2\n1")]
+    [InlineData("x: int = 1\nfn f(): int { x: int = 2; return x }\nprint(f()); print(x)", "2\n1")]
     [InlineData("x: int = 1\nif true { x: int = 2; print(x) }; print(x)", "2\n1")]
     [InlineData("x: int = 1\nX: int = 2\nprint(x + X)", "3")]
     [InlineData("fn f(): int { return 1 }; fn F(): int { return 2 }; print(f() + F())", "3")]
@@ -231,8 +231,8 @@ public partial class CompilerTests
     public async Task PersistsModuleStateAcrossCalls()
     {
         using var project = new Project();
-        project.Write("counter.auv", "count: int = 0\nfunction next(): int { count = count + 1; return count }");
-        project.Write("main.auv", "import counter\nprint(counter.next()); print(counter.next())");
+        project.Write("counter.auv", "count: int = 0\nfn next(): int { count = count + 1; return count }");
+        project.Write("main.auv", "import './counter.auv' as counter\nprint(counter.next()); print(counter.next())");
         var result = await project.Run();
         Assert.True(result.ExitCode == 0, result.Error);
         Assert.Equal("1\n2", result.Output.TrimEnd('\n'));
@@ -242,10 +242,10 @@ public partial class CompilerTests
     public async Task BundlesDiamondImportsOnceAndIsolatesModuleState()
     {
         using var project = new Project();
-        project.Write("shared.auv", "print('init'); value: int = 10\nfunction get(): int { return value }");
-        project.Write("left.auv", "import shared\nvalue: int = 20\nfunction get(): int { return shared.get() + value }");
-        project.Write("right.auv", "import shared\nvalue: int = 30\nfunction get(): int { return shared.get() + value }");
-        project.Write("main.auv", "import left\nimport right\nvalue: int = 100\nprint(left.get()); print(right.get()); print(value)");
+        project.Write("shared.auv", "print('init'); value: int = 10\nfn get(): int { return value }");
+        project.Write("left.auv", "import './shared.auv' as shared\nvalue: int = 20\nfn get(): int { return shared.get() + value }");
+        project.Write("right.auv", "import './shared.auv' as shared\nvalue: int = 30\nfn get(): int { return shared.get() + value }");
+        project.Write("main.auv", "import './left.auv' as left\nimport './right.auv' as right\nvalue: int = 100\nprint(left.get()); print(right.get()); print(value)");
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
         // Execute the bundle after removing every source module, from a different working directory.
@@ -259,7 +259,7 @@ public partial class CompilerTests
     public async Task ModuleGlobalsAreLexicalRatherThanCallerVariables()
     {
         using var project = new Project();
-        project.Write("main.auv", "x: int = 1\nfunction read(): int { return x }\nfunction caller(x: int): int { return read() }\nprint(caller(99))");
+        project.Write("main.auv", "x: int = 1\nfn read(): int { return x }\nfn caller(x: int): int { return read() }\nprint(caller(99))");
         var result = await project.Run();
         Assert.True(result.ExitCode == 0, result.Error);
         Assert.Equal("1", result.Output.TrimEnd('\n'));
@@ -273,7 +273,7 @@ public partial class CompilerTests
         project.Write("main.auv", "x: int = 1");
         Assert.Equal(0, Cli.Run(["build", input], TextWriter.Null, TextWriter.Null));
         var previous = File.ReadAllText(output);
-        project.Write("main.auv", "import missing");
+        project.Write("main.auv", "import './missing.auv' as missing");
         using var errors = new StringWriter();
         Assert.Equal(1, Cli.Run(["build", input], TextWriter.Null, errors));
         Assert.Contains("AUV3002", errors.ToString());
@@ -284,6 +284,62 @@ public partial class CompilerTests
         Assert.Equal(2, Cli.Run([], TextWriter.Null, TextWriter.Null));
         Assert.Equal(2, Cli.Run(["build", output], TextWriter.Null, TextWriter.Null));
         Assert.Equal(2, Cli.Run(["build", project.PathFor("missing.auv")], TextWriter.Null, TextWriter.Null));
+    }
+
+    [Fact]
+    public void CliCheckDoesNotCreateOrChangePowerShellOutput()
+    {
+        using var project = new Project();
+        var input = project.PathFor("main.auv");
+        var output = project.PathFor("main.ps1");
+        project.Write("main.auv", "value: int = 1");
+        Assert.Equal(0, Cli.Run(["check", input], TextWriter.Null, TextWriter.Null));
+        Assert.False(File.Exists(output));
+
+        project.Write("main.ps1", "preserve");
+        project.Write("main.auv", "value: int = 'bad'");
+        using var errors = new StringWriter();
+        Assert.Equal(1, Cli.Run(["check", input], TextWriter.Null, errors));
+        Assert.Contains("AUV2001", errors.ToString());
+        Assert.Equal("preserve", File.ReadAllText(output));
+    }
+
+    [Fact]
+    public void CliFmtUsesCanonicalLayoutPreservesCommentsAndIsIdempotent()
+    {
+        using var project = new Project();
+        var input = project.PathFor("main.auv");
+        project.Write("main.auv", "# add values\nfn add( a:int,b:int):int{\nreturn a+b // result\n}\nif true{print(add(1,2))}\nelse{print('no')}\n");
+        Assert.Equal(0, Cli.Run(["fmt", input], TextWriter.Null, TextWriter.Null));
+        var expected = """
+            # add values
+            fn add(a: int, b: int): int {
+                return a + b  // result
+            }
+            if true {
+                print(add(1, 2))
+            } else {
+                print('no')
+            }
+
+            """;
+        Assert.Equal(expected.Replace("\r\n", "\n"), File.ReadAllText(input));
+        var bytes = File.ReadAllBytes(input);
+        Assert.False(bytes.Length >= 3 && bytes[0] == 0xef && bytes[1] == 0xbb && bytes[2] == 0xbf);
+        Assert.Empty(new Compiler().CheckFile(input));
+        Assert.Equal(0, Cli.Run(["fmt", input], TextWriter.Null, TextWriter.Null));
+        Assert.Equal(expected.Replace("\r\n", "\n"), File.ReadAllText(input));
+    }
+
+    [Fact]
+    public void CliFmtLeavesInvalidSourceUnchanged()
+    {
+        using var project = new Project();
+        var input = project.PathFor("main.auv");
+        const string source = "value:int='bad";
+        project.Write("main.auv", source);
+        Assert.Equal(1, Cli.Run(["fmt", input], TextWriter.Null, TextWriter.Null));
+        Assert.Equal(source, File.ReadAllText(input));
     }
 
     private sealed class Project : IDisposable
@@ -329,6 +385,24 @@ public partial class CompilerTests
             };
             foreach (var argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-File", PathFor("main.ps1") }) info.ArgumentList.Add(argument);
             foreach (var argument in arguments) info.ArgumentList.Add(argument);
+            using var process = Process.Start(info)!;
+            var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            try { await process.WaitForExitAsync(timeout.Token); }
+            catch (OperationCanceledException) { process.Kill(true); throw new TimeoutException("Generated PowerShell did not finish in 20 seconds."); }
+            return new(process.ExitCode, (await stdout).Replace("\r\n", "\n"), await stderr);
+        }
+        public async Task<RunResult> RunOutputWithEnvironment(
+            string output, string executable, string variable, string value)
+        {
+            Write("main.ps1", output);
+            var info = new ProcessStartInfo(executable)
+            {
+                UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
+                WorkingDirectory = Path.GetTempPath(), CreateNoWindow = true
+            };
+            info.Environment[variable] = value;
+            foreach (var argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-File", PathFor("main.ps1") }) info.ArgumentList.Add(argument);
             using var process = Process.Start(info)!;
             var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));

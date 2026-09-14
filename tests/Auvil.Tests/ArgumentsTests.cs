@@ -34,7 +34,7 @@ public partial class CompilerTests
     {
         using var project = new Project();
         project.Write("other.auv", "fn changed(value: int): string[] { values: string[] = args(); values[0] = 'changed'; return values }");
-        project.Write("main.auv", "import other\nvalues: string[] = other.changed(42); print(values[0]); print(args()[0])");
+        project.Write("main.auv", "import './other.auv' as other\nvalues: string[] = other.changed(42); print(values[0]); print(args()[0])");
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
         File.Delete(project.PathFor("main.auv"));

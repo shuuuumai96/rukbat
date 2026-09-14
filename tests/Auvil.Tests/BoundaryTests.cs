@@ -66,7 +66,7 @@ public partial class CompilerTests
         project.Write("model.auv", "struct File { Name: string; PSIsContainer: bool }");
         project.Write("data.txt", "test");
         var path = project.PathFor("data.txt").Replace("\\", "\\\\").Replace("'", "\\'");
-        project.Write("main.auv", $"import model\nfiles: model.File[] = powershell<model.File[]>('Get-Item', LiteralPath: '{path}'); for file in files {{ print(file.Name); print(file.PSIsContainer) }}");
+        project.Write("main.auv", $"import './model.auv' as model\nfiles: model.File[] = powershell<model.File[]>('Get-Item', LiteralPath: '{path}'); for file in files {{ print(file.Name); print(file.PSIsContainer) }}");
         var result = await project.Run();
         Assert.True(result.ExitCode == 0, result.Error);
         Assert.Equal("data.txt\nFalse", result.Output.TrimEnd('\n'));

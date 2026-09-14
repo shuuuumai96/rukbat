@@ -47,6 +47,33 @@ internal sealed class Lexer(Source source)
                     position++;
                 }
 
+                if (Peek() == '.' && position + 1 < source.Text.Length &&
+                    char.IsAsciiDigit(source.Text[position + 1]))
+                {
+                    position++;
+                    while (char.IsAsciiDigit(Peek()))
+                    {
+                        position++;
+                    }
+                }
+
+                if (Peek() is 'e' or 'E')
+                {
+                    position++;
+                    if (Peek() is '+' or '-')
+                    {
+                        position++;
+                    }
+                    if (!char.IsAsciiDigit(Peek()))
+                    {
+                        source.Error("AUV1001", "Float exponent requires at least one digit.", new("", start));
+                    }
+                    while (char.IsAsciiDigit(Peek()))
+                    {
+                        position++;
+                    }
+                }
+
                 tokens.Add(new(source.Text[start..position], start));
             }
             else if (c is '\'' or '"')
@@ -99,7 +126,7 @@ internal sealed class Lexer(Source source)
                     position++;
                     tokens.Add(new(pair, start));
                 }
-                else if ("(){}[]:,.=+-*/%!<>;".Contains(c))
+                else if ("(){}[]:,.=+-*/%!<>;?".Contains(c))
                 {
                     tokens.Add(new(c.ToString(), start));
                 }

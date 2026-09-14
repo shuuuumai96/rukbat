@@ -69,8 +69,8 @@ public partial class CompilerTests
     public async Task RethrowAcrossModulesPreservesOriginAndErrorValueSemantics()
     {
         using var project = new Project();
-        project.Write("service.auv", "fn fail(): int {\n    throw Error(message: 'original')\n}\nfunc forward(): int { try { return fail() } catch err { saved: Error = err; saved.message = 'copied'; throw saved } }");
-        project.Write("main.auv", "import service\nprint('before'); print(service.forward()); print('unreachable')");
+        project.Write("service.auv", "fn fail(): int {\n    throw Error(message: 'original')\n}\nfn forward(): int { try { return fail() } catch err { saved: Error = err; saved.message = 'copied'; throw saved } }");
+        project.Write("main.auv", "import './service.auv' as service\nprint('before'); print(service.forward()); print('unreachable')");
         var result = await RunCli(project, ["run", project.PathFor("main.auv")]);
         Assert.Equal(1, result.ExitCode);
         Assert.Equal("before\n", result.Output);
@@ -127,7 +127,7 @@ public partial class CompilerTests
     {
         using var project = new Project();
         project.Write("service.auv", "fn relay(err: Error): Error { return err }; fn values(): Error[] { try { throw Error(message: 'array') } catch err { return [err] } }");
-        project.Write("main.auv", "import service\ntry { throw service.relay(service.values()[0]) } catch err { print(err.message) }");
+        project.Write("main.auv", "import './service.auv' as service\ntry { throw service.relay(service.values()[0]) } catch err { print(err.message) }");
         var result = await project.Run();
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("array\n", result.Output);
@@ -139,7 +139,7 @@ public partial class CompilerTests
     {
         using var project = new Project();
         project.Write("other.auv", "");
-        project.Write("main.auv", "import other as Error");
+        project.Write("main.auv", "import './other.auv' as Error");
         var result = project.Compile();
         Assert.False(result.Success);
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Message.Contains("built-in type"));
@@ -152,7 +152,7 @@ public partial class CompilerTests
     {
         using var project = new Project();
         project.Write("service.auv", "// initialization\n" + source);
-        project.Write("main.auv", "import service\ntry { print('unreachable') } catch err { print('also unreachable') }");
+        project.Write("main.auv", "import './service.auv' as service\ntry { print('unreachable') } catch err { print('also unreachable') }");
         var result = await project.Run();
         Assert.Equal(1, result.ExitCode);
         Assert.Equal("", result.Output);

@@ -17,7 +17,7 @@ fn add(a: int, b: int): int {
 `hello.auv`:
 
 ```text
-import math
+import "./math.auv" as math
 
 struct User {
     name: string
@@ -66,6 +66,10 @@ Windowsではリポジトリのラッパーも使えます。
 auvil run examples/import-data.auv
 # .ps1への変換だけ行う場合:
 .\auvil build examples/hello.auv
+# PowerShellを生成せずに構文・import・型を検査する場合:
+.\auvil check examples/hello.auv
+# ソースを標準の書式へ整形する場合:
+.\auvil fmt examples/hello.auv
 # build専用の短縮コマンドも利用できます:
 .\build examples/hello.auv
 ```
@@ -78,7 +82,7 @@ auvil run examples/import-data.auv
 Auvil側は `args(): string[]` で取得します。引数がなければ空配列です。
 生成済みの `.ps1` を直接実行する場合は `powershell -File input.ps1 引数...` です。
 
-`build` と `run` の出力先はエントリーファイルと同じディレクトリの同名 `.ps1` です。
+`build` と `run` の出力先はエントリーファイルと同じディレクトリの同名 `.ps1` です。`check` はPowerShellを生成せず、既存の `.ps1` も変更しません。`fmt` は構文が正しい1つの `.auv` ファイルを4スペースの標準書式へ上書きし、コメントを保持します。構文エラー時は元ファイルを変更しません。
 成功時は上書きします。構文・型・importエラー時は出力せず、既存の出力も変更しません。
 古い出力が残る場合があるため、自動化ではコンパイラの終了コードを確認してください。
 成功は `0`、コンパイルエラーは `1`、CLI引数・入出力エラーは `2` です。
@@ -95,7 +99,8 @@ dotnet publish src/Auvil -c Release -o artifacts/auvil
 ## 方針と現在の範囲
 
 - 読み書きしやすい一貫した構文を優先します。
-- `import math` は読み込み元と同じディレクトリの `math.auv` を読み込みます。
+- `import files` のような名前指定はコンパイラ付属の標準モジュールを読み込みます。
+- v0.1の標準モジュールは `files`、`path`、`json`、`env`、`process` です。APIと外部データ変換の契約は [標準ライブラリ仕様](docs/STDLIB.md) に定義します。
 - `import "./models/user.auv" as model` でディレクトリをまたいで読み込めます。パスはimportを書いたファイルが基準です。
 - モジュールごとに変数・関数を分離し、共通の依存モジュールは1回だけ初期化します。
 - Auvilの関数は明示的な `return` の値だけを返します。途中の式の値は捨てます。
@@ -106,7 +111,8 @@ dotnet publish src/Auvil -c Release -o artifacts/auvil
 以前の `$name: string` やPowerShellのコマンド記法をそのまま書いた `.auv` は受け付けません。
 既存 `.ps1` の構文互換性より、Auvilとしての書き味と動作の一貫性を優先します。
 
-現在の型は `int`、`string`、`bool`、戻り値用の `void`、組み込みの `Error`、ユーザー定義の `struct` と型付き配列 `T[]` です。
+現在の型は `int`、有限なbinary64の `float`、`string`、`bool`、戻り値用の `void`、組み込みの `Error`、ユーザー定義の `struct`、型付き配列 `T[]`、nullable型 `T?` です。
+`null` は `T?` だけが保持できます。`if value != null` のような明示的な確認後は、単純な変数を `T` として使えます。`int` から `float` への安全な数値拡張だけを暗黙に行い、ゼロ除算や非有限floatはErrorにします。
 structは名前付き引数で生成し、フィールド操作と内部の `fn` メソッドを利用できます。
 代入・引数・戻り値ではネストしたフィールドまで値コピーします。メソッドの `self` は呼び出した変数を更新します。
 `examples/value-semantics.auv` でコピー元が変わらない動作を確認できます。
@@ -140,7 +146,7 @@ print(user.name)
 
 `services/users.auv` からは `import "../models/user.auv" as model` で共通の型を使えます。
 文字列パスには `.auv` と `as 別名` が必要です。区切りにはWindowsでも `/` を使います。
-`import math` と `import math as calc` も使えます。
+ローカルモジュールは常に文字列パスと別名を明示します。標準モジュール名とローカルファイル名が衝突しても意味は変わりません。
 同じファイルは別名や異なる相対パスで参照しても、正規化した絶対パスで識別して1回だけ初期化します。
 生成物は従来どおり1つの `.ps1` です。
 
@@ -170,12 +176,11 @@ print(user.name)
 
 最初の引数にディレクトリを指定します。`--pattern` は省略すると `*` です。PowerShellのファイルシステムFilterを利用し、サブディレクトリを再帰的には調べません。通常は隠しファイルを含めず、名前の並び順は保証しません。
 一致するファイルが0件なら `[]`、1件でもJSON配列になります。通常の標準出力にはJSONだけを出します。
-`--output` の指定時は標準出力を空にして保存します。テキストのエンコーディングとBOM方針は、標準ライブラリ仕様では未確定です。
+`--output` の指定時は標準出力を空にし、UTF-8 BOMなし・末尾改行なしで保存します。
 パスは実行時のカレントディレクトリが基準です。空白のあるパスやパターンは引用符で囲んでください。
 引数の不足・不明なオプション・ディレクトリの参照失敗・保存失敗は、説明を標準エラーへ出し、終了コード1になります。成功とヘルプ表示は0です。
 
-`lib/files.auv` はファイル一覧取得とテキスト保存、`lib/json.auv` は文字列配列のJSON化を型付き関数として提供します。別のAuvilプログラムからも相対importで利用できます。
-これらはリポジトリに含めた小さなライブラリです。自分のプロジェクトへコピーして使うこともでき、コンパイル後は生成された一つの `.ps1` に含まれます。詳しいAPIは [ライブラリの説明](lib/README.md) を参照してください。
+ファイル操作とJSON化には、コンパイラ付属の `files` と `json` 標準モジュールを使います。生成物にはimportされた標準ライブラリ実装だけが組み込まれ、配布先には別ファイルをコピーする必要がありません。
 
 ## 配列・ループと外部データ
 

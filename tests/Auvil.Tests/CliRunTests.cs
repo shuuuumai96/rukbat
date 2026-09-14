@@ -10,7 +10,7 @@ public partial class CompilerTests
     {
         using var project = new Project();
         project.Write("math.auv", "fn add(a: int, b: int): int { return a + b }");
-        project.Write("run input.auv", "import math\nprint(math.add(2, 3)); print(powershell<string>('Get-Content', 'data.txt', Raw: true))");
+        project.Write("run input.auv", "import './math.auv' as math\nprint(math.add(2, 3)); print(powershell<string>('Get-Content', 'data.txt', Raw: true))");
         project.Write("data.txt", "relative path");
         var result = await RunCli(project, ["run", project.PathFor("run input.auv")]);
         Assert.Equal(0, result.ExitCode);
@@ -76,7 +76,7 @@ public partial class CompilerTests
     {
         using var error = new StringWriter();
         Assert.Equal(2, Cli.Run(args, TextWriter.Null, error));
-        Assert.Contains("Usage: auvil <build|run>", error.ToString());
+        Assert.Contains("Usage: auvil <build|run|check|fmt>", error.ToString());
     }
 
     private static async Task<RunResult> RunCli(Project project, string[] args, bool hidePowerShell = false)

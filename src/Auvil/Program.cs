@@ -33,23 +33,35 @@ public static class Cli
     public static int Run(string[] args, TextWriter stdout, TextWriter stderr)
     {
         if (args.Length < CompilerArgumentCount ||
-            args[0] is not ("build" or "run") ||
+            args[0] is not ("build" or "run" or "check" or "fmt") ||
             !Path.GetExtension(args[1]).Equals(".auv", StringComparison.OrdinalIgnoreCase) ||
             args.Length > CompilerArgumentCount && (args[0] != "run" || args[CompilerArgumentCount] != "--"))
         {
-            stderr.WriteLine("Usage: auvil <build|run> input.auv [-- arguments... (run only)]");
+            stderr.WriteLine("Usage: auvil <build|run|check|fmt> input.auv [-- arguments... (run only)]");
             return UsageOrIoFailure;
         }
         try
         {
             var input = Path.GetFullPath(args[1]);
-            var result = new Compiler().CompileFile(input);
-            foreach (var diagnostic in result.Diagnostics)
+            if (args[0] == "check")
             {
-                stderr.WriteLine(
-                    $"{diagnostic.FilePath}({diagnostic.Line},{diagnostic.Column}): " +
-                    $"error {diagnostic.Code}: {diagnostic.Message}");
+                var diagnostics = new Compiler().CheckFile(input);
+                WriteDiagnostics(diagnostics, stderr);
+                return diagnostics.Count == 0 ? Success : CompilationFailure;
             }
+            if (args[0] == "fmt")
+            {
+                var formatted = Formatter.Format(File.ReadAllText(input), input);
+                WriteDiagnostics(formatted.Diagnostics, stderr);
+                if (!formatted.Success)
+                {
+                    return CompilationFailure;
+                }
+                File.WriteAllText(input, formatted.Output, new System.Text.UTF8Encoding(false));
+                return Success;
+            }
+            var result = new Compiler().CompileFile(input);
+            WriteDiagnostics(result.Diagnostics, stderr);
 
             if (!result.Success)
             {
@@ -79,6 +91,16 @@ public static class Cli
         {
             stderr.WriteLine($"error: {error.Message}");
             return UsageOrIoFailure;
+        }
+    }
+
+    private static void WriteDiagnostics(IEnumerable<Diagnostic> diagnostics, TextWriter stderr)
+    {
+        foreach (var diagnostic in diagnostics)
+        {
+            stderr.WriteLine(
+                $"{diagnostic.FilePath}({diagnostic.Line},{diagnostic.Column}): " +
+                $"error {diagnostic.Code}: {diagnostic.Message}");
         }
     }
 }

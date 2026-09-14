@@ -3,12 +3,13 @@ namespace Auvil;
 internal sealed partial class TypeChecker
 {
     private static bool ContainsStruct(ValueType type) =>
+        type.NullableElement is { } nullable && ContainsStruct(nullable) ||
         type.Struct is not null || type.Element is { } element && ContainsStruct(element);
 
     private ValueType ArrayType(ArrayLiteral array, Symbols scope, ValueType? expected)
     {
         // Empty arrays need an element type from the destination or parameter declaration.
-        var element = expected?.Element;
+        var element = expected?.NonNullable.Element;
         if (element is null && array.Items.Count == 0)
         {
             Error("AUV2001", "An empty array requires an explicit array type from a declaration, argument or return.", array);

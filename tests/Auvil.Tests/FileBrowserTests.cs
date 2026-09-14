@@ -53,8 +53,8 @@ public partial class CompilerTests
         Assert.Equal("", result.Output);
         Assert.Equal("", result.Error);
         var bytes = File.ReadAllBytes(project.PathFor("result [日本語].json"));
-        Assert.True(bytes.AsSpan().StartsWith(Encoding.UTF8.Preamble));
-        var text = Encoding.UTF8.GetString(bytes.AsSpan(Encoding.UTF8.Preamble.Length));
+        Assert.False(bytes.AsSpan().StartsWith(Encoding.UTF8.Preamble));
+        var text = Encoding.UTF8.GetString(bytes);
         Assert.EndsWith("]", text);
         var names = JsonSerializer.Deserialize<string[]>(text)!;
         Assert.Equal(new[] { "alpha.txt", "note.log", "日本語.txt" }, names.Order(StringComparer.Ordinal));
@@ -148,7 +148,7 @@ public partial class CompilerTests
     {
         using var project = new Project();
         CopyLibraryAndFileBrowser(project);
-        project.Write("main.auv", "import './lib/json.auv' as json\nprint(json.encode_strings(args()))");
+        project.Write("main.auv", "import json\nprint(json.encode(args()))");
         var result = await RunCli(project, ["run", project.PathFor("main.auv"), "--", .. values]);
         Assert.True(result.ExitCode == 0, result.Error);
         Assert.Equal(values, JsonSerializer.Deserialize<string[]>(result.Output));

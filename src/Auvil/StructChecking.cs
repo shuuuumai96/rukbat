@@ -128,9 +128,26 @@ internal sealed partial class TypeChecker
         }
     }
 
-    private static bool IsPrimitive(string name) => name is "int" or "string" or "bool" or "void";
+    private static bool IsPrimitive(string name) => name is "int" or "float" or "string" or "bool" or "void";
     private ValueType BindType(ValueType type, Node node)
     {
+        if (type.NullableElement is { } nullableElement)
+        {
+            if (nullableElement.NullableElement is not null)
+            {
+                Error("AUV2001", "Nested nullable types such as T?? are not supported.", node);
+                return DeclaredTypes[node] = ValueType.Error;
+            }
+
+            var bound = BindType(nullableElement, node);
+            if (bound == ValueType.Void)
+            {
+                Error("AUV2001", "void cannot be nullable.", node);
+                return DeclaredTypes[node] = ValueType.Error;
+            }
+
+            return DeclaredTypes[node] = ValueType.NullableOf(bound);
+        }
         if (type.Element is { } element)
         {
             var bound = BindType(element, node);
@@ -172,9 +189,9 @@ internal sealed partial class TypeChecker
         foreach (var field in structure.Fields.Values)
         {
             var fieldType = field.Type;
-            while (fieldType.Element is { } element)
+            while (fieldType.NullableElement is not null || fieldType.Element is not null)
             {
-                fieldType = element;
+                fieldType = fieldType.NullableElement ?? fieldType.Element!;
             }
 
             if (fieldType.Struct is not { } nested)
@@ -232,6 +249,10 @@ internal sealed partial class TypeChecker
 
     private ValueType ResolveCall(Call call, Symbols scope)
     {
+        if (call.TypeArgument is not null)
+        {
+            Error("AUV2005", "Explicit type arguments are supported only by designated built-in operations.", call);
+        }
         if (call.Receiver is null && call.Name == "Error")
         {
             return Construct(call, ErrorStructure, scope);
@@ -295,7 +316,12 @@ internal sealed partial class TypeChecker
 
         for (var i = 0; i < Math.Min(arguments.Length, signature.Count); i++)
         {
-            Match(DeclaredTypes[signature[i]], arguments[i], call.Arguments[i], $"argument '{signature[i].Token.Text}'");
+            Match(DeclaredTypes[signature[i]], arguments[i], call.Arguments[i].Value, $"argument '{signature[i].Token.Text}'");
+        }
+
+        if (function.Module == module && function.Owner is null)
+        {
+            InvalidateGlobalRefinements();
         }
 
         return function.ReturnType;
@@ -324,7 +350,7 @@ internal sealed partial class TypeChecker
                 continue;
             }
             ConstructionFields[argument] = field;
-            Match(field.Type, TypeOf(argument.Value, scope, field.Type), argument, $"field '{name}'");
+            Match(field.Type, TypeOf(argument.Value, scope, field.Type), argument.Value, $"field '{name}'");
         }
         foreach (var field in structure.Fields.Keys.Where(f => !supplied.Contains(f)))
         {

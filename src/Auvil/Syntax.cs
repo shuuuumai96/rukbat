@@ -14,22 +14,36 @@ public sealed record CompilationResult(string? Output, IReadOnlyList<Diagnostic>
 
 // The AST retains type names until the checker binds them to their defining StructSymbol.
 // Structs defined in different modules remain distinct even when their fields match.
-internal sealed record ValueType(string Name, StructSymbol? Struct = null, ValueType? Element = null)
+internal sealed record ValueType(
+    string Name,
+    StructSymbol? Struct = null,
+    ValueType? Element = null,
+    ValueType? NullableElement = null)
 {
     public static readonly ValueType Error = new("error");
     public static readonly ValueType Int = new("int");
+    public static readonly ValueType Float = new("float");
     public static readonly ValueType String = new("string");
     public static readonly ValueType Bool = new("bool");
     public static readonly ValueType Void = new("void");
+    public static readonly ValueType Null = new("null");
     public static ValueType ArrayOf(ValueType element) => new(element.Name + "[]", Element: element);
-    public bool IsComposite => Struct is not null || Element is not null;
+    public static ValueType NullableOf(ValueType element) => new(element.Name + "?", NullableElement: element);
+    public bool IsNullable => NullableElement is not null;
+    public ValueType NonNullable => NullableElement ?? this;
+    public bool IsComposite => NonNullable.Struct is not null || NonNullable.Element is not null;
     public override string ToString() => Name;
+}
+internal sealed class NullValue
+{
+    public static readonly NullValue Instance = new();
+    private NullValue() { }
 }
 internal sealed record Token(string Text, int Offset, string? StringValue = null);
 internal abstract record Node(Token Token);
 internal abstract record Statement(Token Token) : Node(Token);
 internal abstract record Expression(Token Token) : Node(Token);
-internal sealed record Import(Token Token, string Name, string Path) : Statement(Token);
+internal sealed record Import(Token Token, string Name, string Path, bool IsStandard = false) : Statement(Token);
 internal sealed record Parameter(Token Token, ValueType Type) : Node(Token);
 internal sealed record Function(
     Token Token,
@@ -70,7 +84,8 @@ internal sealed record Call(
     Expression? Receiver,
     string Name,
     List<Argument> Arguments,
-    ValueType? PowerShellType = null) : Expression(Token);
+    ValueType? PowerShellType = null,
+    ValueType? TypeArgument = null) : Expression(Token);
 
 internal sealed class Source(string text, string path)
 {
@@ -86,10 +101,11 @@ internal sealed class Source(string text, string path)
     }
 }
 
-internal sealed class Module(Source source, string id, List<Statement> statements)
+internal sealed class Module(Source source, string id, List<Statement> statements, string? standardName = null)
 {
     public Source Source { get; } = source;
     public string Id { get; } = id;
+    public string? StandardName { get; } = standardName;
     public List<Statement> Statements { get; } = statements;
     public Dictionary<string, Module> Imports { get; } = new(StringComparer.Ordinal);
     public Dictionary<string, StructSymbol> Structs { get; } = new(StringComparer.Ordinal);

@@ -2,6 +2,10 @@ namespace Auvil;
 
 internal sealed class ModuleLoader
 {
+    private static readonly HashSet<string> StandardModules = new(StringComparer.Ordinal)
+    {
+        "files", "path", "json", "env", "process"
+    };
     private readonly Dictionary<string, Module> modules = new(
         OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
     private readonly HashSet<Module> visiting = [];
@@ -27,6 +31,39 @@ internal sealed class ModuleLoader
             if (module.Imports.ContainsKey(import.Name))
             {
                 source.Error("AUV3000", $"Duplicate import '{import.Name}'.", import.Token);
+                continue;
+            }
+            if (import.IsStandard)
+            {
+                if (!StandardModules.Contains(import.Path))
+                {
+                    source.Error("AUV3002", $"Unknown standard module '{import.Path}'.", import.Token);
+                    continue;
+                }
+                if (import.Name != import.Path)
+                {
+                    source.Error("AUV3002", "Standard modules use their canonical name and cannot be aliased.", import.Token);
+                    continue;
+                }
+                var standardPath = $"<stdlib:{import.Path}>";
+                if (!modules.TryGetValue(standardPath, out var standard))
+                {
+                    var standardText = import.Path == "process"
+                        ? "struct Result { exit_code: int; stdout: string; stderr: string }"
+                        : "";
+                    var standardSource = new Source(standardText, standardPath);
+                    var standardTokens = new Lexer(standardSource).Scan();
+                    var standardStatements = new Parser(standardSource, standardTokens).Parse();
+                    standard = new Module(standardSource, $"m{modules.Count}", standardStatements, import.Path);
+                    modules.Add(standardPath, standard);
+                    Ordered.Add(standard);
+                }
+                module.Imports.Add(import.Name, standard);
+                continue;
+            }
+            if (StandardModules.Contains(import.Name))
+            {
+                source.Error("AUV3002", $"Import alias '{import.Name}' is reserved for a standard module.", import.Token);
                 continue;
             }
             if (!resolveImports)
@@ -81,6 +118,7 @@ internal sealed class ModuleLoader
     {
         // Require forward slashes so source imports remain portable across Windows and Unix.
         return !string.IsNullOrWhiteSpace(path) &&
+            (path.StartsWith("./", StringComparison.Ordinal) || path.StartsWith("../", StringComparison.Ordinal)) &&
             !path.StartsWith('/') &&
             !path.Contains('\\') &&
             !path.Contains(':') &&

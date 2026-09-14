@@ -88,7 +88,7 @@ public partial class CompilerTests
         using var project = new Project();
         project.Write("left.auv", "struct U { n: int }");
         project.Write("right.auv", "struct U { n: int }");
-        project.Write("main.auv", "import left\nimport right\na: left.U[] = []; b: right.U[] = a");
+        project.Write("main.auv", "import './left.auv' as left\nimport './right.auv' as right\na: left.U[] = []; b: right.U[] = a");
         Assert.Contains(project.Compile().Diagnostics,
             d => d.Code == "AUV2001" && d.Message.Contains("left.U[]") && d.Message.Contains("right.U[]"));
     }
@@ -98,7 +98,7 @@ public partial class CompilerTests
     {
         using var project = new Project();
         project.Write("model.auv", "struct C { n: int; fn grow(): void { self.n = self.n + 1 } }; fn copy(xs: C[]): C[] { return xs }; fn empty(): C[] { return [] }; fn nested(xs: int[][]): int[][] { return xs }");
-        project.Write("main.auv", "import model\na: model.C[] = [model.C(n: 1)]; b: model.C[] = model.copy(a); b[0].grow(); print(a[0].n); print(b[0].n); print(model.empty().length); xs: int[][] = model.nested([[], [5]]); print(xs.length); print(xs[0].length); print(xs[1][0])");
+        project.Write("main.auv", "import './model.auv' as model\na: model.C[] = [model.C(n: 1)]; b: model.C[] = model.copy(a); b[0].grow(); print(a[0].n); print(b[0].n); print(model.empty().length); xs: int[][] = model.nested([[], [5]]); print(xs.length); print(xs[0].length); print(xs[1][0])");
         var result = await project.Run();
         Assert.True(result.ExitCode == 0, result.Error);
         Assert.Equal("1\n2\n0\n2\n0\n5", result.Output.TrimEnd('\n'));

@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Auvil;
 
 // Parse statements by recursive descent and binary expressions by precedence climbing.
@@ -65,7 +67,7 @@ internal sealed class Parser(Source source, List<Token> tokens)
         "fn" or "function" or "func" or "struct" or "self" or "class" or
         "return" or "if" or "else" or "import" or "true" or "false" or
         "powershell" or "print" or "args" or "for" or "in" or "break" or "continue" or
-        "try" or "catch" or "throw";
+        "try" or "catch" or "throw" or "null";
     public List<Statement> Parse()
     {
         var statements = new List<Statement>();
@@ -119,10 +121,18 @@ internal sealed class Parser(Source source, List<Token> tokens)
         }
 
         var type = new ValueType(name);
-        while (Match("["))
+        while (Current.Text is "[" or "?")
         {
-            Expect("]");
-            type = ValueType.ArrayOf(type);
+            if (Match("?"))
+            {
+                type = ValueType.NullableOf(type);
+            }
+            else
+            {
+                Expect("[");
+                Expect("]");
+                type = ValueType.ArrayOf(type);
+            }
         }
         return type;
     }
@@ -298,7 +308,7 @@ internal sealed class Parser(Source source, List<Token> tokens)
         }
         var name = Identifier().Text;
         var alias = Match("as") ? Identifier().Text : name;
-        return new Import(token, alias, name + ".auv");
+        return new Import(token, alias, name, true);
     }
 
     private static int Precedence(string op) => op switch
@@ -333,8 +343,18 @@ internal sealed class Parser(Source source, List<Token> tokens)
             if (Match("."))
             {
                 var member = Identifier();
-                expression = Current.Text == "(" ? new Call(member, expression, member.Text, Arguments())
-                    : new Member(member, expression, member.Text);
+                if (Current.Text == "<")
+                {
+                    Take();
+                    var typeArgument = Type();
+                    Expect(">");
+                    expression = new Call(member, expression, member.Text, Arguments(), TypeArgument: typeArgument);
+                }
+                else
+                {
+                    expression = Current.Text == "(" ? new Call(member, expression, member.Text, Arguments())
+                        : new Member(member, expression, member.Text);
+                }
             }
             else
             {
@@ -399,9 +419,23 @@ internal sealed class Parser(Source source, List<Token> tokens)
             Take();
             return new Literal(token, token.Text == "true");
         }
+        if (Match("null"))
+        {
+            return new Literal(token, NullValue.Instance);
+        }
         if (char.IsAsciiDigit(token.Text[0]))
         {
             Take();
+            if (token.Text.Contains('.') || token.Text.Contains('e', StringComparison.OrdinalIgnoreCase))
+            {
+                if (!double.TryParse(token.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var floatValue) ||
+                    !double.IsFinite(floatValue))
+                {
+                    source.Error("AUV1001", "Float literal must be a finite IEEE 754 binary64 value.", token);
+                }
+
+                return new Literal(token, floatValue);
+            }
             if (!int.TryParse(token.Text, out var value))
             {
                 source.Error("AUV1001", "Integer literal is outside Int32 range.", token);

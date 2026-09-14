@@ -7,7 +7,7 @@ public partial class CompilerTests
     {
         using var project = new Project();
         project.Write("models/user.auv", "print('init'); struct User { name: string }");
-        project.Write("services/users.auv", "import '../models/user.auv' as model\nfunc load(): model.User { return model.User(name: 'Taro') }");
+        project.Write("services/users.auv", "import '../models/user.auv' as model\nfn load(): model.User { return model.User(name: 'Taro') }");
         project.Write("main.auv", "import './models/user.auv' as model\nimport './services/users.auv' as users\nimport './services/../models/user.auv' as same\nu: model.User = users.load(); v: same.User = u; print(v.name)");
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
@@ -24,7 +24,7 @@ public partial class CompilerTests
         project.Write("left/math.auv", "fn get(): int { return 1 }");
         project.Write("right/math.auv", "fn get(): int { return 2 }");
         project.Write("math.auv", "fn get(): int { return 3 }");
-        project.Write("main.auv", "import 'left/math.auv' as left\nimport 'right/math.auv' as right\nimport math as local\nprint(left.get()); print(right.get()); print(local.get())");
+        project.Write("main.auv", "import './left/math.auv' as left\nimport './right/math.auv' as right\nimport './math.auv' as local\nprint(left.get()); print(right.get()); print(local.get())");
         var result = await project.Run();
         Assert.True(result.ExitCode == 0, result.Error);
         Assert.Equal("1\n2\n3", result.Output.TrimEnd('\n'));

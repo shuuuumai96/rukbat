@@ -1,6 +1,6 @@
 namespace Auvil;
 
-internal sealed record VariableSymbol(string Name, ValueType Type, string PowerShellName);
+internal sealed record VariableSymbol(string Name, ValueType Type, string PowerShellName, bool IsGlobal = false);
 internal sealed record FunctionSymbol(Module Module, Function Function, string PowerShellName, StructSymbol? Owner = null)
 {
     public ValueType ReturnType { get; set; } = ValueType.Error;
@@ -16,7 +16,10 @@ internal sealed partial class TypeChecker
     public Dictionary<Node, VariableSymbol> Variables { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Function, FunctionSymbol> Functions { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Call, FunctionSymbol> Calls { get; } = new(ReferenceEqualityComparer.Instance);
+    public Dictionary<Call, string> StandardCalls { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Expression, ValueType> Types { get; } = new(ReferenceEqualityComparer.Instance);
+    public Dictionary<Expression, ValueType> Conversions { get; } = new(ReferenceEqualityComparer.Instance);
+    private Dictionary<VariableSymbol, ValueType> refinements = [];
     private int variableId;
     private int loopDepth;
     private Module module = null!;
@@ -34,6 +37,7 @@ internal sealed partial class TypeChecker
             CheckStatements(statements, globals, null, true);
             foreach (var symbol in Functions.Values.Where(f => f.Module == current))
             {
+                refinements.Clear();
                 var function = symbol.Function;
                 if (symbol.Owner is null && current.Imports.ContainsKey(function.Name))
                 {
@@ -82,7 +86,7 @@ internal sealed partial class TypeChecker
             Error("AUV2002", $"Name '{name}' is already a function, struct or import.", node);
         }
 
-        var symbol = new VariableSymbol(name, type, $"${(global ? "script:" : "")}__auv_v{variableId++}");
+        var symbol = new VariableSymbol(name, type, $"${(global ? "script:" : "")}__auv_v{variableId++}", global);
         if (!scope.Variables.TryAdd(name, symbol))
         {
             Error("AUV2002", $"Duplicate declaration '{name}'.", node);
@@ -109,8 +113,14 @@ internal sealed partial class TypeChecker
                 case Variable variable:
                     var declaredType = variable.IsInferred ? null : BindType(variable.Type, variable);
                     var actual = TypeOf(variable.Value, scope, declaredType);
+                    if (variable.IsInferred && actual == ValueType.Null)
+                    {
+                        Error("AUV2001", "A null literal requires an explicit nullable type.", variable.Value);
+                        actual = ValueType.Error;
+                    }
                     Declare(variable, declaredType ?? actual, scope, topLevel);
                     Match(Variables[variable].Type, actual, variable.Value);
+                    UpdateRefinement(Variables[variable], actual);
                     break;
                 case Assignment assignment:
                     var target = scope.Find(assignment.Token.Text);
@@ -121,7 +131,9 @@ internal sealed partial class TypeChecker
                     else
                     {
                         Variables[assignment] = target;
-                        Match(target.Type, TypeOf(assignment.Value, scope, target.Type), assignment.Value);
+                        var assignedType = TypeOf(assignment.Value, scope, target.Type);
+                        Match(target.Type, assignedType, assignment.Value);
+                        UpdateRefinement(target, assignedType);
                     }
                     break;
                 case FieldAssignment assignment:
@@ -154,12 +166,27 @@ internal sealed partial class TypeChecker
                         Error("AUV2001", "for ... in requires an array.", loop.Items);
                     }
 
+                    var beforeLoop = SnapshotRefinements();
+                    foreach (var name in AssignedNames(loop.Body))
+                    {
+                        var assigned = scope.Find(name);
+                        if (assigned is not null)
+                        {
+                            refinements.Remove(assigned);
+                        }
+                    }
+                    if (ContainsUnqualifiedUserCall(loop.Body))
+                    {
+                        InvalidateGlobalRefinements();
+                    }
+
                     var loopScope = new Symbols(scope);
                     DeclaredTypes[loop] = collectionType.Element ?? ValueType.Error;
                     Declare(loop, DeclaredTypes[loop], loopScope, false);
                     loopDepth++;
                     CheckStatements(loop.Body, loopScope, returnType, false);
                     loopDepth--;
+                    MergeRefinements(beforeLoop, refinements);
                     break;
                 case LoopControl control:
                     if (loopDepth == 0)
@@ -176,7 +203,7 @@ internal sealed partial class TypeChecker
                     }
                     else
                     {
-                        Match(returnType, resultType, result);
+                        Match(returnType, resultType, (Node?)result.Value ?? result);
                     }
 
                     break;
@@ -184,15 +211,30 @@ internal sealed partial class TypeChecker
                     Match(ErrorStructure.BoundType, TypeOf(failure.Value, scope), failure.Value, "throw");
                     break;
                 case TryCatch guarded:
+                    var beforeTry = SnapshotRefinements();
                     CheckStatements(guarded.Body, new Symbols(scope), returnType, false);
+                    var afterTry = SnapshotRefinements();
+                    refinements = SnapshotRefinements(beforeTry);
+                    foreach (var name in AssignedNames(guarded.Body))
+                    {
+                        var assigned = scope.Find(name);
+                        if (assigned is not null)
+                        {
+                            refinements.Remove(assigned);
+                        }
+                    }
+                    if (ContainsUnqualifiedUserCall(guarded.Body))
+                    {
+                        InvalidateGlobalRefinements();
+                    }
                     var handlerScope = new Symbols(scope);
                     Declare(guarded.Handler, ErrorStructure.BoundType, handlerScope, false);
                     CheckStatements(guarded.Handler.Body, handlerScope, returnType, false);
+                    MergeRefinements(afterTry, refinements);
                     break;
                 case Conditional conditional:
                     Match(ValueType.Bool, TypeOf(conditional.Condition, scope), conditional.Condition);
-                    CheckStatements(conditional.Then, new Symbols(scope), returnType, false);
-                    CheckStatements(conditional.Else, new Symbols(scope), returnType, false);
+                    CheckConditional(conditional, scope, returnType);
                     break;
                 case ExpressionStatement expression:
                     TypeOf(expression.Value, scope);
@@ -209,8 +251,10 @@ internal sealed partial class TypeChecker
             Literal literal => literal.Value switch
             {
                 int => ValueType.Int,
+                double => ValueType.Float,
                 string => ValueType.String,
                 bool => ValueType.Bool,
+                NullValue => ValueType.Null,
                 _ => ValueType.Error
             },
             ArrayLiteral array => ArrayType(array, scope, expected),
@@ -238,14 +282,23 @@ internal sealed partial class TypeChecker
             return ValueType.Error;
         }
         Variables[name] = symbol;
-        return symbol.Type;
+        return refinements.GetValueOrDefault(symbol, symbol.Type);
     }
 
     private ValueType UnaryType(Unary unary, Symbols scope)
     {
-        var expected = unary.Token.Text == "!" ? ValueType.Bool : ValueType.Int;
-        Match(expected, TypeOf(unary.Value, scope), unary);
-        return expected;
+        var actual = TypeOf(unary.Value, scope);
+        if (unary.Token.Text == "!")
+        {
+            Match(ValueType.Bool, actual, unary.Value);
+            return ValueType.Bool;
+        }
+        if (actual == ValueType.Int || actual == ValueType.Float)
+        {
+            return actual;
+        }
+        Error("AUV2001", $"Unary operator '{unary.Token.Text}' requires int or float, got {actual}.", unary);
+        return ValueType.Error;
     }
 
     private ValueType BinaryType(Binary binary, Symbols scope)
@@ -258,7 +311,11 @@ internal sealed partial class TypeChecker
         }
 
         var op = binary.Token.Text;
-        if (left == right && !left.IsComposite && left != ValueType.Void && op is "==" or "!=")
+        if (op is "==" or "!=" && IsNullableNullComparison(binary))
+        {
+            return ValueType.Bool;
+        }
+        if (left == right && !left.IsNullable && !left.IsComposite && left != ValueType.Void && op is "==" or "!=")
         {
             return ValueType.Bool;
         }
@@ -274,6 +331,16 @@ internal sealed partial class TypeChecker
             {
                 "<" or "<=" or ">" or ">=" => ValueType.Bool,
                 "+" or "-" or "*" or "/" or "%" => ValueType.Int,
+                _ => Invalid()
+            };
+        }
+
+        if (IsNumber(left) && IsNumber(right))
+        {
+            return op switch
+            {
+                "==" or "!=" or "<" or "<=" or ">" or ">=" => ValueType.Bool,
+                "+" or "-" or "*" or "/" => ValueType.Float,
                 _ => Invalid()
             };
         }
@@ -294,6 +361,12 @@ internal sealed partial class TypeChecker
 
     private ValueType CallType(Call call, Symbols scope)
     {
+        if (call.Receiver is Name standardAlias &&
+            module.Imports.TryGetValue(standardAlias.Token.Text, out var standardModule) &&
+            standardModule.StandardName is { } standardName)
+        {
+            return StandardCallType(call, scope, standardModule, standardName);
+        }
         if (call.PowerShellType is null && (call.Receiver is not null || call.Name is not ("print" or "args")))
         {
             return ResolveCall(call, scope);
@@ -318,7 +391,7 @@ internal sealed partial class TypeChecker
             }
             else
             {
-                Match(ValueType.String, arguments[0], call.Arguments[0]);
+                Match(ValueType.String, arguments[0], call.Arguments[0].Value);
             }
 
             var named = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -361,6 +434,10 @@ internal sealed partial class TypeChecker
             {
                 Error("AUV2010", "Print individual struct fields or array elements rather than the composite value.", call);
             }
+            else if (arguments[0].IsNullable)
+            {
+                Error("AUV2001", "A nullable value must be checked against null before it can be printed.", call.Arguments[0].Value);
+            }
             else if (arguments[0] == ValueType.Void)
             {
                 Error("AUV2001", "Cannot print a void result.", call);
@@ -371,10 +448,312 @@ internal sealed partial class TypeChecker
         return ValueType.Error;
     }
 
-    private void Match(ValueType expected, ValueType actual, Node node, string? context = null)
+    private ValueType StandardCallType(Call call, Symbols scope, Module standardModule, string moduleName)
+    {
+        if (moduleName == "json" && call.Name is "encode" or "decode")
+        {
+            return JsonCallType(call, scope);
+        }
+
+        ValueType[]? parameters = (moduleName, call.Name) switch
+        {
+            ("files", "list") => [ValueType.String, ValueType.String],
+            ("files", "read") or ("files", "exists") => [ValueType.String],
+            ("files", "write") => [ValueType.String, ValueType.String],
+            ("path", "join") => [ValueType.ArrayOf(ValueType.String)],
+            ("path", "filename") or ("path", "extension") => [ValueType.String],
+            ("env", "get") or ("env", "remove") => [ValueType.String],
+            ("env", "set") => [ValueType.String, ValueType.String],
+            ("process", "run") => [ValueType.String, ValueType.ArrayOf(ValueType.String)],
+            _ => null
+        };
+        if (parameters is null)
+        {
+            Error("AUV2004", $"Unknown standard-library function '{moduleName}.{call.Name}'.", call);
+            return ValueType.Error;
+        }
+        if (call.TypeArgument is not null)
+        {
+            Error("AUV2005", $"{moduleName}.{call.Name} does not accept a type argument.", call);
+        }
+        CheckStandardArguments(call, scope, parameters);
+        var returnType = (moduleName, call.Name) switch
+        {
+            ("files", "list") => ValueType.ArrayOf(ValueType.String),
+            ("files", "read") => ValueType.String,
+            ("files", "exists") => ValueType.Bool,
+            ("files", "write") => ValueType.Void,
+            ("path", _) => ValueType.String,
+            ("env", "get") => ValueType.NullableOf(ValueType.String),
+            ("env", _) => ValueType.Void,
+            ("process", "run") => standardModule.Structs["Result"].BoundType,
+            _ => ValueType.Error
+        };
+        StandardCalls[call] = $"{moduleName}.{call.Name}";
+        return returnType;
+    }
+
+    private void CheckStandardArguments(Call call, Symbols scope, IReadOnlyList<ValueType> parameters)
+    {
+        if (call.Arguments.Count != parameters.Count || call.Arguments.Any(argument => argument.Name is not null))
+        {
+            Error("AUV2005", $"{call.Name} expects {parameters.Count} positional arguments, got {call.Arguments.Count}.", call);
+        }
+        for (var index = 0; index < call.Arguments.Count; index++)
+        {
+            var expected = index < parameters.Count ? parameters[index] : null;
+            var actual = TypeOf(call.Arguments[index].Value, scope, expected);
+            if (expected is not null)
+            {
+                Match(expected, actual, call.Arguments[index].Value, $"argument {index + 1}");
+            }
+        }
+    }
+
+    private ValueType JsonCallType(Call call, Symbols scope)
+    {
+        if (call.Arguments.Count != 1 || call.Arguments.Any(argument => argument.Name is not null))
+        {
+            Error("AUV2005", $"json.{call.Name} requires one positional argument.", call);
+        }
+        var argumentType = call.Arguments.Count == 0
+            ? ValueType.Error
+            : TypeOf(call.Arguments[0].Value, scope);
+        if (call.Name == "decode")
+        {
+            if (call.TypeArgument is null)
+            {
+                Error("AUV2005", "json.decode requires an explicit result type: json.decode<T>(text).", call);
+                return ValueType.Error;
+            }
+            Match(ValueType.String, argumentType, call.Arguments.Count == 0 ? call : call.Arguments[0].Value);
+            var resultType = BindType(call.TypeArgument, call);
+            if (!SupportsJson(resultType))
+            {
+                Error("AUV2010", $"Type {resultType} cannot be decoded from JSON.", call);
+            }
+            StandardCalls[call] = "json.decode";
+            return resultType;
+        }
+        if (call.TypeArgument is not null)
+        {
+            Error("AUV2005", "json.encode infers its input type and does not accept a type argument.", call);
+        }
+        if (!SupportsJson(argumentType))
+        {
+            Error("AUV2010", $"Type {argumentType} cannot be encoded as JSON.", call);
+        }
+        StandardCalls[call] = "json.encode";
+        return ValueType.String;
+    }
+
+    private bool SupportsJson(ValueType type)
+    {
+        if (type.IsNullable)
+        {
+            return SupportsJson(type.NonNullable);
+        }
+        if (type.Element is { } element)
+        {
+            return SupportsJson(element);
+        }
+        return type is { Struct: not null } && type.Struct != ErrorStructure ||
+            type == ValueType.Bool || type == ValueType.Int || type == ValueType.Float || type == ValueType.String;
+    }
+
+    private void CheckConditional(Conditional conditional, Symbols scope, ValueType? returnType)
+    {
+        var baseline = SnapshotRefinements();
+        var (symbol, nonNullWhenTrue) = NullTestRefinement(conditional.Condition);
+
+        refinements = SnapshotRefinements(baseline);
+        if (symbol is not null && nonNullWhenTrue)
+        {
+            refinements[symbol] = symbol.Type.NonNullable;
+        }
+        CheckStatements(conditional.Then, new Symbols(scope), returnType, false);
+        var afterThen = SnapshotRefinements();
+
+        refinements = SnapshotRefinements(baseline);
+        if (symbol is not null && !nonNullWhenTrue)
+        {
+            refinements[symbol] = symbol.Type.NonNullable;
+        }
+        CheckStatements(conditional.Else, new Symbols(scope), returnType, false);
+        var afterElse = SnapshotRefinements();
+
+        var thenExits = AlwaysExits(conditional.Then);
+        var elseExits = conditional.Else.Count != 0 && AlwaysExits(conditional.Else);
+        if (thenExits && !elseExits)
+        {
+            refinements = afterElse;
+        }
+        else if (elseExits && !thenExits)
+        {
+            refinements = afterThen;
+        }
+        else
+        {
+            MergeRefinements(afterThen, afterElse);
+        }
+    }
+
+    private static IEnumerable<string> AssignedNames(IEnumerable<Statement> statements)
+    {
+        foreach (var statement in statements)
+        {
+            if (statement is Assignment assignment)
+            {
+                yield return assignment.Token.Text;
+            }
+            var nested = statement switch
+            {
+                Conditional conditional => conditional.Then.Concat(conditional.Else),
+                For loop => loop.Body,
+                TryCatch guarded => guarded.Body.Concat(guarded.Handler.Body),
+                _ => []
+            };
+            foreach (var name in AssignedNames(nested))
+            {
+                yield return name;
+            }
+        }
+    }
+
+    private static bool ContainsUnqualifiedUserCall(IEnumerable<Statement> statements) => statements.Any(statement =>
+        StatementExpressions(statement).Any(ContainsUnqualifiedUserCall) || statement switch
+        {
+            Conditional conditional => ContainsUnqualifiedUserCall(conditional.Then) || ContainsUnqualifiedUserCall(conditional.Else),
+            For loop => ContainsUnqualifiedUserCall(loop.Body),
+            TryCatch guarded => ContainsUnqualifiedUserCall(guarded.Body) || ContainsUnqualifiedUserCall(guarded.Handler.Body),
+            _ => false
+        });
+
+    private static IEnumerable<Expression> StatementExpressions(Statement statement) => statement switch
+    {
+        Variable variable => [variable.Value],
+        Assignment assignment => [assignment.Value],
+        FieldAssignment assignment => [assignment.Target, assignment.Value],
+        IndexAssignment assignment => [assignment.Target, assignment.Value],
+        Return { Value: { } value } => [value],
+        Throw failure => [failure.Value],
+        For loop => [loop.Items],
+        Conditional conditional => [conditional.Condition],
+        ExpressionStatement expression => [expression.Value],
+        _ => []
+    };
+
+    private static bool ContainsUnqualifiedUserCall(Expression expression)
+    {
+        if (expression is Call { Receiver: null } directCall && directCall.Name is not ("print" or "args" or "powershell" or "Error"))
+        {
+            return true;
+        }
+        return expression switch
+        {
+            Unary unary => ContainsUnqualifiedUserCall(unary.Value),
+            Binary binary => ContainsUnqualifiedUserCall(binary.Left) || ContainsUnqualifiedUserCall(binary.Right),
+            ArrayLiteral array => array.Items.Any(ContainsUnqualifiedUserCall),
+            Index index => ContainsUnqualifiedUserCall(index.Receiver) || ContainsUnqualifiedUserCall(index.Offset),
+            Member member => ContainsUnqualifiedUserCall(member.Receiver),
+            Call call => (call.Receiver is not null && ContainsUnqualifiedUserCall(call.Receiver)) ||
+                call.Arguments.Any(argument => ContainsUnqualifiedUserCall(argument.Value)),
+            _ => false
+        };
+    }
+
+    private (VariableSymbol? Symbol, bool NonNullWhenTrue) NullTestRefinement(Expression condition)
+    {
+        if (condition is not Binary { Token.Text: "==" or "!=" } binary)
+        {
+            return (null, false);
+        }
+
+        var name = IsNullLiteral(binary.Left) ? binary.Right as Name :
+            IsNullLiteral(binary.Right) ? binary.Left as Name : null;
+        if (name is null || !Variables.TryGetValue(name, out var symbol) || !symbol.Type.IsNullable)
+        {
+            return (null, false);
+        }
+        return (symbol, binary.Token.Text == "!=");
+    }
+
+    private bool IsNullableNullComparison(Binary binary)
+    {
+        var other = IsNullLiteral(binary.Left) ? binary.Right :
+            IsNullLiteral(binary.Right) ? binary.Left : null;
+        if (other is null)
+        {
+            return false;
+        }
+        return Types[other].IsNullable || other is Name name &&
+            Variables.TryGetValue(name, out var symbol) && symbol.Type.IsNullable;
+    }
+
+    private static bool IsNullLiteral(Expression expression) =>
+        expression is Literal { Value: NullValue };
+
+    private static bool IsNumber(ValueType type) => type == ValueType.Int || type == ValueType.Float;
+
+    private void UpdateRefinement(VariableSymbol symbol, ValueType assigned)
+    {
+        refinements.Remove(symbol);
+        if (symbol.Type.IsNullable && assigned != ValueType.Null && !assigned.IsNullable &&
+            CanConvert(symbol.Type.NonNullable, assigned))
+        {
+            refinements[symbol] = symbol.Type.NonNullable;
+        }
+    }
+
+    private Dictionary<VariableSymbol, ValueType> SnapshotRefinements() =>
+        SnapshotRefinements(refinements);
+
+    private static Dictionary<VariableSymbol, ValueType> SnapshotRefinements(
+        Dictionary<VariableSymbol, ValueType> source) => new(source);
+
+    private void MergeRefinements(params Dictionary<VariableSymbol, ValueType>[] states)
+    {
+        refinements = states.Length == 0 ? [] : states[0]
+            .Where(pair => states.Skip(1).All(state => state.TryGetValue(pair.Key, out var type) && type == pair.Value))
+            .ToDictionary();
+    }
+
+    private void InvalidateGlobalRefinements()
+    {
+        foreach (var symbol in refinements.Keys.Where(symbol => symbol.IsGlobal).ToArray())
+        {
+            refinements.Remove(symbol);
+        }
+    }
+
+    private static bool CanConvert(ValueType expected, ValueType actual)
     {
         if (expected == actual || expected == ValueType.Error || actual == ValueType.Error)
         {
+            return true;
+        }
+        if (expected.IsNullable)
+        {
+            if (actual == ValueType.Null)
+            {
+                return true;
+            }
+            return actual.IsNullable
+                ? CanConvert(expected.NonNullable, actual.NonNullable)
+                : CanConvert(expected.NonNullable, actual);
+        }
+        return expected == ValueType.Float && actual == ValueType.Int;
+    }
+
+    private void Match(ValueType expected, ValueType actual, Node node, string? context = null)
+    {
+        if (CanConvert(expected, actual))
+        {
+            if (node is Expression expression && expected != actual &&
+                expected != ValueType.Error && actual != ValueType.Error)
+            {
+                Conversions[expression] = expected;
+            }
             return;
         }
 
@@ -390,6 +769,10 @@ internal sealed partial class TypeChecker
 
     private static string QualifiedTypeName(ValueType type)
     {
+        if (type.NullableElement is { } nullable)
+        {
+            return QualifiedTypeName(nullable) + "?";
+        }
         if (type.Element is { } element)
         {
             return QualifiedTypeName(element) + "[]";

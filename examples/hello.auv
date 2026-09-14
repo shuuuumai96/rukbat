@@ -1,4 +1,4 @@
-import math
+import "./math.auv" as math
 
 struct User {
     name: string
@@ -9,12 +9,12 @@ struct User {
     }
 }
 
-user: User = User(
+user := User(
     name: "Taro",
     age: 30
 )
 
-result: int = math.add(user.age, 2)
+result := math.add(user.age, 2)
 print(user.name)
 print(result)
 
