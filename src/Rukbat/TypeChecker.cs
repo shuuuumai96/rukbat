@@ -16,6 +16,7 @@ internal sealed partial class TypeChecker
     public Dictionary<Node, VariableSymbol> Variables { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Function, FunctionSymbol> Functions { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Call, FunctionSymbol> Calls { get; } = new(ReferenceEqualityComparer.Instance);
+    public HashSet<Call> ArrayAppends { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Call, string> StandardCalls { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Expression, ValueType> Types { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Expression, ValueType> Conversions { get; } = new(ReferenceEqualityComparer.Instance);

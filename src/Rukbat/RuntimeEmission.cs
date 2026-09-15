@@ -24,6 +24,13 @@ internal sealed partial class Emitter
             }
             return $value
         }
+        $__auv_append = {
+            param([object[]]$values, [object]$value)
+            $copy = [object[]]::new($values.Length + 1)
+            [Array]::Copy($values, $copy, $values.Length)
+            $copy[$values.Length] = $value
+            return ,$copy
+        }
         $__auv_index = {
             param([object[]]$values, [int]$offset, [string]$location, [bool]$address, [scriptblock]$raise)
             if ($offset -lt 0 -or $offset -ge $values.Length) {

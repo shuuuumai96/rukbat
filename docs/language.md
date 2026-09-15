@@ -37,6 +37,8 @@ Each module executes its top-level statements once, after its dependencies have 
 
 `return` is valid only inside a function. A non-`void` function must return a value or throw on every reachable path. A `void` function may omit its final `return`. Expressions and function arguments are evaluated from left to right; `&&` and `||` short-circuit.
 
+Structs and arrays are mutable value types. Their stored values can be updated, but assignment, argument passing, return, and placement into another value copy them recursively. Mutating a copied value never changes the storage location from which it was copied.
+
 ## Types, nullable values, and conversions
 
 The primitive types are `int`, `float`, `string`, and `bool`. `int` is a signed 32-bit integer. `float` is a finite IEEE 754 binary64 value. `void` is return-only. Rukbat also has user-defined `struct` types, typed arrays `T[]`, and nullable types `T?`.
@@ -79,13 +81,15 @@ Formatting is canonical and has no configuration. `rukbat fmt` uses four-space i
 
 ## Types and expressions
 
-Arrays are fixed length. Structs and arrays currently use recursive value-copy behavior for assignment, arguments, and returns.
+Arrays have mutable lengths. `values.append(value)` adds one value to the end of an array and returns `void`. `append` exists only on an array value that is assignable as the left side of `=`: a variable, or a chain of struct fields and array indexes rooted at a variable. It cannot mutate a temporary value such as a function result. The appended value must be compatible with the array element type.
+
+Every index expression in an assignment or `append` receiver is evaluated exactly once, from left to right. A nested update writes the result back to the addressed storage location rather than mutating a temporary copy.
 
 - Integer division truncates toward zero.
 - `+` concatenates two strings.
 - Equality compares values of the same primitive type and string equality is case-sensitive.
 - Boolean `&&` and `||` short-circuit.
-- Array literals use `[value, ...]`; arrays are fixed length.
+- Array literals use `[value, ...]`; arrays can grow with the statement `values.append(value)`.
 - `items[index]` reads or writes an element, and `items.length` is read-only.
 
 ## Control flow

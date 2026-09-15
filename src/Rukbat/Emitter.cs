@@ -84,9 +84,9 @@ internal sealed partial class Emitter(TypeChecker checker)
     {
         module = current;
         Line($"$__auv_modules[{Quote(current.Id)}] = New-Module -AsCustomObject " +
-            "-ArgumentList $__auv_modules, $__auv_runtime, $__auv_clone, $__auv_index, $__auv_float, $__auv_json_decode, $__auv_json_encode, $__auv_standard, $__auv_error, $__auv_raise, $__auv_arguments -ScriptBlock {");
+            "-ArgumentList $__auv_modules, $__auv_runtime, $__auv_clone, $__auv_append, $__auv_index, $__auv_float, $__auv_json_decode, $__auv_json_encode, $__auv_standard, $__auv_error, $__auv_raise, $__auv_arguments -ScriptBlock {");
         indentation++;
-        Line("param($__auv_dependencies, $__auv_runtime, $__auv_clone, $__auv_index, $__auv_float, $__auv_json_decode, $__auv_json_encode, $__auv_standard, $__auv_error, $__auv_raise, [string[]]$__auv_arguments)");
+        Line("param($__auv_dependencies, $__auv_runtime, $__auv_clone, $__auv_append, $__auv_index, $__auv_float, $__auv_json_decode, $__auv_json_encode, $__auv_standard, $__auv_error, $__auv_raise, [string[]]$__auv_arguments)");
         Line("Set-StrictMode -Version Latest");
         Line("$ErrorActionPreference = 'Stop'");
 
@@ -313,6 +313,16 @@ internal sealed partial class Emitter(TypeChecker checker)
 
     private string Binary(Binary binary)
     {
+        if (binary.Token.Text is "==" or "!=" &&
+            (binary.Left is Literal { Value: NullValue } || binary.Right is Literal { Value: NullValue }))
+        {
+            var value = binary.Left is Literal { Value: NullValue } ? binary.Right : binary.Left;
+            var nullOperator = binary.Token.Text == "==" ? "-ceq" : "-cne";
+            // PowerShell filters when an array is on the left of -eq/-ne. Keep null on the left
+            // so nullable array comparison always produces one boolean, including for [].
+            return $"($null {nullOperator} {Expr(value)})";
+        }
+
         var op = binary.Token.Text switch
         {
             "==" => "-ceq",
@@ -340,6 +350,16 @@ internal sealed partial class Emitter(TypeChecker checker)
 
     private string Call(Call call)
     {
+        if (checker.ArrayAppends.Contains(call))
+        {
+            var address = Address(call.Receiver!);
+            if (call.Arguments.Count != 1)
+            {
+                return "$null";
+            }
+            var value = Expr(call.Arguments[0].Value);
+            return $"({address} = (& $script:__auv_append ({address}) ({value})))";
+        }
         if (checker.StandardCalls.TryGetValue(call, out var standardCall))
         {
             if (standardCall == "json.decode")

@@ -272,6 +272,25 @@ internal sealed partial class TypeChecker
                 return receiverType;
             }
 
+            if (receiverType.Element is { } element && call.Name == "append")
+            {
+                if (!IsVariablePath(call.Receiver))
+                {
+                    Error("RUK2010", "Array append requires a variable, not a temporary value.", call.Receiver);
+                }
+                if (call.Arguments.Count != 1 || call.Arguments[0].Name is not null)
+                {
+                    Error("RUK2005", "append requires one positional argument.", call);
+                }
+                else
+                {
+                    Match(element, TypeOf(call.Arguments[0].Value, scope, element), call.Arguments[0].Value, "append value");
+                }
+
+                ArrayAppends.Add(call);
+                return ValueType.Void;
+            }
+
             if (receiverType.Struct is not { } structure || !structure.Methods.TryGetValue(call.Name, out function))
             {
                 Error("RUK2004", $"Unknown method '{call.Name}' on {receiverType}.", call);

@@ -2,6 +2,16 @@ namespace Rukbat.Tests;
 
 public partial class CompilerTests
 {
+    [Fact]
+    public async Task EmptyNullableArrayIsDistinctFromNull()
+    {
+        using var project = new Project();
+        project.Write("main.rukbat", "xs: string[]? = []; print(xs == null); print(xs != null)");
+        var result = await project.Run();
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("False\nTrue", result.Output.TrimEnd('\n'));
+    }
+
     [Theory]
     [InlineData("x: float = 1; print(x + 0.5)", "1.5")]
     [InlineData("fn widen(x: int?): float? { return x }; y: float? = widen(2); if y != null { print(y + 0.5) }", "2.5")]
