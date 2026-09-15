@@ -13,6 +13,13 @@ internal sealed partial class Emitter
         if (modules.Contains("path")) EmitLines(PathRuntime);
         if (modules.Contains("env")) EmitLines(EnvironmentRuntime);
         if (modules.Contains("process")) EmitLines(ProcessRuntime);
+        if (modules.Contains("text")) EmitLines(TextRuntime);
+        if (modules.Contains("stderr")) EmitLines("""
+            'stderr.print' {
+                [Console]::Error.WriteLine([string]$values[0])
+                return
+            }
+            """);
         indentation--;
         Line("}");
         Line("throw \"Unknown standard-library operation '$operation'.\"");

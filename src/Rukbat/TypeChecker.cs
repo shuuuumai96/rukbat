@@ -68,6 +68,7 @@ internal sealed partial class TypeChecker
     // A loop may execute zero times. Both paths of a try/catch must return or throw.
     private static bool AlwaysExits(List<Statement> body) => body.Any(statement =>
         statement is Return or Throw ||
+        statement is ExpressionStatement { Value: Call { Receiver: null, Name: "exit", PowerShellType: null } } ||
         statement is Conditional condition &&
             AlwaysExits(condition.Then) && AlwaysExits(condition.Else) ||
         statement is TryCatch guarded &&
@@ -394,12 +395,20 @@ internal sealed partial class TypeChecker
         {
             return StandardCallType(call, scope, standardModule, standardName);
         }
-        if (call.PowerShellType is null && (call.Receiver is not null || call.Name is not ("print" or "args")))
+        if (call.PowerShellType is null && (call.Receiver is not null || call.Name is not ("print" or "args" or "exit")))
         {
             return ResolveCall(call, scope);
         }
 
         var arguments = call.Arguments.Select(a => TypeOf(a.Value, scope)).ToArray();
+        if (call.Receiver is null && call.Name == "exit" && call.PowerShellType is null)
+        {
+            if (arguments.Length != 1 || call.Arguments.Any(a => a.Name is not null))
+                Error("RUK2005", "exit requires one positional argument.", call);
+            else
+                Match(ValueType.Int, arguments[0], call.Arguments[0].Value);
+            return ValueType.Void;
+        }
         if (call.Receiver is null && call.Name == "args")
         {
             if (arguments.Length != 0)
@@ -492,6 +501,11 @@ internal sealed partial class TypeChecker
             ("env", "get") or ("env", "remove") => [ValueType.String],
             ("env", "set") => [ValueType.String, ValueType.String],
             ("process", "run") => [ValueType.String, ValueType.ArrayOf(ValueType.String)],
+            ("stderr", "print") => [ValueType.String],
+            ("text", "from_int") => [ValueType.Int],
+            ("text", "from_float") => [ValueType.Float],
+            ("text", "from_bool") => [ValueType.Bool],
+            ("text", "parse_int" or "parse_float" or "parse_bool") => [ValueType.String],
             _ => null
         };
         if (parameters is null)
@@ -514,6 +528,11 @@ internal sealed partial class TypeChecker
             ("env", "get") => ValueType.NullableOf(ValueType.String),
             ("env", _) => ValueType.Void,
             ("process", "run") => standardModule.Structs["Result"].BoundType,
+            ("stderr", "print") => ValueType.Void,
+            ("text", "parse_int") => ValueType.Int,
+            ("text", "parse_float") => ValueType.Float,
+            ("text", "parse_bool") => ValueType.Bool,
+            ("text", _) => ValueType.String,
             _ => ValueType.Error
         };
         StandardCalls[call] = $"{moduleName}.{call.Name}";

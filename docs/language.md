@@ -10,6 +10,14 @@ Rukbat is a typed, procedural language for Windows system scripting. It is not P
 
 `args(): string[]` returns the arguments supplied to the entry program. The compiler command, source path, and `--` separator are excluded.
 
+`exit(code: int): void` terminates the entire program with the supplied code, including when called
+inside a function or imported module. Codes from 0 through 2147483647 are accepted.
+The argument is evaluated once. A negative code raises ordinary Error; a valid exit is a terminal
+control transfer, cannot be caught, and satisfies the function's requirement to return or terminate.
+The generated script must be executed in its own PowerShell process; exit terminates that host process.
+Use `import stderr` and `stderr.print(text)` for newline-terminated diagnostic output.
+Explicit string conversion and strict parsing use the `text` module described in STDLIB.md.
+
 ## Declarations and assignment
 
 ```rukbat

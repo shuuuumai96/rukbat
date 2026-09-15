@@ -100,7 +100,9 @@ dotnet publish src/Rukbat -c Release -o artifacts/rukbat
 
 - 読み書きしやすい一貫した構文を優先します。
 - `import files` のような名前指定はコンパイラ付属の標準モジュールを読み込みます。
-- v0.1の標準モジュールは `files`、`path`、`json`、`env`、`process` です。APIと外部データ変換の契約は [標準ライブラリ仕様](docs/STDLIB.md) に定義します。
+- v0.1の標準モジュールは `files`、`path`、`json`、`env`、`process`、`text`、`stderr` です。APIと外部データ変換の契約は [標準ライブラリ仕様](docs/STDLIB.md) に定義します。
+- `exit(code)` で非負intの終了コードを返してプロセスを終了します。`stderr.print(text)` は改行付き標準エラー出力です。
+- `text.from_int/from_float/from_bool` と `text.parse_int/parse_float/parse_bool` で、地域設定に依存せず明示的に文字列化・解析できます。
 - `import "./models/user.rukbat" as model` でディレクトリをまたいで読み込めます。パスはimportを書いたファイルが基準です。
 - モジュールごとに変数・関数を分離し、共通の依存モジュールは1回だけ初期化します。
 - Rukbatの関数は明示的な `return` の値だけを返します。途中の式の値は捨てます。

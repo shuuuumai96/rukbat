@@ -10,11 +10,45 @@ import path
 import json
 import env
 import process
+import text
+import stderr
 ```
 
 A local module instead uses an explicit relative `.rukbat` path and an alias. Standard module names are reserved as aliases. Generated scripts contain only the standard-library runtime sections used by their imports and remain standalone on Windows PowerShell 5.1.
 
 All failures described below are ordinary Rukbat runtime `Error` values and can be handled with `try` / `catch`.
+
+## Admission criteria
+
+Standard operations must be common in Windows automation and repeatedly useful in Rukbat programs.
+They must have explicit, statically checked input/output contracts and predictable failure behavior.
+They should run on Windows PowerShell 5.1 without additional deployment dependencies.
+Use one canonical API per operation. Rukbat's standard library does not aim to provide a comprehensive wrapper for PowerShell APIs.
+
+## `stderr`
+
+`stderr.print(text: string): void` writes the text followed by a newline to standard error.
+It does not write to standard output and does not raise Error merely because a message was printed.
+
+## `text`
+
+| Signature | Meaning |
+|---|---|
+| `text.from_int(value: int): string` | Signed decimal representation. |
+| `text.from_float(value: float): string` | Culture-independent round-trip representation of a finite binary64 value. |
+| `text.from_bool(value: bool): string` | Lowercase `true` or `false`. |
+| `text.parse_int(value: string): int` | Parses a signed decimal integer within the signed 32-bit range. |
+| `text.parse_float(value: string): float` | Parses a finite decimal binary64 value. |
+| `text.parse_bool(value: string): bool` | Accepts only case-sensitive `true` and `false`. |
+
+All parse operations trim leading and trailing ASCII whitespace (U+0009 through U+000D and U+0020).
+Other whitespace is rejected. Numeric parsing is independent of the OS locale and uses ASCII digits.
+Integer syntax is `[+-]?[0-9]+`; decimal points and exponents are rejected.
+Float syntax is `[+-]?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?`: the decimal separator is a dot,
+and `.5`, `1.`, grouping separators, NaN and Infinity are rejected.
+Invalid input, overflow, and nonzero float input that underflows to zero cause Error.
+Representable subnormal floats are accepted. Float formatting preserves the numeric value on reparse;
+it does not promise to preserve the input spelling or the sign of zero.
 
 ## `files`
 

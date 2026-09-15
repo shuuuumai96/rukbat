@@ -66,7 +66,7 @@ internal sealed class Parser(Source source, List<Token> tokens)
     private static bool IsReservedWord(string text) => text is
         "fn" or "function" or "func" or "struct" or "self" or "class" or
         "return" or "if" or "else" or "import" or "true" or "false" or
-        "powershell" or "print" or "args" or "for" or "in" or "break" or "continue" or
+        "powershell" or "print" or "args" or "exit" or "for" or "in" or "break" or "continue" or
         "try" or "catch" or "throw" or "null";
     public List<Statement> Parse()
     {
@@ -346,7 +346,8 @@ internal sealed class Parser(Source source, List<Token> tokens)
         {
             if (Match("."))
             {
-                var member = Identifier();
+                // print remains reserved as a declaration name, but is also a standard-module member.
+                var member = Current.Text == "print" ? Take() : Identifier();
                 if (Current.Text == "<")
                 {
                     Take();
@@ -454,7 +455,7 @@ internal sealed class Parser(Source source, List<Token> tokens)
             Expect(">");
             return new Call(token, null, "powershell", Arguments(), type);
         }
-        if (Match("print") || Match("args"))
+        if (Match("print") || Match("args") || Match("exit"))
         {
             return new Call(token, null, token.Text, Arguments());
         }

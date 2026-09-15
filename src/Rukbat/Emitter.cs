@@ -55,7 +55,7 @@ internal sealed partial class Emitter(TypeChecker checker)
             EmitJsonRuntime();
         }
         var standardModules = modules
-            .Where(current => current.StandardName is "files" or "path" or "env" or "process")
+            .Where(current => current.StandardName is "files" or "path" or "env" or "process" or "text" or "stderr")
             .Select(current => current.StandardName!)
             .ToHashSet(StringComparer.Ordinal);
         if (standardModules.Count != 0)
@@ -405,6 +405,11 @@ internal sealed partial class Emitter(TypeChecker checker)
         if (call.Receiver is null && call.Name == "print")
         {
             return $"([Console]::WriteLine([object]({Expr(call.Arguments[0].Value)})))";
+        }
+        if (call.Receiver is null && call.Name == "exit")
+        {
+            // Process termination crosses module/function boundaries and cannot be caught as Error.
+            return $"(& {{ param([int]$code) if ($code -lt 0) {{ throw 'exit code must be non-negative.' }}; [Console]::Out.Flush(); [Console]::Error.Flush(); [Environment]::Exit($code) }} ({Expr(call.Arguments[0].Value)}))";
         }
 
         var function = checker.Calls[call];
