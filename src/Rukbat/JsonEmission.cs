@@ -194,9 +194,9 @@ internal sealed partial class Emitter
                     }
                     'array' {
                         if ($value -is [array]) {
-                            $copy = [object[]]::new($value.Length)
+                            $copy = [System.Collections.Generic.List[object]]::new($value.Length)
                             for ($i = 0; $i -lt $value.Length; $i++) {
-                                $copy[$i] = & $convert $value[$i] $type.element "$path[$i]"
+                                $copy.Add((& $convert $value[$i] $type.element "$path[$i]")) > $null
                             }
                             return ,$copy
                         }

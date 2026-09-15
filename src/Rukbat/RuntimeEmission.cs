@@ -2,16 +2,24 @@ namespace Rukbat;
 
 internal sealed partial class Emitter
 {
-    // Keep PowerShell's stream enumeration at the boundary. Internally an array is one value.
+    // Keep PowerShell's stream enumeration at the boundary. Internally a List retains spare capacity for append.
     private void EmitRuntime()
     {
         const string runtime = """
+        $__rukbat_array = {
+            param([object[]]$values)
+            $array = [System.Collections.Generic.List[object]]::new($values.Length)
+            foreach ($value in $values) {
+                $array.Add($value) > $null
+            }
+            return ,$array
+        }
         $__rukbat_clone = {
             param([object]$value, [scriptblock]$recurse)
-            if ($value -is [array]) {
-                $copy = [object[]]::new($value.Length)
-                for ($i = 0; $i -lt $value.Length; $i++) {
-                    $copy[$i] = & $recurse $value[$i] $recurse
+            if ($value -is [System.Collections.Generic.List[object]]) {
+                $copy = [System.Collections.Generic.List[object]]::new($value.Count)
+                for ($i = 0; $i -lt $value.Count; $i++) {
+                    $copy.Add((& $recurse $value[$i] $recurse)) > $null
                 }
                 return ,$copy
             }
@@ -25,16 +33,14 @@ internal sealed partial class Emitter
             return $value
         }
         $__rukbat_append = {
-            param([object[]]$values, [object]$value)
-            $copy = [object[]]::new($values.Length + 1)
-            [Array]::Copy($values, $copy, $values.Length)
-            $copy[$values.Length] = $value
-            return ,$copy
+            param([System.Collections.Generic.List[object]]$values, [object]$value)
+            $values.Add($value) > $null
+            return ,$values
         }
         $__rukbat_index = {
-            param([object[]]$values, [int]$offset, [string]$location, [bool]$address, [scriptblock]$raise)
-            if ($offset -lt 0 -or $offset -ge $values.Length) {
-                & $raise @{ message = "Array index $offset is outside length $($values.Length)." } $location
+            param([System.Collections.Generic.List[object]]$values, [int]$offset, [string]$location, [bool]$address, [scriptblock]$raise)
+            if ($offset -lt 0 -or $offset -ge $values.Count) {
+                & $raise @{ message = "Array index $offset is outside length $($values.Count)." } $location
             }
             if ($address) {
                 return @{ array = $values; offset = $offset }
@@ -69,9 +75,9 @@ internal sealed partial class Emitter
                             if ($value -isnot [array]) {
                                 throw "${path}: Value is incompatible with $($type.name); expected an array."
                             }
-                            $copy = [object[]]::new($value.Length)
+                            $copy = [System.Collections.Generic.List[object]]::new($value.Length)
                             for ($i = 0; $i -lt $value.Length; $i++) {
-                                $copy[$i] = & $recurse $value[$i] $type.element "$path[$i]" $recurse
+                                $copy.Add((& $recurse $value[$i] $type.element "$path[$i]" $recurse)) > $null
                             }
                             return ,$copy
                         }

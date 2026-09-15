@@ -22,7 +22,7 @@ internal sealed partial class Emitter(TypeChecker checker)
         }
         if (type.Element is not null)
         {
-            return "object[]";
+            return "System.Collections.Generic.List[object]";
         }
 
         if (type == ValueType.Float)
@@ -46,6 +46,7 @@ internal sealed partial class Emitter(TypeChecker checker)
         Line("$__rukbat_modules = @{}");
         EmitErrorRuntime();
         EmitRuntime();
+        Line("$__rukbat_arguments = & $__rukbat_array $__rukbat_arguments");
         Line("$__rukbat_json_decode = $null");
         Line("$__rukbat_json_encode = $null");
         Line("$__rukbat_standard = $null");
@@ -84,9 +85,9 @@ internal sealed partial class Emitter(TypeChecker checker)
     {
         module = current;
         Line($"$__rukbat_modules[{Quote(current.Id)}] = New-Module -AsCustomObject " +
-            "-ArgumentList $__rukbat_modules, $__rukbat_runtime, $__rukbat_clone, $__rukbat_append, $__rukbat_index, $__rukbat_float, $__rukbat_json_decode, $__rukbat_json_encode, $__rukbat_standard, $__rukbat_error, $__rukbat_raise, $__rukbat_arguments -ScriptBlock {");
+            "-ArgumentList $__rukbat_modules, $__rukbat_runtime, $__rukbat_array, $__rukbat_clone, $__rukbat_append, $__rukbat_index, $__rukbat_float, $__rukbat_json_decode, $__rukbat_json_encode, $__rukbat_standard, $__rukbat_error, $__rukbat_raise, $__rukbat_arguments -ScriptBlock {");
         indentation++;
-        Line("param($__rukbat_dependencies, $__rukbat_runtime, $__rukbat_clone, $__rukbat_append, $__rukbat_index, $__rukbat_float, $__rukbat_json_decode, $__rukbat_json_encode, $__rukbat_standard, $__rukbat_error, $__rukbat_raise, [string[]]$__rukbat_arguments)");
+        Line("param($__rukbat_dependencies, $__rukbat_runtime, $__rukbat_array, $__rukbat_clone, $__rukbat_append, $__rukbat_index, $__rukbat_float, $__rukbat_json_decode, $__rukbat_json_encode, $__rukbat_standard, $__rukbat_error, $__rukbat_raise, [System.Collections.Generic.List[object]]$__rukbat_arguments)");
         Line("Set-StrictMode -Version Latest");
         Line("$ErrorActionPreference = 'Stop'");
 
@@ -296,10 +297,10 @@ internal sealed partial class Emitter(TypeChecker checker)
             NullValue => "$null",
             _ => throw new InvalidOperationException()
         },
-        ArrayLiteral array => $"@({string.Join("; ", array.Items.Select(item => ",(" + Expr(item) + ")"))})",
+        ArrayLiteral array => $"(& $script:__rukbat_array @({string.Join("; ", array.Items.Select(item => ",(" + Expr(item) + ")"))}))",
         Index index => $"(& $script:__rukbat_index ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) {Location(index)} $false $script:__rukbat_raise)",
         Name name => checker.Variables[name].PowerShellName,
-        Member member when checker.Types[member.Receiver].Element is not null => $"(({RawExpr(member.Receiver)}).Length)",
+        Member member when checker.Types[member.Receiver].Element is not null => $"(({RawExpr(member.Receiver)}).Count)",
         Member member => $"(({RawExpr(member.Receiver)})[{Quote(checker.Fields[member].Key)}])",
         Unary unary => unary.Token.Text == "!"
             ? $"(-not {Expr(unary.Value)})"
@@ -380,6 +381,10 @@ internal sealed partial class Emitter(TypeChecker checker)
                     $"{Quote(fields["stdout"].Key)} = [string]$result[1]; " +
                     $"{Quote(fields["stderr"].Key)} = [string]$result[2]" + "}})";
             }
+            if (checker.Types[call].Element is not null)
+            {
+                return $"(& $script:__rukbat_array ({invocation}))";
+            }
             return invocation;
         }
         if (checker.Constructions.ContainsKey(call))
@@ -426,13 +431,21 @@ internal sealed partial class Emitter(TypeChecker checker)
         var positional = string.Join("; ", call.Arguments
             .Skip(1)
             .Where(argument => argument.Name is null)
-            .Select(argument => ",(" + Expr(argument.Value) + ")"));
+            .Select(argument => ",(" + PowerShellArgument(argument.Value) + ")"));
         var named = string.Join("; ", call.Arguments
             .Skip(1)
             .Where(argument => argument.Name is not null)
-            .Select(argument => $"{Quote(argument.Name!)} = {Expr(argument.Value)}"));
+            .Select(argument => $"{Quote(argument.Name!)} = {PowerShellArgument(argument.Value)}"));
 
         return $"(& $script:__rukbat_runtime {Schema(checker.Types[call])} " +
             $"({Expr(call.Arguments[0].Value)}) @({positional}) @{{{named}}} {Location(call)} $script:__rukbat_error $script:__rukbat_raise)";
+    }
+
+    private string PowerShellArgument(Expression expression)
+    {
+        var value = Expr(expression);
+        return checker.Types[expression].NonNullable.Element is null
+            ? value
+            : $"(& {{ param($value) if ($null -eq $value) {{ return $null }}; return ,([object[]]$value) }} ({value}))";
     }
 }

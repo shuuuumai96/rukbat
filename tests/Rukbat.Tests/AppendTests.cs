@@ -82,6 +82,37 @@ public partial class CompilerTests
     }
 
     [Fact]
+    public async Task AppendsManyPrimitiveValuesWithCapacityBackedStorage()
+    {
+        const int itemCount = 50_000;
+        using var project = new Project();
+        project.Write("main.rukbat", $$"""
+            values: int[] = []
+            index := 0
+            while index < {{itemCount}} {
+                values.append(index)
+                index = index + 1
+            }
+            print(values.length)
+            print(values[0])
+            print(values[{{itemCount - 1}}])
+            """);
+
+        var compiled = project.Compile();
+        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+        Assert.Contains("[System.Collections.Generic.List[object]]", compiled.Output);
+        Assert.DoesNotContain("[object[]]::new($values.Length + 1)", compiled.Output);
+
+        var modern = await project.RunOutput(compiled.Output!);
+        Assert.Equal(0, modern.ExitCode);
+        Assert.Equal($"{itemCount}\n0\n{itemCount - 1}", modern.Output.TrimEnd('\n'));
+
+        var windows = await project.RunOutputWithWindowsPowerShell(compiled.Output!);
+        Assert.Equal(0, windows.ExitCode);
+        Assert.Equal($"{itemCount}\n0\n{itemCount - 1}", windows.Output.TrimEnd('\r', '\n'));
+    }
+
+    [Fact]
     public async Task CollectsFilesRetriesAProcessAndWritesJsonWithoutPowerShellEscape()
     {
         using var project = new Project();
