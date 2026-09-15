@@ -49,7 +49,7 @@ internal sealed partial class TypeChecker
                 var locals = new Symbols(globals);
                 if (symbol.Owner is { } owner)
                 {
-                    locals.Variables.Add("self", new("self", owner.BoundType, "$__auv_self"));
+                    locals.Variables.Add("self", new("self", owner.BoundType, "$__rukbat_self"));
                 }
 
                 foreach (var parameter in function.Parameters)
@@ -87,7 +87,7 @@ internal sealed partial class TypeChecker
             Error("RUK2002", $"Name '{name}' is already a function, struct or import.", node);
         }
 
-        var symbol = new VariableSymbol(name, type, $"${(global ? "script:" : "")}__auv_v{variableId++}", global);
+        var symbol = new VariableSymbol(name, type, $"${(global ? "script:" : "")}__rukbat_v{variableId++}", global);
         if (!scope.Variables.TryAdd(name, symbol))
         {
             Error("RUK2002", $"Duplicate declaration '{name}'.", node);

@@ -7,7 +7,7 @@ internal sealed partial class Emitter
     private void EmitJsonRuntime()
     {
         const string runtime = """
-        $__auv_json_decode = {
+        $__rukbat_json_decode = {
             param([string]$text, [hashtable]$schema)
             $state = @{ index = 0 }
             $fail = {
@@ -146,7 +146,7 @@ internal sealed partial class Emitter
                     & $fail 'Invalid value.'
                 }
                 $state.index += $match.Length
-                return @{ __auv_json_number = $match.Value }
+                return @{ __rukbat_json_number = $match.Value }
             }
             $node = & $parseValue
             & $skip
@@ -171,10 +171,10 @@ internal sealed partial class Emitter
                         if ($value -is [bool]) { return $value }
                     }
                     'int' {
-                        if ($value -is [hashtable] -and $value.ContainsKey('__auv_json_number') -and
-                            $value.__auv_json_number -notmatch '[.eE]') {
+                        if ($value -is [hashtable] -and $value.ContainsKey('__rukbat_json_number') -and
+                            $value.__rukbat_json_number -notmatch '[.eE]') {
                             $result = 0
-                            if ([int]::TryParse($value.__auv_json_number,
+                            if ([int]::TryParse($value.__rukbat_json_number,
                                 [System.Globalization.NumberStyles]::AllowLeadingSign,
                                 [System.Globalization.CultureInfo]::InvariantCulture, [ref]$result)) {
                                 return $result
@@ -182,9 +182,9 @@ internal sealed partial class Emitter
                         }
                     }
                     'float' {
-                        if ($value -is [hashtable] -and $value.ContainsKey('__auv_json_number')) {
+                        if ($value -is [hashtable] -and $value.ContainsKey('__rukbat_json_number')) {
                             $result = [double]0
-                            if ([double]::TryParse($value.__auv_json_number,
+                            if ([double]::TryParse($value.__rukbat_json_number,
                                 [System.Globalization.NumberStyles]::Float,
                                 [System.Globalization.CultureInfo]::InvariantCulture, [ref]$result) -and
                                 -not [double]::IsNaN($result) -and -not [double]::IsInfinity($result)) {
@@ -218,7 +218,7 @@ internal sealed partial class Emitter
             }
             return (& $convert $node $schema '$')
         }
-        $__auv_json_encode = {
+        $__rukbat_json_encode = {
             param([object]$value, [hashtable]$schema)
             $quote = {
                 param([string]$text)

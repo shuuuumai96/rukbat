@@ -71,7 +71,7 @@ internal sealed partial class TypeChecker
                     Error("RUK2002", "Function 'Error' conflicts with the built-in type.", function);
                 }
 
-                Functions[function] = new(current, function, $"__auv_f{Functions.Count}");
+                Functions[function] = new(current, function, $"__rukbat_f{Functions.Count}");
             }
         }
         foreach (var current in modules)
@@ -87,7 +87,7 @@ internal sealed partial class TypeChecker
                         Error("RUK2001", $"Field '{field.Token.Text}' cannot have type void.", field);
                     }
 
-                    var symbol = new FieldSymbol(field, type, $"__auv_field{structure.Fields.Count}");
+                    var symbol = new FieldSymbol(field, type, $"__rukbat_field{structure.Fields.Count}");
                     if (!structure.Fields.TryAdd(field.Token.Text, symbol))
                     {
                         Error("RUK2002", $"Duplicate field '{field.Token.Text}'.", field);
@@ -95,7 +95,7 @@ internal sealed partial class TypeChecker
                 }
                 foreach (var method in structure.Declaration.Methods)
                 {
-                    var symbol = new FunctionSymbol(current, method, $"__auv_f{Functions.Count}", structure);
+                    var symbol = new FunctionSymbol(current, method, $"__rukbat_f{Functions.Count}", structure);
                     Functions[method] = symbol;
                     if (!structure.Methods.TryAdd(method.Name, symbol))
                     {

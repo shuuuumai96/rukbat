@@ -4,7 +4,7 @@ internal sealed partial class Emitter
 {
     private void EmitStandardRuntime(IReadOnlySet<string> modules)
     {
-        Line("$__auv_standard = {");
+        Line("$__rukbat_standard = {");
         indentation++;
         Line("param([string]$operation, [object[]]$values)");
         Line("switch ($operation) {");

@@ -102,7 +102,7 @@ Where possible, syntax and standard-library APIs should guide developers toward 
 
 Variable syntax should remain explicit and unambiguous.
 
-```auv
+```rukbat
 name := "Taro"
 age: int = 30
 
@@ -265,12 +265,12 @@ Tooling is part of the language experience.
 The long-term toolchain should provide a small and predictable set of commands, such as:
 
 ```text
-auv run
-auv build
-auv check
-auv fmt
-auv test
-auv lsp
+rukbat run
+rukbat build
+rukbat check
+rukbat fmt
+rukbat test
+rukbat lsp
 ```
 
 Editor integration should eventually support:

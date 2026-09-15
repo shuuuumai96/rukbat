@@ -6,7 +6,7 @@ internal sealed partial class Emitter
     private void EmitRuntime()
     {
         const string runtime = """
-        $__auv_clone = {
+        $__rukbat_clone = {
             param([object]$value, [scriptblock]$recurse)
             if ($value -is [array]) {
                 $copy = [object[]]::new($value.Length)
@@ -24,14 +24,14 @@ internal sealed partial class Emitter
             }
             return $value
         }
-        $__auv_append = {
+        $__rukbat_append = {
             param([object[]]$values, [object]$value)
             $copy = [object[]]::new($values.Length + 1)
             [Array]::Copy($values, $copy, $values.Length)
             $copy[$values.Length] = $value
             return ,$copy
         }
-        $__auv_index = {
+        $__rukbat_index = {
             param([object[]]$values, [int]$offset, [string]$location, [bool]$address, [scriptblock]$raise)
             if ($offset -lt 0 -or $offset -ge $values.Length) {
                 & $raise @{ message = "Array index $offset is outside length $($values.Length)." } $location
@@ -41,14 +41,14 @@ internal sealed partial class Emitter
             }
             return ,$values[$offset]
         }
-        $__auv_float = {
+        $__rukbat_float = {
             param([double]$value, [string]$location, [scriptblock]$raise)
             if ([double]::IsNaN($value) -or [double]::IsInfinity($value)) {
                 & $raise @{ message = 'Float operation produced a non-finite value.' } $location
             }
             return $value
         }
-        $__auv_runtime = {
+        $__rukbat_runtime = {
             param([hashtable]$schema, [string]$command, [object[]]$positional, [hashtable]$named, [string]$location,
                 [scriptblock]$normalize, [scriptblock]$raise)
             $ErrorActionPreference = 'Stop'

@@ -57,7 +57,7 @@ If a proposed change conflicts with these principles, stop and explain the trade
 
 Preserve the distinction between declaration and assignment.
 
-```auv
+```rukbat
 name := "Taro"
 age: int = 30
 age = 31
@@ -194,12 +194,12 @@ Treat developer tooling as part of the language.
 
 When relevant, changes should consider compatibility with:
 
-- `auv run`
-- `auv build`
-- `auv check`
-- `auv fmt`
-- `auv test`
-- `auv lsp`
+- `rukbat run`
+- `rukbat build`
+- `rukbat check`
+- `rukbat fmt`
+- `rukbat test`
+- `rukbat lsp`
 
 Formatting should be canonical rather than user-configurable unless explicitly decided otherwise.
 

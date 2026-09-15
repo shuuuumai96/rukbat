@@ -12,7 +12,7 @@ Rukbat is a typed, procedural language for Windows system scripting. It is not P
 
 ## Declarations and assignment
 
-```auv
+```rukbat
 name := "Taro"
 age: int = 30
 age = 31
@@ -43,7 +43,7 @@ Structs and arrays are mutable value types. Their stored values can be updated, 
 
 The primitive types are `int`, `float`, `string`, and `bool`. `int` is a signed 32-bit integer. `float` is a finite IEEE 754 binary64 value. `void` is return-only. Rukbat also has user-defined `struct` types, typed arrays `T[]`, and nullable types `T?`.
 
-```auv
+```rukbat
 nickname: string? = null
 values: string?[] = ["one", null]
 optional_values: string[]? = null
@@ -100,7 +100,7 @@ The iterable expression of a `for` loop is evaluated exactly once when the loop 
 
 ## Structs and modules
 
-```auv
+```rukbat
 struct User {
     name: string
     age: int

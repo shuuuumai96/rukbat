@@ -4,7 +4,7 @@
 
 The standard library is part of the compiler version. A standard module is imported by its canonical name and cannot be aliased:
 
-```auv
+```rukbat
 import files
 import path
 import json
@@ -74,7 +74,7 @@ Changes affect the current process and are inherited by subsequently started chi
 
 The module exports this result struct:
 
-```auv
+```rukbat
 struct Result {
     exit_code: int
     stdout: string
