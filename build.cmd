@@ -1,3 +1,3 @@
 @echo off
-dotnet run --no-restore --project "%~dp0src\Auvil\Auvil.csproj" -- build %*
+dotnet run --no-restore --project "%~dp0src\Rukbat\Rukbat.csproj" -- build %*
 exit /b %errorlevel%

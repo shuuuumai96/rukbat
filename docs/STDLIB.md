@@ -1,4 +1,4 @@
-# Auvil Standard Library
+# Rukbat Standard Library
 
 ## Confirmed v0.1 specification
 
@@ -12,9 +12,9 @@ import env
 import process
 ```
 
-A local module instead uses an explicit relative `.auv` path and an alias. Standard module names are reserved as aliases. Generated scripts contain only the standard-library runtime sections used by their imports and remain standalone on Windows PowerShell 5.1.
+A local module instead uses an explicit relative `.rukbat` path and an alias. Standard module names are reserved as aliases. Generated scripts contain only the standard-library runtime sections used by their imports and remain standalone on Windows PowerShell 5.1.
 
-All failures described below are ordinary Auvil runtime `Error` values and can be handled with `try` / `catch`.
+All failures described below are ordinary Rukbat runtime `Error` values and can be handled with `try` / `catch`.
 
 ## `files`
 
@@ -25,7 +25,7 @@ All failures described below are ordinary Auvil runtime `Error` values and can b
 | `files.write(path: string, text: string): void` | Replaces a file with UTF-8 text without a BOM. It adds no newline and does not create parent directories. | An inaccessible path or missing parent directory causes Error. |
 | `files.exists(path: string): bool` | Returns whether `path` identifies an existing file. Directories return `false`. | Platform-level failures cause Error. |
 
-Relative paths are resolved from the Auvil process working directory. `files.write` is not an atomic replacement operation.
+Relative paths are resolved from the Rukbat process working directory. `files.write` is not an atomic replacement operation.
 
 ## `path`
 
@@ -42,7 +42,7 @@ These operations manipulate strings. They do not require the referenced file or 
 | Signature | Meaning | Failure |
 |---|---|---|
 | `json.encode(value: T): string` | Encodes a supported typed value as compact JSON. | An unsupported value or non-finite float causes Error. |
-| `json.decode<T>(text: string): T` | Decodes JSON as the explicitly requested Auvil type. | Invalid JSON or any mismatch with `T` causes Error. |
+| `json.decode<T>(text: string): T` | Decodes JSON as the explicitly requested Rukbat type. | Invalid JSON or any mismatch with `T` causes Error. |
 
 `T` may be `int`, `float`, `string`, `bool`, a struct, an array of supported values, or a nullable form of a supported type. `<T>` is a dedicated explicit result type like `powershell<T>`; it does not introduce general-purpose generics.
 
@@ -62,11 +62,11 @@ Encoding uses compact output and emits struct properties in declaration order. N
 
 | Signature | Meaning | Failure |
 |---|---|---|
-| `env.get(name: string): string?` | Reads the current Auvil process environment. An undefined name returns `null`; a defined empty value returns `""`. | Invalid platform-level access causes Error. |
-| `env.set(name: string, value: string): void` | Sets a non-empty value in the current Auvil process environment. | An empty value or invalid platform-level access causes Error. |
-| `env.remove(name: string): void` | Removes a name from the current Auvil process environment. Removing an undefined name succeeds. | Invalid platform-level access causes Error. |
+| `env.get(name: string): string?` | Reads the current Rukbat process environment. An undefined name returns `null`; a defined empty value returns `""`. | Invalid platform-level access causes Error. |
+| `env.set(name: string, value: string): void` | Sets a non-empty value in the current Rukbat process environment. | An empty value or invalid platform-level access causes Error. |
+| `env.remove(name: string): void` | Removes a name from the current Rukbat process environment. Removing an undefined name succeeds. | Invalid platform-level access causes Error. |
 
-Windows PowerShell 5.1 / .NET Framework の通常の環境変数操作では、空文字の設定が削除として扱われます。Windows PowerShell 5.1 互換の実行基盤では空文字設定を安全に表現できないため、`env.set(name, "")` は Auvil Error とします。削除には `env.remove(name)` を使います。空文字の環境変数を親プロセスなどから継承した場合、`env.get` はその値を `""` として読み取ります。空文字設定のためだけの Win32 API 呼び出しは追加しません。
+Windows PowerShell 5.1 / .NET Framework の通常の環境変数操作では、空文字の設定が削除として扱われます。Windows PowerShell 5.1 互換の実行基盤では空文字設定を安全に表現できないため、`env.set(name, "")` は Rukbat Error とします。削除には `env.remove(name)` を使います。空文字の環境変数を親プロセスなどから継承した場合、`env.get` はその値を `""` として読み取ります。空文字設定のためだけの Win32 API 呼び出しは追加しません。
 
 Changes affect the current process and are inherited by subsequently started child processes. They do not modify persistent user or machine environment settings.
 
@@ -86,7 +86,7 @@ struct Result {
 |---|---|---|
 | `process.run(executable: string, arguments: string[]): process.Result` | Starts an executable directly, waits for it, and captures standard output and standard error separately. | Failure to launch, capture, decode, or wait for the process causes Error. |
 
-The API does not interpret a shell command string. The executable and each argument are separate values. A nonzero exit code is a normal `Result`, not an Auvil Error. Output is decoded as strict UTF-8 and is returned exactly, including any trailing newline; zero output becomes `""`. Standard output and standard error are drained concurrently to avoid pipe deadlocks.
+The API does not interpret a shell command string. The executable and each argument are separate values. A nonzero exit code is a normal `Result`, not an Rukbat Error. Output is decoded as strict UTF-8 and is returned exactly, including any trailing newline; zero output becomes `""`. Standard output and standard error are drained concurrently to avoid pipe deadlocks.
 
 ## Program arguments
 

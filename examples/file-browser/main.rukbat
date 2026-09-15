@@ -1,0 +1,17 @@
+import "./services/file-listing.rukbat" as listing
+import "./options.rukbat" as options
+import files
+import json
+
+settings: options.Options = options.parse(args())
+if settings.help {
+    print(options.usage())
+} else {
+    items: string[] = listing.matching_files(settings.directory, settings.pattern)
+    output: string = json.encode(items)
+    if settings.output == "" {
+        print(output)
+    } else {
+        files.write(settings.output, output)
+    }
+}

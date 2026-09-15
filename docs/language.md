@@ -1,12 +1,12 @@
-# Auvil Language Specification
+# Rukbat Language Specification
 
 ## Confirmed specification
 
-Auvil is a typed, procedural language for Windows system scripting. It is not PowerShell syntax. Successful compilation produces one standalone Windows PowerShell 5.1-compatible `.ps1` file.
+Rukbat is a typed, procedural language for Windows system scripting. It is not PowerShell syntax. Successful compilation produces one standalone Windows PowerShell 5.1-compatible `.ps1` file.
 
 ## Commands and arguments
 
-`auvil build input.auv` writes `input.ps1`. `auvil run input.auv -- arguments...` builds and executes it with Windows PowerShell. `auvil check input.auv` runs module loading, name resolution, and type checking without generating PowerShell. `auvil fmt input.auv` rewrites one syntactically valid source file into the canonical layout without resolving its imports or type-checking it. `build`, `check`, and `fmt` do not accept program arguments. A compilation or formatting failure exits with code 1 without changing an existing output or source file; command-line and I/O failures exit with code 2.
+`rukbat build input.rukbat` writes `input.ps1`. `rukbat run input.rukbat -- arguments...` builds and executes it with Windows PowerShell. `rukbat check input.rukbat` runs module loading, name resolution, and type checking without generating PowerShell. `rukbat fmt input.rukbat` rewrites one syntactically valid source file into the canonical layout without resolving its imports or type-checking it. `build`, `check`, and `fmt` do not accept program arguments. A compilation or formatting failure exits with code 1 without changing an existing output or source file; command-line and I/O failures exit with code 2.
 
 `args(): string[]` returns the arguments supplied to the entry program. The compiler command, source path, and `--` separator are excluded.
 
@@ -39,7 +39,7 @@ Each module executes its top-level statements once, after its dependencies have 
 
 ## Types, nullable values, and conversions
 
-The primitive types are `int`, `float`, `string`, and `bool`. `int` is a signed 32-bit integer. `float` is a finite IEEE 754 binary64 value. `void` is return-only. Auvil also has user-defined `struct` types, typed arrays `T[]`, and nullable types `T?`.
+The primitive types are `int`, `float`, `string`, and `bool`. `int` is a signed 32-bit integer. `float` is a finite IEEE 754 binary64 value. `void` is return-only. Rukbat also has user-defined `struct` types, typed arrays `T[]`, and nullable types `T?`.
 
 ```auv
 nickname: string? = null
@@ -73,7 +73,7 @@ Primitive equality requires compatible non-null values and string equality is ca
 
 The following are not confirmed language specification: function overloads, a named `main` entry point, explicit numeric conversion APIs, and integer-overflow policy beyond current checked runtime behavior.
 
-Formatting is canonical and has no configuration. `auvil fmt` uses four-space indentation, one statement per line, spaces around binary operators and after commas/colons, no padding immediately inside delimiters, braces on the declaration or control-flow line, and `else` / `catch` on the same line as the preceding closing brace. It preserves comments, writes UTF-8 without a BOM, and normalizes a nonempty file to LF line endings with one final newline. Tree-sitter grammar, syntax highlighting, and LSP are not implemented.
+Formatting is canonical and has no configuration. `rukbat fmt` uses four-space indentation, one statement per line, spaces around binary operators and after commas/colons, no padding immediately inside delimiters, braces on the declaration or control-flow line, and `else` / `catch` on the same line as the preceding closing brace. It preserves comments, writes UTF-8 without a BOM, and normalizes a nonempty file to LF line endings with one final newline. Tree-sitter grammar, syntax highlighting, and LSP are not implemented.
 
 ## Additional language behavior
 
@@ -105,16 +105,16 @@ struct User {
 }
 ```
 
-Struct fields are data. Methods use `fn` and may update `self`. Imports are static and resolved before execution. Relative project modules use an explicit relative `.auv` path and an alias. Standard-library modules use their canonical module names as defined in `STDLIB.md`.
+Struct fields are data. Methods use `fn` and may update `self`. Imports are static and resolved before execution. Relative project modules use an explicit relative `.rukbat` path and an alias. Standard-library modules use their canonical module names as defined in `STDLIB.md`.
 
 ## PowerShell boundary
 
-`powershell<T>(command, ...)` is the explicit escape hatch for a PowerShell operation not covered by Auvil. It checks the returned value against `T`; a scalar result requires exactly one value and `T[]` collects values into an array. PowerShell failures and incompatible results are runtime errors.
+`powershell<T>(command, ...)` is the explicit escape hatch for a PowerShell operation not covered by Rukbat. It checks the returned value against `T`; a scalar result requires exactly one value and `T[]` collects values into an array. PowerShell failures and incompatible results are runtime errors.
 
 No output is distinct from one explicit `$null` output. No output is an Error for `T` and `T?`, while an explicit `$null` is accepted only by `T?`. No output becomes `[]` for `T[]`; one `$null` becomes `[null]` for `T?[]` and is an Error for `T[]`. Nullable arrays `T[]?` accept one explicit `$null`, but no output remains an Error. External float values must be numeric and finite.
 
-Generated scripts do not require the Auvil compiler or a PowerShell 7 installation. PowerShell is the target implementation, not part of Auvil source syntax or standard-library semantics.
+Generated scripts do not require the Rukbat compiler or a PowerShell 7 installation. PowerShell is the target implementation, not part of Rukbat source syntax or standard-library semantics.
 
 ## Current exclusions
 
-Auvil does not provide union types, arbitrary object types, pipelines, closures, function values, package management, multiple catch clauses, `finally`, or generic language syntax. Standard-library API design is specified separately and must not be inferred from the current compiler layout.
+Rukbat does not provide union types, arbitrary object types, pipelines, closures, function values, package management, multiple catch clauses, `finally`, or generic language syntax. Standard-library API design is specified separately and must not be inferred from the current compiler layout.

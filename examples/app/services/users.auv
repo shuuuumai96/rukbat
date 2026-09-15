@@ -1,5 +1,0 @@
-import "../models/user.auv" as model
-
-fn load(): model.User {
-    return model.User(name: "Taro")
-}

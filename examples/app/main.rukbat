@@ -1,0 +1,5 @@
+import "./models/user.rukbat" as model
+import "./services/users.rukbat" as users
+
+user: model.User = users.load()
+print(user.name)

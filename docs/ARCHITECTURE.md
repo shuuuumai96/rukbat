@@ -1,6 +1,6 @@
-# Auvil Architecture
+# Rukbat Architecture
 
-Auvilは、ソースを検証してからPowerShellを生成します。
+Rukbatは、ソースを検証してからPowerShellを生成します。
 
 ```text
 Source
@@ -29,4 +29,4 @@ PowerShell generation
 - `auv check` は ModuleLoader と TypeChecker までで停止し、EmitterもPowerShellパーサーも呼ばない。
 - Formatterは構文を検証した後、コメントを保持したまま字句列を正規化する。型検査やimport解決は行わない。
 
-生成スクリプトには、Auvilの値コピー・配列境界・エラー伝播・PowerShell境界を実現する小さなPowerShellコードを含めます。標準ライブラリの実装はimportされた機能群だけを含めます。実行先にAuvilコンパイラや別のAuvilランタイムは必要ありません。
+生成スクリプトには、Rukbatの値コピー・配列境界・エラー伝播・PowerShell境界を実現する小さなPowerShellコードを含めます。標準ライブラリの実装はimportされた機能群だけを含めます。実行先にRukbatコンパイラや別のRukbatランタイムは必要ありません。

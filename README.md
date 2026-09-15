@@ -1,12 +1,12 @@
-# Auvil
+# Rukbat
 
-**Auvil（オーヴィル）** は、PowerShellへコンパイルする静的型付きの小さな言語です。
+**Rukbat（ルクバト）** は、PowerShellへコンパイルする静的型付きの小さな言語です。
 変数の `$` をなくし、普通の関数呼び出しとファイル単位のモジュールを使えます。
-ソースは `.auv`、生成物は実行に必要なAuvilモジュールを含む1つの `.ps1` です。
+ソースは `.rukbat`、生成物は実行に必要なRukbatモジュールを含む1つの `.ps1` です。
 
 ## 書き方
 
-`math.auv`:
+`math.rukbat`:
 
 ```text
 fn add(a: int, b: int): int {
@@ -14,10 +14,10 @@ fn add(a: int, b: int): int {
 }
 ```
 
-`hello.auv`:
+`hello.rukbat`:
 
 ```text
-import "./math.auv" as math
+import "./math.rukbat" as math
 
 struct User {
     name: string
@@ -55,45 +55,45 @@ print(year)
 
 ```powershell
 dotnet restore --configfile NuGet.Config
-dotnet run --no-restore --project src/Auvil -- run examples/hello.auv
+dotnet run --no-restore --project src/Rukbat -- run examples/hello.rukbat
 ```
 
 Windowsではリポジトリのラッパーも使えます。
 
 ```powershell
-.\auvil run examples/import-data.auv
+.\rukbat run examples/import-data.rukbat
 # このディレクトリをPATHに追加した場合:
-auvil run examples/import-data.auv
+rukbat run examples/import-data.rukbat
 # .ps1への変換だけ行う場合:
-.\auvil build examples/hello.auv
+.\rukbat build examples/hello.rukbat
 # PowerShellを生成せずに構文・import・型を検査する場合:
-.\auvil check examples/hello.auv
+.\rukbat check examples/hello.rukbat
 # ソースを標準の書式へ整形する場合:
-.\auvil fmt examples/hello.auv
+.\rukbat fmt examples/hello.rukbat
 # build専用の短縮コマンドも利用できます:
-.\build examples/hello.auv
+.\build examples/hello.rukbat
 ```
 
 `run` は型検査・コンパイルに成功した場合だけ、生成した `.ps1` を `powershell -NoLogo -NoProfile -File` で実行します。
 実行時は呼び出し元のカレントディレクトリと標準入出力を引き継ぎ、PowerShellプロセスの終了コードを返します。
 コンパイルエラー時は、古い `.ps1` が残っていても実行しません。PATH上に Windows PowerShell の `powershell` が必要です。
 
-`auvil run input.auv -- 引数...` で、`--` より後ろを実行するプログラムへ渡せます。
-Auvil側は `args(): string[]` で取得します。引数がなければ空配列です。
+`rukbat run input.rukbat -- 引数...` で、`--` より後ろを実行するプログラムへ渡せます。
+Rukbat側は `args(): string[]` で取得します。引数がなければ空配列です。
 生成済みの `.ps1` を直接実行する場合は `powershell -File input.ps1 引数...` です。
 
-`build` と `run` の出力先はエントリーファイルと同じディレクトリの同名 `.ps1` です。`check` はPowerShellを生成せず、既存の `.ps1` も変更しません。`fmt` は構文が正しい1つの `.auv` ファイルを4スペースの標準書式へ上書きし、コメントを保持します。構文エラー時は元ファイルを変更しません。
+`build` と `run` の出力先はエントリーファイルと同じディレクトリの同名 `.ps1` です。`check` はPowerShellを生成せず、既存の `.ps1` も変更しません。`fmt` は構文が正しい1つの `.rukbat` ファイルを4スペースの標準書式へ上書きし、コメントを保持します。構文エラー時は元ファイルを変更しません。
 成功時は上書きします。構文・型・importエラー時は出力せず、既存の出力も変更しません。
 古い出力が残る場合があるため、自動化ではコンパイラの終了コードを確認してください。
 成功は `0`、コンパイルエラーは `1`、CLI引数・入出力エラーは `2` です。
-エラーは `ファイル(行,列): error AUVxxxx: 内容` の形式です。import先のエラーにはそのファイルの位置を表示します。
-コンパイル時にAuvilやPowerShellのユーザーコードを実行することはありません。
+エラーは `ファイル(行,列): error RUKxxxx: 内容` の形式です。import先のエラーにはそのファイルの位置を表示します。
+コンパイル時にRukbatやPowerShellのユーザーコードを実行することはありません。
 
 配布用CLI:
 
 ```powershell
-dotnet publish src/Auvil -c Release -o artifacts/auvil
-.\artifacts\auvil\auvil.exe build examples/hello.auv
+dotnet publish src/Rukbat -c Release -o artifacts/rukbat
+.\artifacts\rukbat\rukbat.exe build examples/hello.rukbat
 ```
 
 ## 方針と現在の範囲
@@ -101,21 +101,21 @@ dotnet publish src/Auvil -c Release -o artifacts/auvil
 - 読み書きしやすい一貫した構文を優先します。
 - `import files` のような名前指定はコンパイラ付属の標準モジュールを読み込みます。
 - v0.1の標準モジュールは `files`、`path`、`json`、`env`、`process` です。APIと外部データ変換の契約は [標準ライブラリ仕様](docs/STDLIB.md) に定義します。
-- `import "./models/user.auv" as model` でディレクトリをまたいで読み込めます。パスはimportを書いたファイルが基準です。
+- `import "./models/user.rukbat" as model` でディレクトリをまたいで読み込めます。パスはimportを書いたファイルが基準です。
 - モジュールごとに変数・関数を分離し、共通の依存モジュールは1回だけ初期化します。
-- Auvilの関数は明示的な `return` の値だけを返します。途中の式の値は捨てます。
+- Rukbatの関数は明示的な `return` の値だけを返します。途中の式の値は捨てます。
 - `print(value)` は画面出力です。関数の戻り値に混ざりません。
 - PowerShellとの接続は `powershell<T>(...)` に集約します。
 
 **初期プロトタイプのPowerShellスーパーセット方針から変更しています。**
-以前の `$name: string` やPowerShellのコマンド記法をそのまま書いた `.auv` は受け付けません。
-既存 `.ps1` の構文互換性より、Auvilとしての書き味と動作の一貫性を優先します。
+以前の `$name: string` やPowerShellのコマンド記法をそのまま書いた `.rukbat` は受け付けません。
+既存 `.ps1` の構文互換性より、Rukbatとしての書き味と動作の一貫性を優先します。
 
 現在の型は `int`、有限なbinary64の `float`、`string`、`bool`、戻り値用の `void`、組み込みの `Error`、ユーザー定義の `struct`、型付き配列 `T[]`、nullable型 `T?` です。
 `null` は `T?` だけが保持できます。`if value != null` のような明示的な確認後は、単純な変数を `T` として使えます。`int` から `float` への安全な数値拡張だけを暗黙に行い、ゼロ除算や非有限floatはErrorにします。
 structは名前付き引数で生成し、フィールド操作と内部の `fn` メソッドを利用できます。
 代入・引数・戻り値ではネストしたフィールドまで値コピーします。メソッドの `self` は呼び出した変数を更新します。
-`examples/value-semantics.auv` でコピー元が変わらない動作を確認できます。
+`examples/value-semantics.rukbat` でコピー元が変わらない動作を確認できます。
 通常関数とstructメソッドは `fn` で定義します。`func` と `function` は受け付けません。
 配列リテラル `[1, 2]`、添字の読み書き、`.length`、`for item in items`、`break`、`continue` を使えます。
 `powershell<User[]>` で外部の複数オブジェクトを型検査して取り込めます。配列もネストした要素まで値コピーします。
@@ -127,25 +127,25 @@ structは名前付き引数で生成し、フィールド操作と内部の `fn`
 
 ```text
 app/
-├── main.auv
+├── main.rukbat
 ├── models/
-│   └── user.auv
+│   └── user.rukbat
 └── services/
-    └── users.auv
+    └── users.rukbat
 ```
 
-`main.auv`:
+`main.rukbat`:
 
 ```text
-import "./models/user.auv" as model
-import "./services/users.auv" as users
+import "./models/user.rukbat" as model
+import "./services/users.rukbat" as users
 
 user: model.User = users.load()
 print(user.name)
 ```
 
-`services/users.auv` からは `import "../models/user.auv" as model` で共通の型を使えます。
-文字列パスには `.auv` と `as 別名` が必要です。区切りにはWindowsでも `/` を使います。
+`services/users.rukbat` からは `import "../models/user.rukbat" as model` で共通の型を使えます。
+文字列パスには `.rukbat` と `as 別名` が必要です。区切りにはWindowsでも `/` を使います。
 ローカルモジュールは常に文字列パスと別名を明示します。標準モジュール名とローカルファイル名が衝突しても意味は変わりません。
 同じファイルは別名や異なる相対パスで参照しても、正規化した絶対パスで識別して1回だけ初期化します。
 生成物は従来どおり1つの `.ps1` です。
@@ -153,7 +153,7 @@ print(user.name)
 動作するサンプル:
 
 ```powershell
-.\auvil.cmd run examples/app/main.auv
+.\rukbat.cmd run examples/app/main.rukbat
 ```
 
 ## 作れるCLIの例: ファイル一覧をJSONへ出力
@@ -163,11 +163,11 @@ print(user.name)
 
 ```powershell
 # README.mdなど、直下のMarkdownファイル名を標準出力へ
-.\auvil.cmd run examples/file-browser/main.auv -- . --pattern '*.md'
+.\rukbat.cmd run examples/file-browser/main.rukbat -- . --pattern '*.md'
 # JSONファイルへ保存
-.\auvil.cmd run examples/file-browser/main.auv -- . --pattern '*.md' --output files.json
+.\rukbat.cmd run examples/file-browser/main.rukbat -- . --pattern '*.md' --output files.json
 # ヘルプ
-.\auvil.cmd run examples/file-browser/main.auv -- --help
+.\rukbat.cmd run examples/file-browser/main.rukbat -- --help
 ```
 
 ```json
@@ -184,10 +184,10 @@ print(user.name)
 
 ## 配列・ループと外部データ
 
-`examples/arrays.auv` は配列の更新とループ、`examples/import-data.auv` はJSONからのstruct配列の取り込みを実行します。
+`examples/arrays.rukbat` は配列の更新とループ、`examples/import-data.rukbat` はJSONからのstruct配列の取り込みを実行します。
 
 ```powershell
-.\auvil.cmd run examples/import-data.auv
+.\rukbat.cmd run examples/import-data.rukbat
 ```
 
 ```text
@@ -222,12 +222,12 @@ try {
 
 PowerShellのエラーや型の取り込み失敗も同じcatchで扱います。
 `throw err` で再送出すると最初の発生位置を保ちます。
-未処理のエラーはAuvilのファイル・行と説明を標準エラーへ出し、終了コード1で停止します。
+未処理のエラーはRukbatのファイル・行と説明を標準エラーへ出し、終了コード1で停止します。
 `powershell<T>` で直接呼ぶ外部実行ファイルは終了コード0を成功、それ以外をErrorとします。
 初期仕様はcatch一つに限定し、型別catch・finally・throws宣言はありません。
 
 ```powershell
-.\auvil.cmd run examples/errors.auv
+.\rukbat.cmd run examples/errors.rukbat
 ```
 
 ## 実装と検証

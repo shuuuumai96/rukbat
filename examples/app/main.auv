@@ -1,5 +1,0 @@
-import "./models/user.auv" as model
-import "./services/users.auv" as users
-
-user: model.User = users.load()
-print(user.name)

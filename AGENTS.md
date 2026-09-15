@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This repository contains the Auvil programming language and compiler.
+This repository contains the Rukbat programming language and compiler.
 
 Before making implementation or design changes, read and follow:
 
@@ -19,7 +19,7 @@ Do not introduce behavior that conflicts with it unless explicitly instructed.
 
 ## Core Rule
 
-Auvil is a small, typed, procedural language for Windows system scripting.
+Rukbat is a small, typed, procedural language for Windows system scripting.
 
 Its primary deployment target is standalone Windows PowerShell 5.1 scripts.
 
@@ -42,11 +42,11 @@ Do not optimize for language cleverness, theoretical completeness, or feature co
 When implementing a feature or resolving ambiguity, prefer solutions in this order:
 
 1. Keep the language simple.
-2. Preserve existing Auvil semantics.
+2. Preserve existing Rukbat semantics.
 3. Prefer explicit procedural behavior.
 4. Prefer one canonical syntax or API.
 5. Solve the problem in the standard library before extending the language.
-6. Use PowerShell as an escape hatch rather than expanding Auvil unnecessarily.
+6. Use PowerShell as an escape hatch rather than expanding Rukbat unnecessarily.
 7. Preserve Windows PowerShell 5.1 compatibility where the feature is intended to be deployable.
 
 If a proposed change conflicts with these principles, stop and explain the trade-off instead of silently implementing it.
@@ -77,7 +77,7 @@ Do not add multiple equivalent forms merely for convenience.
 
 ## Programming Style
 
-Auvil is primarily procedural and data-oriented.
+Rukbat is primarily procedural and data-oriented.
 
 Prefer:
 
@@ -140,11 +140,11 @@ Avoid architecture inspired by large compilers unless the complexity is actually
 
 ## PowerShell Target
 
-Generated PowerShell is an implementation target, not Auvil's language model.
+Generated PowerShell is an implementation target, not Rukbat's language model.
 
-Do not copy PowerShell syntax or semantics into Auvil unless necessary.
+Do not copy PowerShell syntax or semantics into Rukbat unless necessary.
 
-Auvil operations should be defined by their behavior.
+Rukbat operations should be defined by their behavior.
 
 Example:
 
@@ -152,7 +152,7 @@ Example:
 
 It must not be specified in terms of a particular PowerShell cmdlet such as `Copy-Item`.
 
-Generated scripts should remain independent of the Auvil compiler or runtime unless explicitly documented otherwise.
+Generated scripts should remain independent of the Rukbat compiler or runtime unless explicitly documented otherwise.
 
 When practical, generated scripts should remain compatible with Windows PowerShell 5.1.
 
@@ -232,13 +232,13 @@ Before adding a new language feature, ask:
 5. Does it complicate static analysis or tooling disproportionately?
 6. Does it compromise PowerShell 5.1 deployment unnecessarily?
 
-If the answer suggests the feature is outside Auvil's scope, do not add it by default.
+If the answer suggests the feature is outside Rukbat's scope, do not add it by default.
 
 ---
 
 ## Non-Goals
 
-Do not evolve Auvil toward these areas without explicit instruction:
+Do not evolve Rukbat toward these areas without explicit instruction:
 
 - general-purpose application development;
 - web frameworks;
@@ -287,6 +287,6 @@ The implementation should satisfy the requested behavior without unnecessarily e
 
 ## Guiding Principle
 
-When uncertain, choose the solution that makes Auvil code more boring, explicit, predictable, and easy to read.
+When uncertain, choose the solution that makes Rukbat code more boring, explicit, predictable, and easy to read.
 
-Auvil should make Windows scripting easier to understand, not merely shorter to type.
+Rukbat should make Windows scripting easier to understand, not merely shorter to type.
