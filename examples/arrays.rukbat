@@ -6,5 +6,5 @@ for number in copied {
     if number == 10 { continue }
     print(number)
 }
-print(numbers[1]) // コピー元は20
+print(numbers[1]) // The original remains 20
 print(copied.length)

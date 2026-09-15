@@ -38,7 +38,7 @@ internal sealed partial class Emitter
     private const string FilesRuntime = """
     'files.list' {
         if (-not [System.IO.Directory]::Exists([string]$values[0])) {
-            throw "ディレクトリを参照できません: $($values[0])"
+            throw "Cannot access directory: $($values[0])"
         }
         $names = @(Get-ChildItem -LiteralPath ([string]$values[0]) -Filter ([string]$values[1]) -File -Name)
         return ,([object[]]$names)

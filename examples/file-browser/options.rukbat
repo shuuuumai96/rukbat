@@ -6,7 +6,7 @@ struct Options {
 }
 
 fn usage(): string {
-    return "Usage: rukbat run examples/file-browser/main.rukbat -- <directory> [--pattern <glob>] [--output <file>]\nヘルプ: rukbat run examples/file-browser/main.rukbat -- --help"
+    return "Usage: rukbat run examples/file-browser/main.rukbat -- <directory> [--pattern <glob>] [--output <file>]\nHelp: rukbat run examples/file-browser/main.rukbat -- --help"
 }
 
 fn parse(arguments: string[]): Options {
@@ -19,7 +19,7 @@ fn parse(arguments: string[]): Options {
         return options
     }
     if options.directory == "" {
-        throw Error(message: "ディレクトリを指定してください")
+        throw Error(message: "Please specify a directory")
     }
 
     first: bool = true
@@ -33,7 +33,7 @@ fn parse(arguments: string[]): Options {
         }
         if pending == "--pattern" {
             if argument == "" {
-                throw Error(message: "--pattern には空でないパターンを指定してください")
+                throw Error(message: "--pattern requires a non-empty pattern")
             }
             options.pattern = argument
             pending = ""
@@ -41,7 +41,7 @@ fn parse(arguments: string[]): Options {
         }
         if pending == "--output" {
             if argument == "" {
-                throw Error(message: "--output には空でない保存先を指定してください")
+                throw Error(message: "--output requires a non-empty output path")
             }
             options.output = argument
             pending = ""
@@ -49,24 +49,24 @@ fn parse(arguments: string[]): Options {
         }
         if argument == "--pattern" {
             if pattern_seen {
-                throw Error(message: "--pattern は一度だけ指定してください")
+                throw Error(message: "--pattern may only be specified once")
             }
             pattern_seen = true
             pending = argument
         } else {
             if argument == "--output" {
                 if output_seen {
-                    throw Error(message: "--output は一度だけ指定してください")
+                    throw Error(message: "--output may only be specified once")
                 }
                 output_seen = true
                 pending = argument
             } else {
-                throw Error(message: "不明なオプションまたは余分な引数: " + argument + "\n" + usage())
+                throw Error(message: "Unknown option or extra argument: " + argument + "\n" + usage())
             }
         }
     }
     if pending != "" {
-        throw Error(message: pending + " の値を指定してください")
+        throw Error(message: pending + " requires a value")
     }
     return options
 }

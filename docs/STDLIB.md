@@ -100,7 +100,7 @@ Encoding uses compact output and emits struct properties in declaration order. N
 | `env.set(name: string, value: string): void` | Sets a non-empty value in the current Rukbat process environment. | An empty value or invalid platform-level access causes Error. |
 | `env.remove(name: string): void` | Removes a name from the current Rukbat process environment. Removing an undefined name succeeds. | Invalid platform-level access causes Error. |
 
-Windows PowerShell 5.1 / .NET Framework の通常の環境変数操作では、空文字の設定が削除として扱われます。Windows PowerShell 5.1 互換の実行基盤では空文字設定を安全に表現できないため、`env.set(name, "")` は Rukbat Error とします。削除には `env.remove(name)` を使います。空文字の環境変数を親プロセスなどから継承した場合、`env.get` はその値を `""` として読み取ります。空文字設定のためだけの Win32 API 呼び出しは追加しません。
+Ordinary environment-variable operations in Windows PowerShell 5.1 / .NET Framework treat setting an empty string as removal. Because the Windows PowerShell 5.1-compatible runtime cannot safely represent setting an empty value, `env.set(name, "")` causes Rukbat Error. Use `env.remove(name)` for removal. If an empty environment value is inherited from a parent process, `env.get` reads it as `""`. No Win32 API calls are added solely to support setting empty values.
 
 Changes affect the current process and are inherited by subsequently started child processes. They do not modify persistent user or machine environment settings.
 

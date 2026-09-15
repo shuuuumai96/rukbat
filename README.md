@@ -1,14 +1,14 @@
 # Rukbat
 
-**Rukbat（ルクバト）** は、PowerShellへコンパイルする静的型付きの小さな言語です。
-変数の `$` をなくし、普通の関数呼び出しとファイル単位のモジュールを使えます。
-ソースは `.rukbat`、生成物は実行に必要なRukbatモジュールを含む1つの `.ps1` です。
+Rukbat is a small, statically typed language that compiles to PowerShell.
+It removes `$` prefixes from variables and provides conventional function calls and file-based modules.
+Source files use `.rukbat`; the output is a single `.ps1` containing all Rukbat modules needed to run it.
 
-## 書き方
+## Syntax
 
 `math.rukbat`:
 
-```text
+```rukbat
 fn add(a: int, b: int): int {
     return a + b
 }
@@ -16,7 +16,7 @@ fn add(a: int, b: int): int {
 
 `hello.rukbat`:
 
-```text
+```rukbat
 import "./math.rukbat" as math
 
 struct User {
@@ -45,87 +45,90 @@ year: string = powershell<string>("Get-Date", Format: "yyyy")
 print(year)
 ```
 
-`powershell<string>(...)` はPowerShellのコマンドを呼び、結果が1つの文字列であることを実行時に検証します。
-戻り値が不要なら `powershell<void>(...)` を使います。
+`powershell<string>(...)` calls a PowerShell command and checks at runtime that its result is exactly one string.
+Use `powershell<void>(...)` when no return value is needed.
 
-## 実行
+## Running programs
 
-ビルドには .NET 8 SDK、生成スクリプトの実行には Windows PowerShell 5.1 以降が必要です。
-初回の依存パッケージ復元にはネットワーク接続が必要です。
+Building requires the .NET 8 SDK. Generated scripts require Windows PowerShell 5.1 or later.
+The initial dependency restore requires a network connection.
 
 ```powershell
 dotnet restore --configfile NuGet.Config
 dotnet run --no-restore --project src/Rukbat -- run examples/hello.rukbat
 ```
 
-Windowsではリポジトリのラッパーも使えます。
+On Windows, you can also use the repository wrappers:
 
 ```powershell
 .\rukbat run examples/import-data.rukbat
-# このディレクトリをPATHに追加した場合:
+# With this directory on PATH:
 rukbat run examples/import-data.rukbat
-# .ps1への変換だけ行う場合:
+# Generate a .ps1 without running it:
 .\rukbat build examples/hello.rukbat
-# PowerShellを生成せずに構文・import・型を検査する場合:
+# Check syntax, imports, and types without generating PowerShell:
 .\rukbat check examples/hello.rukbat
-# ソースを標準の書式へ整形する場合:
+# Apply canonical source formatting:
 .\rukbat fmt examples/hello.rukbat
-# build専用の短縮コマンドも利用できます:
+# A build-only shortcut is also available:
 .\build examples/hello.rukbat
 ```
 
-`run` は型検査・コンパイルに成功した場合だけ、生成した `.ps1` を `powershell -NoLogo -NoProfile -File` で実行します。
-実行時は呼び出し元のカレントディレクトリと標準入出力を引き継ぎ、PowerShellプロセスの終了コードを返します。
-コンパイルエラー時は、古い `.ps1` が残っていても実行しません。PATH上に Windows PowerShell の `powershell` が必要です。
+`run` executes the generated `.ps1` with `powershell -NoLogo -NoProfile -File` only after successful type checking and compilation.
+It inherits the caller's working directory and standard streams and returns the PowerShell process exit code.
+Compilation errors prevent execution even if an older `.ps1` exists. Windows PowerShell's `powershell` must be on PATH.
 
-`rukbat run input.rukbat -- 引数...` で、`--` より後ろを実行するプログラムへ渡せます。
-Rukbat側は `args(): string[]` で取得します。引数がなければ空配列です。
-生成済みの `.ps1` を直接実行する場合は `powershell -File input.ps1 引数...` です。
+Use `rukbat run input.rukbat -- arguments...` to pass everything after `--` to the program.
+Rukbat exposes these values through `args(): string[]`, returning an empty array when no arguments are supplied.
+To run a generated script directly, use `powershell -File input.ps1 arguments...`.
 
-`build` と `run` の出力先はエントリーファイルと同じディレクトリの同名 `.ps1` です。`check` はPowerShellを生成せず、既存の `.ps1` も変更しません。`fmt` は構文が正しい1つの `.rukbat` ファイルを4スペースの標準書式へ上書きし、コメントを保持します。構文エラー時は元ファイルを変更しません。
-成功時は上書きします。構文・型・importエラー時は出力せず、既存の出力も変更しません。
-古い出力が残る場合があるため、自動化ではコンパイラの終了コードを確認してください。
-成功は `0`、コンパイルエラーは `1`、CLI引数・入出力エラーは `2` です。
-エラーは `ファイル(行,列): error RUKxxxx: 内容` の形式です。import先のエラーにはそのファイルの位置を表示します。
-コンパイル時にRukbatやPowerShellのユーザーコードを実行することはありません。
+`build` and `run` write a `.ps1` with the entry file's base name in the same directory, replacing existing output on success.
+Syntax, type, and import errors leave existing output unchanged. Always check the compiler exit code in automation: stale output may remain.
+`check` generates no PowerShell and leaves existing `.ps1` files untouched.
+`fmt` rewrites one syntactically valid `.rukbat` file using canonical four-space indentation while preserving comments. Syntax errors leave the source unchanged.
+Compiler success is `0`, compilation errors are `1`, and CLI argument or I/O errors are `2`.
+Diagnostics use `file(line,column): error RUKxxxx: message`. Errors in imported files identify the location in that file.
+Compilation never executes Rukbat or PowerShell user code.
 
-配布用CLI:
+To publish the CLI:
 
 ```powershell
 dotnet publish src/Rukbat -c Release -o artifacts/rukbat
 .\artifacts\rukbat\rukbat.exe build examples/hello.rukbat
 ```
 
-## 方針と現在の範囲
+## Principles and current scope
 
-- 読み書きしやすい一貫した構文を優先します。
-- `import files` のような名前指定はコンパイラ付属の標準モジュールを読み込みます。
-- v0.1の標準モジュールは `files`、`path`、`json`、`env`、`process`、`text`、`stderr` です。APIと外部データ変換の契約は [標準ライブラリ仕様](docs/STDLIB.md) に定義します。
-- `exit(code)` で非負intの終了コードを返してプロセスを終了します。`stderr.print(text)` は改行付き標準エラー出力です。
-- `text.from_int/from_float/from_bool` と `text.parse_int/parse_float/parse_bool` で、地域設定に依存せず明示的に文字列化・解析できます。
-- `import "./models/user.rukbat" as model` でディレクトリをまたいで読み込めます。パスはimportを書いたファイルが基準です。
-- モジュールごとに変数・関数を分離し、共通の依存モジュールは1回だけ初期化します。
-- Rukbatの関数は明示的な `return` の値だけを返します。途中の式の値は捨てます。
-- `print(value)` は画面出力です。関数の戻り値に混ざりません。
-- PowerShellとの接続は `powershell<T>(...)` に集約します。
+- Prefer consistent syntax that is easy to read and write.
+- Named imports such as `import files` load standard modules bundled with the compiler.
+- The v0.1 standard modules are `files`, `path`, `json`, `env`, `process`, `text`, and `stderr`. Their APIs and external-data contracts are defined in the [standard library specification](docs/STDLIB.md).
+- `exit(code)` terminates the process with a nonnegative `int` exit code. `stderr.print(text)` writes a line to standard error.
+- `text.from_int/from_float/from_bool` and `text.parse_int/parse_float/parse_bool` provide explicit, culture-independent string conversion and parsing.
+- `import "./models/user.rukbat" as model` loads a module relative to the importing file, including across directories.
+- Variables and functions are isolated per module. Shared dependencies are initialized once.
+- Rukbat functions return only explicitly returned values. Intermediate expression values are discarded.
+- `print(value)` produces visible output without contributing to a function's return value.
+- PowerShell interoperability uses `powershell<T>(...)`.
 
-**初期プロトタイプのPowerShellスーパーセット方針から変更しています。**
-以前の `$name: string` やPowerShellのコマンド記法をそのまま書いた `.rukbat` は受け付けません。
-既存 `.ps1` の構文互換性より、Rukbatとしての書き味と動作の一貫性を優先します。
+The original prototype's PowerShell-superset approach is no longer supported.
+Sources using the old `$name: string` syntax or raw PowerShell command syntax are rejected.
+Consistent Rukbat syntax and behavior take priority over syntax compatibility with existing `.ps1` files.
 
-現在の型は `int`、有限なbinary64の `float`、`string`、`bool`、戻り値用の `void`、組み込みの `Error`、ユーザー定義の `struct`、型付き配列 `T[]`、nullable型 `T?` です。
-`null` は `T?` だけが保持できます。`if value != null` のような明示的な確認後は、単純な変数を `T` として使えます。`int` から `float` への安全な数値拡張だけを暗黙に行い、ゼロ除算や非有限floatはErrorにします。
-structは名前付き引数で生成し、フィールド操作と内部の `fn` メソッドを利用できます。
-代入・引数・戻り値ではネストしたフィールドまで値コピーします。メソッドの `self` は呼び出した変数を更新します。
-`examples/value-semantics.rukbat` でコピー元が変わらない動作を確認できます。
-通常関数とstructメソッドは `fn` で定義します。`func` と `function` は受け付けません。
-配列リテラル `[1, 2]`、添字の読み書き、`.length`、`.append(value)`、`for item in items`、`while condition`、`break`、`continue` を使えます。
-`powershell<User[]>` で外部の複数オブジェクトを型検査して取り込めます。配列もネストした要素まで値コピーします。
-型推論付き宣言は `name := "Taro"` と書きます。`:=` は新規宣言だけに使え、既存変数への代入には使えません。
-汎用オブジェクト型・union型・パイプライン解析・パッケージ管理は実装していません。
-詳細な構文、モジュールの規則、制限は [言語仕様](docs/LANGUAGE.md) を参照してください。
+Current types are `int`, finite binary64 `float`, `string`, `bool`, return-only `void`, built-in `Error`, user-defined `struct`, typed arrays `T[]`, and nullable types `T?`.
+Only `T?` can hold `null`. After an explicit check such as `if value != null`, a simple variable can be used as `T`.
+The only implicit numeric conversion is safe widening from `int` to `float`. Division by zero and non-finite floats cause Error.
+Structs are constructed with named arguments and support fields and internal `fn` methods.
+Assignment, arguments, and return values copy nested fields by value. A method's `self` updates the variable on which it was called.
+See `examples/value-semantics.rukbat` for a demonstration that the original value remains unchanged after copying.
+Functions and struct methods use `fn`; `func` and `function` are rejected.
+Arrays support literals such as `[1, 2]`, indexed reads and writes, `.length`, `.append(value)`, and `for item in items`.
+Control flow also includes `while condition`, `break`, and `continue`.
+`powershell<User[]>` validates and imports multiple external objects. Arrays copy nested elements by value as well.
+Use `name := "Taro"` for an inferred declaration. `:=` only declares a new variable; it does not assign to an existing variable.
+General-purpose object types, union types, pipeline parsing, and package management are not implemented.
+See the [language specification](docs/LANGUAGE.md) for syntax, module rules, and limitations.
 
-## ディレクトリで処理を分ける
+## Organizing code across directories
 
 ```text
 app/
@@ -138,7 +141,7 @@ app/
 
 `main.rukbat`:
 
-```text
+```rukbat
 import "./models/user.rukbat" as model
 import "./services/users.rukbat" as users
 
@@ -146,29 +149,29 @@ user: model.User = users.load()
 print(user.name)
 ```
 
-`services/users.rukbat` からは `import "../models/user.rukbat" as model` で共通の型を使えます。
-文字列パスには `.rukbat` と `as 別名` が必要です。区切りにはWindowsでも `/` を使います。
-ローカルモジュールは常に文字列パスと別名を明示します。標準モジュール名とローカルファイル名が衝突しても意味は変わりません。
-同じファイルは別名や異なる相対パスで参照しても、正規化した絶対パスで識別して1回だけ初期化します。
-生成物は従来どおり1つの `.ps1` です。
+From `services/users.rukbat`, use `import "../models/user.rukbat" as model` to share the same type.
+String import paths require a `.rukbat` extension and an explicit `as alias`. Use `/` separators even on Windows.
+Local modules always use a string path and an alias, so a local filename matching a standard module does not change import behavior.
+Normalized absolute paths identify modules: different aliases or relative paths to the same file still initialize it only once.
+The output remains a single `.ps1`.
 
-動作するサンプル:
+Run the example:
 
 ```powershell
 .\rukbat.cmd run examples/app/main.rukbat
 ```
 
-## 作れるCLIの例: ファイル一覧をJSONへ出力
+## Example CLI: exporting a file list as JSON
 
-`examples/file-browser` は、引数で指定したディレクトリ直下のファイルを絞り込み、名前の一覧をJSON配列で出力するCLIです。
-エントリーファイル、引数の検査、一覧取得、共通ライブラリを別モジュールに分けています。
+`examples/file-browser` filters files directly inside a directory supplied as an argument and outputs their names as a JSON array.
+It separates the entry point, argument validation, file listing, and shared library operations into modules.
 
 ```powershell
-# README.mdなど、直下のMarkdownファイル名を標準出力へ
+# Write direct-child Markdown filenames, such as README.md, to stdout:
 .\rukbat.cmd run examples/file-browser/main.rukbat -- . --pattern '*.md'
-# JSONファイルへ保存
+# Save to a JSON file:
 .\rukbat.cmd run examples/file-browser/main.rukbat -- . --pattern '*.md' --output files.json
-# ヘルプ
+# Show help:
 .\rukbat.cmd run examples/file-browser/main.rukbat -- --help
 ```
 
@@ -176,23 +179,26 @@ print(user.name)
 ["README.md"]
 ```
 
-最初の引数にディレクトリを指定します。`--pattern` は省略すると `*` です。PowerShellのファイルシステムFilterを利用し、サブディレクトリを再帰的には調べません。通常は隠しファイルを含めず、名前の並び順は保証しません。
-一致するファイルが0件なら `[]`、1件でもJSON配列になります。通常の標準出力にはJSONだけを出します。
-`--output` の指定時は標準出力を空にし、UTF-8 BOMなし・末尾改行なしで保存します。
-パスは実行時のカレントディレクトリが基準です。空白のあるパスやパターンは引用符で囲んでください。
-引数の不足・不明なオプション・ディレクトリの参照失敗・保存失敗は、説明を標準エラーへ出し、終了コード1になります。成功とヘルプ表示は0です。
+The first argument is the directory. `--pattern` defaults to `*` and uses the PowerShell file-system filter.
+Listing is not recursive, normally excludes hidden files, and does not guarantee order.
+Zero matches produce `[]`; a single match still produces an array. Normal stdout contains JSON only.
+With `--output`, stdout is empty and the file is UTF-8 without a BOM or trailing newline.
+Paths are relative to the runtime working directory. Quote paths and patterns containing spaces.
+Missing arguments, unknown options, directory access failures, and save failures produce a message on stderr and exit code `1`.
+Success and help use exit code `0`.
 
-ファイル操作とJSON化には、コンパイラ付属の `files` と `json` 標準モジュールを使います。生成物にはimportされた標準ライブラリ実装だけが組み込まれ、配布先には別ファイルをコピーする必要がありません。
+File operations and JSON encoding use the compiler's `files` and `json` standard modules.
+Only imported standard-library implementations are embedded in the generated script; no separate library files are needed at deployment.
 
-## 配列・ループと外部データ
+## Arrays, loops, and external data
 
-`examples/arrays.rukbat` は配列の更新とループ、`examples/import-data.rukbat` はJSONからのstruct配列の取り込みを実行します。
+`examples/arrays.rukbat` demonstrates array updates and loops. `examples/import-data.rukbat` imports an array of structs from JSON.
 
 ```powershell
 .\rukbat.cmd run examples/import-data.rukbat
 ```
 
-```text
+```rukbat
 struct User {
     name: string
     age: int
@@ -207,42 +213,43 @@ for user in users {
 }
 ```
 
-フィールドの欠損・null・型違いは、取り込み時に位置とフィールド名を含むエラーになります。
-配列は可変な値型です。`items.append(value)` で末尾へ追加できますが、代入・引数・戻り値では従来どおりネストした値までコピーします。要素の削除やstructのPowerShellへの送出は未対応です。
+Missing fields, nulls, and type mismatches produce import errors identifying the location and field.
+Arrays are mutable values. `items.append(value)` adds an element, while assignment, arguments, and returns still copy nested values.
+Element removal and sending structs to PowerShell are not supported.
 
-## エラーから回復する
+## Recovering from errors
 
-`try / catch / throw` と、`message: string` を持つ組み込みの `Error` を使えます。
+Use `try / catch / throw` with the built-in `Error`, which has a `message: string` field.
 
-```text
+```rukbat
 try {
-    throw Error(message: "処理に失敗しました")
+    throw Error(message: "Operation failed")
 } catch err {
     print(err.message)
 }
 ```
 
-PowerShellのエラーや型の取り込み失敗も同じcatchで扱います。
-`throw err` で再送出すると最初の発生位置を保ちます。
-未処理のエラーはRukbatのファイル・行と説明を標準エラーへ出し、終了コード1で停止します。
-`powershell<T>` で直接呼ぶ外部実行ファイルは終了コード0を成功、それ以外をErrorとします。
-初期仕様はcatch一つに限定し、型別catch・finally・throws宣言はありません。
+The same catch handles PowerShell errors and type-import failures.
+Rethrowing with `throw err` preserves the original location.
+Unhandled errors report the Rukbat file, line, and message on stderr and terminate with exit code `1`.
+For external executables called directly through `powershell<T>`, exit code `0` means success and any other code causes Error.
+The initial specification allows one catch clause and has no typed catches, `finally`, or `throws` declarations.
 
 ```powershell
 .\rukbat.cmd run examples/errors.rukbat
 ```
 
-## 実装と検証
+## Implementation and verification
 
-`Lexer → Parser → AST → ModuleLoader / TypeChecker → Emitter` の構成です。
-独自の字句解析と再帰下降パーサーで構文を解析し、AST上で名前と型を検査します。
-生成PowerShellの構文検証には公式 `System.Management.Automation` を使います。
-regex置換や入力スクリプトの実行には依存しません。
+The compiler follows `Lexer → Parser → AST → ModuleLoader / TypeChecker → Emitter`.
+A dedicated lexer and recursive-descent parser produce the AST, where names and types are checked.
+The official `System.Management.Automation` library validates generated PowerShell syntax.
+Compilation does not rely on regex substitution or executing input scripts.
 
 ```powershell
 dotnet test
 ```
 
-テストには構文・型・診断位置・CLIに加え、生成した `.ps1` を実際に Windows PowerShell 5.1 と PowerShell 7 で実行する検証を含みます。
-`powershell` と `pwsh` をPATHに用意してください。実行テストを黙ってスキップすることはありません。
-structの値コピーとself更新、明示return、スコープ、PowerShellとの型境界、共有モジュールの初期化、ソースファイルなしでの実行を検証します。
+Tests cover syntax, types, diagnostic locations, and the CLI, and execute generated `.ps1` files on Windows PowerShell 5.1 and PowerShell 7.
+Both `powershell` and `pwsh` must be on PATH. Execution tests are never silently skipped.
+Coverage includes struct value copies and `self` updates, explicit returns, scopes, PowerShell type boundaries, shared module initialization, and execution without source files.

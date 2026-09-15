@@ -82,16 +82,16 @@ public partial class CompilerTests
 
     [Theory]
     [InlineData(new string[] { }, "Usage:")]
-    [InlineData(new[] { "" }, "ディレクトリを指定")]
-    [InlineData(new[] { ".", "--pattern" }, "--pattern の値")]
-    [InlineData(new[] { ".", "--output" }, "--output の値")]
-    [InlineData(new[] { ".", "--pattern", "" }, "空でないパターン")]
-    [InlineData(new[] { ".", "--output", "" }, "空でない保存先")]
-    [InlineData(new[] { ".", "--pattern", "*", "--pattern", "*.txt" }, "一度だけ")]
-    [InlineData(new[] { ".", "--output", "one.json", "--output", "two.json" }, "一度だけ")]
-    [InlineData(new[] { ".", "--unknown" }, "不明なオプション")]
-    [InlineData(new[] { ".", "extra" }, "余分な引数")]
-    [InlineData(new[] { "missing-directory" }, "ディレクトリを参照できません")]
+    [InlineData(new[] { "" }, "Please specify a directory")]
+    [InlineData(new[] { ".", "--pattern" }, "--pattern requires a value")]
+    [InlineData(new[] { ".", "--output" }, "--output requires a value")]
+    [InlineData(new[] { ".", "--pattern", "" }, "non-empty pattern")]
+    [InlineData(new[] { ".", "--output", "" }, "non-empty output path")]
+    [InlineData(new[] { ".", "--pattern", "*", "--pattern", "*.txt" }, "only be specified once")]
+    [InlineData(new[] { ".", "--output", "one.json", "--output", "two.json" }, "only be specified once")]
+    [InlineData(new[] { ".", "--unknown" }, "Unknown option")]
+    [InlineData(new[] { ".", "extra" }, "extra argument")]
+    [InlineData(new[] { "missing-directory" }, "Cannot access directory")]
     public async Task FileBrowserReportsInputFailuresOnStderr(string[] arguments, string message)
     {
         using var project = new Project();
