@@ -188,6 +188,32 @@ internal sealed partial class TypeChecker
                     loopDepth--;
                     MergeRefinements(beforeLoop, refinements);
                     break;
+                case While loop:
+                    Match(ValueType.Bool, TypeOf(loop.Condition, scope), loop.Condition);
+                    var beforeWhile = SnapshotRefinements();
+                    foreach (var name in AssignedNames(loop.Body))
+                    {
+                        var assigned = scope.Find(name);
+                        if (assigned is not null)
+                        {
+                            refinements.Remove(assigned);
+                        }
+                    }
+                    if (ContainsUnqualifiedUserCall(loop.Body))
+                    {
+                        InvalidateGlobalRefinements();
+                    }
+
+                    var (whileSymbol, nonNullWhileTrue) = NullTestRefinement(loop.Condition);
+                    if (whileSymbol is not null && nonNullWhileTrue)
+                    {
+                        refinements[whileSymbol] = whileSymbol.Type.NonNullable;
+                    }
+                    loopDepth++;
+                    CheckStatements(loop.Body, new Symbols(scope), returnType, false);
+                    loopDepth--;
+                    MergeRefinements(beforeWhile, refinements);
+                    break;
                 case LoopControl control:
                     if (loopDepth == 0)
                     {
@@ -610,6 +636,7 @@ internal sealed partial class TypeChecker
             {
                 Conditional conditional => conditional.Then.Concat(conditional.Else),
                 For loop => loop.Body,
+                While loop => loop.Body,
                 TryCatch guarded => guarded.Body.Concat(guarded.Handler.Body),
                 _ => []
             };
@@ -625,6 +652,7 @@ internal sealed partial class TypeChecker
         {
             Conditional conditional => ContainsUnqualifiedUserCall(conditional.Then) || ContainsUnqualifiedUserCall(conditional.Else),
             For loop => ContainsUnqualifiedUserCall(loop.Body),
+            While loop => ContainsUnqualifiedUserCall(loop.Body),
             TryCatch guarded => ContainsUnqualifiedUserCall(guarded.Body) || ContainsUnqualifiedUserCall(guarded.Handler.Body),
             _ => false
         });
@@ -638,6 +666,7 @@ internal sealed partial class TypeChecker
         Return { Value: { } value } => [value],
         Throw failure => [failure.Value],
         For loop => [loop.Items],
+        While loop => [loop.Condition],
         Conditional conditional => [conditional.Condition],
         ExpressionStatement expression => [expression.Value],
         _ => []

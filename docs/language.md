@@ -90,7 +90,9 @@ Arrays are fixed length. Structs and arrays currently use recursive value-copy b
 
 ## Control flow
 
-`if` / `else`, `for item in items`, `break`, `continue`, and `return` are explicit control-flow constructs. A loop alone does not prove a return because it may execute zero times.
+`if` / `else`, `for item in items`, `while condition`, `break`, `continue`, and `return` are explicit control-flow constructs. A `while` condition must be `bool` and is evaluated before each iteration. `break` exits the innermost `for` or `while`; `continue` starts its next iteration. A loop alone does not prove a return because it may execute zero times.
+
+The iterable expression of a `for` loop is evaluated exactly once when the loop begins. It iterates over that resulting value.
 
 ## Structs and modules
 

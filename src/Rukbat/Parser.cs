@@ -230,6 +230,10 @@ internal sealed class Parser(Source source, List<Token> tokens)
             var items = Expression();
             return new For(item, items, Block());
         }
+        if (Match("while"))
+        {
+            return new While(token, Expression(), Block());
+        }
         if (Match("break") || Match("continue"))
         {
             return new LoopControl(token);

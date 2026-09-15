@@ -117,7 +117,7 @@ structは名前付き引数で生成し、フィールド操作と内部の `fn`
 代入・引数・戻り値ではネストしたフィールドまで値コピーします。メソッドの `self` は呼び出した変数を更新します。
 `examples/value-semantics.rukbat` でコピー元が変わらない動作を確認できます。
 通常関数とstructメソッドは `fn` で定義します。`func` と `function` は受け付けません。
-配列リテラル `[1, 2]`、添字の読み書き、`.length`、`for item in items`、`break`、`continue` を使えます。
+配列リテラル `[1, 2]`、添字の読み書き、`.length`、`for item in items`、`while condition`、`break`、`continue` を使えます。
 `powershell<User[]>` で外部の複数オブジェクトを型検査して取り込めます。配列もネストした要素まで値コピーします。
 型推論付き宣言は `name := "Taro"` と書きます。`:=` は新規宣言だけに使え、既存変数への代入には使えません。
 汎用オブジェクト型・union型・パイプライン解析・パッケージ管理は実装していません。

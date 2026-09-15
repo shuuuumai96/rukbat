@@ -181,6 +181,13 @@ internal sealed partial class Emitter(TypeChecker checker)
                     indentation--;
                     Line("}");
                     break;
+                case While loop:
+                    Line($"while ({Expr(loop.Condition)}) {{");
+                    indentation++;
+                    EmitStatements(loop.Body);
+                    indentation--;
+                    Line("}");
+                    break;
                 case LoopControl control:
                     Line(control.Token.Text);
                     break;

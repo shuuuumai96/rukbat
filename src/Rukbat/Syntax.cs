@@ -62,6 +62,7 @@ internal sealed record ArrayLiteral(Token Token, List<Expression> Items) : Expre
 internal sealed record Index(Token Token, Expression Receiver, Expression Offset) : Expression(Token);
 internal sealed record IndexAssignment(Index Target, Expression Value) : Statement(Target.Token);
 internal sealed record For(Token Token, Expression Items, List<Statement> Body) : Statement(Token);
+internal sealed record While(Token Token, Expression Condition, List<Statement> Body) : Statement(Token);
 internal sealed record LoopControl(Token Token) : Statement(Token);
 internal sealed record Return(Token Token, Expression? Value) : Statement(Token);
 internal sealed record Throw(Token Token, Expression Value) : Statement(Token);
