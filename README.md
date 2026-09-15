@@ -253,3 +253,7 @@ dotnet test
 Tests cover syntax, types, diagnostic locations, and the CLI, and execute generated `.ps1` files on Windows PowerShell 5.1 and PowerShell 7.
 Both `powershell` and `pwsh` must be on PATH. Execution tests are never silently skipped.
 Coverage includes struct value copies and `self` updates, explicit returns, scopes, PowerShell type boundaries, shared module initialization, and execution without source files.
+
+## Next implementation milestone
+
+The [batch validation CLI acceptance scenario](docs/CLI_ACCEPTANCE.md) defines the next practical example, its required standard-library addition, and end-to-end acceptance tests. It is a planned contract, not an implemented command.
