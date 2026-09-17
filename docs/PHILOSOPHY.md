@@ -123,7 +123,7 @@ Declarations and assignments should remain semantically distinct.
 
 ## Static Checking
 
-Rukbat should reject as many errors as reasonably possible before producing PowerShell.
+Rukbat should reject common and meaningful errors before producing PowerShell when doing so keeps the language clear and predictable.
 
 This includes, where practical:
 
@@ -137,9 +137,27 @@ This includes, where practical:
 
 Generated PowerShell should therefore be more strongly validated than typical ad-hoc hand-written PowerShell.
 
+Static checking is a means to make system scripts safer and easier to maintain. It is not a goal by itself.
+
+Rukbat should not substantially complicate its type system merely to encode every semantic distinction that could theoretically be checked.
+
+Additional static guarantees are valuable when they prevent recurring real-world errors without imposing disproportionate complexity on ordinary programs.
+
 This does not mean Rukbat can guarantee successful execution.
 
 Runtime failures such as missing files, insufficient permissions, unavailable networks, missing external programs, or invalid external state remain runtime concerns.
+
+---
+
+## Error Model
+
+Failure is a normal part of system scripting.
+
+Rukbat should provide a small and predictable error model that makes failure and recovery easy to follow in procedural code.
+
+The language should prefer a single, consistent error path over elaborate exception hierarchies or multiple competing error-handling styles.
+
+Error-handling features should be added only when they materially improve ordinary system scripts without obscuring control flow.
 
 ---
 
@@ -161,9 +179,19 @@ It should not be defined as:
 
 The implementation may change while the Rukbat semantics remain stable.
 
-Direct PowerShell access should remain available as an escape hatch for operations not covered by Rukbat.
+---
 
-PowerShell-specific functionality should not force the core language to grow unnecessarily.
+## PowerShell Escape Hatch
+
+Direct PowerShell access is an escape hatch, not an alternative programming model within Rukbat.
+
+Its use should remain explicit and localized.
+
+Rukbat should not allow incidental PowerShell session state or PowerShell-specific conventions to define the semantics of ordinary Rukbat code.
+
+Uncommon operations may remain behind the escape hatch rather than forcing the language or standard library to grow.
+
+When the same PowerShell pattern repeatedly appears in ordinary Rukbat programs, that may be evidence that a small Rukbat abstraction is warranted.
 
 ---
 
@@ -239,11 +267,17 @@ When a task clearly belongs to those domains, another language may be more appro
 
 ---
 
-## Language Size
+## Language Size and Complexity Budget
 
 Rukbat should remain deliberately small.
 
 A feature should not be added merely because another language provides it.
+
+Every language feature creates a permanent cost.
+
+That cost appears not only in the compiler, but also in the language model developers must learn, the documentation, diagnostics, formatter, editor tooling, tests, and interactions with other features.
+
+A new feature should therefore provide clear and recurring value in ordinary Windows automation before that cost is accepted.
 
 Before adding a language feature, ask:
 
@@ -253,8 +287,9 @@ Before adding a language feature, ask:
 4. Can the same need be satisfied by the standard library?
 5. Can PowerShell or another escape hatch handle the uncommon case instead?
 6. Does it create another way to express something that already has a clear form?
+7. Does its recurring practical value justify the permanent complexity it adds to the language?
 
-If the benefit is primarily theoretical elegance, syntactic novelty, or completeness, the feature probably does not belong in Rukbat.
+If the benefit is primarily theoretical elegance, syntactic novelty, stronger typing for its own sake, or completeness, the feature probably does not belong in Rukbat.
 
 ---
 
@@ -313,6 +348,12 @@ standalone Windows PowerShell 5.1 script
 
 The generated script should not normally require Rukbat to be installed on the target machine.
 
+“Standalone” means self-contained with respect to Rukbat itself. A Rukbat program may still explicitly depend on data files, external executables, network services, operating-system facilities, or other resources required by that program.
+
+Generated PowerShell is primarily a deployment artifact, not the source of truth for continued development.
+
+It should be deterministic, inspectable, and diagnosable, but it does not need to resemble hand-written PowerShell when additional generated structure is necessary to preserve Rukbat semantics.
+
 This property is central to Rukbat's usefulness in restricted Windows environments.
 
 ---
@@ -328,6 +369,7 @@ Rukbat should not:
 - optimize for code golf or minimal character count;
 - encourage clever or highly implicit code;
 - require a custom runtime on deployment machines;
+- maximize type-system sophistication as a goal in itself;
 - become a general-purpose language without a clear system-scripting reason.
 
 ---
@@ -337,6 +379,10 @@ Rukbat should not:
 The highest-level design question is:
 
 **Does this make Windows system scripting simpler, clearer, safer, and more predictable?**
+
+A second question should follow whenever the proposed solution adds complexity:
+
+**Does that complexity pay for itself in ordinary Rukbat programs?**
 
 If the answer is no, it probably does not belong in Rukbat.
 
