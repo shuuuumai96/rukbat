@@ -54,7 +54,7 @@ internal sealed partial class TypeChecker
 
                 foreach (var parameter in function.Parameters)
                 {
-                    Declare(parameter, parameter.Type, locals, false);
+                    Declare(parameter, DeclaredTypes[parameter], locals, false);
                 }
 
                 CheckStatements(function.Body, locals, symbol.ReturnType, false);
@@ -76,7 +76,9 @@ internal sealed partial class TypeChecker
 
     private void Declare(Node node, ValueType type, Symbols scope, bool global)
     {
-        type = DeclaredTypes.TryGetValue(node, out var declared) ? declared : BindType(type, node);
+        // Callers supply resolved semantic types. Rebinding an inferred struct name in
+        // the caller's module would discard its defining module (including inside T[]/T?).
+        DeclaredTypes[node] = type;
         if (type == ValueType.Void)
         {
             Error("RUK2001", "Variables and parameters cannot have type void.", node);

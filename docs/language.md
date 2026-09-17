@@ -32,6 +32,7 @@ fn greet(person: string): void {
 ```
 
 - `name := value` declares a new variable and infers its type.
+- Inference uses the initializer expression's resolved static type unchanged, including a struct's defining module and any array or nullable wrappers. This applies equally to local functions, imported functions, and standard-library calls such as `result := process.run(...)`; no type name is re-resolved in the caller's module.
 - `name: Type = value` declares a new variable with an explicit type.
 - `name = value` assigns to an existing variable.
 - A declaration requires an initial value. `:=` requires an inferable type; `items := []` is invalid.
