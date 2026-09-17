@@ -1,0 +1,155 @@
+using System.Diagnostics;
+using System.Text;
+
+namespace Rukbat.Tests;
+
+public partial class CompilerTests
+{
+    private static string SourcePath(string path) => path.Replace('\\', '/').Replace("'", "\\'");
+
+    private static async Task<RunResult> RunDeployed(string shell, string script, string working, string nativeWorking)
+    {
+        var info = new ProcessStartInfo(shell)
+        {
+            UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
+            CreateNoWindow = true, WorkingDirectory = nativeWorking,
+            StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8
+        };
+        foreach (var value in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
+            "Set-Location -LiteralPath '" + working.Replace("'", "''") + "'; & '" + script.Replace("'", "''") + "'" })
+            info.ArgumentList.Add(value);
+        using var child = Process.Start(info)!;
+        var stdout = child.StandardOutput.ReadToEndAsync();
+        var stderr = child.StandardError.ReadToEndAsync();
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        try { await child.WaitForExitAsync(timeout.Token); }
+        catch (OperationCanceledException) { child.Kill(true); throw new TimeoutException("Deployment test timed out."); }
+        return new(child.ExitCode, (await stdout).Replace("\r\n", "\n"), await stderr);
+    }
+
+    [Theory]
+    [InlineData("powershell")]
+    [InlineData("pwsh")]
+    public async Task DeployedScriptKeepsEntryWorkingDirectoryAndScriptDirectory(string shell)
+    {
+        using var project = new Project();
+        project.Write("work/data.txt", "working");
+        project.Write("other/data.txt", "wrong");
+        project.Write("deploy/config.json", "adjacent");
+        var working = project.PathFor("work");
+        var other = project.PathFor("other");
+        var windowsShell = Path.Combine(Environment.GetEnvironmentVariable("SystemRoot")!, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+        project.Write("source/helper.rukbat", "import path\nfn directory(): string { return path.script_dir() }");
+        project.Write("source/main.rukbat", $$"""
+            import files
+            import path
+            import process
+            import "./helper.rukbat" as helper
+            print(path.script_dir())
+            print(helper.directory())
+            powershell<void>('Set-Location', LiteralPath: '{{SourcePath(other)}}')
+            powershell<void>('Invoke-Expression', "[Environment]::CurrentDirectory = '{{SourcePath(project.PathFor("deploy"))}}'")
+            print(files.read('data.txt'))
+            files.write('result.txt', 'saved')
+            print(files.exists('result.txt'))
+            names := files.list('.', '*.txt')
+            print(names.length)
+            print(files.read(path.join([path.script_dir(), 'config.json'])))
+            result: process.Result = process.run('powershell', ['-NoLogo', '-NoProfile', '-Command', '[Console]::Write([Environment]::CurrentDirectory)'])
+            print(result.stdout)
+            relative: process.Result = process.run('{{SourcePath(Path.GetRelativePath(working, windowsShell))}}', ['-NoLogo', '-NoProfile', '-Command', '[Console]::Write([Environment]::CurrentDirectory)'])
+            print(relative.stdout)
+            """);
+        var compiled = new Compiler().CompileFile(project.PathFor("source/main.rukbat"));
+        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+        Assert.DoesNotContain(project.PathFor("source"), compiled.Output!);
+        File.Delete(project.PathFor("source/main.rukbat"));
+        File.Delete(project.PathFor("source/helper.rukbat"));
+        var script = project.PathFor("deploy/job.ps1");
+        File.WriteAllText(script, compiled.Output, new UTF8Encoding(true));
+        var result = await RunDeployed(shell, script, working, other);
+        Assert.True(result.ExitCode == 0, result.Error);
+        Assert.Equal("", result.Error);
+        Assert.Equal($"{project.PathFor("deploy")}\n{project.PathFor("deploy")}\nworking\nTrue\n2\nadjacent\n{working}\n{working}\n", result.Output);
+        Assert.Equal("saved", File.ReadAllText(project.PathFor("work/result.txt")));
+        Assert.False(File.Exists(project.PathFor("other/result.txt")));
+    }
+
+    [Theory]
+    [InlineData("powershell", "services/user.rukbat", "./services/user.rukbat")]
+    [InlineData("pwsh", "services/user.rukbat", "./services/user.rukbat")]
+    [InlineData("powershell", "../shared/config.rukbat", "../shared/config.rukbat")]
+    [InlineData("pwsh", "../shared/config.rukbat", "../shared/config.rukbat")]
+    public async Task RelocatedErrorsUseRelativeSourceNamesWithoutSourceFiles(string shell, string name, string import)
+    {
+        using var project = new Project();
+        var imported = "source/" + name;
+        project.Write(imported, "fn fail(): void {\n    throw Error(message: 'origin')\n}");
+        project.Write("source/main.rukbat", $"import '{import}' as service\ntry {{ service.fail() }} catch err {{ throw err }}");
+        var compiled = new Compiler().CompileFile(project.PathFor("source/main.rukbat"));
+        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+        Assert.DoesNotContain(project.DirectoryPath, compiled.Output!);
+        Assert.DoesNotContain(project.DirectoryPath.Replace('\\', '/'), compiled.Output!);
+        File.Delete(project.PathFor(imported));
+        File.Delete(project.PathFor("source/main.rukbat"));
+        project.Write("deploy/job.ps1", "");
+        File.WriteAllText(project.PathFor("deploy/job.ps1"), compiled.Output, new UTF8Encoding(true));
+        var result = await RunDeployed(shell, project.PathFor("deploy/job.ps1"), project.DirectoryPath, project.DirectoryPath);
+        Assert.Equal(1, result.ExitCode);
+        Assert.Equal($"{name}:2: error: origin", result.Error.Trim());
+    }
+
+    [Theory]
+    [InlineData("powershell")]
+    [InlineData("pwsh")]
+    public async Task PathPredicatesAndEmptyJoinFollowContracts(string shell)
+    {
+        using var project = new Project();
+        project.Write("present.txt", "exists");
+        project.Write("main.rukbat", """
+            import files
+            import path
+            print(files.exists('present.txt'))
+            print(files.exists('missing.txt'))
+            print(files.exists('.'))
+            print(files.exists(''))
+            print(files.exists('?:invalid'))
+            print(files.exists('bad\npath'))
+            try { path.join([]) } catch err { print('empty join') }
+            try { files.read('missing.txt') } catch err { print('read error') }
+            try { files.write('missing/child.txt', 'x') } catch err { print('write error') }
+            """);
+        var compiled = project.Compile();
+        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+        File.WriteAllText(project.PathFor("job.ps1"), compiled.Output, new UTF8Encoding(true));
+        var result = await RunDeployed(shell, project.PathFor("job.ps1"), project.DirectoryPath, project.DirectoryPath);
+        Assert.True(result.ExitCode == 0, result.Error);
+        Assert.Equal("True\nFalse\nFalse\nFalse\nFalse\nFalse\nempty join\nread error\nwrite error\n", result.Output);
+    }
+
+    [Theory]
+    [InlineData("powershell")]
+    [InlineData("pwsh")]
+    public async Task EprintMatchesPrintWithoutImports(string shell)
+    {
+        using var project = new Project();
+        project.Write("main.rukbat", "print(''); eprint(''); print('line\\n'); eprint('line\\n'); print(42); eprint(42); print(true); eprint(true); eprint('日本語')");
+        var compiled = project.Compile();
+        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+        File.WriteAllText(project.PathFor("job.ps1"), compiled.Output, new UTF8Encoding(true));
+        var result = await RunDeployed(shell, project.PathFor("job.ps1"), project.DirectoryPath, project.DirectoryPath);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal(result.Output + "日本語\n", result.Error.Replace("\r\n", "\n"));
+    }
+
+    [Theory]
+    [InlineData("import stderr")]
+    [InlineData("stderr.print('removed')")]
+    [InlineData("fn eprint(): void {}")]
+    [InlineData("eprint(text: 'named')")]
+    [InlineData("eprint([1])")]
+    [InlineData("value: string? = null; eprint(value)")]
+    [InlineData("eprint(print('void'))")]
+    [InlineData("import path; path.script_dir('extra')")]
+    public void RejectsInvalidDeploymentApis(string source) => Assert.NotEmpty(new Compiler().Check(source));
+}

@@ -101,8 +101,8 @@ dotnet publish src/Rukbat -c Release -o artifacts/rukbat
 
 - Prefer consistent syntax that is easy to read and write.
 - Named imports such as `import files` load standard modules bundled with the compiler.
-- The v0.1 standard modules are `files`, `path`, `json`, `env`, `process`, `text`, and `stderr`. Their APIs and external-data contracts are defined in the [standard library specification](docs/STDLIB.md).
-- `exit(code)` terminates the process with a nonnegative `int` exit code. `stderr.print(text)` writes a line to standard error.
+- The v0.1 standard modules are `files`, `path`, `json`, `env`, `process`, and `text`. Their APIs and external-data contracts are defined in the [standard library specification](docs/STDLIB.md).
+- `exit(code)` terminates the process with a nonnegative `int` exit code. `eprint(text)` writes a line to standard error.
 - `text.from_int/from_float/from_bool` and `text.parse_int/parse_float/parse_bool` provide explicit, culture-independent string conversion and parsing.
 - `import "./models/user.rukbat" as model` loads a module relative to the importing file, including across directories.
 - Variables and functions are isolated per module. Shared dependencies are initialized once.

@@ -10,8 +10,7 @@ public partial class CompilerTests
         project.Write("main.rukbat", """
             import "./stop.rukbat" as stop
             import text
-            import stderr
-            stderr.print(text.from_bool(text.parse_bool('false')))
+            eprint(text.from_bool(text.parse_bool('false')))
             value := text.parse_float('1.2345678901234567')
             print(text.from_float(value))
             print(text.parse_float(text.from_float(value)) == value)
@@ -35,7 +34,7 @@ public partial class CompilerTests
 
     [Theory]
     [InlineData("exit(0)", 0, "", "")]
-    [InlineData("import stderr; stderr.print('bad'); print('out'); exit(2)", 2, "out", "bad")]
+    [InlineData("eprint('bad'); print('out'); exit(2)", 2, "out", "bad")]
     [InlineData("fn stop(): int { exit(7) }; try { stop() } catch err { print('caught') }; print('after')", 7, "", "")]
     [InlineData("exit(2147483647)", int.MaxValue, "", "")]
     [InlineData("try { exit(-1) } catch err { print('negative') }", 0, "negative", "")]
@@ -112,7 +111,7 @@ public partial class CompilerTests
     [InlineData("exit(code: 2)")]
     [InlineData("x := exit(0)")]
     [InlineData("fn exit(): void {}")]
-    [InlineData("import stderr; stderr.print(1)")]
+    [InlineData("eprint()")]
     [InlineData("import text; text.from_int(true)")]
     [InlineData("import text; text.parse_bool(1)")]
     public void CliFoundationRejectsInvalidCalls(string source)

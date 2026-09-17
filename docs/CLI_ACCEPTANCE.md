@@ -62,7 +62,7 @@ No matches produce `[]` without launching a checker. One match still produces an
 Save only after all checks finish, using `files.write` and `json.encode`: UTF-8 without a BOM or trailing newline.
 An existing report is replaced on completed runs, including runs with failed checks. Replacement is not atomic under the current `files.write` contract.
 
-On a normal run, stdout is empty; checker streams belong only in the report. Operational errors produce an English diagnostic through `stderr.print`.
+On a normal run, stdout is empty; checker streams belong only in the report. Operational errors produce an English diagnostic through `eprint`.
 
 | Program exit code | Meaning | Report behavior |
 |---|---|---|
@@ -82,7 +82,7 @@ This is a proposed contract to implement in a subsequent commit. It is not yet p
 | `files.list_recursive(directory: string, pattern: string): string[]` | Return absolute paths to matching files at every depth, including the root's direct files. A file path, nonexistent/inaccessible root, invalid pattern, or traversal failure causes Error, not a partial result. Paths are literal; the file-name pattern uses the same matching rules as `files.list`. Exclude hidden files and hidden subtrees. Skip reparse-point entries rather than following links or junctions; reject a reparse-point root. Do not guarantee order. Needed because `files.list` cannot enumerate subdirectories. |
 
 This API must remain standalone and compatible with Windows PowerShell 5.1. Runtime failures use ordinary Rukbat Error.
-Existing `args`, arrays/append, control flow, `files.read/write`, `json.decode/encode`, `process.run`, `stderr.print`, and `exit` cover the rest.
+Existing `args`, arrays/append, control flow, `files.read/write`, `json.decode/encode`, `process.run`, `eprint`, and `exit` cover the rest.
 The recursive listing already returns absolute paths, so this scenario does not require a separate `path.absolute` API. It also does not yet justify copy, move, remove, directory creation, parent-path lookup, additional text operations, CSV, or a new test runner.
 
 ## Acceptance tests for the completed example

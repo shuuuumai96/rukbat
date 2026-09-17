@@ -4,9 +4,11 @@ internal sealed partial class Emitter
 {
     private void EmitStandardRuntime(IReadOnlySet<string> modules)
     {
+        EmitLines(PathContextRuntime);
         Line("$__rukbat_standard = {");
         indentation++;
         Line("param([string]$operation, [object[]]$values)");
+        Line("$ErrorActionPreference = 'Stop'");
         Line("switch ($operation) {");
         indentation++;
         if (modules.Contains("files")) EmitLines(FilesRuntime);
@@ -14,18 +16,29 @@ internal sealed partial class Emitter
         if (modules.Contains("env")) EmitLines(EnvironmentRuntime);
         if (modules.Contains("process")) EmitLines(ProcessRuntime);
         if (modules.Contains("text")) EmitLines(TextRuntime);
-        if (modules.Contains("stderr")) EmitLines("""
-            'stderr.print' {
-                [Console]::Error.WriteLine([string]$values[0])
-                return
-            }
-            """);
         indentation--;
         Line("}");
         Line("throw \"Unknown standard-library operation '$operation'.\"");
         indentation--;
-        Line("}");
+        Line("}.GetNewClosure()");
     }
+
+    private const string PathContextRuntime = """
+    # Capture the entry script's filesystem location, never a later PowerShell location.
+    $__rukbat_resolve_path = {
+        param([string]$value)
+        if ([string]::IsNullOrWhiteSpace($value)) { throw 'Path must not be empty or whitespace.' }
+        if ($value -match '^[A-Za-z]:(?![\\/])') {
+            throw 'Drive-relative paths are not supported; use an absolute or working-directory-relative path.'
+        }
+        if ($value -match '^[\\/](?![\\/])') {
+            $value = [IO.Path]::Combine([IO.Path]::GetPathRoot($__rukbat_working_dir), $value.Substring(1))
+        } elseif (-not [IO.Path]::IsPathRooted($value)) {
+            $value = [IO.Path]::Combine($__rukbat_working_dir, $value)
+        }
+        return [IO.Path]::GetFullPath($value)
+    }.GetNewClosure()
+    """;
 
     private void EmitLines(string text)
     {
@@ -37,15 +50,16 @@ internal sealed partial class Emitter
 
     private const string FilesRuntime = """
     'files.list' {
-        if (-not [System.IO.Directory]::Exists([string]$values[0])) {
+        $directory = & $__rukbat_resolve_path ([string]$values[0])
+        if (-not [System.IO.Directory]::Exists($directory)) {
             throw "Cannot access directory: $($values[0])"
         }
-        $names = @(Get-ChildItem -LiteralPath ([string]$values[0]) -Filter ([string]$values[1]) -File -Name)
+        $names = @(Get-ChildItem -LiteralPath $directory -Filter ([string]$values[1]) -File -Name -ErrorAction Stop)
         return ,([object[]]$names)
     }
     'files.read' {
         $encoding = [System.Text.UTF8Encoding]::new($false, $true)
-        $bytes = [System.IO.File]::ReadAllBytes([string]$values[0])
+        $bytes = [System.IO.File]::ReadAllBytes((& $__rukbat_resolve_path ([string]$values[0])))
         $offset = 0
         if ($bytes.Length -ge 3 -and $bytes[0] -eq 239 -and $bytes[1] -eq 187 -and $bytes[2] -eq 191) {
             $offset = 3
@@ -54,17 +68,22 @@ internal sealed partial class Emitter
     }
     'files.write' {
         $encoding = [System.Text.UTF8Encoding]::new($false, $true)
-        [System.IO.File]::WriteAllText([string]$values[0], [string]$values[1], $encoding)
+        [System.IO.File]::WriteAllText((& $__rukbat_resolve_path ([string]$values[0])), [string]$values[1], $encoding)
         return
     }
     'files.exists' {
-        return [System.IO.File]::Exists([string]$values[0])
+        try { return [System.IO.File]::Exists((& $__rukbat_resolve_path ([string]$values[0]))) }
+        catch { return $false }
     }
     """;
 
     private const string PathRuntime = """
     'path.join' {
+        if ($values[0].Count -eq 0) { throw 'path.join requires at least one component.' }
         return [System.IO.Path]::Combine([string[]]$values[0])
+    }
+    'path.script_dir' {
+        return $__rukbat_script_dir
     }
     'path.filename' {
         return [System.IO.Path]::GetFileName([string]$values[0])
@@ -138,7 +157,29 @@ internal sealed partial class Emitter
             $null = $quoted.Add((& $quoteArgument $argument))
         }
         $start = [System.Diagnostics.ProcessStartInfo]::new()
-        $start.FileName = [string]$values[0]
+        $executable = [string]$values[0]
+        if ([string]::IsNullOrWhiteSpace($executable)) { throw 'Executable must not be empty.' }
+        if ($executable.IndexOfAny([char[]]'\\/:') -ge 0) {
+            $start.FileName = & $__rukbat_resolve_path $executable
+        } else {
+            # Resolve bare names explicitly: CreateProcess otherwise consults mutable process state.
+            $names = @($executable)
+            if ([IO.Path]::GetExtension($executable) -eq '') { $names = @($executable + '.exe') }
+            $directories = @($__rukbat_working_dir) + @($env:PATH -split ';')
+            $found = $null
+            foreach ($directory in $directories) {
+                if ([string]::IsNullOrWhiteSpace($directory)) { continue }
+                try { $directory = & $__rukbat_resolve_path $directory.Trim('"') } catch { continue }
+                foreach ($name in $names) {
+                    $candidate = [IO.Path]::Combine($directory, $name)
+                    if ([IO.File]::Exists($candidate)) { $found = $candidate; break }
+                }
+                if ($null -ne $found) { break }
+            }
+            if ($null -eq $found) { throw "Could not find executable '$executable'." }
+            $start.FileName = $found
+        }
+        $start.WorkingDirectory = $__rukbat_working_dir
         $start.Arguments = [string]::Join(' ', $quoted)
         $start.UseShellExecute = $false
         $start.RedirectStandardOutput = $true

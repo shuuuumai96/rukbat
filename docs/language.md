@@ -15,7 +15,8 @@ inside a function or imported module. Codes from 0 through 2147483647 are accept
 The argument is evaluated once. A negative code raises ordinary Error; a valid exit is a terminal
 control transfer, cannot be caught, and satisfies the function's requirement to return or terminate.
 The generated script must be executed in its own PowerShell process; exit terminates that host process.
-Use `import stderr` and `stderr.print(text)` for newline-terminated diagnostic output.
+`eprint(value): void` is the built-in stderr counterpart of `print(value)` and requires no import.
+Both accept one positional value with the same type checks, append one platform newline, and do not contribute to function return values. Printing a diagnostic does not set the exit code.
 Explicit string conversion and strict parsing use the `text` module described in STDLIB.md.
 
 ## Declarations and assignment
@@ -77,6 +78,8 @@ Primitive equality requires compatible non-null values and string equality is ca
 
 ## Errors
 
+Runtime errors report source names relative to the entry source directory, normalized with `/` separators, and the original line number. Imports outside that directory use `../` segments. Generated error metadata does not embed absolute development source paths and does not require source files at runtime. Compile-time diagnostics still use the actual source paths. User-written string literals, such as explicit absolute data paths, are preserved rather than redacted.
+
 `Error` is a built-in value type with a `message: string` field. `throw` accepts an `Error`; `try` has one untyped `catch` binding and there is no `finally`. PowerShell failures, invalid external values, arithmetic failures, and array-bound failures enter the same Error path. Rethrowing an Error preserves its original source location.
 
 ## Not yet specified / TBD
@@ -122,6 +125,10 @@ struct User {
 Struct fields are data. Methods use `fn` and may update `self`. Imports are static and resolved before execution. Relative project modules use an explicit relative `.rukbat` path and an alias. Standard-library modules use their canonical module names as defined in `STDLIB.md`.
 
 ## PowerShell boundary
+
+The generated script captures its initial filesystem working directory from PowerShell's location and its script directory from `$PSScriptRoot` before initializing modules. Relative standard-library file paths and child process working directories always use the captured working directory, even if escape-hatch code changes PowerShell's location or .NET's current directory. Escape-hatch commands themselves retain PowerShell semantics.
+
+Local imports remain compile-time paths relative to the importing source file. They are unrelated to runtime working and script directories. `path.script_dir()` explicitly locates data beside the deployed `.ps1`. Execute the generated artifact as a file in a separate PowerShell process; source mapping is error reporting, not a `rukbat debug` command.
 
 `powershell<T>(command, ...)` is the explicit escape hatch for a PowerShell operation not covered by Rukbat. It checks the returned value against `T`; a scalar result requires exactly one value and `T[]` collects values into an array. PowerShell failures and incompatible results are runtime errors.
 

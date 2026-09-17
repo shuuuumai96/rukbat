@@ -74,7 +74,7 @@ public partial class CompilerTests
         var result = await RunCli(project, ["run", project.PathFor("main.rukbat")]);
         Assert.Equal(1, result.ExitCode);
         Assert.Equal("before\n", result.Output);
-        Assert.Equal($"{project.PathFor("service.rukbat")}:2: error: copied", result.Error.Trim());
+        Assert.Equal("service.rukbat:2: error: copied", result.Error.Trim());
     }
 
     [Fact]
@@ -118,7 +118,7 @@ public partial class CompilerTests
         project.Write("main.rukbat", "fn zero(): int {\n return 0\n}\nprint(1 / zero())");
         var result = await project.Run();
         Assert.Equal(1, result.ExitCode);
-        Assert.StartsWith($"{project.PathFor("main.rukbat")}:4: error:", result.Error);
+        Assert.StartsWith("main.rukbat:4: error:", result.Error);
         Assert.DoesNotContain("main.ps1", result.Error);
     }
 
@@ -156,7 +156,7 @@ public partial class CompilerTests
         var result = await project.Run();
         Assert.Equal(1, result.ExitCode);
         Assert.Equal("", result.Output);
-        Assert.StartsWith($"{project.PathFor("service.rukbat")}:2: error:", result.Error);
+        Assert.StartsWith("service.rukbat:2: error:", result.Error);
         Assert.Contains(message, result.Error);
     }
 
@@ -171,7 +171,7 @@ public partial class CompilerTests
         project.Write("main.rukbat", source);
         var result = await project.Run();
         Assert.Equal(1, result.ExitCode);
-        Assert.StartsWith($"{project.PathFor("main.rukbat")}:{line}: error:", result.Error);
+        Assert.StartsWith($"main.rukbat:{line}: error:", result.Error);
         Assert.Contains(message, result.Error);
     }
 }

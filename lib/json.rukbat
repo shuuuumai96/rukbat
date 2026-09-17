@@ -1,4 +1,0 @@
-// Always emit a JSON array, including empty and single-element arrays.
-fn encode_strings(values: string[]): string {
-    return powershell<string>("ConvertTo-Json", InputObject: values, Compress: true)
-}

@@ -7,12 +7,12 @@ public partial class CompilerTests
 {
     private const string FileBrowserEntry = "examples/file-browser/main.rukbat";
 
-    private static void CopyLibraryAndFileBrowser(Project project)
+    private static void CopyFileBrowser(Project project)
     {
-        var fixtures = Path.Combine(AppContext.BaseDirectory, "Fixtures");
+        var fixtures = Path.Combine(AppContext.BaseDirectory, "Fixtures", "examples", "file-browser");
         foreach (var source in Directory.EnumerateFiles(fixtures, "*.rukbat", SearchOption.AllDirectories))
         {
-            project.Write(Path.GetRelativePath(fixtures, source), File.ReadAllText(source));
+            project.Write("examples/file-browser/" + Path.GetRelativePath(fixtures, source), File.ReadAllText(source));
         }
     }
 
@@ -32,7 +32,7 @@ public partial class CompilerTests
     public async Task FileBrowserWritesFilteredJsonToStdout(string pattern, string[] expected)
     {
         using var project = new Project();
-        CopyLibraryAndFileBrowser(project);
+        CopyFileBrowser(project);
         CreateBrowserData(project);
         var result = await RunCli(project, ["run", project.PathFor(FileBrowserEntry), "--", "data [日本語]", "--pattern", pattern]);
         Assert.True(result.ExitCode == 0, result.Error);
@@ -45,7 +45,7 @@ public partial class CompilerTests
     public async Task FileBrowserDefaultsToAllFilesAndWritesUtf8JsonToLiteralPath()
     {
         using var project = new Project();
-        CopyLibraryAndFileBrowser(project);
+        CopyFileBrowser(project);
         CreateBrowserData(project);
         project.Write("result [日本語].json", "old contents");
         var result = await RunCli(project, ["run", project.PathFor(FileBrowserEntry), "--", "data [日本語]", "--output", "result [日本語].json"]);
@@ -64,7 +64,7 @@ public partial class CompilerTests
     public async Task FileBrowserCombinesFilterAndFileOutputAndSupportsStandaloneScript()
     {
         using var project = new Project();
-        CopyLibraryAndFileBrowser(project);
+        CopyFileBrowser(project);
         CreateBrowserData(project);
         var compiled = new Compiler().CompileFile(project.PathFor(FileBrowserEntry));
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
@@ -95,7 +95,7 @@ public partial class CompilerTests
     public async Task FileBrowserReportsInputFailuresOnStderr(string[] arguments, string message)
     {
         using var project = new Project();
-        CopyLibraryAndFileBrowser(project);
+        CopyFileBrowser(project);
         var result = await RunCli(project, ["run", project.PathFor(FileBrowserEntry), "--", .. arguments]);
         Assert.Equal(1, result.ExitCode);
         Assert.Equal("", result.Output);
@@ -106,7 +106,7 @@ public partial class CompilerTests
     public async Task FileBrowserHelpNeedsNoDirectoryAndSucceeds()
     {
         using var project = new Project();
-        CopyLibraryAndFileBrowser(project);
+        CopyFileBrowser(project);
         var result = await RunCli(project, ["run", project.PathFor(FileBrowserEntry), "--", "--help"]);
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("Usage:", result.Output);
@@ -119,7 +119,7 @@ public partial class CompilerTests
     public async Task FileBrowserMissingInputDoesNotOverwriteOutput()
     {
         using var project = new Project();
-        CopyLibraryAndFileBrowser(project);
+        CopyFileBrowser(project);
         project.Write("result.json", "preserved");
         var result = await RunCli(project, ["run", project.PathFor(FileBrowserEntry), "--", "missing-directory", "--output", "result.json"]);
         Assert.Equal(1, result.ExitCode);
@@ -131,7 +131,7 @@ public partial class CompilerTests
     public async Task FileBrowserWriteFailureIsNotReportedAsSuccess()
     {
         using var project = new Project();
-        CopyLibraryAndFileBrowser(project);
+        CopyFileBrowser(project);
         CreateBrowserData(project);
         var result = await RunCli(project, ["run", project.PathFor(FileBrowserEntry), "--", "data [日本語]", "--output", "missing-parent/result.json"]);
         Assert.Equal(1, result.ExitCode);
@@ -147,7 +147,7 @@ public partial class CompilerTests
     public async Task JsonLibraryPreservesArrayShapeAndEscapesValues(params string[] values)
     {
         using var project = new Project();
-        CopyLibraryAndFileBrowser(project);
+        CopyFileBrowser(project);
         project.Write("main.rukbat", "import json\nprint(json.encode(args()))");
         var result = await RunCli(project, ["run", project.PathFor("main.rukbat"), "--", .. values]);
         Assert.True(result.ExitCode == 0, result.Error);

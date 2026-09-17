@@ -395,7 +395,7 @@ internal sealed partial class TypeChecker
         {
             return StandardCallType(call, scope, standardModule, standardName);
         }
-        if (call.PowerShellType is null && (call.Receiver is not null || call.Name is not ("print" or "args" or "exit")))
+        if (call.PowerShellType is null && (call.Receiver is not null || call.Name is not ("print" or "eprint" or "args" or "exit")))
         {
             return ResolveCall(call, scope);
         }
@@ -460,11 +460,11 @@ internal sealed partial class TypeChecker
             }
             return powerShellType;
         }
-        if (call.Receiver is null && call.Name == "print")
+        if (call.Receiver is null && call.Name is "print" or "eprint")
         {
             if (arguments.Length != 1 || call.Arguments.Any(a => a.Name is not null))
             {
-                Error("RUK2005", "print requires one positional argument.", call);
+                Error("RUK2005", $"{call.Name} requires one positional argument.", call);
             }
             else if (arguments[0].IsComposite)
             {
@@ -496,12 +496,12 @@ internal sealed partial class TypeChecker
             ("files", "list") => [ValueType.String, ValueType.String],
             ("files", "read") or ("files", "exists") => [ValueType.String],
             ("files", "write") => [ValueType.String, ValueType.String],
+            ("path", "script_dir") => [],
             ("path", "join") => [ValueType.ArrayOf(ValueType.String)],
             ("path", "filename") or ("path", "extension") => [ValueType.String],
             ("env", "get") or ("env", "remove") => [ValueType.String],
             ("env", "set") => [ValueType.String, ValueType.String],
             ("process", "run") => [ValueType.String, ValueType.ArrayOf(ValueType.String)],
-            ("stderr", "print") => [ValueType.String],
             ("text", "from_int") => [ValueType.Int],
             ("text", "from_float") => [ValueType.Float],
             ("text", "from_bool") => [ValueType.Bool],
@@ -528,7 +528,6 @@ internal sealed partial class TypeChecker
             ("env", "get") => ValueType.NullableOf(ValueType.String),
             ("env", _) => ValueType.Void,
             ("process", "run") => standardModule.Structs["Result"].BoundType,
-            ("stderr", "print") => ValueType.Void,
             ("text", "parse_int") => ValueType.Int,
             ("text", "parse_float") => ValueType.Float,
             ("text", "parse_bool") => ValueType.Bool,
@@ -694,7 +693,7 @@ internal sealed partial class TypeChecker
 
     private static bool ContainsUnqualifiedUserCall(Expression expression)
     {
-        if (expression is Call { Receiver: null } directCall && directCall.Name is not ("print" or "args" or "powershell" or "Error"))
+        if (expression is Call { Receiver: null } directCall && directCall.Name is not ("print" or "eprint" or "args" or "powershell" or "Error"))
         {
             return true;
         }

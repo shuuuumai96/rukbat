@@ -11,7 +11,6 @@ import json
 import env
 import process
 import text
-import stderr
 ```
 
 A local module instead uses an explicit relative `.rukbat` path and an alias. Standard module names are reserved as aliases. Generated scripts contain only the standard-library runtime sections used by their imports and remain standalone on Windows PowerShell 5.1.
@@ -25,10 +24,9 @@ They must have explicit, statically checked input/output contracts and predictab
 They should run on Windows PowerShell 5.1 without additional deployment dependencies.
 Use one canonical API per operation. Rukbat's standard library does not aim to provide a comprehensive wrapper for PowerShell APIs.
 
-## `stderr`
+## Standard output and error
 
-`stderr.print(text: string): void` writes the text followed by a newline to standard error.
-It does not write to standard output and does not raise Error merely because a message was printed.
+The built-in `print(value)` and `eprint(value)` write to stdout and stderr respectively, with identical type checks and one appended platform newline. Neither requires an import. Explicit string formatting uses `text.from_*`. Output alone does not change the exit code.
 
 ## `text`
 
@@ -57,9 +55,9 @@ it does not promise to preserve the input spelling or the sign of zero.
 | `files.list(directory: string, pattern: string): string[]` | Returns file names directly contained by `directory` that match the file-system wildcard `pattern`. It excludes directories, does not recurse, and does not guarantee order. | An inaccessible or nonexistent directory, or an invalid pattern, causes Error. |
 | `files.read(path: string): string` | Reads UTF-8 text. A UTF-8 BOM is accepted and removed from the returned text. | Missing/inaccessible files and invalid UTF-8 cause Error. |
 | `files.write(path: string, text: string): void` | Replaces a file with UTF-8 text without a BOM. It adds no newline and does not create parent directories. | An inaccessible path or missing parent directory causes Error. |
-| `files.exists(path: string): bool` | Returns whether `path` identifies an existing file. Directories return `false`. | Platform-level failures cause Error. |
+| `files.exists(path: string): bool` | Returns `true` for an existing file. Missing files, directories, invalid paths, and access failures or other cases that File.Exists cannot determine return `false`. | This predicate returns `false` rather than raising Error when path resolution or existence checking fails. |
 
-Relative paths are resolved from the Rukbat process working directory. `files.write` is not an atomic replacement operation.
+Relative paths are resolved from the filesystem working directory captured at entry-script startup, not the script directory or a later PowerShell location. `files.write` is not an atomic replacement operation.
 
 ## `path`
 
@@ -69,7 +67,13 @@ Relative paths are resolved from the Rukbat process working directory. `files.wr
 | `path.filename(value: string): string` | Returns the final file-name component, or `""` when the path ends in a directory separator. | An invalid path causes Error. |
 | `path.extension(value: string): string` | Returns the final component's extension including its leading `.`, or `""` when none exists. | An invalid path causes Error. |
 
-These operations manipulate strings. They do not require the referenced file or directory to exist.
+`join`, `filename`, and `extension` manipulate strings without resolving relative paths or requiring existence. `join` may return a relative path; its later use by a standard API resolves against the captured working directory.
+
+`path.script_dir(): string` returns the absolute directory containing the executing `.ps1`, captured from `$PSScriptRoot` before module initialization. It works inside imported functions and follows the deployed script location, not the original source location.
+
+```rukbat
+config := path.join([path.script_dir(), "config.json"])
+```
 
 ## `json`
 
@@ -121,6 +125,12 @@ struct Result {
 | `process.run(executable: string, arguments: string[]): process.Result` | Starts an executable directly, waits for it, and captures standard output and standard error separately. | Failure to launch, capture, decode, or wait for the process causes Error. |
 
 The API does not interpret a shell command string. The executable and each argument are separate values. A nonzero exit code is a normal `Result`, not an Rukbat Error. Output is decoded as strict UTF-8 and is returned exactly, including any trailing newline; zero output becomes `""`. Standard output and standard error are drained concurrently to avoid pipe deadlocks.
+
+Child processes start in the captured entry working directory. Executable paths containing a separator or drive prefix are resolved against that directory. Bare executable names are searched in the captured directory, then the current process PATH; an extensionless name uses `.exe`. Relative PATH entries use the captured directory as well. Arguments are passed unchanged: Rukbat does not guess which strings represent paths. Executable or environment changes remain the caller's responsibility.
+
+## Runtime path resolution
+
+Standard file operations resolve nonempty relative paths against the captured entry working directory before calling PowerShell or .NET. Absolute paths stay absolute. A root-relative path such as `\data\file.txt` uses the captured directory's drive root. Drive-relative forms such as `C:file.txt` are rejected because they depend on implicit per-drive state; `files.exists` returns `false` for them. Invalid/empty operation paths raise Error, except for the `files.exists` predicate. This does not change the Error contracts of read, write, or list.
 
 ## Program arguments
 
