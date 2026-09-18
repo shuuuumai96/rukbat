@@ -57,6 +57,38 @@ internal sealed partial class Emitter
         $names = @(Get-ChildItem -LiteralPath $directory -Filter ([string]$values[1]) -File -Name -ErrorAction Stop)
         return ,([object[]]$names)
     }
+    'files.list_recursive' {
+        $root = & $__rukbat_resolve_path ([string]$values[0])
+        $pattern = [string]$values[1]
+        if ([string]::IsNullOrWhiteSpace($pattern) -or $pattern.IndexOfAny([char[]]'\\/') -ge 0) {
+            throw 'files.list_recursive pattern must be a non-empty filename wildcard without directory separators.'
+        }
+        $rootInfo = [System.IO.DirectoryInfo]::new($root)
+        if (-not $rootInfo.Exists) {
+            throw "Cannot access directory: $($values[0])"
+        }
+        if (($rootInfo.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "Cannot recursively enumerate directory reparse point: $($values[0])"
+        }
+        $pending = [System.Collections.Generic.Stack[System.IO.DirectoryInfo]]::new()
+        $pending.Push($rootInfo)
+        $paths = [System.Collections.Generic.List[string]]::new()
+        $excluded = [System.IO.FileAttributes]::Hidden -bor [System.IO.FileAttributes]::ReparsePoint
+        while ($pending.Count -ne 0) {
+            $current = $pending.Pop()
+            foreach ($directory in $current.GetDirectories()) {
+                if (($directory.Attributes -band $excluded) -eq 0) {
+                    $pending.Push($directory)
+                }
+            }
+            foreach ($file in Get-ChildItem -LiteralPath $current.FullName -Filter $pattern -File -Force -ErrorAction Stop) {
+                if (($file.Attributes -band $excluded) -eq 0) {
+                    $null = $paths.Add($file.FullName)
+                }
+            }
+        }
+        return ,([object[]]$paths)
+    }
     'files.read' {
         $encoding = [System.Text.UTF8Encoding]::new($false, $true)
         $bytes = [System.IO.File]::ReadAllBytes((& $__rukbat_resolve_path ([string]$values[0])))

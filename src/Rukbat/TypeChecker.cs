@@ -495,7 +495,7 @@ internal sealed partial class TypeChecker
 
         ValueType[]? parameters = (moduleName, call.Name) switch
         {
-            ("files", "list") => [ValueType.String, ValueType.String],
+            ("files", "list") or ("files", "list_recursive") => [ValueType.String, ValueType.String],
             ("files", "read") or ("files", "exists") => [ValueType.String],
             ("files", "write") => [ValueType.String, ValueType.String],
             ("path", "script_dir") => [],
@@ -522,7 +522,7 @@ internal sealed partial class TypeChecker
         CheckStandardArguments(call, scope, parameters);
         var returnType = (moduleName, call.Name) switch
         {
-            ("files", "list") => ValueType.ArrayOf(ValueType.String),
+            ("files", "list") or ("files", "list_recursive") => ValueType.ArrayOf(ValueType.String),
             ("files", "read") => ValueType.String,
             ("files", "exists") => ValueType.Bool,
             ("files", "write") => ValueType.Void,

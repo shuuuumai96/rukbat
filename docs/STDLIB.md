@@ -52,12 +52,15 @@ it does not promise to preserve the input spelling or the sign of zero.
 
 | Signature | Meaning | Failure |
 |---|---|---|
-| `files.list(directory: string, pattern: string): string[]` | Returns file names directly contained by `directory` that match the file-system wildcard `pattern`. It excludes directories, does not recurse, and does not guarantee order. | An inaccessible or nonexistent directory, or an invalid pattern, causes Error. |
+| `files.list(directory: string, pattern: string): string[]` | Returns names of directly contained, non-Hidden files that match the file-system wildcard `pattern`. It excludes directories, does not recurse, and does not guarantee order. | An inaccessible or nonexistent directory, or an invalid pattern, causes Error. |
+| `files.list_recursive(directory: string, pattern: string): string[]` | Returns absolute paths to files matching the filename wildcard `pattern` at every depth beneath `directory`, including direct children. It excludes directories and does not guarantee order. | An inaccessible/nonexistent directory, a file passed as `directory`, an invalid path or pattern, a directory reparse-point root, or a traversal failure causes Error. |
 | `files.read(path: string): string` | Reads UTF-8 text. A UTF-8 BOM is accepted and removed from the returned text. | Missing/inaccessible files and invalid UTF-8 cause Error. |
 | `files.write(path: string, text: string): void` | Replaces a file with UTF-8 text without a BOM. It adds no newline and does not create parent directories. | An inaccessible path or missing parent directory causes Error. |
 | `files.exists(path: string): bool` | Returns `true` for an existing file. Missing files, directories, invalid paths, and access failures or other cases that File.Exists cannot determine return `false`. | This predicate returns `false` rather than raising Error when path resolution or existence checking fails. |
 
 Relative paths are resolved from the filesystem working directory captured at entry-script startup, not the script directory or a later PowerShell location. `files.write` is not an atomic replacement operation.
+
+`files.list_recursive` treats `directory` as a literal path. Its nonempty `pattern` applies only to each filename, using the same file-system filter behavior as `files.list`; the supported simple forms include `*` and `?`. It cannot contain `/` or `\\`, so it cannot express directory hierarchy globs. It excludes Hidden files and directories, including hidden subtrees. System attributes do not exclude entries. It excludes ReparsePoint entries, so it neither returns nor recurses into directory reparse points, symbolic links, or junctions; a reparse-point root is rejected. Enumeration returns no partial result when a platform error occurs.
 
 ## `path`
 

@@ -79,7 +79,7 @@ This is a proposed contract to implement in a subsequent commit. It is not yet p
 
 | Proposed API | Required behavior and reason |
 |---|---|
-| `files.list_recursive(directory: string, pattern: string): string[]` | Return absolute paths to matching files at every depth, including the root's direct files. A file path, nonexistent/inaccessible root, invalid pattern, or traversal failure causes Error, not a partial result. Paths are literal; the file-name pattern uses the same matching rules as `files.list`. Exclude hidden files and hidden subtrees. Skip reparse-point entries rather than following links or junctions; reject a reparse-point root. Do not guarantee order. Needed because `files.list` cannot enumerate subdirectories. |
+| `files.list_recursive(directory: string, pattern: string): string[]` | Return absolute paths to matching files at every depth, including the root's direct files. A file path, nonexistent/inaccessible root, invalid pattern, or traversal failure causes Error, not a partial result. Paths are literal; the filename wildcard supports `*` and `?` but not hierarchy separators. Exclude Hidden and ReparsePoint files and directories; System attributes do not exclude entries. Do not follow links or junctions; reject a reparse-point root. Do not guarantee order. Needed because `files.list` cannot enumerate subdirectories. |
 
 This API must remain standalone and compatible with Windows PowerShell 5.1. Runtime failures use ordinary Rukbat Error.
 Existing `args`, arrays/append, control flow, `files.read/write`, `json.decode/encode`, `process.run`, `eprint`, and `exit` cover the rest.

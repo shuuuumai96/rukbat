@@ -17,6 +17,7 @@ public partial class CompilerTests
         Assert.Contains("Unknown standard-library operation", files);
         Assert.DoesNotContain("JSON value", files);
         Assert.Contains("'files.exists'", files);
+        Assert.Contains("'files.list_recursive'", files);
         Assert.DoesNotContain("'env.get'", files);
         Assert.DoesNotContain("'process.run'", files);
     }
