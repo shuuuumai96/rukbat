@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace Rukbat.Tests;
 
-public partial class CompilerTests
+public class FileBrowserTests : TestBase
 {
     private const string FileBrowserEntry = "examples/file-browser/main.rukbat";
 
@@ -24,6 +24,7 @@ public partial class CompilerTests
         project.Write("data [日本語]/folder.txt/nested.txt", "not a direct child");
     }
 
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("*", new[] { "alpha.txt", "日本語.txt", "note.log" })]
     [InlineData("*.txt", new[] { "alpha.txt", "日本語.txt" })]
@@ -41,6 +42,7 @@ public partial class CompilerTests
         Assert.Equal("", result.Error);
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task FileBrowserDefaultsToAllFilesAndWritesUtf8JsonToLiteralPath()
     {
@@ -60,6 +62,7 @@ public partial class CompilerTests
         Assert.Equal(new[] { "alpha.txt", "note.log", "日本語.txt" }, names.Order(StringComparer.Ordinal));
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task FileBrowserCombinesFilterAndFileOutputAndSupportsStandaloneScript()
     {
@@ -80,6 +83,7 @@ public partial class CompilerTests
         Assert.Equal(new[] { "alpha.txt", "日本語.txt" }, JsonSerializer.Deserialize<string[]>(File.ReadAllText(output))!.Order(StringComparer.Ordinal));
     }
 
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData(new string[] { }, "Usage:")]
     [InlineData(new[] { "" }, "Please specify a directory")]
@@ -102,6 +106,7 @@ public partial class CompilerTests
         Assert.Contains(message, result.Error);
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task FileBrowserHelpNeedsNoDirectoryAndSucceeds()
     {
@@ -115,6 +120,7 @@ public partial class CompilerTests
         Assert.Equal("", result.Error);
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task FileBrowserMissingInputDoesNotOverwriteOutput()
     {
@@ -127,6 +133,7 @@ public partial class CompilerTests
         Assert.Equal("preserved", File.ReadAllText(project.PathFor("result.json")));
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task FileBrowserWriteFailureIsNotReportedAsSuccess()
     {
@@ -140,6 +147,7 @@ public partial class CompilerTests
         Assert.False(File.Exists(project.PathFor("missing-parent/result.json")));
     }
 
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData()]
     [InlineData("one")]

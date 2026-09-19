@@ -67,9 +67,6 @@ internal sealed partial class Emitter
         if (-not $rootInfo.Exists) {
             throw "Cannot access directory: $($values[0])"
         }
-        if (($rootInfo.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
-            throw "Cannot recursively enumerate directory reparse point: $($values[0])"
-        }
         $pending = [System.Collections.Generic.Stack[System.IO.DirectoryInfo]]::new()
         $pending.Push($rootInfo)
         $paths = [System.Collections.Generic.List[string]]::new()

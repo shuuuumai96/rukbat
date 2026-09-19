@@ -1,7 +1,9 @@
 namespace Rukbat.Tests;
 
-public partial class CompilerTests
+public class CliFoundationTests : TestBase
 {
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task CliFoundationLocaleAndImportedExit()
     {
@@ -32,6 +34,8 @@ public partial class CompilerTests
         Assert.DoesNotContain("caught", cli.Output);
     }
 
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("exit(0)", 0, "", "")]
     [InlineData("eprint('bad'); print('out'); exit(2)", 2, "out", "bad")]
@@ -39,13 +43,30 @@ public partial class CompilerTests
     [InlineData("exit(2147483647)", int.MaxValue, "", "")]
     [InlineData("try { exit(-1) } catch err { print('negative') }", 0, "negative", "")]
     public async Task CliFoundationExitAndStreams(string source, int code, string stdout, string stderr)
+        => await AssertCliFoundationExitAndStreams(source, code, stdout, stderr, crossVersion: true);
+
+    [Trait("Smoke", "PowerShell51")]
+    [Trait("Category", "Runtime")]
+    [Theory]
+    [InlineData("exit(0)", 0, "", "")]
+    [InlineData("eprint('bad'); print('out'); exit(2)", 2, "out", "bad")]
+    [InlineData("fn stop(): int { exit(7) }; try { stop() } catch err { print('caught') }; print('after')", 7, "", "")]
+    [InlineData("exit(2147483647)", int.MaxValue, "", "")]
+    [InlineData("try { exit(-1) } catch err { print('negative') }", 0, "negative", "")]
+    public async Task CliFoundationExitAndStreamsOnWindowsPowerShell51(string source, int code, string stdout, string stderr)
+        => await AssertCliFoundationExitAndStreams(source, code, stdout, stderr, crossVersion: false);
+
+    private async Task AssertCliFoundationExitAndStreams(
+        string source, int code, string stdout, string stderr, bool crossVersion)
     {
         using var project = new Project();
         project.Write("main.rukbat", source);
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
-        foreach (var result in new[] { await project.RunOutput(compiled.Output!),
-            await project.RunOutputWithWindowsPowerShell("\uFEFF" + compiled.Output!) })
+        var results = crossVersion
+            ? new[] { await project.RunOutput(compiled.Output!), await project.RunOutputWithWindowsPowerShell("\uFEFF" + compiled.Output!) }
+            : new[] { await project.RunOutputWithWindowsPowerShell("\uFEFF" + compiled.Output!) };
+        foreach (var result in results)
         {
             Assert.Equal(code, result.ExitCode);
             Assert.Equal(stdout, result.Output.TrimEnd('\r', '\n'));
@@ -53,6 +74,8 @@ public partial class CompilerTests
         }
     }
 
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("int", " +123 ", "123")]
     [InlineData("int", "-2147483648", "-2147483648")]
@@ -74,6 +97,8 @@ public partial class CompilerTests
         }
     }
 
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("int", "2147483648")]
     [InlineData("int", "1e2")]
@@ -105,6 +130,7 @@ public partial class CompilerTests
         }
     }
 
+    [Trait("Category", "Unit")]
     [Theory]
     [InlineData("exit()")]
     [InlineData("exit('2')")]

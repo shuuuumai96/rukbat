@@ -1,7 +1,8 @@
 namespace Rukbat.Tests;
 
-public partial class CompilerTests
+public class StructTests : TestBase
 {
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("struct User { name: string; age: int }; user: User = User(name: 'Taro', age: 30); print(user.name)", "Taro")]
     [InlineData("struct User { age: int; fn is_adult(): bool { return self.age >= 20 } }; user: User = User(age: 30); print(user.is_adult())", "True")]
@@ -28,6 +29,7 @@ public partial class CompilerTests
         Assert.Equal(expected, result.Output.TrimEnd('\n'));
     }
 
+    [Trait("Category", "Unit")]
     [Theory]
     [InlineData("a: Missing = Missing()", "Unknown")]
     [InlineData("struct U {}; struct U {}", "Duplicate struct")]
@@ -72,6 +74,7 @@ public partial class CompilerTests
         Assert.All(result.Diagnostics, d => { Assert.True(d.Line > 0); Assert.True(d.Column > 0); });
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task ImportsStructTypesMethodsAndValueArguments()
     {
@@ -83,6 +86,7 @@ public partial class CompilerTests
         Assert.Equal("30\n32", result.Output.TrimEnd('\n'));
     }
 
+    [Trait("Category", "Unit")]
     [Fact]
     public void StructIdentityIncludesItsDefiningModule()
     {

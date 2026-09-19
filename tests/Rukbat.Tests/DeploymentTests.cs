@@ -3,11 +3,11 @@ using System.Text;
 
 namespace Rukbat.Tests;
 
-public partial class CompilerTests
+public class DeploymentTests : TestBase
 {
     private static string SourcePath(string path) => path.Replace('\\', '/').Replace("'", "\\'");
 
-    private static async Task<RunResult> RunDeployed(string shell, string script, string working, string nativeWorking)
+    private static async Task<RunResult> RunDeployedScript(string shell, string script, string working, string nativeWorking)
     {
         var info = new ProcessStartInfo(shell)
         {
@@ -27,10 +27,21 @@ public partial class CompilerTests
         return new(child.ExitCode, (await stdout).Replace("\r\n", "\n"), await stderr);
     }
 
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("powershell")]
     [InlineData("pwsh")]
     public async Task DeployedScriptKeepsEntryWorkingDirectoryAndScriptDirectory(string shell)
+        => await AssertDeployedScriptKeepsEntryWorkingDirectoryAndScriptDirectory(shell);
+
+    [Trait("Smoke", "PowerShell51")]
+    [Trait("Category", "Runtime")]
+    [Fact]
+    public async Task DeployedScriptKeepsEntryWorkingDirectoryAndScriptDirectoryOnWindowsPowerShell51()
+        => await AssertDeployedScriptKeepsEntryWorkingDirectoryAndScriptDirectory("powershell");
+
+    private async Task AssertDeployedScriptKeepsEntryWorkingDirectoryAndScriptDirectory(string shell)
     {
         using var project = new Project();
         project.Write("work/data.txt", "working");
@@ -67,7 +78,7 @@ public partial class CompilerTests
         File.Delete(project.PathFor("source/helper.rukbat"));
         var script = project.PathFor("deploy/job.ps1");
         File.WriteAllText(script, compiled.Output, new UTF8Encoding(true));
-        var result = await RunDeployed(shell, script, working, other);
+        var result = await RunDeployedScript(shell, script, working, other);
         Assert.True(result.ExitCode == 0, result.Error);
         Assert.Equal("", result.Error);
         Assert.Equal($"{project.PathFor("deploy")}\n{project.PathFor("deploy")}\nworking\nTrue\n2\nadjacent\n{working}\n{working}\n", result.Output);
@@ -75,6 +86,8 @@ public partial class CompilerTests
         Assert.False(File.Exists(project.PathFor("other/result.txt")));
     }
 
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("powershell", "services/user.rukbat", "./services/user.rukbat")]
     [InlineData("pwsh", "services/user.rukbat", "./services/user.rukbat")]
@@ -94,15 +107,26 @@ public partial class CompilerTests
         File.Delete(project.PathFor("source/main.rukbat"));
         project.Write("deploy/job.ps1", "");
         File.WriteAllText(project.PathFor("deploy/job.ps1"), compiled.Output, new UTF8Encoding(true));
-        var result = await RunDeployed(shell, project.PathFor("deploy/job.ps1"), project.DirectoryPath, project.DirectoryPath);
+        var result = await RunDeployedScript(shell, project.PathFor("deploy/job.ps1"), project.DirectoryPath, project.DirectoryPath);
         Assert.Equal(1, result.ExitCode);
         Assert.Equal($"{name}:2: error: origin", result.Error.Trim());
     }
 
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("powershell")]
     [InlineData("pwsh")]
     public async Task PathPredicatesAndEmptyJoinFollowContracts(string shell)
+        => await AssertPathPredicatesAndEmptyJoinFollowContracts(shell);
+
+    [Trait("Smoke", "PowerShell51")]
+    [Trait("Category", "Runtime")]
+    [Fact]
+    public async Task PathPredicatesAndEmptyJoinFollowContractsOnWindowsPowerShell51()
+        => await AssertPathPredicatesAndEmptyJoinFollowContracts("powershell");
+
+    private async Task AssertPathPredicatesAndEmptyJoinFollowContracts(string shell)
     {
         using var project = new Project();
         project.Write("present.txt", "exists");
@@ -122,11 +146,13 @@ public partial class CompilerTests
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
         File.WriteAllText(project.PathFor("job.ps1"), compiled.Output, new UTF8Encoding(true));
-        var result = await RunDeployed(shell, project.PathFor("job.ps1"), project.DirectoryPath, project.DirectoryPath);
+        var result = await RunDeployedScript(shell, project.PathFor("job.ps1"), project.DirectoryPath, project.DirectoryPath);
         Assert.True(result.ExitCode == 0, result.Error);
         Assert.Equal("True\nFalse\nFalse\nFalse\nFalse\nFalse\nempty join\nread error\nwrite error\n", result.Output);
     }
 
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("powershell")]
     [InlineData("pwsh")]
@@ -137,11 +163,12 @@ public partial class CompilerTests
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
         File.WriteAllText(project.PathFor("job.ps1"), compiled.Output, new UTF8Encoding(true));
-        var result = await RunDeployed(shell, project.PathFor("job.ps1"), project.DirectoryPath, project.DirectoryPath);
+        var result = await RunDeployedScript(shell, project.PathFor("job.ps1"), project.DirectoryPath, project.DirectoryPath);
         Assert.Equal(0, result.ExitCode);
         Assert.Equal(result.Output + "日本語\n", result.Error.Replace("\r\n", "\n"));
     }
 
+    [Trait("Category", "Unit")]
     [Theory]
     [InlineData("import stderr")]
     [InlineData("stderr.print('removed')")]

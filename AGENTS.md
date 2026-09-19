@@ -15,25 +15,22 @@ Before making implementation or design changes, read and follow:
 
 Do not introduce behavior that conflicts with it unless explicitly instructed.
 
+### Source-of-Truth Hierarchy
+
+- Concrete language semantics → `docs/LANGUAGE.md`
+- Standard APIs → `docs/STDLIB.md`
+- Compiler stages and responsibilities → `docs/ARCHITECTURE.md`
+- Unresolved design choices and principles → `docs/PHILOSOPHY.md`
+- `AGENTS.md` does not define new semantics; it provides contributor discipline and process guidance.
+
 ---
 
 ## Core Rule
 
 Rukbat is a small, typed, procedural language for Windows system scripting.
-
 Its primary deployment target is standalone Windows PowerShell 5.1 scripts.
-
-The language should prioritize:
-
-- readability;
-- predictable behavior;
-- static checking;
-- explicit procedural control flow;
-- data-oriented design;
-- one obvious way to write code;
-- minimal deployment requirements.
-
 Do not optimize for language cleverness, theoretical completeness, or feature count.
+See `docs/PHILOSOPHY.md` for the complete design philosophy.
 
 ---
 
@@ -78,26 +75,9 @@ Do not add multiple equivalent forms merely for convenience.
 ## Programming Style
 
 Rukbat is primarily procedural and data-oriented.
-
-Prefer:
-
-- structs as data;
-- small functions;
-- explicit loops;
-- explicit conditionals;
-- direct execution order;
-- modules and functions over deep object hierarchies.
-
-Avoid introducing:
-
-- inheritance-heavy designs;
-- abstraction for its own sake;
-- complex fluent APIs;
-- excessive method chaining;
-- functional-style alternatives that duplicate existing procedural constructs;
-- hidden control flow.
-
 The source should be understandable by reading it from top to bottom.
+Avoid inheritance-heavy designs, abstraction for its own sake, complex fluent APIs, excessive method chaining, functional-style alternatives that duplicate existing procedural constructs, or hidden control flow.
+See `docs/PHILOSOPHY.md` for details.
 
 ---
 
@@ -120,8 +100,6 @@ Name Resolution / Binding
 ↓
 Type Checking
 ↓
-Lowering / IR where needed
-↓
 PowerShell Generation
 ```
 
@@ -141,50 +119,19 @@ Avoid architecture inspired by large compilers unless the complexity is actually
 ## PowerShell Target
 
 Generated PowerShell is an implementation target, not Rukbat's language model.
-
 Do not copy PowerShell syntax or semantics into Rukbat unless necessary.
-
-Rukbat operations should be defined by their behavior.
-
-Example:
-
-`files.copy(source, destination)` means copying a file.
-
-It must not be specified in terms of a particular PowerShell cmdlet such as `Copy-Item`.
-
-Generated scripts should remain independent of the Rukbat compiler or runtime unless explicitly documented otherwise.
-
-When practical, generated scripts should remain compatible with Windows PowerShell 5.1.
-
+Operations are defined by their observable behavior, not by the PowerShell cmdlet used to implement them.
+Generated scripts should remain independent of the Rukbat compiler or runtime, and must remain compatible with Windows PowerShell 5.1 unless explicitly documented otherwise.
 Do not use PowerShell 7-only syntax or APIs in generated code without an explicit design decision.
+See `docs/PHILOSOPHY.md` and `docs/ARCHITECTURE.md`.
 
 ---
 
 ## Standard Library
 
-The standard library should cover common Windows system-scripting tasks with a small and consistent API.
-
-Likely areas include:
-
-- files;
-- paths;
-- processes;
-- environment variables;
-- text;
-- CSV;
-- JSON;
-- HTTP;
-- archives;
-- hashing;
-- Windows-specific system operations.
-
-Prefer a consistent vocabulary.
-
-Do not introduce multiple names for the same conceptual action without a strong reason.
-
-Example:
-
-Prefer one canonical verb such as `remove` rather than mixing `remove`, `delete`, and `erase`.
+The standard library covers common Windows system-scripting tasks with a small and consistent API.
+Prefer a consistent vocabulary; do not introduce multiple names for the same conceptual action without a strong reason (e.g. prefer one canonical verb such as `remove` rather than mixing `remove`, `delete`, and `erase`).
+See `docs/STDLIB.md` for confirmed APIs. Do not invent or assume APIs that are not defined there.
 
 ---
 
@@ -209,7 +156,7 @@ Language features should remain analyzable enough to support reliable diagnostic
 
 ## Testing Requirements
 
-When changing parser, binder, type checker, lowering, or code generation behavior:
+When changing parser, binder, type checker, or code generation behavior:
 
 - add or update focused tests;
 - include valid and invalid cases where appropriate;
@@ -238,17 +185,8 @@ If the answer suggests the feature is outside Rukbat's scope, do not add it by d
 
 ## Non-Goals
 
-Do not evolve Rukbat toward these areas without explicit instruction:
-
-- general-purpose application development;
-- web frameworks;
-- GUI frameworks;
-- complex class hierarchies;
-- advanced metaprogramming;
-- macro systems;
-- highly generic type-level programming;
-- functional-programming feature sets;
-- custom runtime requirements on deployment machines.
+Do not evolve Rukbat toward general-purpose application development, web frameworks, GUI frameworks, complex class hierarchies, advanced metaprogramming, macro systems, highly generic type-level programming, functional-programming feature sets, or custom runtime requirements on deployment machines.
+See `docs/PHILOSOPHY.md` for the complete discussion of non-goals.
 
 ---
 

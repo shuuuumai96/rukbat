@@ -3,7 +3,7 @@ using System.Text;
 
 namespace Rukbat.Tests;
 
-public partial class CompilerTests
+public class RecursiveFilesTests : TestBase
 {
     private static void CreateJunction(string path, string target)
     {
@@ -24,10 +24,21 @@ public partial class CompilerTests
 
     private static string RukbatLiteral(string value) => value.Replace("\\", "/").Replace("'", "\\'");
 
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("powershell")]
     [InlineData("pwsh")]
     public async Task FilesListRecursiveUsesFixedWorkingDirectoryAndReturnsUniqueAbsolutePaths(string shell)
+        => await AssertFilesListRecursiveUsesFixedWorkingDirectoryAndReturnsUniqueAbsolutePaths(shell);
+
+    [Trait("Smoke", "PowerShell51")]
+    [Trait("Category", "Runtime")]
+    [Fact]
+    public async Task FilesListRecursiveUsesFixedWorkingDirectoryAndReturnsUniqueAbsolutePathsOnWindowsPowerShell51()
+        => await AssertFilesListRecursiveUsesFixedWorkingDirectoryAndReturnsUniqueAbsolutePaths("powershell");
+
+    private async Task AssertFilesListRecursiveUsesFixedWorkingDirectoryAndReturnsUniqueAbsolutePaths(string shell)
     {
         using var project = new Project();
         project.Write("work/[data]/top.json", "top");
@@ -105,6 +116,8 @@ public partial class CompilerTests
         }
     }
 
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("powershell")]
     [InlineData("pwsh")]
@@ -137,35 +150,50 @@ public partial class CompilerTests
         Assert.Equal("", result.Error);
     }
 
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("powershell")]
     [InlineData("pwsh")]
-    public async Task FilesListRecursiveRejectsDirectoryReparsePointRoots(string shell)
+    public async Task FilesListRecursiveAllowsDirectoryReparsePointRootsWithoutFollowingChildLinks(string shell)
     {
         using var project = new Project();
         project.Write("target/item.json", "item");
+        project.Write("target/nested/inside.json", "inside");
+        project.Write("outside/escaped.json", "outside");
         var junction = project.PathFor("root-link");
+        var childJunction = project.PathFor("target/child-link");
         CreateJunction(junction, project.PathFor("target"));
+        CreateJunction(childJunction, project.PathFor("outside"));
         try
         {
             project.Write("main.rukbat", """
             import files
-            try { files.list_recursive('root-link', '*') } catch err { print('reparse root') }
+            for file in files.list_recursive('root-link', '*.json') { print(file) }
             """);
             var compiled = project.Compile();
             Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
             File.WriteAllText(project.PathFor("job.ps1"), compiled.Output, new UTF8Encoding(true));
             var result = await RunDeployed(shell, project.PathFor("job.ps1"), project.DirectoryPath, project.DirectoryPath);
             Assert.Equal(0, result.ExitCode);
-            Assert.Equal("reparse root\n", result.Output.Replace("\r\n", "\n"));
             Assert.Equal("", result.Error);
+            Assert.Equal(new[]
+            {
+                Path.GetFullPath(Path.Combine(junction, "item.json")),
+                Path.GetFullPath(Path.Combine(junction, "nested/inside.json"))
+            }.ToHashSet(StringComparer.OrdinalIgnoreCase),
+                result.Output.Replace("\r\n", "\n").Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase));
+            Assert.DoesNotContain("escaped.json", result.Output, StringComparison.OrdinalIgnoreCase);
         }
         finally
         {
+            Directory.Delete(childJunction);
             Directory.Delete(junction);
         }
     }
 
+    [Trait("Category", "Unit")]
     [Theory]
     [InlineData("import files\nfiles.list_recursive(1, '*')")]
     [InlineData("import files\nfiles.list_recursive('.', 1)")]

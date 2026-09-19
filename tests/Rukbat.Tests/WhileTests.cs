@@ -1,7 +1,8 @@
 namespace Rukbat.Tests;
 
-public partial class CompilerTests
+public class WhileTests : TestBase
 {
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("n: int = 0; while n < 3 { print(n); n = n + 1 }", "0\n1\n2")]
     [InlineData("n: int = 0; while n < 5 { n = n + 1; if n == 2 { continue }; if n == 4 { break }; print(n) }; print(n)", "1\n3\n4")]
@@ -16,6 +17,7 @@ public partial class CompilerTests
         Assert.Equal(expected, result.Output.TrimEnd('\n'));
     }
 
+    [Trait("Category", "Unit")]
     [Theory]
     [InlineData("while 1 {}", "Expected bool")]
     [InlineData("while true { value: int = 1 }; print(value)", "Unknown variable")]
@@ -29,6 +31,7 @@ public partial class CompilerTests
             diagnostic.Message.Contains(message, StringComparison.OrdinalIgnoreCase));
     }
 
+    [Trait("Category", "Unit")]
     [Fact]
     public void FormatsWhileLoopsCanonically()
     {
@@ -42,6 +45,8 @@ public partial class CompilerTests
             File.ReadAllText(input));
     }
 
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task WhileRunsOnWindowsPowerShell51AndPowerShell7()
     {

@@ -1,7 +1,8 @@
 namespace Rukbat.Tests;
 
-public partial class CompilerTests
+public class AppendTests : TestBase
 {
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("names: string[] = []; names.append('Taro'); names.append('Hanako'); print(names.length); print(names[0]); print(names[1])", "2\nTaro\nHanako")]
     [InlineData("matrix: int[][] = [[]]; matrix[0].append(1); matrix[0].append(2); print(matrix[0].length); print(matrix[0][1])", "2\n2")]
@@ -22,6 +23,7 @@ public partial class CompilerTests
         Assert.Equal(expected, result.Output.TrimEnd('\n'));
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task EvaluatesNestedAppendIndexesOnceFromLeftToRight()
     {
@@ -46,6 +48,7 @@ public partial class CompilerTests
         Assert.Equal("1\n2\n2\nadmin", result.Output.TrimEnd('\n'));
     }
 
+    [Trait("Category", "Unit")]
     [Theory]
     [InlineData("values: int[] = []; values.append('bad')", "Expected int")]
     [InlineData("values: int[] = []; values.append()", "one positional argument")]
@@ -63,6 +66,8 @@ public partial class CompilerTests
             diagnostic.Message.Contains(message, StringComparison.OrdinalIgnoreCase));
     }
 
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task ArrayAppendWorksAcrossModulesAndPowerShellTargets()
     {
@@ -81,6 +86,8 @@ public partial class CompilerTests
         Assert.Equal("0\nmodule", windows.Output.TrimEnd('\r', '\n'));
     }
 
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task AppendsManyPrimitiveValuesWithCapacityBackedStorage()
     {
@@ -112,6 +119,7 @@ public partial class CompilerTests
         Assert.Equal($"{itemCount}\n0\n{itemCount - 1}", windows.Output.TrimEnd('\r', '\n'));
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task CollectsFilesRetriesAProcessAndWritesJsonWithoutPowerShellEscape()
     {

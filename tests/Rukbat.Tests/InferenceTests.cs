@@ -1,21 +1,49 @@
 namespace Rukbat.Tests;
 
-public partial class CompilerTests
+public class InferenceTests : TestBase
 {
+    [Trait("Category", "Unit")]
+    [Theory]
+    [InlineData("process.Result", "process.run('powershell', ['-NoLogo', '-NoProfile', '-Command', '[Console]::Write(42); exit 7'])", "print(value.exit_code); print(value.stdout)")]
+    [InlineData("Local", "make()", "print(value.number)")]
+    [InlineData("remote.Item", "remote.make()", "print(value.number)")]
+    [InlineData("remote.Item", "remote.Item(number: 42)", "print(value.number)")]
+    [InlineData("remote.Item[]", "remote.many()", "print(value[0].number)")]
+    [InlineData("remote.Item?", "remote.maybe()", "if value != null { print(value.number) }")]
+    [InlineData("int", "integer()", "print(value)")]
+    [InlineData("float", "decimal_value()", "print(value == 1.5)")]
+    [InlineData("bool", "boolean()", "print(value)")]
+    [InlineData("string", "message()", "print(value)")]
+    [InlineData("int[]", "numbers()", "value.append(7); print(value[0]); print(value[1])")]
+    public void InferencePreservesExpressionTypeAndMatchesExplicitEmission(
+        string type, string expression, string use)
+    {
+        var (explicitOutput, inferredOutput) = CompileInferenceOutputs(type, expression, use);
+        // The resolved type, including its defining module, must be preserved by inference.
+        Assert.Equal(explicitOutput, inferredOutput);
+    }
+
+    [Trait("Category", "Runtime")]
+    [Trait("Category", "PowerShell51")]
     [Theory]
     [InlineData("process.Result", "process.run('powershell', ['-NoLogo', '-NoProfile', '-Command', '[Console]::Write(42); exit 7'])", "print(value.exit_code); print(value.stdout)", "7\n42\n")]
-    [InlineData("Local", "make()", "print(value.number)", "42\n")]
     [InlineData("remote.Item", "remote.make()", "print(value.number)", "42\n")]
-    [InlineData("remote.Item", "remote.Item(number: 42)", "print(value.number)", "42\n")]
-    [InlineData("remote.Item[]", "remote.many()", "print(value[0].number)", "42\n")]
     [InlineData("remote.Item?", "remote.maybe()", "if value != null { print(value.number) }", "42\n")]
     [InlineData("int", "integer()", "print(value)", "42\n")]
-    [InlineData("float", "decimal_value()", "print(value == 1.5)", "True\n")]
-    [InlineData("bool", "boolean()", "print(value)", "True\n")]
-    [InlineData("string", "message()", "print(value)", "ok\n")]
     [InlineData("int[]", "numbers()", "value.append(7); print(value[0]); print(value[1])", "42\n7\n")]
-    public async Task InferencePreservesExpressionTypeAndMatchesExplicitEmission(
+    public async Task InferredRepresentativeValuesRunOnWindowsPowerShell51(
         string type, string expression, string use, string expected)
+    {
+        var (_, output) = CompileInferenceOutputs(type, expression, use);
+        using var project = new Project();
+        var result = await project.RunOutputWithWindowsPowerShell(output);
+        Assert.True(result.ExitCode == 0, result.Error);
+        Assert.Equal(expected, result.Output);
+        Assert.Equal("", result.Error);
+    }
+
+    private static (string ExplicitOutput, string InferredOutput) CompileInferenceOutputs(
+        string type, string expression, string use)
     {
         using var project = new Project();
         project.Write("model.rukbat", """
@@ -41,17 +69,11 @@ public partial class CompilerTests
         project.Write("main.rukbat", declarations + $"\nvalue := {expression}\n{use}");
         var inferred = project.Compile();
         Assert.True(inferred.Success, string.Join("\n", inferred.Diagnostics));
-        // Type annotations must not change code generation or runtime value representation.
-        Assert.Equal(explicitResult.Output, inferred.Output);
-        foreach (var result in new[] { await project.RunOutputWithWindowsPowerShell(inferred.Output!),
-            await project.RunOutput(inferred.Output!) })
-        {
-            Assert.True(result.ExitCode == 0, result.Error);
-            Assert.Equal(expected, result.Output);
-            Assert.Equal("", result.Error);
-        }
+        return (explicitResult.Output!, inferred.Output!);
     }
 
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task InferenceKeepsModuleIdentityAcrossAliasesCopiesAndNestedValues()
     {
@@ -90,6 +112,7 @@ public partial class CompilerTests
         }
     }
 
+    [Trait("Category", "Unit")]
     [Fact]
     public void InferenceDoesNotConfuseSameNamedStructsFromDifferentModules()
     {
@@ -107,6 +130,7 @@ public partial class CompilerTests
         Assert.Equal(4, error.Line);
     }
 
+    [Trait("Category", "Unit")]
     [Theory]
     [InlineData("value := null")]
     [InlineData("value := []")]

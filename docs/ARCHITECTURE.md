@@ -11,7 +11,9 @@ Parser
   ↓
 Syntax Tree / AST
   ↓
-Module loading and name resolution
+Module loading
+  ↓
+Name resolution / binding
   ↓
 Type checking
   ↓
@@ -22,11 +24,12 @@ Each stage has a separate responsibility:
 
 - Lexer splits strings, comments, and operators into tokens.
 - Parser builds the syntax tree without type checking or name resolution.
-- ModuleLoader resolves imports and checks dependency order and cycles.
-- TypeChecker validates names, scopes, redeclarations, types, implicit numeric widening, nullable flow narrowing, function calls, and control-flow semantics.
+- ModuleLoader discovers modules, resolves import paths, determines canonical module identity, builds the dependency graph, and detects cycles.
+- Resolver registers symbols, manages scopes, resolves name references including module-qualified names, and rejects redeclarations.
+- TypeChecker validates type compatibility, implicit numeric widening, nullable flow narrowing, function call signatures, and control-flow return semantics.
 - Emitter consumes validated syntax trees and type information to generate standalone Windows PowerShell 5.1-compatible `.ps1` files. It does not infer semantics or resolve names.
-- Compiler invokes these stages in order and validates the generated PowerShell syntax.
-- `rukbat check` stops after ModuleLoader and TypeChecker. It invokes neither Emitter nor the PowerShell parser.
+- Compiler invokes these stages in order. It validates the generated PowerShell syntax as a generator sanity check; Windows PowerShell 5.1 compatibility is established by the execution test suite, not by this parser validation alone.
+- `rukbat check` stops after ModuleLoader, Resolver, and TypeChecker. It invokes neither Emitter nor the PowerShell parser.
 - Formatter validates syntax, then normalizes tokens while preserving comments. It does not check types or resolve imports.
 
 Generated scripts include small PowerShell helpers implementing Rukbat value copies, array bounds, error propagation, and PowerShell boundaries. Only imported standard-library runtime sections are included. Deployment requires neither the Rukbat compiler nor a separate Rukbat runtime.

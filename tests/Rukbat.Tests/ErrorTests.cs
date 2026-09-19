@@ -1,7 +1,8 @@
 namespace Rukbat.Tests;
 
-public partial class CompilerTests
+public class ErrorTests : TestBase
 {
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("try { throw Error(message: 'failed'); print('unreachable') } catch err { print(err.message) }; print('after')", "failed\nafter")]
     [InlineData("try { print('ok') } catch err { print('unexpected') }", "ok")]
@@ -33,6 +34,7 @@ public partial class CompilerTests
         Assert.Equal("", result.Error);
     }
 
+    [Trait("Category", "Unit")]
     [Theory]
     [InlineData("throw 'wrong'")]
     [InlineData("throw")]
@@ -65,6 +67,7 @@ public partial class CompilerTests
         Assert.NotEmpty(result.Diagnostics);
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task RethrowAcrossModulesPreservesOriginAndErrorValueSemantics()
     {
@@ -77,6 +80,7 @@ public partial class CompilerTests
         Assert.Equal("service.rukbat:2: error: copied", result.Error.Trim());
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task NativeFailureIsCaughtAndDoesNotPoisonLaterPowerShellCalls()
     {
@@ -88,6 +92,7 @@ public partial class CompilerTests
         Assert.Equal("", result.Error);
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task UnhandledNativeFailureMakesCliFail()
     {
@@ -100,6 +105,7 @@ public partial class CompilerTests
         Assert.Contains("main.rukbat:1: error:", result.Error);
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task NativeAliasFailureIsNormalizedBeforeResultTypeChecking()
     {
@@ -111,6 +117,7 @@ public partial class CompilerTests
         Assert.Equal("", result.Error);
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task ArithmeticAfterFunctionCallReportsCallerLocation()
     {
@@ -122,6 +129,7 @@ public partial class CompilerTests
         Assert.DoesNotContain("main.ps1", result.Error);
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task ErrorTypeIsSharedAcrossModulesAndArrayReturnsRemainSingleValues()
     {
@@ -134,6 +142,7 @@ public partial class CompilerTests
         Assert.Equal("", result.Error);
     }
 
+    [Trait("Category", "Unit")]
     [Fact]
     public void RejectsImportThatShadowsErrorType()
     {
@@ -145,6 +154,7 @@ public partial class CompilerTests
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Message.Contains("built-in type"));
     }
 
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("throw Error(message: 'startup')", "startup")]
     [InlineData("print(1 / 0)", "divide by zero")]
@@ -160,6 +170,7 @@ public partial class CompilerTests
         Assert.Contains(message, result.Error);
     }
 
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("try {\n throw Error(message: 'first')\n} catch err {\n throw Error(message: 'second')\n}", 4, "second")]
     [InlineData("try {\n throw Error(message: 'first')\n} catch err {\n print(1 / 0)\n}", 4, "divide by zero")]

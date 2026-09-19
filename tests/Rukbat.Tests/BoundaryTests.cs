@@ -1,7 +1,8 @@
 namespace Rukbat.Tests;
 
-public partial class CompilerTests
+public class PowerShellBoundaryTests : TestBase
 {
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("xs: int[] = powershell<int[]>('Write-Output', [1,2]); print(xs.length); for x in xs { print(x) }", "2\n1\n2")]
     [InlineData("xs: int[] = powershell<int[]>('Out-Null', 1); print(xs.length)", "0")]
@@ -23,6 +24,7 @@ public partial class CompilerTests
         Assert.Equal(expected, result.Output.TrimEnd('\n'));
     }
 
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("struct U { age: int }; u: U = powershell<U>('ConvertFrom-Json', '{}')", "Missing required field")]
     [InlineData("struct U { age: int }; u: U = powershell<U>('ConvertFrom-Json', '{\"age\":null}')", "Null is incompatible")]
@@ -47,6 +49,7 @@ public partial class CompilerTests
         Assert.Contains("main.rukbat:1", result.Error);
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task KeepsPowerShellArrayArgumentsSeparateAndCopied()
     {
@@ -59,6 +62,7 @@ public partial class CompilerTests
         Assert.Equal("21\n1", result.Output.TrimEnd('\n'));
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task ImportsNativeFileObjectsIntoAnImportedStruct()
     {

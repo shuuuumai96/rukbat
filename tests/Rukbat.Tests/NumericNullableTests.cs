@@ -1,7 +1,8 @@
 namespace Rukbat.Tests;
 
-public partial class CompilerTests
+public class NumericNullableTests : TestBase
 {
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task EmptyNullableArrayIsDistinctFromNull()
     {
@@ -12,6 +13,7 @@ public partial class CompilerTests
         Assert.Equal("False\nTrue", result.Output.TrimEnd('\n'));
     }
 
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("x: float = 1; print(x + 0.5)", "1.5")]
     [InlineData("fn widen(x: int?): float? { return x }; y: float? = widen(2); if y != null { print(y + 0.5) }", "2.5")]
@@ -33,6 +35,7 @@ public partial class CompilerTests
         Assert.Equal("", result.Error);
     }
 
+    [Trait("Category", "Unit")]
     [Theory]
     [InlineData("x := null")]
     [InlineData("x: string = null")]
@@ -55,6 +58,7 @@ public partial class CompilerTests
         Assert.NotEmpty(result.Diagnostics);
     }
 
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("try { print(1.0 / 0.0) } catch err { print('zero') }", "zero")]
     [InlineData("try { print(1e308 * 1e308) } catch err { print('finite') }", "finite")]
@@ -70,6 +74,7 @@ public partial class CompilerTests
         Assert.Equal(expected, result.Output.TrimEnd('\n'));
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task PowerShellNoOutputIsNotNullableNull()
     {
@@ -80,6 +85,7 @@ public partial class CompilerTests
         Assert.Contains("expected one string? result, got 0", result.Error);
     }
 
+    [Trait("Category", "Unit")]
     [Fact]
     public void SameModuleCallsInvalidateGlobalNarrowing()
     {
@@ -88,6 +94,8 @@ public partial class CompilerTests
         Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Message.Contains("nullable value"));
     }
 
+    [Trait("Category", "PowerShell51")]
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task FloatAndNullableRunOnWindowsPowerShell51()
     {

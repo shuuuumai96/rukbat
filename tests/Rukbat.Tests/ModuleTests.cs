@@ -1,7 +1,8 @@
 namespace Rukbat.Tests;
 
-public partial class CompilerTests
+public class ModuleTests : TestBase
 {
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task BundlesDirectoryModulesWithSharedTypesAndSingleInitialization()
     {
@@ -17,6 +18,7 @@ public partial class CompilerTests
         Assert.Equal("init\nTaro", result.Output.TrimEnd('\n'));
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task SupportsSameFileNamesAndLegacyImportAliases()
     {
@@ -30,6 +32,7 @@ public partial class CompilerTests
         Assert.Equal("1\n2\n3", result.Output.TrimEnd('\n'));
     }
 
+    [Trait("Category", "Unit")]
     [Fact]
     public void ReportsDirectoryImportCyclesAndSourceLocations()
     {
@@ -45,6 +48,7 @@ public partial class CompilerTests
         Assert.Equal(Path.GetFullPath(project.PathFor("services/users.rukbat")), error.FilePath);
     }
 
+    [Trait("Category", "Unit")]
     [Theory]
     [InlineData("import 'missing.rukbat' as missing", "RUK3002")]
     [InlineData("import '' as bad", "RUK3002")]

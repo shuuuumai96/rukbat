@@ -1,7 +1,8 @@
 namespace Rukbat.Tests;
 
-public partial class CompilerTests
+public class JsonTests : TestBase
 {
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task JsonRejectsWhitespaceOutsideTheJsonGrammar()
     {
@@ -12,6 +13,7 @@ public partial class CompilerTests
         Assert.Contains("Unexpected trailing content", result.Error);
     }
 
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("print(json.decode<int>('30'))", "30")]
     [InlineData("print(json.decode<float>('1e0') + 0.5)", "1.5")]
@@ -30,6 +32,7 @@ public partial class CompilerTests
         Assert.Equal("", result.Error);
     }
 
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("json.decode<int>('1.0')", "incompatible with int")]
     [InlineData("json.decode<int>('1e0')", "incompatible with int")]
@@ -49,6 +52,7 @@ public partial class CompilerTests
         Assert.Contains(message, result.Error, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Trait("Category", "Unit")]
     [Theory]
     [InlineData("import json\njson.decode('1')")]
     [InlineData("import json\njson.encode<int>(1)")]
@@ -61,6 +65,8 @@ public partial class CompilerTests
         Assert.NotEmpty(result.Diagnostics);
     }
 
+    [Trait("Category", "PowerShell51")]
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task JsonRunsOnWindowsPowerShell51()
     {

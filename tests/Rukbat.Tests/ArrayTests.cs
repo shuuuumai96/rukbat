@@ -1,7 +1,8 @@
 namespace Rukbat.Tests;
 
-public partial class CompilerTests
+public class ArrayTests : TestBase
 {
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("xs: int[] = []; print(xs.length)", "0")]
     [InlineData("xs: int[] = [42]; print(xs.length); print(xs[0])", "1\n42")]
@@ -37,6 +38,7 @@ public partial class CompilerTests
         Assert.Equal(expected, result.Output.TrimEnd('\n'));
     }
 
+    [Trait("Category", "Unit")]
     [Theory]
     [InlineData("xs: int[] = [1, 'bad']", "array element")]
     [InlineData("xs: int[] = [true]", "Expected int")]
@@ -68,6 +70,7 @@ public partial class CompilerTests
         Assert.Contains(result.Diagnostics, d => d.Message.Contains(message, StringComparison.OrdinalIgnoreCase));
     }
 
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("xs: int[] = [1]; print(xs[-1])")]
     [InlineData("xs: int[] = []; print(xs[0])")]
@@ -82,6 +85,7 @@ public partial class CompilerTests
         Assert.Contains("main.rukbat:1", result.Error);
     }
 
+    [Trait("Category", "Unit")]
     [Fact]
     public void ArrayElementIdentityIncludesTheDefiningModule()
     {
@@ -93,6 +97,7 @@ public partial class CompilerTests
             d => d.Code == "RUK2001" && d.Message.Contains("left.U[]") && d.Message.Contains("right.U[]"));
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task PreservesArrayValuesAcrossModules()
     {

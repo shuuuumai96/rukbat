@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <RukbatTestCategory Condition="'$(RukbatTestCategory)' == ''">Unit</RukbatTestCategory>
+    <VSTestTestCaseFilter Condition="'$(RukbatTestCategory)' != 'All' and '$(VSTestTestCaseFilter)' == ''">Category=$(RukbatTestCategory)</VSTestTestCaseFilter>
+  </PropertyGroup>
+</Project>

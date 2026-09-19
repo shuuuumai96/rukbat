@@ -9,6 +9,10 @@ The checker is a user-supplied executable already available on the target machin
 Implementation order is: define this scenario, add only the missing standard-library APIs below, then complete the example and its end-to-end tests.
 Keep these changes separate from the completed CLI foundation and from each other.
 
+## CLI exit-code semantics
+
+If compilation succeeds and the generated program starts, `rukbat run` exits with the program's exit code. If compilation fails, `rukbat run` exits with the compiler's own exit code (1 for compilation errors, 2 for CLI/IO errors). If the PowerShell process fails to launch, `rukbat run` exits with code 2. The normative exit-code rules are defined in the `Commands and arguments` section of `LANGUAGE.md`.
+
 ## Invocation and configuration
 
 Planned invocation:
@@ -73,15 +77,10 @@ On a normal run, stdout is empty; checker streams belong only in the report. Ope
 Enumeration completes before starting any checker. A process API Error stops the run rather than inventing a checker exit code or writing a partial report.
 Checker side effects cannot be rolled back. This example is intended for read-only validators; executable selection remains the caller's responsibility.
 
-## Minimum standard-library additions
+## Standard-library dependencies
 
-This is a proposed contract to implement in a subsequent commit. It is not yet part of the implemented API in STDLIB.md.
+`files.list_recursive` was introduced to satisfy this scenario and is now part of the confirmed v0.1 standard library. Its normative contract is defined in `STDLIB.md`.
 
-| Proposed API | Required behavior and reason |
-|---|---|
-| `files.list_recursive(directory: string, pattern: string): string[]` | Return absolute paths to matching files at every depth, including the root's direct files. A file path, nonexistent/inaccessible root, invalid pattern, or traversal failure causes Error, not a partial result. Paths are literal; the filename wildcard supports `*` and `?` but not hierarchy separators. Exclude Hidden and ReparsePoint files and directories; System attributes do not exclude entries. Do not follow links or junctions; reject a reparse-point root. Do not guarantee order. Needed because `files.list` cannot enumerate subdirectories. |
-
-This API must remain standalone and compatible with Windows PowerShell 5.1. Runtime failures use ordinary Rukbat Error.
 Existing `args`, arrays/append, control flow, `files.read/write`, `json.decode/encode`, `process.run`, `eprint`, and `exit` cover the rest.
 The recursive listing already returns absolute paths, so this scenario does not require a separate `path.absolute` API. It also does not yet justify copy, move, remove, directory creation, parent-path lookup, additional text operations, CSV, or a new test runner.
 

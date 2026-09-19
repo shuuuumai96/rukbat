@@ -4,7 +4,7 @@ using PowerShellParser = System.Management.Automation.Language.Parser;
 
 namespace Rukbat.Tests;
 
-public partial class CompilerTests
+public class CompilerTests
 {
     private static CompilationResult Compile(string source) => new Compiler().Compile(source);
     private static string Success(string source)
@@ -16,6 +16,7 @@ public partial class CompilerTests
         return result.Output!;
     }
 
+    [Trait("Category", "Unit")]
     [Theory]
     [InlineData("name: string = 'Taro'\nage: int = 30")]
     [InlineData("name := 'Taro'\nage := 30\nactive := true")]
@@ -33,6 +34,7 @@ public partial class CompilerTests
     [InlineData("x: int = 1\nfn f(x: string): string { return x }")]
     public void AcceptsModernSyntax(string source) => Success(source);
 
+    [Trait("Category", "Unit")]
     [Theory]
     [InlineData("x: int = '30'")]
     [InlineData("x: string = 30")]
@@ -85,6 +87,7 @@ public partial class CompilerTests
         Assert.Contains(result.Diagnostics, d => d.Code.StartsWith("RUK2"));
     }
 
+    [Trait("Category", "Unit")]
     [Fact]
     public void InferredDeclarationIsADeclarationRatherThanAssignment()
     {
@@ -94,6 +97,7 @@ public partial class CompilerTests
         Assert.Contains("Duplicate declaration 'x'", error.Message);
     }
 
+    [Trait("Category", "Unit")]
     [Theory]
     [InlineData("$name: string = 'Taro'")]
     [InlineData("fn f() { return 1 }")]
@@ -116,6 +120,7 @@ public partial class CompilerTests
         Assert.All(result.Diagnostics, d => { Assert.True(d.Line > 0); Assert.True(d.Column > 0); });
     }
 
+    [Trait("Category", "Unit")]
     [Fact]
     public void ReportsSourcePosition()
     {
@@ -126,6 +131,7 @@ public partial class CompilerTests
         Assert.Equal("<input>", error.FilePath);
     }
 
+    [Trait("Category", "Unit")]
     [Fact]
     public void ImportedErrorsReferToImportedFile()
     {
@@ -138,6 +144,7 @@ public partial class CompilerTests
         Assert.Equal("RUK2001", error.Code);
     }
 
+    [Trait("Category", "Unit")]
     [Fact]
     public void ChecksImportedFunctionSignatures()
     {
@@ -147,6 +154,7 @@ public partial class CompilerTests
         Assert.Contains(project.Compile().Diagnostics, d => d.Code == "RUK2001");
     }
 
+    [Trait("Category", "Unit")]
     [Fact]
     public void RejectsCyclesMissingAndDuplicateImports()
     {
@@ -164,6 +172,7 @@ public partial class CompilerTests
         Assert.Contains(Compile("import './other.rukbat' as other").Diagnostics, d => d.Code == "RUK3000");
     }
 
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("fn f(): int { 99; powershell<int>('Write-Output', 88); print('log'); return 7 }\nx: int = f(); print(x)", "log\n7")]
     [InlineData("fn f(): void { 99; powershell<int>('Write-Output', 88) }; f(); print('done')", "done")]
@@ -187,6 +196,7 @@ public partial class CompilerTests
         Assert.Equal(expected, result.Output.TrimEnd('\n'));
     }
 
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("print(powershell<int>('Write-Output', '42'))", "incompatible with int")]
     [InlineData("print(powershell<string>('Write-Output', 42))", "incompatible with string")]
@@ -203,6 +213,7 @@ public partial class CompilerTests
         Assert.Contains(expected, result.Error);
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task CallsAnExistingPowerShellModule()
     {
@@ -215,6 +226,7 @@ public partial class CompilerTests
         Assert.Equal("Hello, Taro", result.Output.TrimEnd('\n'));
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task RejectsMissingPowerShellScalarResult()
     {
@@ -227,6 +239,7 @@ public partial class CompilerTests
         Assert.Contains("main.rukbat:1", result.Error);
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task PersistsModuleStateAcrossCalls()
     {
@@ -238,6 +251,7 @@ public partial class CompilerTests
         Assert.Equal("1\n2", result.Output.TrimEnd('\n'));
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task BundlesDiamondImportsOnceAndIsolatesModuleState()
     {
@@ -255,6 +269,7 @@ public partial class CompilerTests
         Assert.Equal("init\n30\n40\n100", result.Output.TrimEnd('\n'));
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task ModuleGlobalsAreLexicalRatherThanCallerVariables()
     {
@@ -265,6 +280,7 @@ public partial class CompilerTests
         Assert.Equal("1", result.Output.TrimEnd('\n'));
     }
 
+    [Trait("Category", "Unit")]
     [Fact]
     public void CliPreservesExistingOutputOnFailure()
     {
@@ -286,6 +302,7 @@ public partial class CompilerTests
         Assert.Equal(2, Cli.Run(["build", project.PathFor("missing.rukbat")], TextWriter.Null, TextWriter.Null));
     }
 
+    [Trait("Category", "Unit")]
     [Fact]
     public void CliCheckDoesNotCreateOrChangePowerShellOutput()
     {
@@ -304,6 +321,7 @@ public partial class CompilerTests
         Assert.Equal("preserve", File.ReadAllText(output));
     }
 
+    [Trait("Category", "Unit")]
     [Fact]
     public void CliFmtUsesCanonicalLayoutPreservesCommentsAndIsIdempotent()
     {
@@ -331,6 +349,7 @@ public partial class CompilerTests
         Assert.Equal(expected.Replace("\r\n", "\n"), File.ReadAllText(input));
     }
 
+    [Trait("Category", "Unit")]
     [Fact]
     public void CliFmtLeavesInvalidSourceUnchanged()
     {

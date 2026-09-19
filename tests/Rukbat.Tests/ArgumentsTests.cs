@@ -2,8 +2,9 @@ using System.Text.Json;
 
 namespace Rukbat.Tests;
 
-public partial class CompilerTests
+public class ArgumentsTests : TestBase
 {
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task CliArgumentsPreserveLiteralStrings()
     {
@@ -16,6 +17,7 @@ public partial class CompilerTests
         Assert.Equal("", result.Error);
     }
 
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -29,6 +31,7 @@ public partial class CompilerTests
         Assert.Equal("0\n", result.Output);
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task ArgumentsAreEntryArgumentsAndCopiedAcrossModules()
     {
@@ -44,6 +47,7 @@ public partial class CompilerTests
         Assert.Equal("changed\noriginal\n", result.Output);
     }
 
+    [Trait("Category", "Unit")]
     [Theory]
     [InlineData("args(1)")]
     [InlineData("args(value: 'x')")]
@@ -58,6 +62,9 @@ public partial class CompilerTests
         Assert.NotEmpty(result.Diagnostics);
     }
 
+    [Trait("Category", "PowerShell51")]
+    [Trait("Smoke", "PowerShell51")]
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task GeneratedScriptRunsWithWindowsPowerShell51()
     {

@@ -6,7 +6,7 @@ Rukbat is a typed, procedural language for Windows system scripting. It is not P
 
 ## Commands and arguments
 
-`rukbat build input.rukbat` writes `input.ps1`. `rukbat run input.rukbat -- arguments...` builds and executes it with Windows PowerShell. `rukbat check input.rukbat` runs module loading, name resolution, and type checking without generating PowerShell. `rukbat fmt input.rukbat` rewrites one syntactically valid source file into the canonical layout without resolving its imports or type-checking it. `build`, `check`, and `fmt` do not accept program arguments. A compilation or formatting failure exits with code 1 without changing an existing output or source file; command-line and I/O failures exit with code 2.
+`rukbat build input.rukbat` writes `input.ps1`. `rukbat run input.rukbat -- arguments...` builds and executes it with Windows PowerShell. `rukbat check input.rukbat` runs module loading, name resolution, and type checking without generating PowerShell. `rukbat fmt input.rukbat` rewrites one syntactically valid source file into the canonical layout without resolving its imports or type-checking it. `build`, `check`, and `fmt` do not accept program arguments. A compilation or formatting failure exits with code 1 without changing an existing output or source file; command-line and I/O failures exit with code 2. If compilation succeeds and the generated program starts, `rukbat run` exits with the program's exit code. If the PowerShell process fails to launch, `rukbat run` exits with code 2.
 
 `args(): string[]` returns the arguments supplied to the entry program. The compiler command, source path, and `--` separator are excluded.
 
@@ -37,7 +37,7 @@ fn greet(person: string): void {
 - `name = value` assigns to an existing variable.
 - A declaration requires an initial value. `:=` requires an inferable type; `items := []` is invalid.
 - Redeclaring a name in the same scope is invalid. `:=` never means assignment.
-- `fn` is the only function declaration syntax. Functions are defined at module scope.
+- `fn` is the only function declaration syntax. Free functions are defined at module scope. Methods are defined inside a struct declaration.
 
 Names are case-sensitive. Statements are separated by a newline or `;`. Blocks use braces. Comments begin with `//` or `#`.
 
@@ -81,15 +81,7 @@ Primitive equality requires compatible non-null values and string equality is ca
 
 Runtime errors report source names relative to the entry source directory, normalized with `/` separators, and the original line number. Imports outside that directory use `../` segments. Generated error metadata does not embed absolute development source paths and does not require source files at runtime. Compile-time diagnostics still use the actual source paths. User-written string literals, such as explicit absolute data paths, are preserved rather than redacted.
 
-`Error` is a built-in value type with a `message: string` field. `throw` accepts an `Error`; `try` has one untyped `catch` binding and there is no `finally`. PowerShell failures, invalid external values, arithmetic failures, and array-bound failures enter the same Error path. Rethrowing an Error preserves its original source location.
-
-## Not yet specified / TBD
-
-The following are not confirmed language specification: function overloads, a named `main` entry point, explicit numeric conversion APIs, and integer-overflow policy beyond current checked runtime behavior.
-
-Formatting is canonical and has no configuration. `rukbat fmt` uses four-space indentation, one statement per line, spaces around binary operators and after commas/colons, no padding immediately inside delimiters, braces on the declaration or control-flow line, and `else` / `catch` on the same line as the preceding closing brace. It preserves comments, writes UTF-8 without a BOM, and normalizes a nonempty file to LF line endings with one final newline. Tree-sitter grammar, syntax highlighting, and LSP are not implemented.
-
-## Additional language behavior
+`Error` is a built-in value type with a `message: string` field. `throw` accepts an `Error`; `try` has one untyped `catch` binding and there is no `finally`. PowerShell failures, invalid external values, arithmetic failures, and array-bound failures enter the same Error path. Rethrowing an Error preserves its original source location. `Error` is constructed with the same struct literal syntax: `throw Error { message: "invalid configuration" }`. It is otherwise an ordinary value type.
 
 ## Types and expressions
 
@@ -99,16 +91,17 @@ Every index expression in an assignment or `append` receiver is evaluated exactl
 
 - Integer division truncates toward zero.
 - `+` concatenates two strings.
-- Equality compares values of the same primitive type and string equality is case-sensitive.
+- Equality follows the rules defined in "Numbers and equality" above.
 - Boolean `&&` and `||` short-circuit.
 - Array literals use `[value, ...]`; arrays can grow with the statement `values.append(value)`.
+- An array literal with a contextual type (`name: T[] = [...]` or parameter of type `T[]`) converts each element to `T` using the standard implicit conversions. Without a contextual type, all elements must have the same type after `int`-to-`float` promotion; `[1, 2.0]` infers `float[]`. A literal mixing incompatible types is a compile-time error. An explicitly typed empty array (`items: string[] = []`) is valid.
 - `items[index]` reads or writes an element, and `items.length` is read-only.
 
 ## Control flow
 
 `if` / `else`, `for item in items`, `while condition`, `break`, `continue`, and `return` are explicit control-flow constructs. A `while` condition must be `bool` and is evaluated before each iteration. `break` exits the innermost `for` or `while`; `continue` starts its next iteration. A loop alone does not prove a return because it may execute zero times.
 
-The iterable expression of a `for` loop is evaluated exactly once when the loop begins. It iterates over that resulting value.
+The iterable expression of a `for` loop is evaluated exactly once when the loop begins. The loop iterates over a snapshot of that resulting array value. Modifying the original array variable inside the loop body (including `append`) does not affect the iteration sequence. The loop variable is a copy of each element; assigning to it does not modify the source array.
 
 ## Structs and modules
 
@@ -121,9 +114,15 @@ struct User {
         return self.age >= 20
     }
 }
+
+user := User { name: "Taro", age: 30 }
 ```
 
-Struct fields are data. Methods use `fn` and may update `self`. Imports are static and resolved before execution. Relative project modules use an explicit relative `.rukbat` path and an alias. Standard-library modules use their canonical module names as defined in `STDLIB.md`.
+Struct fields are data. A struct value is created with a struct literal: `StructName { field: value, ... }`. All fields must be initialized, including nullable fields. Fields are specified by name; order does not matter. Duplicate, missing, or unknown field names are compile-time errors. Field initializer expressions are evaluated left to right in written order.
+
+Methods use `fn` and may read or update `self`. A method that updates `self` may only be called on a receiver that is assignable: a variable, or a chain of struct fields and array indexes rooted at a variable. Calling a mutating method on a temporary value, such as a function result, is a compile-time error. This matches the existing rule for `append`.
+
+Imports are static and resolved before execution. Relative project modules use an explicit relative `.rukbat` path and an alias. Standard-library modules use their canonical module names as defined in `STDLIB.md`.
 
 ## PowerShell boundary
 
@@ -137,6 +136,14 @@ No output is distinct from one explicit `$null` output. No output is an Error fo
 
 Generated scripts do not require the Rukbat compiler or a PowerShell 7 installation. PowerShell is the target implementation, not part of Rukbat source syntax or standard-library semantics.
 
+## Formatting
+
+Formatting is canonical and has no configuration. `rukbat fmt` uses four-space indentation, one statement per line, spaces around binary operators and after commas/colons, no padding immediately inside delimiters, braces on the declaration or control-flow line, and `else` / `catch` on the same line as the preceding closing brace. It preserves comments, writes UTF-8 without a BOM, and normalizes a nonempty file to LF line endings with one final newline. Tree-sitter grammar, syntax highlighting, and LSP are not implemented.
+
 ## Current exclusions
 
 Rukbat does not provide union types, arbitrary object types, pipelines, closures, function values, package management, multiple catch clauses, `finally`, or generic language syntax. Standard-library API design is specified separately and must not be inferred from the current compiler layout.
+
+## Not yet specified
+
+The following are not confirmed language specification: function overloads, a named `main` entry point, explicit numeric conversion APIs, and integer-overflow policy beyond current checked runtime behavior.

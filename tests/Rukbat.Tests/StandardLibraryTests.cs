@@ -1,7 +1,8 @@
 namespace Rukbat.Tests;
 
-public partial class CompilerTests
+public class StandardLibraryTests : TestBase
 {
+    [Trait("Category", "Unit")]
     [Fact]
     public void GeneratedScriptIncludesOnlyImportedStandardLibraryRuntimes()
     {
@@ -22,6 +23,7 @@ public partial class CompilerTests
         Assert.DoesNotContain("'process.run'", files);
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task FilesPathAndEnvironmentModulesUseTypedContracts()
     {
@@ -54,6 +56,8 @@ public partial class CompilerTests
         Assert.False(bytes.Length >= 3 && bytes[0] == 0xef && bytes[1] == 0xbb && bytes[2] == 0xbf);
     }
 
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task EnvironmentRejectsEmptySetAndPreservesInheritedEmptyValue()
     {
@@ -81,8 +85,19 @@ public partial class CompilerTests
         Assert.Equal("", windows.Error);
     }
 
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task ProcessRunReturnsNonzeroExitAndSeparateOutput()
+        => await AssertProcessRunReturnsNonzeroExitAndSeparateOutput(crossVersion: true);
+
+    [Trait("Smoke", "PowerShell51")]
+    [Trait("Category", "Runtime")]
+    [Fact]
+    public async Task ProcessRunReturnsNonzeroExitAndSeparateOutputOnWindowsPowerShell51()
+        => await AssertProcessRunReturnsNonzeroExitAndSeparateOutput(crossVersion: false);
+
+    private async Task AssertProcessRunReturnsNonzeroExitAndSeparateOutput(bool crossVersion)
     {
         using var project = new Project();
         project.Write("main.rukbat", """
@@ -97,11 +112,10 @@ public partial class CompilerTests
             """);
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
-        foreach (var result in new[]
-        {
-            await project.RunOutput(compiled.Output!),
-            await project.RunOutputWithWindowsPowerShell(compiled.Output!)
-        })
+        var results = crossVersion
+            ? new[] { await project.RunOutput(compiled.Output!), await project.RunOutputWithWindowsPowerShell(compiled.Output!) }
+            : new[] { await project.RunOutputWithWindowsPowerShell(compiled.Output!) };
+        foreach (var result in results)
         {
             Assert.Equal(0, result.ExitCode);
             Assert.Equal("7\nout\nerr", result.Output.TrimEnd('\n'));
@@ -109,6 +123,8 @@ public partial class CompilerTests
         }
     }
 
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task FilesReadRejectsNonUtf8OnBothPowerShellTargets()
     {
@@ -133,6 +149,7 @@ public partial class CompilerTests
         }
     }
 
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task ProcessLaunchFailureIsAnRukbatError()
     {
@@ -143,6 +160,7 @@ public partial class CompilerTests
         Assert.Contains("missing-rukbat-executable", result.Error);
     }
 
+    [Trait("Category", "Unit")]
     [Theory]
     [InlineData("import files\nfiles.read(1)")]
     [InlineData("import path\npath.join('one')")]
