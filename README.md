@@ -254,6 +254,6 @@ Tests cover syntax, types, diagnostic locations, and the CLI, and execute genera
 Both `powershell` and `pwsh` must be on PATH. Execution tests are never silently skipped.
 Coverage includes struct value copies and `self` updates, explicit returns, scopes, PowerShell type boundaries, shared module initialization, and execution without source files.
 
-## Next implementation milestone
+## Batch validation acceptance example
 
-The [batch validation CLI acceptance scenario](docs/CLI_ACCEPTANCE.md) defines the next practical example, its required standard-library addition, and end-to-end acceptance tests. It is a planned contract, not an implemented command.
+The implemented [batch validation acceptance example](examples/batch-check/main.rukbat) follows the [CLI acceptance scenario](docs/CLI_ACCEPTANCE.md). Its end-to-end tests cover the contract from configuration through checker execution and report output.

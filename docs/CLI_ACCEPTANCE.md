@@ -2,12 +2,11 @@
 
 ## Status and purpose
 
-This is the acceptance contract for the next example, not an implemented CLI or a claim of a validated personal workflow.
+This is the acceptance contract and regression scenario for the implemented `examples/batch-check` example.
 It exercises a common automation sequence: read typed JSON configuration, find files recursively, invoke an existing checker for each file, save a typed JSON report, and return an explicit exit code.
 The checker is a user-supplied executable already available on the target machine; it is not a new Rukbat dependency.
 
-Implementation order is: define this scenario, add only the missing standard-library APIs below, then complete the example and its end-to-end tests.
-Keep these changes separate from the completed CLI foundation and from each other.
+The example and its end-to-end tests keep this scenario separate from the CLI foundation.
 
 ## CLI exit-code semantics
 
@@ -15,7 +14,7 @@ If compilation succeeds and the generated program starts, `rukbat run` exits wit
 
 ## Invocation and configuration
 
-Planned invocation:
+Invocation:
 
 ```powershell
 rukbat run examples/batch-check/main.rukbat -- config.json report.json
