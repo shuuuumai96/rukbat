@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace Rukbat.Tests;
 
 public class AppendTests : TestBase
@@ -154,6 +156,6 @@ public class AppendTests : TestBase
 
         var result = await project.Run();
         Assert.True(result.ExitCode == 0, result.Error);
-        Assert.Equal("[\"keep.log\"]", File.ReadAllText(project.PathFor("result.json")));
+        Assert.Equal(JsonSerializer.Serialize(new[] { project.PathFor("keep.log") }), File.ReadAllText(project.PathFor("result.json")));
     }
 }

@@ -101,9 +101,12 @@ public class RecursiveFilesTests : TestBase
             }.ToHashSet(StringComparer.OrdinalIgnoreCase), jsonPaths);
             Assert.Equal(new[] { Path.GetFullPath(Path.Combine(root, "test1.csv")) },
                 split[1].Split('\n', StringSplitOptions.RemoveEmptyEntries));
-        Assert.Equal("test1.csv\n", split[2]);
-            Assert.Equal(new[] { "system.json", "top.json" },
-                split[3].Split('\n', StringSplitOptions.RemoveEmptyEntries).Order(StringComparer.Ordinal));
+        Assert.Equal(Path.GetFullPath(Path.Combine(root, "test1.csv")) + "\n", split[2]);
+            Assert.Equal(new[]
+            {
+                Path.GetFullPath(Path.Combine(root, "system.json")),
+                Path.GetFullPath(Path.Combine(root, "top.json"))
+            }, split[3].Split('\n', StringSplitOptions.RemoveEmptyEntries).Order(StringComparer.Ordinal));
             Assert.DoesNotContain("escaped.json", result.Output, StringComparison.OrdinalIgnoreCase);
         }
         finally
@@ -132,13 +135,22 @@ public class RecursiveFilesTests : TestBase
             import files
             empty := files.list_recursive('empty', '*')
             print(empty.length)
+            directEmpty := files.list('empty', '*')
+            print(directEmpty.length)
             none := files.list_recursive('root', '*.json')
             print(none.length)
+            direct := files.list('root', '*.txt')
+            print(direct.length)
             try { files.list_recursive('missing', '*') } catch err { print('missing') }
             try { files.list_recursive('not-directory.txt', '*') } catch err { print('file root') }
             try { files.list_recursive('root', '') } catch err { print('empty pattern') }
             try { files.list_recursive('root', 'nested/*.txt') } catch err { print('hierarchy pattern') }
             try { files.list_recursive('C:drive-relative', '*') } catch err { print('drive relative') }
+            try { files.list('missing', '*') } catch err { print('direct missing') }
+            try { files.list('not-directory.txt', '*') } catch err { print('direct file root') }
+            try { files.list('root', '') } catch err { print('direct empty pattern') }
+            try { files.list('root', 'nested/*.txt') } catch err { print('direct hierarchy pattern') }
+            try { files.list('C:drive-relative', '*') } catch err { print('direct drive relative') }
             """);
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
@@ -146,7 +158,7 @@ public class RecursiveFilesTests : TestBase
         File.WriteAllText(script, compiled.Output, new UTF8Encoding(true));
         var result = await RunDeployed(shell, script, project.DirectoryPath, project.DirectoryPath);
         Assert.Equal(0, result.ExitCode);
-        Assert.Equal("0\n0\nmissing\nfile root\nempty pattern\nhierarchy pattern\ndrive relative\n", result.Output.Replace("\r\n", "\n"));
+        Assert.Equal("0\n0\n0\n1\nmissing\nfile root\nempty pattern\nhierarchy pattern\ndrive relative\ndirect missing\ndirect file root\ndirect empty pattern\ndirect hierarchy pattern\ndirect drive relative\n", result.Output.Replace("\r\n", "\n"));
         Assert.Equal("", result.Error);
     }
 

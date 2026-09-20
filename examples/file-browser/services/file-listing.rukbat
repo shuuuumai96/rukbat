@@ -1,9 +1,11 @@
 import files
-
-fn names(directory: string): string[] {
-    return powershell<string[]>("Get-ChildItem", directory, Name: true)
-}
+import path
 
 fn matching_files(directory: string, pattern: string): string[] {
-    return files.list(directory, pattern)
+    paths: string[] = files.list(directory, pattern)
+    names: string[] = []
+    for file in paths {
+        names.append(path.filename(file))
+    }
+    return names
 }

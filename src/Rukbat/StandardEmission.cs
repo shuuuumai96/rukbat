@@ -12,6 +12,7 @@ internal sealed partial class Emitter
         Line("switch ($operation) {");
         indentation++;
         if (modules.Contains("files")) EmitLines(FilesRuntime);
+        if (modules.Contains("directories")) EmitLines(DirectoriesRuntime);
         if (modules.Contains("path")) EmitLines(PathRuntime);
         if (modules.Contains("env")) EmitLines(EnvironmentRuntime);
         if (modules.Contains("process")) EmitLines(ProcessRuntime);
@@ -38,6 +39,33 @@ internal sealed partial class Emitter
         }
         return [IO.Path]::GetFullPath($value)
     }.GetNewClosure()
+    $__rukbat_entry_attributes = {
+        param([string]$path)
+        try { return [System.IO.File]::GetAttributes($path) }
+        catch [System.IO.FileNotFoundException] { return $null }
+        catch [System.IO.DirectoryNotFoundException] { return $null }
+    }.GetNewClosure()
+    $__rukbat_reject_directory_delete = {
+        param([string]$path)
+        $trim = {
+            param([string]$value)
+            $root = [System.IO.Path]::GetPathRoot($value)
+            while ($value.Length -gt $root.Length -and ($value.EndsWith('\') -or $value.EndsWith('/'))) {
+                $value = $value.Substring(0, $value.Length - 1)
+            }
+            return $value
+        }
+        $target = & $trim $path
+        $root = [System.IO.Path]::GetPathRoot($target)
+        if ([string]::Equals($target, $root, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Refusing to delete a filesystem root.'
+        }
+        $working = & $trim ([System.IO.Path]::GetFullPath($__rukbat_working_dir))
+        if ([string]::Equals($target, $working, [System.StringComparison]::OrdinalIgnoreCase) -or
+            $working.StartsWith($target + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Refusing to delete the captured working directory or one of its ancestors.'
+        }
+    }.GetNewClosure()
     """;
 
     private void EmitLines(string text)
@@ -51,11 +79,18 @@ internal sealed partial class Emitter
     private const string FilesRuntime = """
     'files.list' {
         $directory = & $__rukbat_resolve_path ([string]$values[0])
+        $pattern = [string]$values[1]
+        if ([string]::IsNullOrWhiteSpace($pattern) -or $pattern.IndexOfAny([char[]]'\\/') -ge 0) {
+            throw 'files.list pattern must be a non-empty filename wildcard without directory separators.'
+        }
         if (-not [System.IO.Directory]::Exists($directory)) {
             throw "Cannot access directory: $($values[0])"
         }
-        $names = @(Get-ChildItem -LiteralPath $directory -Filter ([string]$values[1]) -File -Name -ErrorAction Stop)
-        return ,([object[]]$names)
+        $paths = [System.Collections.Generic.List[string]]::new()
+        foreach ($file in Get-ChildItem -LiteralPath $directory -Filter $pattern -File -ErrorAction Stop) {
+            $null = $paths.Add($file.FullName)
+        }
+        return ,([object[]]$paths)
     }
     'files.list_recursive' {
         $root = & $__rukbat_resolve_path ([string]$values[0])
@@ -100,9 +135,118 @@ internal sealed partial class Emitter
         [System.IO.File]::WriteAllText((& $__rukbat_resolve_path ([string]$values[0])), [string]$values[1], $encoding)
         return
     }
+    'files.copy' {
+        $source = & $__rukbat_resolve_path ([string]$values[0])
+        $destination = & $__rukbat_resolve_path ([string]$values[1])
+        if ([string]::Equals($source, $destination, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw 'files.copy source and destination must differ.'
+        }
+        $sourceAttributes = & $__rukbat_entry_attributes $source
+        if ($null -eq $sourceAttributes) { throw "Cannot find file: $($values[0])" }
+        if (($sourceAttributes -band [System.IO.FileAttributes]::Directory) -ne 0) {
+            throw "Expected file, found directory: $($values[0])"
+        }
+        if ($null -ne (& $__rukbat_entry_attributes $destination)) {
+            throw "Destination already exists: $($values[1])"
+        }
+        [System.IO.File]::Copy($source, $destination, $false)
+        return
+    }
+    'files.move' {
+        $source = & $__rukbat_resolve_path ([string]$values[0])
+        $destination = & $__rukbat_resolve_path ([string]$values[1])
+        if ([string]::Equals($source, $destination, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw 'files.move source and destination must differ.'
+        }
+        $sourceAttributes = & $__rukbat_entry_attributes $source
+        if ($null -eq $sourceAttributes) { throw "Cannot find file: $($values[0])" }
+        if (($sourceAttributes -band [System.IO.FileAttributes]::Directory) -ne 0) {
+            throw "Expected file, found directory: $($values[0])"
+        }
+        if ($null -ne (& $__rukbat_entry_attributes $destination)) {
+            throw "Destination already exists: $($values[1])"
+        }
+        [System.IO.File]::Move($source, $destination)
+        if ([System.IO.File]::Exists($source)) {
+            throw "files.move did not remove source: $($values[0])"
+        }
+        return
+    }
+    'files.remove' {
+        $path = & $__rukbat_resolve_path ([string]$values[0])
+        $attributes = & $__rukbat_entry_attributes $path
+        if ($null -eq $attributes) { return }
+        if (($attributes -band [System.IO.FileAttributes]::Directory) -ne 0) {
+            throw "Expected file, found directory: $($values[0])"
+        }
+        [System.IO.File]::Delete($path)
+        return
+    }
     'files.exists' {
         try { return [System.IO.File]::Exists((& $__rukbat_resolve_path ([string]$values[0]))) }
         catch { return $false }
+    }
+    """;
+
+    private const string DirectoriesRuntime = """
+    'directories.create' {
+        $path = & $__rukbat_resolve_path ([string]$values[0])
+        $attributes = & $__rukbat_entry_attributes $path
+        if ($null -ne $attributes -and ($attributes -band [System.IO.FileAttributes]::Directory) -eq 0) {
+            throw "Expected directory, found file: $($values[0])"
+        }
+        [System.IO.Directory]::CreateDirectory($path)
+        return
+    }
+    'directories.exists' {
+        try { return [System.IO.Directory]::Exists((& $__rukbat_resolve_path ([string]$values[0]))) }
+        catch { return $false }
+    }
+    'directories.remove' {
+        $path = & $__rukbat_resolve_path ([string]$values[0])
+        & $__rukbat_reject_directory_delete $path
+        $attributes = & $__rukbat_entry_attributes $path
+        if ($null -eq $attributes) { return }
+        if (($attributes -band [System.IO.FileAttributes]::Directory) -eq 0) {
+            throw "Expected directory, found file: $($values[0])"
+        }
+        [System.IO.Directory]::Delete($path, $false)
+        return
+    }
+    'directories.remove_all' {
+        $path = & $__rukbat_resolve_path ([string]$values[0])
+        & $__rukbat_reject_directory_delete $path
+        $attributes = & $__rukbat_entry_attributes $path
+        if ($null -eq $attributes) { return }
+        if (($attributes -band [System.IO.FileAttributes]::Directory) -eq 0) {
+            throw "Expected directory, found file: $($values[0])"
+        }
+        if (($attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            [System.IO.Directory]::Delete($path, $false)
+            return
+        }
+        $pending = [System.Collections.Generic.Stack[System.IO.DirectoryInfo]]::new()
+        $directories = [System.Collections.Generic.List[System.IO.DirectoryInfo]]::new()
+        $pending.Push([System.IO.DirectoryInfo]::new($path))
+        while ($pending.Count -ne 0) {
+            $current = $pending.Pop()
+            $null = $directories.Add($current)
+            foreach ($entry in $current.GetFileSystemInfos()) {
+                if (($entry.Attributes -band [System.IO.FileAttributes]::Directory) -ne 0) {
+                    if (($entry.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+                        [System.IO.Directory]::Delete($entry.FullName, $false)
+                    } else {
+                        $pending.Push([System.IO.DirectoryInfo]::new($entry.FullName))
+                    }
+                } else {
+                    [System.IO.File]::Delete($entry.FullName)
+                }
+            }
+        }
+        for ($index = $directories.Count - 1; $index -ge 0; $index--) {
+            [System.IO.Directory]::Delete($directories[$index].FullName, $false)
+        }
+        return
     }
     """;
 
@@ -119,6 +263,27 @@ internal sealed partial class Emitter
     }
     'path.extension' {
         return [System.IO.Path]::GetExtension([string]$values[0])
+    }
+    'path.parent' {
+        $value = [string]$values[0]
+        if ([string]::IsNullOrWhiteSpace($value)) { throw 'Path must not be empty or whitespace.' }
+        $hasControlCharacter = @($value.ToCharArray() | Where-Object { [int][char]$_ -lt 32 }).Count -ne 0
+        if ($value.IndexOfAny([char[]]'"<>|?*') -ge 0 -or $hasControlCharacter) {
+            throw 'Path contains invalid characters.'
+        }
+        $root = [System.IO.Path]::GetPathRoot($value)
+        $rootLength = if ($null -eq $root) { 0 } else { $root.Length }
+        while ($value.Length -gt $rootLength -and ($value.EndsWith('\') -or $value.EndsWith('/'))) {
+            $value = $value.Substring(0, $value.Length - 1)
+        }
+        $normalisedRoot = if ($root -like '\\*' -and -not ($root.EndsWith('\') -or $root.EndsWith('/'))) {
+            $root + [System.IO.Path]::DirectorySeparatorChar
+        } else { $root }
+        if ($value.Length -eq $rootLength -and $rootLength -ne 0) { return $normalisedRoot }
+        $parent = [System.IO.Path]::GetDirectoryName($value)
+        if ([string]::IsNullOrEmpty($parent)) { return '.' }
+        if ([string]::Equals($parent, $root, [System.StringComparison]::OrdinalIgnoreCase)) { return $normalisedRoot }
+        return $parent
     }
     """;
 
