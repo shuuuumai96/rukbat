@@ -6,7 +6,9 @@ The standard library is part of the compiler version. A standard module is impor
 
 ```rukbat
 import files
+import directories
 import path
+import csv
 import json
 import env
 import process
@@ -82,6 +84,7 @@ Relative paths for `files` and `directories` are resolved from the filesystem wo
 | `path.filename(value: string): string` | Returns the final file-name component, or `""` when the path ends in a directory separator. | An invalid path causes Error. |
 | `path.extension(value: string): string` | Returns the final component's extension including its leading `.`, or `""` when none exists. | An invalid path causes Error. |
 | `path.parent(value: string): string` | Returns the lexical parent without checking the filesystem or resolving relative paths. It returns `"."` when there is no parent component and preserves a root path. Trailing separators are ignored except for a root. | Empty, whitespace-only, or invalid paths cause Error. |
+| `path.equal(left: string, right: string): bool` | Resolves both paths against the captured entry working directory and compares the resulting paths with Windows ordinal case-insensitive comparison. It does not require either path to exist. | Invalid, empty, whitespace-only, or drive-relative paths cause Error. |
 
 `join`, `filename`, `extension`, and `parent` manipulate strings without resolving relative paths or requiring existence. `parent("C:child")` is `"C:"`; filesystem operations reject that drive-relative spelling. A UNC share root is preserved with its trailing separator. `join` may return a relative path; its later use by a standard API resolves against the captured working directory.
 
@@ -90,6 +93,16 @@ Relative paths for `files` and `directories` are resolved from the filesystem wo
 ```rukbat
 config := path.join([path.script_dir(), "config.json"])
 ```
+
+`equal` compares resolved path spelling, not filesystem object identity. It does not resolve symbolic links, junctions, hard links, short names, or filesystem object IDs.
+
+## `csv`
+
+| Signature | Meaning | Failure |
+|---|---|---|
+| `csv.parse(text: string): string[][]` | Parses CSV records and fields as strings. It does not infer types, interpret headers, require a rectangular table, or map records to structs. | Invalid CSV syntax causes Error. |
+
+The separator is comma. CRLF and LF separate records; a final separator is optional. Quoted fields preserve commas and newlines, and `""` inside a quoted field becomes `"`. Whitespace and Unicode are preserved. Empty fields, including quoted empty fields, return `""`. An empty input returns `[]`; a blank record returns `[""]` and is not discarded. A bare CR outside a quoted field, an unquoted quote, an unclosed quote, or non-separator content after a closing quote causes Error. `csv.parse` accepts a Rukbat string and does not decode text encodings or treat U+FEFF specially; `files.read` supplies strict UTF-8 and BOM handling when reading CSV files.
 
 ## `json`
 

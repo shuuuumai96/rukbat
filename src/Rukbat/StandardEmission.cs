@@ -14,6 +14,7 @@ internal sealed partial class Emitter
         if (modules.Contains("files")) EmitLines(FilesRuntime);
         if (modules.Contains("directories")) EmitLines(DirectoriesRuntime);
         if (modules.Contains("path")) EmitLines(PathRuntime);
+        if (modules.Contains("csv")) EmitLines(CsvRuntime);
         if (modules.Contains("env")) EmitLines(EnvironmentRuntime);
         if (modules.Contains("process")) EmitLines(ProcessRuntime);
         if (modules.Contains("text")) EmitLines(TextRuntime);
@@ -26,9 +27,17 @@ internal sealed partial class Emitter
 
     private const string PathContextRuntime = """
     # Capture the entry script's filesystem location, never a later PowerShell location.
+    $__rukbat_reject_invalid_path_characters = {
+        param([string]$value)
+        $hasControlCharacter = @($value.ToCharArray() | Where-Object { [int][char]$_ -lt 32 }).Count -ne 0
+        if ($value.IndexOfAny([char[]]'"<>|?*') -ge 0 -or $hasControlCharacter) {
+            throw 'Path contains invalid characters.'
+        }
+    }.GetNewClosure()
     $__rukbat_resolve_path = {
         param([string]$value)
         if ([string]::IsNullOrWhiteSpace($value)) { throw 'Path must not be empty or whitespace.' }
+        & $__rukbat_reject_invalid_path_characters $value
         if ($value -match '^[A-Za-z]:(?![\\/])') {
             throw 'Drive-relative paths are not supported; use an absolute or working-directory-relative path.'
         }
@@ -267,10 +276,7 @@ internal sealed partial class Emitter
     'path.parent' {
         $value = [string]$values[0]
         if ([string]::IsNullOrWhiteSpace($value)) { throw 'Path must not be empty or whitespace.' }
-        $hasControlCharacter = @($value.ToCharArray() | Where-Object { [int][char]$_ -lt 32 }).Count -ne 0
-        if ($value.IndexOfAny([char[]]'"<>|?*') -ge 0 -or $hasControlCharacter) {
-            throw 'Path contains invalid characters.'
-        }
+        & $__rukbat_reject_invalid_path_characters $value
         $root = [System.IO.Path]::GetPathRoot($value)
         $rootLength = if ($null -eq $root) { 0 } else { $root.Length }
         while ($value.Length -gt $rootLength -and ($value.EndsWith('\') -or $value.EndsWith('/'))) {
@@ -284,6 +290,116 @@ internal sealed partial class Emitter
         if ([string]::IsNullOrEmpty($parent)) { return '.' }
         if ([string]::Equals($parent, $root, [System.StringComparison]::OrdinalIgnoreCase)) { return $normalisedRoot }
         return $parent
+    }
+    'path.equal' {
+        $left = & $__rukbat_resolve_path ([string]$values[0])
+        $right = & $__rukbat_resolve_path ([string]$values[1])
+        return [string]::Equals($left, $right, [System.StringComparison]::OrdinalIgnoreCase)
+    }
+    """;
+
+    private const string CsvRuntime = """
+    'csv.parse' {
+        $text = [string]$values[0]
+        $records = [System.Collections.Generic.List[object]]::new()
+        if ($text.Length -eq 0) { return ,([object[]]$records) }
+        $data = @{
+            record = [System.Collections.Generic.List[object]]::new()
+            field = [System.Text.StringBuilder]::new()
+            recordStarted = $false
+        }
+        $state = 'field'
+        $finishField = {
+            $null = $data.record.Add($data.field.ToString())
+            $null = $data.field.Clear()
+        }
+        $finishRecord = {
+            & $finishField
+            $null = $records.Add($data.record)
+            $data.record = [System.Collections.Generic.List[object]]::new()
+            $data.recordStarted = $false
+        }
+        for ($index = 0; $index -lt $text.Length; $index++) {
+            $character = $text[$index]
+            switch ($state) {
+                'field' {
+                    if ($character -eq '"') {
+                        $state = 'quoted'
+                        $data.recordStarted = $true
+                    } elseif ($character -eq ',') {
+                        & $finishField
+                        $data.recordStarted = $true
+                    } elseif ($character -eq [char]10) {
+                        & $finishRecord
+                    } elseif ($character -eq [char]13) {
+                        if ($index + 1 -ge $text.Length -or $text[$index + 1] -ne [char]10) {
+                            throw "CSV at offset ${index}: Bare carriage return outside a quoted field."
+                        }
+                        $index++
+                        & $finishRecord
+                    } else {
+                        $null = $data.field.Append($character)
+                        $state = 'unquoted'
+                        $data.recordStarted = $true
+                    }
+                    break
+                }
+                'unquoted' {
+                    if ($character -eq '"') {
+                        throw "CSV at offset ${index}: Quote is not allowed in an unquoted field."
+                    } elseif ($character -eq ',') {
+                        & $finishField
+                        $state = 'field'
+                    } elseif ($character -eq [char]10) {
+                        & $finishRecord
+                        $state = 'field'
+                    } elseif ($character -eq [char]13) {
+                        if ($index + 1 -ge $text.Length -or $text[$index + 1] -ne [char]10) {
+                            throw "CSV at offset ${index}: Bare carriage return outside a quoted field."
+                        }
+                        $index++
+                        & $finishRecord
+                        $state = 'field'
+                    } else {
+                        $null = $data.field.Append($character)
+                    }
+                    break
+                }
+                'quoted' {
+                    if ($character -eq '"') {
+                        $state = 'after quote'
+                    } else {
+                        $null = $data.field.Append($character)
+                    }
+                    break
+                }
+                'after quote' {
+                    if ($character -eq '"') {
+                        $null = $data.field.Append('"')
+                        $state = 'quoted'
+                    } elseif ($character -eq ',') {
+                        & $finishField
+                        $state = 'field'
+                    } elseif ($character -eq [char]10) {
+                        & $finishRecord
+                        $state = 'field'
+                    } elseif ($character -eq [char]13) {
+                        if ($index + 1 -ge $text.Length -or $text[$index + 1] -ne [char]10) {
+                            throw "CSV at offset ${index}: Bare carriage return outside a quoted field."
+                        }
+                        $index++
+                        & $finishRecord
+                        $state = 'field'
+                    } else {
+                        throw "CSV at offset ${index}: Expected a separator or record end after a closing quote."
+                    }
+                    break
+                }
+            }
+        }
+        if ($state -eq 'quoted') { throw "CSV at offset $($text.Length): Unclosed quoted field." }
+        if ($data.recordStarted) { & $finishRecord }
+        return ,([object[]]$records)
     }
     """;
 

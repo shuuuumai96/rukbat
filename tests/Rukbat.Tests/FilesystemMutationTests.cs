@@ -229,6 +229,32 @@ public class FilesystemMutationTests : TestBase
     [Theory]
     [InlineData("powershell")]
     [InlineData("pwsh")]
+    public async Task PathEqualUsesFilesystemResolutionWithoutRequiringExistingEntries(string shell)
+    {
+        using var project = new Project();
+        var absolute = RukbatLiteral(project.PathFor("missing/item.txt"));
+        project.Write("main.rukbat", $$"""
+            import path
+            print(path.equal('missing/item.txt', '{{absolute}}'))
+            print(path.equal('./missing/item.txt', 'folder/../missing/ITEM.txt'))
+            print(path.equal('missing/item.txt', 'missing\\item.txt'))
+            try { path.equal('C:relative.txt', 'missing/item.txt') } catch err { print('drive relative') }
+            try { path.equal('?:invalid', 'missing/item.txt') } catch err { print('invalid') }
+            """);
+        var compiled = project.Compile();
+        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+        File.WriteAllText(project.PathFor("job.ps1"), compiled.Output, new UTF8Encoding(true));
+        var result = await RunDeployed(shell, project.PathFor("job.ps1"), project.DirectoryPath, project.DirectoryPath);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("", result.Error);
+        Assert.Equal("True\nTrue\nTrue\ndrive relative\ninvalid\n", result.Output.Replace("\r\n", "\n"));
+    }
+
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
+    [Theory]
+    [InlineData("powershell")]
+    [InlineData("pwsh")]
     public async Task FileMoveAcrossVolumesRemovesTheSource(string shell)
     {
         using var project = new Project();
@@ -275,6 +301,8 @@ public class FilesystemMutationTests : TestBase
     [InlineData("import files\nfiles.move('x', 1)")]
     [InlineData("import files\nfiles.remove(1)")]
     [InlineData("import path\npath.parent(1)")]
+    [InlineData("import path\npath.equal('x')")]
+    [InlineData("import path\npath.equal('x', 1)")]
     public void FilesystemMutationsUseTypedStandardLibraryContracts(string source)
         => Assert.NotEmpty(new Compiler().Check(source));
 
