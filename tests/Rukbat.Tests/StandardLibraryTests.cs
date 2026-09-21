@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Rukbat.Tests;
 
 public class StandardLibraryTests : TestBase
@@ -96,6 +98,134 @@ public class StandardLibraryTests : TestBase
     [Fact]
     public async Task ProcessRunReturnsNonzeroExitAndSeparateOutputOnWindowsPowerShell51()
         => await AssertProcessRunReturnsNonzeroExitAndSeparateOutput(crossVersion: false);
+
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
+    [Theory]
+    [InlineData("pwsh")]
+    [InlineData("powershell")]
+    public async Task ProcessRunCapturesLargeValidUtf8Output(string host)
+    {
+        using var project = new Project();
+        project.Write("large-output.ps1", """
+            $bytes = New-Object byte[] 65536
+            for ($index = 0; $index -lt $bytes.Length; $index++) { $bytes[$index] = 65 }
+            $stdout = [Console]::OpenStandardOutput()
+            for ($block = 0; $block -lt 16; $block++) { $stdout.Write($bytes, 0, $bytes.Length) }
+            [Console]::Error.Write('stderr')
+            exit 7
+            """);
+        var fixture = project.PathFor("large-output.ps1").Replace("\\", "\\\\");
+        var stdoutPath = project.PathFor("stdout.txt").Replace("\\", "\\\\");
+        var stderrPath = project.PathFor("stderr.txt").Replace("\\", "\\\\");
+        project.Write("main.rukbat", $$"""
+            import files
+            import process
+            result := process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}'])
+            files.write('{{stdoutPath}}', result.stdout)
+            files.write('{{stderrPath}}', result.stderr)
+            print(result.exit_code)
+            """);
+
+        var compiled = project.Compile();
+        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+        var result = await RunOnHost(project, compiled.Output!, host);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("7\n", result.Output);
+        Assert.Equal("", result.Error);
+        AssertRepeatedBytes(File.ReadAllBytes(project.PathFor("stdout.txt")), (byte)'A');
+        Assert.Equal(Encoding.UTF8.GetBytes("stderr"), File.ReadAllBytes(project.PathFor("stderr.txt")));
+    }
+
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
+    [Theory]
+    [InlineData("stdout")]
+    [InlineData("stderr")]
+    public async Task ProcessRunLargeInvalidUtf8IsCatchableWithoutHanging(string stream)
+    {
+        using var project = new Project();
+        project.Write("invalid-output.ps1", $$"""
+            $bytes = New-Object byte[] 65536
+            for ($index = 0; $index -lt $bytes.Length; $index++) { $bytes[$index] = 255 }
+            $target = [Console]::OpenStandard{{(stream == "stdout" ? "Output" : "Error")}}()
+            for ($block = 0; $block -lt 16; $block++) { $target.Write($bytes, 0, $bytes.Length) }
+            """);
+        var fixture = project.PathFor("invalid-output.ps1").Replace("\\", "\\\\");
+        project.Write("main.rukbat", $$"""
+            import process
+            try { process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}']) }
+            catch err { print('caught') }
+            """);
+
+        var compiled = project.Compile();
+        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+        foreach (var host in new[] { "pwsh", "powershell" })
+        {
+            var result = await RunOnHost(project, compiled.Output!, host);
+            Assert.Equal(0, result.ExitCode);
+            Assert.Equal("caught\n", result.Output);
+            Assert.Equal("", result.Error);
+        }
+    }
+
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
+    [Theory]
+    [InlineData("pwsh")]
+    [InlineData("powershell")]
+    public async Task ProcessRunCapturesLargeOutputFromBothStreams(string host)
+    {
+        using var project = new Project();
+        project.Write("both-output.ps1", """
+            $stdoutBytes = New-Object byte[] 65536
+            $stderrBytes = New-Object byte[] 65536
+            for ($index = 0; $index -lt $stdoutBytes.Length; $index++) {
+                $stdoutBytes[$index] = 65
+                $stderrBytes[$index] = 66
+            }
+            $stdout = [Console]::OpenStandardOutput()
+            $stderr = [Console]::OpenStandardError()
+            for ($block = 0; $block -lt 16; $block++) {
+                $stdout.Write($stdoutBytes, 0, $stdoutBytes.Length)
+                $stderr.Write($stderrBytes, 0, $stderrBytes.Length)
+            }
+            exit 7
+            """);
+        var fixture = project.PathFor("both-output.ps1").Replace("\\", "\\\\");
+        var stdoutPath = project.PathFor("stdout.txt").Replace("\\", "\\\\");
+        var stderrPath = project.PathFor("stderr.txt").Replace("\\", "\\\\");
+        project.Write("main.rukbat", $$"""
+            import files
+            import process
+            result := process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}'])
+            files.write('{{stdoutPath}}', result.stdout)
+            files.write('{{stderrPath}}', result.stderr)
+            print(result.exit_code)
+            """);
+
+        var compiled = project.Compile();
+        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+        var result = await RunOnHost(project, compiled.Output!, host);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("7\n", result.Output);
+        Assert.Equal("", result.Error);
+        AssertRepeatedBytes(File.ReadAllBytes(project.PathFor("stdout.txt")), (byte)'A');
+        AssertRepeatedBytes(File.ReadAllBytes(project.PathFor("stderr.txt")), (byte)'B');
+    }
+
+    private static Task<RunResult> RunOnHost(Project project, string output, string host)
+        => host == "powershell"
+            ? project.RunOutputWithWindowsPowerShell(output)
+            : project.RunOutput(output);
+
+    private static void AssertRepeatedBytes(byte[] actual, byte value)
+    {
+        Assert.Equal(1024 * 1024, actual.Length);
+        Assert.All(actual, actualValue => Assert.Equal(value, actualValue));
+    }
 
     private async Task AssertProcessRunReturnsNonzeroExitAndSeparateOutput(bool crossVersion)
     {

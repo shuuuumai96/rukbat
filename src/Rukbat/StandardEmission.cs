@@ -496,19 +496,27 @@ internal sealed partial class Emitter
         $start.RedirectStandardError = $true
         $start.CreateNoWindow = $true
         $encoding = [System.Text.UTF8Encoding]::new($false, $true)
-        $start.StandardOutputEncoding = $encoding
-        $start.StandardErrorEncoding = $encoding
         $process = [System.Diagnostics.Process]::new()
         $process.StartInfo = $start
+        $stdoutBytes = $null
+        $stderrBytes = $null
         try {
             if (-not $process.Start()) { throw "Could not start process '$($values[0])'." }
-            $stdoutTask = $process.StandardOutput.ReadToEndAsync()
-            $stderrTask = $process.StandardError.ReadToEndAsync()
+            # Drain raw bytes before decoding. A decoding failure must not stop a pipe reader while
+            # the child is still writing, because then WaitForExit and the child can block each other.
+            $stdoutBytes = [System.IO.MemoryStream]::new()
+            $stderrBytes = [System.IO.MemoryStream]::new()
+            $stdoutTask = $process.StandardOutput.BaseStream.CopyToAsync($stdoutBytes)
+            $stderrTask = $process.StandardError.BaseStream.CopyToAsync($stderrBytes)
             $process.WaitForExit()
-            $stdout = $stdoutTask.GetAwaiter().GetResult()
-            $stderr = $stderrTask.GetAwaiter().GetResult()
+            [void]$stdoutTask.GetAwaiter().GetResult()
+            [void]$stderrTask.GetAwaiter().GetResult()
+            $stdout = $encoding.GetString($stdoutBytes.ToArray())
+            $stderr = $encoding.GetString($stderrBytes.ToArray())
             return ,([object[]]@($process.ExitCode, $stdout, $stderr))
         } finally {
+            if ($null -ne $stdoutBytes) { $stdoutBytes.Dispose() }
+            if ($null -ne $stderrBytes) { $stderrBytes.Dispose() }
             $process.Dispose()
         }
     }
