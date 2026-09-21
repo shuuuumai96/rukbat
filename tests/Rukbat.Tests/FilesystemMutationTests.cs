@@ -29,6 +29,57 @@ public class FilesystemMutationTests : TestBase
     [Theory]
     [InlineData("powershell")]
     [InlineData("pwsh")]
+    public async Task FilesWriteValidatesUtf8BeforeChangingTheDestination(string shell)
+    {
+        using var project = new Project();
+        var existing = project.PathFor("existing.txt");
+        var missing = project.PathFor("missing.txt");
+        var empty = project.PathFor("empty.txt");
+        var original = Encoding.UTF8.GetBytes("known existing contents\n");
+        File.WriteAllBytes(existing, original);
+        project.Write("main.rukbat", $$"""
+            import files
+            import json
+            invalid := json.decode<string>('"\\uD800"')
+            try { files.write('{{RukbatLiteral(existing)}}', invalid) } catch err { print('existing') }
+            try { files.write('{{RukbatLiteral(missing)}}', invalid) } catch err { print('missing') }
+            """);
+
+        var invalidCompiled = project.Compile();
+        Assert.True(invalidCompiled.Success, string.Join("\n", invalidCompiled.Diagnostics));
+        var invalidResult = await RunOnHost(project, invalidCompiled.Output!, shell);
+        Assert.Equal(0, invalidResult.ExitCode);
+        Assert.Equal("existing\nmissing\n", invalidResult.Output);
+        Assert.Equal("", invalidResult.Error);
+        Assert.Equal(original, File.ReadAllBytes(existing));
+        Assert.False(File.Exists(missing));
+
+        project.Write("main.rukbat", $$"""
+            import files
+            files.write('{{RukbatLiteral(existing)}}', 'new contents')
+            files.write('{{RukbatLiteral(empty)}}', 'old')
+            files.write('{{RukbatLiteral(empty)}}', '')
+            """);
+        var validCompiled = project.Compile();
+        Assert.True(validCompiled.Success, string.Join("\n", validCompiled.Diagnostics));
+        var validResult = await RunOnHost(project, validCompiled.Output!, shell);
+        Assert.Equal(0, validResult.ExitCode);
+        Assert.Equal("", validResult.Output);
+        Assert.Equal("", validResult.Error);
+        Assert.Equal(Encoding.UTF8.GetBytes("new contents"), File.ReadAllBytes(existing));
+        Assert.Empty(File.ReadAllBytes(empty));
+    }
+
+    private static Task<RunResult> RunOnHost(Project project, string output, string shell)
+        => shell == "powershell"
+            ? project.RunOutputWithWindowsPowerShell(output)
+            : project.RunOutput(output);
+
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
+    [Theory]
+    [InlineData("powershell")]
+    [InlineData("pwsh")]
     public async Task FilesystemMutationsUseCapturedWorkingDirectoryAndLiteralPaths(string shell)
         => await AssertFilesystemMutationsUseCapturedWorkingDirectoryAndLiteralPaths(shell);
 

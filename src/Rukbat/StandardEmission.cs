@@ -141,7 +141,10 @@ internal sealed partial class Emitter
     }
     'files.write' {
         $encoding = [System.Text.UTF8Encoding]::new($false, $true)
-        [System.IO.File]::WriteAllText((& $__rukbat_resolve_path ([string]$values[0])), [string]$values[1], $encoding)
+        $path = & $__rukbat_resolve_path ([string]$values[0])
+        $text = [string]$values[1]
+        [void]$encoding.GetByteCount($text)
+        [System.IO.File]::WriteAllText($path, $text, $encoding)
         return
     }
     'files.copy' {
