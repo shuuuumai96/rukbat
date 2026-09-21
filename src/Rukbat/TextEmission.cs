@@ -3,6 +3,42 @@ namespace Rukbat;
 internal sealed partial class Emitter
 {
     private const string TextRuntime = """
+    'text.trim' {
+        # Fixed Unicode White_Space set; independent of the host's Unicode tables.
+        $whitespace = '[\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]'
+        return [regex]::Replace([string]$values[0], '\A' + $whitespace + '+|' + $whitespace + '+\z', '')
+    }
+    'text.contains' {
+        return ([string]$values[0]).IndexOf([string]$values[1], [StringComparison]::Ordinal) -ge 0
+    }
+    'text.starts_with' {
+        return ([string]$values[0]).StartsWith([string]$values[1], [StringComparison]::Ordinal)
+    }
+    'text.ends_with' {
+        return ([string]$values[0]).EndsWith([string]$values[1], [StringComparison]::Ordinal)
+    }
+    'text.replace_all' {
+        $search = [string]$values[1]
+        if ($search.Length -eq 0) { throw 'text.replace_all: search must not be empty.' }
+        return ([string]$values[0]).Replace($search, [string]$values[2])
+    }
+    'text.split' {
+        $separator = [string]$values[1]
+        if ($separator.Length -eq 0) { throw 'text.split: separator must not be empty.' }
+        return ,([object[]]([string]$values[0]).Split([string[]]@($separator), [StringSplitOptions]::None))
+    }
+    'text.split_lines' {
+        $value = [string]$values[0]
+        if ($value.Length -eq 0) { return ,([object[]]@()) }
+        $lines = [System.Collections.Generic.List[string]]::new()
+        $lines.AddRange([regex]::Split($value, '\r\n|\r|\n'))
+        # A final line terminator ends the last line; it does not start another one.
+        if ($lines[$lines.Count - 1].Length -eq 0) { $lines.RemoveAt($lines.Count - 1) }
+        return ,([object[]]$lines.ToArray())
+    }
+    'text.join' {
+        return [string]::Join([string]$values[1], [string[]]$values[0])
+    }
     'text.from_int' {
         return ([int]$values[0]).ToString([Globalization.CultureInfo]::InvariantCulture)
     }

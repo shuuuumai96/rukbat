@@ -511,6 +511,10 @@ internal sealed partial class TypeChecker
             ("text", "from_float") => [ValueType.Float],
             ("text", "from_bool") => [ValueType.Bool],
             ("text", "parse_int" or "parse_float" or "parse_bool") => [ValueType.String],
+            ("text", "trim" or "split_lines") => [ValueType.String],
+            ("text", "contains" or "starts_with" or "ends_with" or "split") => [ValueType.String, ValueType.String],
+            ("text", "replace_all") => [ValueType.String, ValueType.String, ValueType.String],
+            ("text", "join") => [ValueType.ArrayOf(ValueType.String), ValueType.String],
             _ => null
         };
         if (parameters is null)
@@ -540,6 +544,8 @@ internal sealed partial class TypeChecker
             ("text", "parse_int") => ValueType.Int,
             ("text", "parse_float") => ValueType.Float,
             ("text", "parse_bool") => ValueType.Bool,
+            ("text", "contains" or "starts_with" or "ends_with") => ValueType.Bool,
+            ("text", "split" or "split_lines") => ValueType.ArrayOf(ValueType.String),
             ("text", _) => ValueType.String,
             _ => ValueType.Error
         };

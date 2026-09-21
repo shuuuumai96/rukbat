@@ -32,6 +32,65 @@ The built-in `print(value)` and `eprint(value)` write to stdout and stderr respe
 
 ## `text`
 
+### Text operations
+
+Use `text.operation(value, ...)` with the value first. All arguments are positional and required.
+Operations return a new value without changing their arguments. There are no option flags or aliases.
+All matching is literal, case-sensitive, ordinal, and independent of the OS culture.
+There is no regular-expression or wildcard interpretation and no Unicode normalization.
+Nullable strings must be narrowed before use; `null` is not an empty string.
+
+| Signature | Example | Result |
+|---|---|---|
+| `text.trim(value: string): string` | `text.trim("  東京  ")` | `"東京"` |
+| `text.contains(value: string, search: string): bool` | `text.contains("接続エラー", "エラー")` | `true` |
+| `text.starts_with(value: string, prefix: string): bool` | `text.starts_with("report.csv", "report")` | `true` |
+| `text.ends_with(value: string, suffix: string): bool` | `text.ends_with("report.csv", ".csv")` | `true` |
+| `text.replace_all(value: string, search: string, replacement: string): string` | `text.replace_all("a-b-c", "-", "_")` | `"a_b_c"` |
+| `text.split(value: string, separator: string): string[]` | `text.split("赤,青,緑", ",")` | `["赤", "青", "緑"]` |
+| `text.split_lines(value: string): string[]` | `text.split_lines("赤\r\n青\n緑")` | `["赤", "青", "緑"]` |
+| `text.join(values: string[], separator: string): string` | `text.join(["赤", "青"], ",")` | `"赤,青"` |
+
+`trim` removes only leading and trailing whitespace. Internal whitespace remains unchanged.
+Its fixed whitespace set is U+0009–U+000D, U+0020, U+0085, U+00A0, U+1680,
+U+2000–U+200A, U+2028, U+2029, U+202F, U+205F, and U+3000.
+This includes tabs, line endings, and full-width spaces. U+180E, U+200B (zero-width space),
+and U+FEFF (BOM) are not removed. Empty or whitespace-only input returns `""`.
+The set is fixed so PowerShell 5.1 and 7 agree regardless of runtime Unicode tables.
+
+`contains`, `starts_with`, and `ends_with` return `true` for an empty search, prefix, or suffix,
+including when `value` is empty. A nonempty search never matches an empty value.
+
+`replace_all` replaces non-overlapping occurrences from left to right. Replacement text is literal
+and is not searched again: replacing `"a"` with `"aa"` in `"a"` returns `"aa"`.
+Replacing `"aa"` with `"b"` in `"aaa"` returns `"ba"`. An empty replacement deletes matches.
+No match returns the original value. An empty `search` raises Error, even for empty input.
+
+`split` treats its entire separator as one literal string, matches from left to right without overlap,
+and preserves all empty fields and whitespace. `text.split("a,,b,", ",")` returns `["a", "", "b", ""]`.
+An absent separator returns `[value]`; empty input returns `[""]`. An empty separator raises Error.
+This is simple delimiter splitting; use `csv.parse` for CSV quoting and escaped fields.
+
+`split_lines` recognizes CRLF as one line ending, and also recognizes standalone LF and CR.
+It removes the line endings while preserving line contents and blank lines. Empty input returns `[]`.
+A final line ending terminates the last line without creating an extra line:
+`"a\n"` returns `["a"]`, `"\n"` returns `[""]`, and `"a\n\n"` returns `["a", ""]`.
+Other Unicode separators, including U+0085, U+2028, and U+2029, remain part of the line.
+
+`join` places the literal separator between elements, never after the last one. It preserves empty
+elements. An empty array returns `""`; one element returns that element; an empty separator concatenates
+the elements directly. For a nonempty separator, joining the result of `split` with that same separator
+reconstructs the original input exactly.
+
+These operations intentionally cover reading, filtering, and rewriting ordinary logs and delimited text.
+`replace_all` states the replacement scope in its name; `split_lines` gives mixed Windows/Unix line endings
+one canonical operation. No new language syntax, overloads, boolean mode flags, string methods, or regex
+API are introduced. Character indexing, length, slicing, and case conversion are outside this addition.
+
+See [the log-filter example](../examples/filter-errors.rukbat) for a procedural file-processing workflow.
+
+### Conversion and parsing
+
 | Signature | Meaning |
 |---|---|
 | `text.from_int(value: int): string` | Signed decimal representation. |

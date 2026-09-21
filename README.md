@@ -254,6 +254,23 @@ Tests cover syntax, types, diagnostic locations, and the CLI, and execute genera
 Both `powershell` and `pwsh` must be on PATH. Execution tests are never silently skipped.
 Coverage includes struct value copies and `self` updates, explicit returns, scopes, PowerShell type boundaries, shared module initialization, and execution without source files.
 
+## Filtering a text log
+
+The [log-filter example](examples/filter-errors.rukbat) reads a UTF-8 log, splits Windows or Unix line
+endings, trims each line, and saves lines starting with the case-sensitive prefix `ERROR:`.
+
+```powershell
+.\rukbat.cmd run examples/filter-errors.rukbat -- application.log errors.log
+```
+
+The output uses CRLF between lines, with no trailing newline or BOM. No matching lines produce an empty
+file. An existing output file is replaced; its parent directory must exist. Relative paths use the
+caller's working directory. Success exits `0`, an incorrect argument count exits `2`, and a read/write
+failure exits `1` with a diagnostic on stderr.
+
+The `text` module also provides literal `contains`, `ends_with`, `replace_all`, and `split` operations.
+See the [text API contracts and examples](docs/STDLIB.md#text).
+
 ## Batch validation acceptance example
 
 The implemented [batch validation acceptance example](examples/batch-check/main.rukbat) follows the [CLI acceptance scenario](docs/CLI_ACCEPTANCE.md). Its end-to-end tests cover the contract from configuration through checker execution and report output.
