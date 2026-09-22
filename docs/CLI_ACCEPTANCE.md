@@ -42,9 +42,9 @@ Example configuration (the checker executable is illustrative):
 ```
 
 `directory`, `pattern`, and `executable` must be nonempty. Decode with `json.decode<Config>` and its existing strict type rules.
-For each matching file, copy the configured arguments, append the file's absolute path as one argument, and call `process.run`.
+For each matching file, copy the configured arguments, append the file's absolute path as one argument, and call `process.run` with a fixed 30-second timeout.
 Do not build a shell command string or interpolate the path into code. Run checkers sequentially.
-A checker exit code of zero means that file passed. Any nonzero checker code means it failed, but does not stop checks of the remaining files.
+A checker exit code of zero means that file passed. Any nonzero checker code means it failed, but does not stop checks of the remaining files. A timeout is an operational Error: Rukbat terminates the directly started checker process, stops the run, and does not guarantee termination of checker descendants.
 
 ## Report and streams
 

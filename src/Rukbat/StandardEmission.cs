@@ -438,6 +438,10 @@ internal sealed partial class Emitter
 
     private const string ProcessRuntime = """
     'process.run' {
+        $timeout = $values[2]
+        if ($null -ne $timeout -and [int]$timeout -le 0) {
+            throw 'process timeout must be greater than zero.'
+        }
         $quoteArgument = {
             param([string]$argument)
             $builder = [System.Text.StringBuilder]::new()
@@ -511,6 +515,27 @@ internal sealed partial class Emitter
             $stderrBytes = [System.IO.MemoryStream]::new()
             $stdoutTask = $process.StandardOutput.BaseStream.CopyToAsync($stdoutBytes)
             $stderrTask = $process.StandardError.BaseStream.CopyToAsync($stderrBytes)
+            $completed = if ($null -eq $timeout) {
+                $process.WaitForExit()
+                $true
+            } else {
+                $process.WaitForExit([int]$timeout)
+            }
+            if (-not $completed) {
+                try {
+                    $process.Kill()
+                } catch [System.InvalidOperationException] {
+                    if (-not $process.HasExited) { throw }
+                }
+                if (-not $process.WaitForExit(5000)) {
+                    throw "process timed out after $timeout ms and the root process did not terminate."
+                }
+                $process.StandardOutput.Close()
+                $process.StandardError.Close()
+                try { [void][System.Threading.Tasks.Task]::WaitAll(
+                    [System.Threading.Tasks.Task[]]@($stdoutTask, $stderrTask), 1000) } catch [System.AggregateException] {}
+                throw "process timed out after $timeout ms."
+            }
             $process.WaitForExit()
             [void]$stdoutTask.GetAwaiter().GetResult()
             [void]$stderrTask.GetAwaiter().GetResult()

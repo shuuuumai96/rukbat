@@ -66,9 +66,9 @@ public class DeploymentTests : TestBase
             names := files.list('.', '*.txt')
             print(names.length)
             print(files.read(path.join([path.script_dir(), 'config.json'])))
-            result: process.Result = process.run('powershell', ['-NoLogo', '-NoProfile', '-Command', '[Console]::Write([Environment]::CurrentDirectory)'])
+            result: process.Result = process.run('powershell', ['-NoLogo', '-NoProfile', '-Command', '[Console]::Write([Environment]::CurrentDirectory)'], null)
             print(result.stdout)
-            relative: process.Result = process.run('{{SourcePath(Path.GetRelativePath(working, windowsShell))}}', ['-NoLogo', '-NoProfile', '-Command', '[Console]::Write([Environment]::CurrentDirectory)'])
+            relative: process.Result = process.run('{{SourcePath(Path.GetRelativePath(working, windowsShell))}}', ['-NoLogo', '-NoProfile', '-Command', '[Console]::Write([Environment]::CurrentDirectory)'], null)
             print(relative.stdout)
             """);
         var compiled = new Compiler().CompileFile(project.PathFor("source/main.rukbat"));

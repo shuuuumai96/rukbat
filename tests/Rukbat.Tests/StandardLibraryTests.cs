@@ -101,6 +101,121 @@ public class StandardLibraryTests : TestBase
 
     [Trait("Category", "CrossVersion")]
     [Trait("Category", "Runtime")]
+    [Fact]
+    public async Task ProcessRunEnforcesTimeoutAndTerminatesRootOnBothHosts()
+    {
+        using var project = new Project();
+        project.Write("slow.ps1", "param([string]$marker)\n[IO.File]::WriteAllText($marker, [string]$PID)\nStart-Sleep -Seconds 10");
+        var fixture = project.PathFor("slow.ps1").Replace("\\", "\\\\");
+        foreach (var host in new[] { "pwsh", "powershell" })
+        {
+            var marker = project.PathFor(host + ".pid");
+            project.Write("main.rukbat", $$"""
+                import process
+                try { process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}', '{{marker.Replace("\\", "\\\\")}}'], 3000) }
+                catch err { print(err.message) }
+                """);
+            var compiled = project.Compile();
+            Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+            var result = await RunOnHost(project, compiled.Output!, host);
+            Assert.Equal(0, result.ExitCode);
+            Assert.Contains("process timed out after 3000 ms", result.Output);
+            var pid = int.Parse(File.ReadAllText(marker));
+            Assert.Throws<ArgumentException>(() => System.Diagnostics.Process.GetProcessById(pid));
+        }
+    }
+
+    [Trait("Category", "Runtime")]
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task ProcessRunRejectsNonpositiveTimeoutBeforeLaunch(int timeout)
+    {
+        using var project = new Project();
+        var marker = project.PathFor("started.txt").Replace("\\", "\\\\");
+        project.Write("main.rukbat", $"import process\ntry {{ process.run('powershell', ['-Command', '[IO.File]::WriteAllText(\"{marker}\", \"started\")'], {timeout}) }} catch err {{ print(err.message) }}");
+        var result = await project.Run();
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("timeout must be greater than zero", result.Output);
+        Assert.False(File.Exists(project.PathFor("started.txt")));
+    }
+
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
+    [Fact]
+    public async Task ProcessRunTimeoutDoesNotDeadlockWhileDrainingBothStreams()
+    {
+        using var project = new Project();
+        project.Write("noisy.ps1", "$text = 'x' * 4096\nwhile ($true) { [Console]::Out.Write($text); [Console]::Error.Write($text) }");
+        var fixture = project.PathFor("noisy.ps1").Replace("\\", "\\\\");
+        project.Write("main.rukbat", $$"""
+            import process
+            try { process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}'], 500) }
+            catch err { print(err.message) }
+            """);
+        var compiled = project.Compile();
+        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+        foreach (var host in new[] { "pwsh", "powershell" })
+        {
+            var result = await RunOnHost(project, compiled.Output!, host);
+            Assert.Equal(0, result.ExitCode);
+            Assert.Contains("process timed out after 500 ms", result.Output);
+        }
+    }
+
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
+    [Fact]
+    public async Task ProcessRunTimeoutReturnsWhenDescendantRetainsOutputHandles()
+    {
+        using var project = new Project();
+        project.Write("descendant.ps1", "param([string]$marker)\n[IO.File]::WriteAllText($marker, [string]$PID)\nStart-Sleep -Seconds 10");
+        project.Write("parent.ps1", "param([string]$childScript, [string]$marker)\n$arguments = @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', ('\"' + $childScript + '\"'), ('\"' + $marker + '\"'))\n$child = Start-Process -FilePath 'powershell' -ArgumentList $arguments -NoNewWindow -PassThru\n$child.WaitForExit()");
+        var parent = project.PathFor("parent.ps1").Replace("\\", "\\\\");
+        var descendant = project.PathFor("descendant.ps1").Replace("\\", "\\\\");
+        foreach (var host in new[] { "pwsh", "powershell" })
+        {
+            var marker = project.PathFor(host + "-descendant.pid");
+            project.Write("main.rukbat", $$"""
+                import process
+                try { process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{parent}}', '{{descendant}}', '{{marker.Replace("\\", "\\\\")}}'], 3000) }
+                catch err { print(err.message) }
+                """);
+            var compiled = project.Compile();
+            Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+
+            int? descendantPid = null;
+            try
+            {
+                var result = await RunOnHost(project, compiled.Output!, host);
+                Assert.Equal(0, result.ExitCode);
+                Assert.Contains("process timed out after 3000 ms", result.Output);
+                descendantPid = int.Parse(File.ReadAllText(marker));
+            }
+            finally
+            {
+                if (descendantPid is null && File.Exists(marker))
+                {
+                    descendantPid = int.Parse(File.ReadAllText(marker));
+                }
+                if (descendantPid is int pid)
+                {
+                    try
+                    {
+                        using var process = System.Diagnostics.Process.GetProcessById(pid);
+                        process.Kill();
+                        process.WaitForExit(5000);
+                    }
+                    catch (ArgumentException)
+                    {
+                    }
+                }
+            }
+        }
+    }
+
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
     [Theory]
     [InlineData("pwsh")]
     [InlineData("powershell")]
@@ -121,7 +236,7 @@ public class StandardLibraryTests : TestBase
         project.Write("main.rukbat", $$"""
             import files
             import process
-            result := process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}'])
+            result := process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}'], null)
             files.write('{{stdoutPath}}', result.stdout)
             files.write('{{stderrPath}}', result.stderr)
             print(result.exit_code)
@@ -155,7 +270,7 @@ public class StandardLibraryTests : TestBase
         var fixture = project.PathFor("invalid-output.ps1").Replace("\\", "\\\\");
         project.Write("main.rukbat", $$"""
             import process
-            try { process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}']) }
+            try { process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}'], null) }
             catch err { print('caught') }
             """);
 
@@ -199,7 +314,7 @@ public class StandardLibraryTests : TestBase
         project.Write("main.rukbat", $$"""
             import files
             import process
-            result := process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}'])
+            result := process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}'], null)
             files.write('{{stdoutPath}}', result.stdout)
             files.write('{{stderrPath}}', result.stderr)
             print(result.exit_code)
@@ -234,8 +349,8 @@ public class StandardLibraryTests : TestBase
             import process
             result: process.Result = process.run('powershell', [
                 '-NoLogo', '-NoProfile', '-Command',
-                '[Console]::Out.Write("out"); [Console]::Error.Write("err"); exit 7'
-            ])
+                'Start-Sleep -Milliseconds 100; [Console]::Out.Write("out"); [Console]::Error.Write("err"); exit 7'
+            ], 5000)
             print(result.exit_code)
             print(result.stdout)
             print(result.stderr)
@@ -284,7 +399,7 @@ public class StandardLibraryTests : TestBase
     public async Task ProcessLaunchFailureIsAnRukbatError()
     {
         using var project = new Project();
-        project.Write("main.rukbat", "import process\nprocess.run('missing-rukbat-executable', [])");
+        project.Write("main.rukbat", "import process\nprocess.run('missing-rukbat-executable', [], null)");
         var result = await project.Run();
         Assert.NotEqual(0, result.ExitCode);
         Assert.Contains("missing-rukbat-executable", result.Error);
@@ -295,7 +410,8 @@ public class StandardLibraryTests : TestBase
     [InlineData("import files\nfiles.read(1)")]
     [InlineData("import path\npath.join('one')")]
     [InlineData("import env\nenv.set('x', null)")]
-    [InlineData("import process\nprocess.run('x', [1])")]
+    [InlineData("import process\nprocess.run('x', [1], null)")]
+    [InlineData("import process\nprocess.run('x', [])")]
     [InlineData("import json as j")]
     [InlineData("import './json.rukbat' as json")]
     public void RejectsInvalidStandardLibraryCallsAndImports(string source)

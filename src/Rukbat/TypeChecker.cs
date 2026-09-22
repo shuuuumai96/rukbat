@@ -506,7 +506,7 @@ internal sealed partial class TypeChecker
             ("csv", "parse") => [ValueType.String],
             ("env", "get") or ("env", "remove") => [ValueType.String],
             ("env", "set") => [ValueType.String, ValueType.String],
-            ("process", "run") => [ValueType.String, ValueType.ArrayOf(ValueType.String)],
+            ("process", "run") => [ValueType.String, ValueType.ArrayOf(ValueType.String), ValueType.NullableOf(ValueType.Int)],
             ("text", "from_int") => [ValueType.Int],
             ("text", "from_float") => [ValueType.Float],
             ("text", "from_bool") => [ValueType.Bool],

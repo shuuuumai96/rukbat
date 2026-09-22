@@ -210,9 +210,11 @@ struct Result {
 
 | Signature | Meaning | Failure |
 |---|---|---|
-| `process.run(executable: string, arguments: string[]): process.Result` | Starts an executable directly, waits for it, and captures standard output and standard error separately. | Failure to launch, capture, decode, or wait for the process causes Error. |
+| `process.run(executable: string, arguments: string[], timeout_ms: int?): process.Result` | Starts an executable directly, waits for it, and captures standard output and standard error separately. `null` waits without a deadline; a positive value is a millisecond deadline. | A nonpositive timeout or failure to launch, capture, decode, wait, or finish before the deadline causes Error. |
 
 The API does not interpret a shell command string. The executable and each argument are separate values. A nonzero exit code is a normal `Result`, not an Rukbat Error. Output is decoded as strict UTF-8 and is returned exactly, including any trailing newline; zero output becomes `""`. Standard output and standard error are drained concurrently to avoid pipe deadlocks.
+
+A nonpositive timeout is rejected before the child is launched. A timeout is measured from successful process start until process exit. On timeout, Rukbat terminates the directly started root process and raises Error; it does not return partial output. Descendant-process termination is not guaranteed. Timeout cleanup is bounded even when a descendant retains inherited output handles.
 
 Child processes start in the captured entry working directory. Executable paths containing a separator or drive prefix are resolved against that directory. Bare executable names are searched in the captured directory, then the current process PATH; an extensionless name uses `.exe`. Relative PATH entries use the captured directory as well. Each Rukbat string argument corresponds to exactly one argument as observed by the child process's standard C/C++ `argv` parser. The generated code handles Windows command-line quoting and escaping to preserve this guarantee. Rukbat does not guess which strings represent paths. In v0.1, the executable must be a directly launchable binary such as `.exe`. Batch files (`.cmd`, `.bat`) are not supported because their argument-passing rules cannot preserve the one-argument-per-string contract. Executable or environment changes remain the caller's responsibility.
 

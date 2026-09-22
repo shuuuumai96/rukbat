@@ -233,6 +233,8 @@ The same catch handles PowerShell errors and type-import failures.
 Rethrowing with `throw err` preserves the original location.
 Unhandled errors report the Rukbat file, line, and message on stderr and terminate with exit code `1`.
 For external executables called directly through `powershell<T>`, exit code `0` means success and any other code causes Error.
+
+The `process.run(executable, arguments, timeout_ms)` standard API captures stdout and stderr and treats a nonzero child exit code as a normal result. Pass a positive millisecond timeout or `null` for no deadline. A nonpositive timeout fails before launch. On timeout Rukbat terminates the directly started process and raises Error; descendant-process termination is not guaranteed.
 The initial specification allows one catch clause and has no typed catches, `finally`, or `throws` declarations.
 
 ```powershell

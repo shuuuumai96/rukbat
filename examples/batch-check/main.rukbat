@@ -43,7 +43,7 @@ try {
     for file in matched_files {
         checker_arguments: string[] = configuration.arguments
         checker_arguments.append(file)
-        result: process.Result = process.run(configuration.executable, checker_arguments)
+        result: process.Result = process.run(configuration.executable, checker_arguments, 30000)
         results.append(CheckResult {file: file, exit_code: result.exit_code, stdout: result.stdout, stderr: result.stderr})
         if result.exit_code != 0 {
             has_failed_check = true
