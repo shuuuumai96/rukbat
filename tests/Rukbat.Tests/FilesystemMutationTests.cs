@@ -53,6 +53,7 @@ public class FilesystemMutationTests : TestBase
         Assert.Equal("", invalidResult.Error);
         Assert.Equal(original, File.ReadAllBytes(existing));
         Assert.False(File.Exists(missing));
+        Assert.Empty(Directory.EnumerateFiles(project.DirectoryPath, ".rukbat-write-*"));
 
         project.Write("main.rukbat", $$"""
             import files
@@ -68,6 +69,7 @@ public class FilesystemMutationTests : TestBase
         Assert.Equal("", validResult.Error);
         Assert.Equal(Encoding.UTF8.GetBytes("new contents"), File.ReadAllBytes(existing));
         Assert.Empty(File.ReadAllBytes(empty));
+        Assert.Empty(Directory.EnumerateFiles(project.DirectoryPath, ".rukbat-write-*"));
     }
 
     private static Task<RunResult> RunOnHost(Project project, string output, string shell)
@@ -367,6 +369,21 @@ public class FilesystemMutationTests : TestBase
 
         var files = Success("import files\nfiles.remove('x')");
         Assert.Contains("'files.copy'", files);
+        Assert.Contains("[System.IO.File]::Replace($tempPath, $path, $noBackup)", files);
+        Assert.Contains("[System.IO.FileMode]::CreateNew", files);
+        Assert.DoesNotContain("[System.IO.File]::WriteAllText($path", files);
         Assert.DoesNotContain("'directories.remove_all'", files);
+    }
+
+    [Trait("Category", "Unit")]
+    [Fact]
+    public void FilesWriteEmitsSameDirectoryStagedReplacement()
+    {
+        var output = Success("import files\nfiles.write('report.txt', 'contents')");
+
+        Assert.Contains("[System.IO.Path]::Combine($directory, '.rukbat-write-' + [System.IO.Path]::GetRandomFileName())", output);
+        Assert.Contains("[System.IO.File]::Open($candidate, [System.IO.FileMode]::CreateNew", output);
+        Assert.Contains("[System.IO.File]::Move($tempPath, $path)", output);
+        Assert.Contains("[System.IO.File]::Delete($tempPath)", output);
     }
 }

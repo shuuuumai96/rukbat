@@ -63,7 +63,7 @@ Each `file` is an absolute path. Preserve each checker's exit code and captured 
 Report order follows enumeration order and is not guaranteed. Tests compare records by path rather than relying on order.
 No matches produce `[]` without launching a checker. One match still produces an array.
 Save only after all checks finish, using `files.write` and `json.encode`: UTF-8 without a BOM or trailing newline.
-An existing report is replaced on completed runs, including runs with failed checks. Replacement is not atomic under the current `files.write` contract.
+An existing report is replaced on completed runs, including runs with failed checks. `files.write` stages complete report contents in the report directory before the final replacement; a failure before that step leaves an existing report unchanged. The final filesystem replacement has no durability or universal atomicity guarantee.
 
 On a normal run, stdout is empty; checker streams belong only in the report. Operational errors produce an English diagnostic through `eprint`.
 
@@ -71,7 +71,7 @@ On a normal run, stdout is empty; checker streams belong only in the report. Ope
 |---|---|---|
 | `0` | All checks passed, no files matched, or help was requested. | Saved for a normal run; untouched for help. |
 | `1` | At least one checker returned nonzero. | Saved with all completed results. |
-| `2` | Invalid arguments/configuration, enumeration failure, process API Error, or report-write failure. | No write before the final save; a save failure can leave partial output. |
+| `2` | Invalid arguments/configuration, enumeration failure, process API Error, or report-write failure. | No write before the final save; a pre-replacement save failure leaves an existing report unchanged. |
 
 Enumeration completes before starting any checker. A process API Error stops the run rather than inventing a checker exit code or writing a partial report.
 Checker side effects cannot be rolled back. This example is intended for read-only validators; executable selection remains the caller's responsibility.
