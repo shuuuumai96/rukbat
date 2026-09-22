@@ -21,7 +21,7 @@ public class NumericNullableTests : TestBase
     [InlineData("fn show(x: string?): void { if x == null { return }; print(x) }; show(null); show('ok')", "ok")]
     [InlineData("name: string? = null; if name == null { name = 'Taro' }; print(name)", "Taro")]
     [InlineData("xs: string?[] = ['one', null]; first: string? = xs[0]; if first != null { print(first) }; print(xs[1] == null); ys: string[]? = ['x']; if ys != null { print(ys.length) }", "one\nTrue\n1")]
-    [InlineData("struct U { name: string?; score: float? }; u: U = U(name: null, score: 1); print(u.name == null); score: float? = u.score; if score != null { print(score) }", "True\n1")]
+    [InlineData("struct U { name: string?; score: float? }; u: U = U {name: null, score: 1}; print(u.name == null); score: float? = u.score; if score != null { print(score) }", "True\n1")]
     [InlineData("fn values(ok: bool): string[]? { if ok { return ['x'] }; return null }; a: string[]? = values(true); if a != null { print(a[0]) }; b: string[]? = values(false); print(b == null)", "x\nTrue")]
     [InlineData("print(1 == 1.0); print(1 < 1.5)", "True\nTrue")]
     [InlineData("fn show(x: string?): void { if x != null { try { print('try') } catch err { print(x) } } }; show('ok')", "try")]

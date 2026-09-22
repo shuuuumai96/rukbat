@@ -86,7 +86,8 @@ internal sealed record Call(
     string Name,
     List<Argument> Arguments,
     ValueType? PowerShellType = null,
-    ValueType? TypeArgument = null) : Expression(Token);
+    ValueType? TypeArgument = null,
+    bool IsStructLiteral = false) : Expression(Token);
 
 internal sealed class Source(string text, string path)
 {

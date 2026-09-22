@@ -97,7 +97,7 @@ public class DeploymentTests : TestBase
     {
         using var project = new Project();
         var imported = "source/" + name;
-        project.Write(imported, "fn fail(): void {\n    throw Error(message: 'origin')\n}");
+        project.Write(imported, "fn fail(): void {\n    throw Error {message: 'origin'}\n}");
         project.Write("source/main.rukbat", $"import '{import}' as service\ntry {{ service.fail() }} catch err {{ throw err }}");
         var compiled = new Compiler().CompileFile(project.PathFor("source/main.rukbat"));
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));

@@ -3,4 +3,4 @@ struct User {
     age: int
 }
 
-user: User = User(name: "Taro", age: "30")
+user: User = User {name: "Taro", age: "30"}

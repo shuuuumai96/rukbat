@@ -8,14 +8,14 @@ public class AppendTests : TestBase
     [Theory]
     [InlineData("names: string[] = []; names.append('Taro'); names.append('Hanako'); print(names.length); print(names[0]); print(names[1])", "2\nTaro\nHanako")]
     [InlineData("matrix: int[][] = [[]]; matrix[0].append(1); matrix[0].append(2); print(matrix[0].length); print(matrix[0][1])", "2\n2")]
-    [InlineData("struct User { names: string[] }; users: User[] = [User(names: [])]; users[0].names.append('Taro'); print(users[0].names[0])", "Taro")]
-    [InlineData("struct User { tags: string[] }; struct Group { users: User[] }; groups: Group[] = [Group(users: [User(tags: [])])]; groups[0].users[0].tags.append('admin'); print(groups[0].users[0].tags[0])", "admin")]
+    [InlineData("struct User { names: string[] }; users: User[] = [User {names: []}]; users[0].names.append('Taro'); print(users[0].names[0])", "Taro")]
+    [InlineData("struct User { tags: string[] }; struct Group { users: User[] }; groups: Group[] = [Group {users: [User {tags: []}]}]; groups[0].users[0].tags.append('admin'); print(groups[0].users[0].tags[0])", "admin")]
     [InlineData("row: int[] = [1]; matrix: int[][] = []; matrix.append(row); row[0] = 2; print(matrix[0][0]); copy: int[][] = matrix; copy[0].append(3); print(matrix[0].length); print(copy[0].length)", "1\n1\n2")]
     [InlineData("fn added(values: int[]): int[] { values.append(2); return values }; original: int[] = [1]; result: int[] = added(original); print(original.length); print(result.length)", "1\n2")]
     [InlineData("items: string[] = ['a', 'b']; count: int = 0; for item in items { count = count + 1; items.append('x') }; print(count); print(items.length)", "2\n4")]
     [InlineData("values: string?[] = [null]; values.append('x'); values.append(null); item: string? = values[1]; print(values.length); print(values[0] == null); if item != null { print(item) }; print(values[2] == null)", "3\nTrue\nx\nTrue")]
     [InlineData("values: int[]? = []; if values != null { values.append(1); print(values[0]) }", "1")]
-    [InlineData("struct Box { values: int[]; fn add(): void { self.values.append(1) } }; box: Box = Box(values: []); box.add(); print(box.values[0])", "1")]
+    [InlineData("struct Box { values: int[]; fn add(): void { self.values.append(1) } }; box: Box = Box {values: []}; box.add(); print(box.values[0])", "1")]
     public async Task AppendsToMutableValueArrays(string source, string expected)
     {
         using var project = new Project();
@@ -39,7 +39,7 @@ public class AppendTests : TestBase
                 calls = calls + 1
                 return 0
             }
-            groups: Group[] = [Group(users: [User(tags: [])])]
+            groups: Group[] = [Group {users: [User {tags: []}]}]
             groups[next(1)].users[next(2)].tags.append('admin')
             print(calls)
             print(groups[0].users[0].tags[0])

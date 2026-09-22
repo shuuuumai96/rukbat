@@ -1,5 +1,5 @@
 import "../models/user.rukbat" as model
 
 fn load(): model.User {
-    return model.User(name: "Taro")
+    return model.User { name: "Taro" }
 }

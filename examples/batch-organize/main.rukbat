@@ -13,52 +13,52 @@ fn usage(): string {
 arguments: string[] = args()
 try {
     if arguments.length != 1 || arguments[0] == "" {
-        throw Error(message: "Expected exactly one non-empty plan path.\n" + usage())
+        throw Error {message: "Expected exactly one non-empty plan path.\n" + usage()}
     }
     rows: string[][] = csv.parse(files.read(arguments[0]))
     if rows.length == 0 {
-        throw Error(message: "CSV record 1: expected header source,destination.")
+        throw Error {message: "CSV record 1: expected header source,destination."}
     }
     header: string[] = rows[0]
     if header.length != 2 || header[0] != "source" || header[1] != "destination" {
-        throw Error(message: "CSV record 1: expected exactly source,destination header.")
+        throw Error {message: "CSV record 1: expected exactly source,destination header."}
     }
     entries: MoveEntry[] = []
     record: int = 1
     while record < rows.length {
         row: string[] = rows[record]
         if row.length != 2 {
-            throw Error(message: "CSV record " + text.from_int(record + 1) + ": expected exactly 2 fields.")
+            throw Error {message: "CSV record " + text.from_int(record + 1) + ": expected exactly 2 fields."}
         }
         if row[0] == "" {
-            throw Error(message: "CSV record " + text.from_int(record + 1) + ": source is empty.")
+            throw Error {message: "CSV record " + text.from_int(record + 1) + ": source is empty."}
         }
         if row[1] == "" {
-            throw Error(message: "CSV record " + text.from_int(record + 1) + ": destination is empty.")
+            throw Error {message: "CSV record " + text.from_int(record + 1) + ": destination is empty."}
         }
-        entries.append(MoveEntry(source: row[0], destination: row[1]))
+        entries.append(MoveEntry {source: row[0], destination: row[1]})
         record = record + 1
     }
     seen_sources: string[] = []
     seen_destinations: string[] = []
     for entry in entries {
         if !files.exists(entry.source) {
-            throw Error(message: "Source file does not exist: " + entry.source)
+            throw Error {message: "Source file does not exist: " + entry.source}
         }
         if files.exists(entry.destination) || directories.exists(entry.destination) {
-            throw Error(message: "Destination already exists: " + entry.destination)
+            throw Error {message: "Destination already exists: " + entry.destination}
         }
         if path.equal(entry.source, entry.destination) {
-            throw Error(message: "Source and destination must differ: " + entry.source)
+            throw Error {message: "Source and destination must differ: " + entry.source}
         }
         for seen in seen_sources {
             if path.equal(entry.source, seen) {
-                throw Error(message: "Duplicate source: " + entry.source)
+                throw Error {message: "Duplicate source: " + entry.source}
             }
         }
         for seen in seen_destinations {
             if path.equal(entry.destination, seen) {
-                throw Error(message: "Duplicate destination: " + entry.destination)
+                throw Error {message: "Duplicate destination: " + entry.destination}
             }
         }
         parent: string = path.parent(entry.destination)

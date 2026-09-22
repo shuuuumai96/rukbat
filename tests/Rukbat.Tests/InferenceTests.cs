@@ -7,7 +7,7 @@ public class InferenceTests : TestBase
     [InlineData("process.Result", "process.run('powershell', ['-NoLogo', '-NoProfile', '-Command', '[Console]::Write(42); exit 7'])", "print(value.exit_code); print(value.stdout)")]
     [InlineData("Local", "make()", "print(value.number)")]
     [InlineData("remote.Item", "remote.make()", "print(value.number)")]
-    [InlineData("remote.Item", "remote.Item(number: 42)", "print(value.number)")]
+    [InlineData("remote.Item", "remote.Item {number: 42}", "print(value.number)")]
     [InlineData("remote.Item[]", "remote.many()", "print(value[0].number)")]
     [InlineData("remote.Item?", "remote.maybe()", "if value != null { print(value.number) }")]
     [InlineData("int", "integer()", "print(value)")]
@@ -48,7 +48,7 @@ public class InferenceTests : TestBase
         using var project = new Project();
         project.Write("model.rukbat", """
             struct Item { number: int }
-            fn make(): Item { return Item(number: 42) }
+            fn make(): Item { return Item {number: 42} }
             fn many(): Item[] { return [make()] }
             fn maybe(): Item? { return make() }
             """);
@@ -56,7 +56,7 @@ public class InferenceTests : TestBase
             import process
             import "./model.rukbat" as remote
             struct Local { number: int }
-            fn make(): Local { return Local(number: 42) }
+            fn make(): Local { return Local {number: 42} }
             fn integer(): int { return 42 }
             fn decimal_value(): float { return 1.5 }
             fn boolean(): bool { return true }
@@ -80,7 +80,7 @@ public class InferenceTests : TestBase
         using var project = new Project();
         project.Write("model.rukbat", """
             struct Item { number: int; fn read(): int { return self.number } }
-            fn make(): Item { return Item(number: 42) }
+            fn make(): Item { return Item {number: 42} }
             """);
         project.Write("service.rukbat", """
             import "./model.rukbat" as model
@@ -117,7 +117,7 @@ public class InferenceTests : TestBase
     public void InferenceDoesNotConfuseSameNamedStructsFromDifferentModules()
     {
         using var project = new Project();
-        project.Write("left.rukbat", "struct Item { n: int }; fn make(): Item { return Item(n: 1) }");
+        project.Write("left.rukbat", "struct Item { n: int }; fn make(): Item { return Item {n: 1} }");
         project.Write("right.rukbat", "struct Item { n: int }");
         project.Write("main.rukbat", """
             import "./left.rukbat" as left

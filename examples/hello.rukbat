@@ -9,10 +9,10 @@ struct User {
     }
 }
 
-user := User(
+user := User {
     name: "Taro",
     age: 30
-)
+}
 
 result := math.add(user.age, 2)
 print(user.name)

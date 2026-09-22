@@ -20,7 +20,7 @@ public class JsonTests : TestBase
     [InlineData("x: string? = json.decode<string?>('null'); print(x == null)", "True")]
     [InlineData("xs: string?[] = json.decode<string?[]>('[\"a\",null]'); first: string? = xs[0]; if first != null { print(first) }; print(xs[1] == null)", "a\nTrue")]
     [InlineData("struct U { name: string; nickname: string?; score: float }; u: U = json.decode<U>('{\"name\":\"Taro\",\"nickname\":null,\"score\":12.5,\"extra\":1}'); print(u.name); print(u.nickname == null); print(u.score)", "Taro\nTrue\n12.5")]
-    [InlineData("struct U { name: string; values: int[] }; u: U = U(name: 'A', values: [1,2]); print(json.encode(u))", "{\"name\":\"A\",\"values\":[1,2]}")]
+    [InlineData("struct U { name: string; values: int[] }; u: U = U {name: 'A', values: [1,2]}; print(json.encode(u))", "{\"name\":\"A\",\"values\":[1,2]}")]
     [InlineData("x: string? = null; print(json.encode(x)); print(json.encode(['a\\n\"b']))", "null\n[\"a\\n\\\"b\"]")]
     public async Task EncodesAndDecodesTypedJson(string source, string expected)
     {

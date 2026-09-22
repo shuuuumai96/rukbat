@@ -28,10 +28,10 @@ struct User {
     }
 }
 
-user: User = User(
+user: User = User {
     name: "Taro",
     age: 30
-)
+}
 
 result: int = math.add(user.age, 2)
 print(user.name)
@@ -223,7 +223,7 @@ Use `try / catch / throw` with the built-in `Error`, which has a `message: strin
 
 ```rukbat
 try {
-    throw Error(message: "Operation failed")
+    throw Error {message: "Operation failed"}
 } catch err {
     print(err.message)
 }

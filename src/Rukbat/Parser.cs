@@ -227,12 +227,12 @@ internal sealed class Parser(Source source, List<Token> tokens)
         {
             var item = Identifier();
             Expect("in");
-            var items = Expression();
+            var items = Expression(allowStructLiteral: false);
             return new For(item, items, Block());
         }
         if (Match("while"))
         {
-            return new While(token, Expression(), Block());
+            return new While(token, Expression(allowStructLiteral: false), Block());
         }
         if (Match("break") || Match("continue"))
         {
@@ -287,7 +287,7 @@ internal sealed class Parser(Source source, List<Token> tokens)
 
     private Conditional ConditionalStatement(Token token)
     {
-        var condition = Expression();
+        var condition = Expression(allowStructLiteral: false);
         var then = Block();
         var endOfThen = position;
 
@@ -326,22 +326,22 @@ internal sealed class Parser(Source source, List<Token> tokens)
         _ => 0
     };
 
-    private Expression Expression(int minimum = 1)
+    private Expression Expression(bool allowStructLiteral = true, int minimum = 1)
     {
-        var left = Primary();
+        var left = Primary(allowStructLiteral);
         while (Precedence(Current.Text) >= minimum)
         {
             var op = Take();
             NewLines();
             // Consume only stronger operators on the right, keeping equal precedence left-associative.
-            left = new Binary(op, left, Expression(Precedence(op.Text) + 1));
+            left = new Binary(op, left, Expression(allowStructLiteral, Precedence(op.Text) + 1));
         }
         return left;
     }
 
-    private Expression Primary()
+    private Expression Primary(bool allowStructLiteral = true)
     {
-        var expression = Atom();
+        var expression = Atom(allowStructLiteral);
         while (Current.Text is "." or "[")
         {
             if (Match("."))
@@ -357,6 +357,7 @@ internal sealed class Parser(Source source, List<Token> tokens)
                 else
                 {
                     expression = Current.Text == "(" ? new Call(member, expression, member.Text, Arguments())
+                        : allowStructLiteral && Current.Text == "{" ? new Call(member, expression, member.Text, StructArguments(), IsStructLiteral: true)
                         : new Member(member, expression, member.Text);
                 }
             }
@@ -373,7 +374,7 @@ internal sealed class Parser(Source source, List<Token> tokens)
         return expression;
     }
 
-    private Expression Atom()
+    private Expression Atom(bool allowStructLiteral = true)
     {
         var token = Current;
         if (Current.Text is "-" or "+" or "!")
@@ -385,7 +386,7 @@ internal sealed class Parser(Source source, List<Token> tokens)
                 Take();
                 return new Literal(token, int.MinValue);
             }
-            return new Unary(token, Primary());
+            return new Unary(token, Primary(allowStructLiteral));
         }
         if (Match("["))
         {
@@ -465,15 +466,23 @@ internal sealed class Parser(Source source, List<Token> tokens)
         }
 
         var name = Identifier();
-        return Current.Text == "(" ? new Call(name, null, name.Text, Arguments()) : new Name(name);
+        return Current.Text == "(" ? new Call(name, null, name.Text, Arguments())
+            : allowStructLiteral && Current.Text == "{" ? new Call(name, null, name.Text, StructArguments(), IsStructLiteral: true)
+            : new Name(name);
     }
 
     private List<Argument> Arguments()
+        => Arguments("(", ")");
+
+    private List<Argument> StructArguments()
+        => Arguments("{", "}");
+
+    private List<Argument> Arguments(string open, string close)
     {
-        Expect("(");
+        Expect(open);
         NewLines();
         var arguments = new List<Argument>();
-        if (Current.Text != ")")
+        if (Current.Text != close)
         {
             do
             {
@@ -490,7 +499,7 @@ internal sealed class Parser(Source source, List<Token> tokens)
             } while (Match(","));
         }
 
-        Expect(")");
+        Expect(close);
         return arguments;
     }
 }

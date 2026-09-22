@@ -8,7 +8,7 @@ public class ModuleTests : TestBase
     {
         using var project = new Project();
         project.Write("models/user.rukbat", "print('init'); struct User { name: string }");
-        project.Write("services/users.rukbat", "import '../models/user.rukbat' as model\nfn load(): model.User { return model.User(name: 'Taro') }");
+        project.Write("services/users.rukbat", "import '../models/user.rukbat' as model\nfn load(): model.User { return model.User {name: 'Taro'} }");
         project.Write("main.rukbat", "import './models/user.rukbat' as model\nimport './services/users.rukbat' as users\nimport './services/../models/user.rukbat' as same\nu: model.User = users.load(); v: same.User = u; print(v.name)");
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));

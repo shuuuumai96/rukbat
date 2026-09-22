@@ -27,15 +27,15 @@ if arguments.length == 1 && arguments[0] == "--help" {
 }
 try {
     if arguments.length != 2 {
-        throw Error(message: "Expected exactly two non-empty arguments.\n" + usage())
+        throw Error {message: "Expected exactly two non-empty arguments.\n" + usage()}
     }
     if arguments[0] == "" || arguments[1] == "" {
-        throw Error(message: "Configuration and report paths must be non-empty.\n" + usage())
+        throw Error {message: "Configuration and report paths must be non-empty.\n" + usage()}
     }
     configuration_text: string = files.read(arguments[0])
     configuration: Config = json.decode<Config>(configuration_text)
     if configuration.directory == "" || configuration.pattern == "" || configuration.executable == "" {
-        throw Error(message: "Configuration directory, pattern, and executable must be non-empty.")
+        throw Error {message: "Configuration directory, pattern, and executable must be non-empty."}
     }
     matched_files: string[] = files.list_recursive(configuration.directory, configuration.pattern)
     results: CheckResult[] = []
@@ -44,7 +44,7 @@ try {
         checker_arguments: string[] = configuration.arguments
         checker_arguments.append(file)
         result: process.Result = process.run(configuration.executable, checker_arguments)
-        results.append(CheckResult(file: file, exit_code: result.exit_code, stdout: result.stdout, stderr: result.stderr))
+        results.append(CheckResult {file: file, exit_code: result.exit_code, stdout: result.stdout, stderr: result.stderr})
         if result.exit_code != 0 {
             has_failed_check = true
         }

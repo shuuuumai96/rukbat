@@ -348,6 +348,11 @@ internal sealed partial class TypeChecker
 
     private ValueType Construct(Call call, StructSymbol structure, Symbols scope)
     {
+        if (!call.IsStructLiteral)
+        {
+            Error("RUK2005", $"Struct '{structure.Type}' literals use '{{ field: value }}' syntax.", call);
+            return ValueType.Error;
+        }
         Constructions[call] = structure;
         var supplied = new HashSet<string>(StringComparer.Ordinal);
         for (var i = 0; i < call.Arguments.Count; i++)
