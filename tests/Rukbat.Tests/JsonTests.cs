@@ -3,6 +3,25 @@ namespace Rukbat.Tests;
 public class JsonTests : TestBase
 {
     [Trait("Category", "Runtime")]
+    [Trait("Category", "PowerShell51")]
+    [Fact]
+    public async Task TypedJsonRoundTripCompletesForTenThousandRecordsOnBothHosts()
+    {
+        using var project = new Project();
+        project.Write("main.rukbat", TypedJsonRoundTripSource(10_000));
+        var compiled = project.Compile();
+        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+
+        var modern = await project.RunOutput(compiled.Output!);
+        Assert.Equal(0, modern.ExitCode);
+        Assert.Equal("", modern.Error);
+
+        var windows = await project.RunOutputWithWindowsPowerShell(compiled.Output!);
+        Assert.Equal(0, windows.ExitCode);
+        Assert.Equal("", windows.Error);
+    }
+
+    [Trait("Category", "Runtime")]
     [Fact]
     public async Task JsonRejectsWhitespaceOutsideTheJsonGrammar()
     {
@@ -78,5 +97,24 @@ public class JsonTests : TestBase
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("{\"name\":\"Taro\",\"score\":null}", result.Output.TrimEnd('\n'));
         Assert.Equal("", result.Error);
+    }
+
+    private static string TypedJsonRoundTripSource(int count)
+    {
+        var text = new System.Text.StringBuilder("[");
+        for (var index = 0; index < count; index++)
+        {
+            if (index != 0) text.Append(',');
+            text.Append("{\"id\":").Append(index)
+                .Append(",\"name\":\"record-").Append(index.ToString("D5"))
+                .Append("\",\"score\":").Append(index).Append(".5}");
+        }
+        text.Append(']');
+        Assert.InRange(text.Length, 460_000, 600_000);
+        return "import json\n" +
+            "struct Record { id: int; name: string; score: float }\n" +
+            "payload: string = '" + text + "'\n" +
+            "records := json.decode<Record[]>(payload)\n" +
+            "encoded := json.encode(records)\n";
     }
 }

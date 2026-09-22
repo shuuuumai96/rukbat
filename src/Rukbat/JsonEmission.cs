@@ -7,23 +7,79 @@ internal sealed partial class Emitter
     private void EmitJsonRuntime()
     {
         const string runtime = """
+        Add-Type -TypeDefinition @'
+        using System;
+        using System.Collections.Generic;
+        public sealed class RukbatJsonNumber { public string Text; public RukbatJsonNumber(string text) { Text = text; } }
+        public static class RukbatJsonParser {
+            private static string text;
+            private static int index;
+            private static void Fail(string message) { throw new Exception("JSON at offset " + index + ": " + message); }
+            private static void Skip() { while (index < text.Length && (text[index] == ' ' || text[index] == '\t' || text[index] == '\n' || text[index] == '\r')) index++; }
+            private static string String() {
+                if (index >= text.Length || text[index] != '\"') Fail("Expected a string.");
+                index++; var builder = new System.Text.StringBuilder();
+                while (index < text.Length) {
+                    char character = text[index++];
+                    if (character == '\"') return builder.ToString();
+                    if (character < 32) Fail("Unescaped control character in string.");
+                    if (character != '\\') { builder.Append(character); continue; }
+                    if (index >= text.Length) Fail("Incomplete string escape.");
+                    char escape = text[index++];
+                    if (escape == 'u') {
+                        if (index + 4 > text.Length) Fail("Incomplete Unicode escape.");
+                        var hex = text.Substring(index, 4);
+                        for (var offset = 0; offset < hex.Length; offset++) if (!Uri.IsHexDigit(hex[offset])) Fail("Invalid Unicode escape.");
+                        index += 4; builder.Append((char)Convert.ToInt32(hex, 16)); continue;
+                    }
+                    switch (escape) {
+                        case '\"': builder.Append('\"'); break; case '\\': builder.Append('\\'); break; case '/': builder.Append('/'); break;
+                        case 'b': builder.Append('\b'); break; case 'f': builder.Append('\f'); break; case 'n': builder.Append('\n'); break;
+                        case 'r': builder.Append('\r'); break; case 't': builder.Append('\t'); break; default: Fail("Unsupported escape '\\" + escape + "'."); break;
+                    }
+                }
+                Fail("Unterminated string."); return null;
+            }
+            private static object Number() {
+                var start = index; if (text[index] == '-') index++;
+                if (index >= text.Length) Fail("Invalid value.");
+                if (text[index] == '0') index++;
+                else if (text[index] >= '1' && text[index] <= '9') { index++; while (index < text.Length && text[index] >= '0' && text[index] <= '9') index++; }
+                else Fail("Invalid value.");
+                if (index < text.Length && text[index] == '.') { index++; var fraction = index; while (index < text.Length && text[index] >= '0' && text[index] <= '9') index++; if (index == fraction) Fail("Invalid value."); }
+                if (index < text.Length && (text[index] == 'e' || text[index] == 'E')) { index++; if (index < text.Length && (text[index] == '+' || text[index] == '-')) index++; var exponent = index; while (index < text.Length && text[index] >= '0' && text[index] <= '9') index++; if (index == exponent) Fail("Invalid value."); }
+                return new RukbatJsonNumber(text.Substring(start, index - start));
+            }
+            private static object Value() {
+                Skip(); if (index >= text.Length) Fail("Expected a value."); char character = text[index];
+                if (character == '\"') return String();
+                if (character == '[') { index++; var items = new List<object>(); Skip(); if (index < text.Length && text[index] == ']') { index++; return items.ToArray(); } while (true) { items.Add(Value()); Skip(); if (index < text.Length && text[index] == ']') { index++; return items.ToArray(); } if (index >= text.Length || text[index] != ',') Fail("Expected ',' or ']'."); index++; } }
+                if (character == '{') { index++; var properties = new Dictionary<string, object>(StringComparer.Ordinal); Skip(); if (index < text.Length && text[index] == '}') { index++; return properties; } while (true) { Skip(); var name = String(); if (properties.ContainsKey(name)) Fail("Duplicate property '" + name + "'."); Skip(); if (index >= text.Length || text[index] != ':') Fail("Expected ':' after property name."); index++; properties.Add(name, Value()); Skip(); if (index < text.Length && text[index] == '}') { index++; return properties; } if (index >= text.Length || text[index] != ',') Fail("Expected ',' or '}'."); index++; } }
+                if (index + 4 <= text.Length && text.Substring(index, 4) == "true") { index += 4; return true; }
+                if (index + 5 <= text.Length && text.Substring(index, 5) == "false") { index += 5; return false; }
+                if (index + 4 <= text.Length && text.Substring(index, 4) == "null") { index += 4; return null; }
+                return Number();
+            }
+            public static object Parse(string source) { text = source; index = 0; var value = Value(); Skip(); if (index != text.Length) Fail("Unexpected trailing content."); return value; }
+        }
+'@ | Out-Null
         $__rukbat_json_decode = {
             param([string]$text, [hashtable]$schema)
             $state = @{ index = 0 }
-            $fail = {
+            function __rukbat_json_fail {
                 param([string]$message)
                 throw "JSON at offset $($state.index): $message"
             }
-            $skip = {
+            function __rukbat_json_skip {
                 while ($state.index -lt $text.Length -and
                     ($text[$state.index] -eq [char]32 -or $text[$state.index] -eq [char]9 -or
                      $text[$state.index] -eq [char]10 -or $text[$state.index] -eq [char]13)) {
                     $state.index++
                 }
             }
-            $parseString = {
+            function __rukbat_json_parse_string {
                 if ($state.index -ge $text.Length -or $text[$state.index] -ne [char]34) {
-                    & $fail 'Expected a string.'
+                    __rukbat_json_fail 'Expected a string.'
                 }
                 $state.index++
                 $builder = [System.Text.StringBuilder]::new()
@@ -34,24 +90,24 @@ internal sealed partial class Emitter
                         return $builder.ToString()
                     }
                     if ([int]$character -lt 32) {
-                        & $fail 'Unescaped control character in string.'
+                        __rukbat_json_fail 'Unescaped control character in string.'
                     }
                     if ($character -ne [char]92) {
                         $null = $builder.Append($character)
                         continue
                     }
                     if ($state.index -ge $text.Length) {
-                        & $fail 'Incomplete string escape.'
+                        __rukbat_json_fail 'Incomplete string escape.'
                     }
                     $escape = $text[$state.index]
                     $state.index++
                     if ($escape -eq 'u') {
                         if ($state.index + 4 -gt $text.Length) {
-                            & $fail 'Incomplete Unicode escape.'
+                            __rukbat_json_fail 'Incomplete Unicode escape.'
                         }
                         $hex = $text.Substring($state.index, 4)
                         if ($hex -notmatch '^[0-9A-Fa-f]{4}$') {
-                            & $fail 'Invalid Unicode escape.'
+                            __rukbat_json_fail 'Invalid Unicode escape.'
                         }
                         $state.index += 4
                         $null = $builder.Append([char][Convert]::ToInt32($hex, 16))
@@ -66,39 +122,38 @@ internal sealed partial class Emitter
                         'n' { [char]10; break }
                         'r' { [char]13; break }
                         't' { [char]9; break }
-                        default { & $fail "Unsupported escape '\$escape'." }
+                        default { __rukbat_json_fail "Unsupported escape '\$escape'." }
                     }
                     $null = $builder.Append($escaped)
                 }
-                & $fail 'Unterminated string.'
+                __rukbat_json_fail 'Unterminated string.'
             }
-            $parseValue = $null
-            $parseValue = {
-                & $skip
+            function __rukbat_json_parse_value {
+                __rukbat_json_skip
                 if ($state.index -ge $text.Length) {
-                    & $fail 'Expected a value.'
+                    __rukbat_json_fail 'Expected a value.'
                 }
                 $character = $text[$state.index]
                 if ($character -eq [char]34) {
-                    return (& $parseString)
+                    return (__rukbat_json_parse_string)
                 }
                 if ($character -eq '[') {
                     $state.index++
                     $items = [System.Collections.Generic.List[object]]::new()
-                    & $skip
+                    __rukbat_json_skip
                     if ($state.index -lt $text.Length -and $text[$state.index] -eq ']') {
                         $state.index++
                         return ,([object[]]$items.ToArray())
                     }
                     while ($true) {
-                        $null = $items.Add((& $parseValue))
-                        & $skip
+                        $null = $items.Add((__rukbat_json_parse_value))
+                        __rukbat_json_skip
                         if ($state.index -lt $text.Length -and $text[$state.index] -eq ']') {
                             $state.index++
                             return ,([object[]]$items.ToArray())
                         }
                         if ($state.index -ge $text.Length -or $text[$state.index] -ne ',') {
-                            & $fail "Expected ',' or ']'."
+                            __rukbat_json_fail "Expected ',' or ']'."
                         }
                         $state.index++
                     }
@@ -106,30 +161,30 @@ internal sealed partial class Emitter
                 if ($character -eq '{') {
                     $state.index++
                     $properties = [System.Collections.Generic.Dictionary[string,object]]::new([StringComparer]::Ordinal)
-                    & $skip
+                    __rukbat_json_skip
                     if ($state.index -lt $text.Length -and $text[$state.index] -eq '}') {
                         $state.index++
                         return $properties
                     }
                     while ($true) {
-                        & $skip
-                        $name = & $parseString
+                        __rukbat_json_skip
+                        $name = __rukbat_json_parse_string
                         if ($properties.ContainsKey($name)) {
-                            & $fail "Duplicate property '$name'."
+                            __rukbat_json_fail "Duplicate property '$name'."
                         }
-                        & $skip
+                        __rukbat_json_skip
                         if ($state.index -ge $text.Length -or $text[$state.index] -ne ':') {
-                            & $fail "Expected ':' after property name."
+                            __rukbat_json_fail "Expected ':' after property name."
                         }
                         $state.index++
-                        $properties.Add($name, (& $parseValue))
-                        & $skip
+                        $properties.Add($name, (__rukbat_json_parse_value))
+                        __rukbat_json_skip
                         if ($state.index -lt $text.Length -and $text[$state.index] -eq '}') {
                             $state.index++
                             return $properties
                         }
                         if ($state.index -ge $text.Length -or $text[$state.index] -ne ',') {
-                            & $fail "Expected ',' or '}'."
+                            __rukbat_json_fail "Expected ',' or '}'."
                         }
                         $state.index++
                     }
@@ -141,27 +196,62 @@ internal sealed partial class Emitter
                         return $literal[1]
                     }
                 }
-                $match = [regex]::Match($text.Substring($state.index), '^-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?')
-                if (-not $match.Success) {
-                    & $fail 'Invalid value.'
+                $start = $state.index
+                if ($text[$state.index] -eq '-') {
+                    $state.index++
                 }
-                $state.index += $match.Length
-                return @{ __rukbat_json_number = $match.Value }
+                if ($state.index -ge $text.Length) {
+                    __rukbat_json_fail 'Invalid value.'
+                }
+                if ($text[$state.index] -eq '0') {
+                    $state.index++
+                }
+                elseif ($text[$state.index] -ge '1' -and $text[$state.index] -le '9') {
+                    $state.index++
+                    while ($state.index -lt $text.Length -and
+                        $text[$state.index] -ge '0' -and $text[$state.index] -le '9') {
+                        $state.index++
+                    }
+                }
+                else {
+                    __rukbat_json_fail 'Invalid value.'
+                }
+                if ($state.index -lt $text.Length -and $text[$state.index] -eq '.') {
+                    $state.index++
+                    $fractionStart = $state.index
+                    while ($state.index -lt $text.Length -and
+                        $text[$state.index] -ge '0' -and $text[$state.index] -le '9') {
+                        $state.index++
+                    }
+                    if ($state.index -eq $fractionStart) {
+                        __rukbat_json_fail 'Invalid value.'
+                    }
+                }
+                if ($state.index -lt $text.Length -and ($text[$state.index] -eq 'e' -or $text[$state.index] -eq 'E')) {
+                    $state.index++
+                    if ($state.index -lt $text.Length -and ($text[$state.index] -eq '+' -or $text[$state.index] -eq '-')) {
+                        $state.index++
+                    }
+                    $exponentStart = $state.index
+                    while ($state.index -lt $text.Length -and
+                        $text[$state.index] -ge '0' -and $text[$state.index] -le '9') {
+                        $state.index++
+                    }
+                    if ($state.index -eq $exponentStart) {
+                        __rukbat_json_fail 'Invalid value.'
+                    }
+                }
+                return @{ __rukbat_json_number = $text.Substring($start, $state.index - $start) }
             }
-            $node = & $parseValue
-            & $skip
-            if ($state.index -ne $text.Length) {
-                & $fail 'Unexpected trailing content.'
-            }
-            $convert = $null
-            $convert = {
+            $node = [RukbatJsonParser]::Parse($text)
+            function __rukbat_json_convert {
                 param([object]$value, [hashtable]$type, [string]$path)
                 if ($null -eq $value) {
                     if ($type.kind -eq 'nullable') { return $null }
                     throw "${path}: JSON null is incompatible with $($type.name)."
                 }
                 if ($type.kind -eq 'nullable') {
-                    return (& $convert $value $type.element $path)
+                    return (__rukbat_json_convert $value $type.element $path)
                 }
                 switch ($type.kind) {
                     'string' {
@@ -171,10 +261,9 @@ internal sealed partial class Emitter
                         if ($value -is [bool]) { return $value }
                     }
                     'int' {
-                        if ($value -is [hashtable] -and $value.ContainsKey('__rukbat_json_number') -and
-                            $value.__rukbat_json_number -notmatch '[.eE]') {
+                        if ($value -is [RukbatJsonNumber] -and $value.Text -notmatch '[.eE]') {
                             $result = 0
-                            if ([int]::TryParse($value.__rukbat_json_number,
+                            if ([int]::TryParse($value.Text,
                                 [System.Globalization.NumberStyles]::AllowLeadingSign,
                                 [System.Globalization.CultureInfo]::InvariantCulture, [ref]$result)) {
                                 return $result
@@ -182,9 +271,9 @@ internal sealed partial class Emitter
                         }
                     }
                     'float' {
-                        if ($value -is [hashtable] -and $value.ContainsKey('__rukbat_json_number')) {
+                        if ($value -is [RukbatJsonNumber]) {
                             $result = [double]0
-                            if ([double]::TryParse($value.__rukbat_json_number,
+                            if ([double]::TryParse($value.Text,
                                 [System.Globalization.NumberStyles]::Float,
                                 [System.Globalization.CultureInfo]::InvariantCulture, [ref]$result) -and
                                 -not [double]::IsNaN($result) -and -not [double]::IsInfinity($result)) {
@@ -196,7 +285,7 @@ internal sealed partial class Emitter
                         if ($value -is [array]) {
                             $copy = [System.Collections.Generic.List[object]]::new($value.Length)
                             for ($i = 0; $i -lt $value.Length; $i++) {
-                                $copy.Add((& $convert $value[$i] $type.element "$path[$i]")) > $null
+                                $copy.Add((__rukbat_json_convert $value[$i] $type.element "$path[$i]")) > $null
                             }
                             return ,$copy
                         }
@@ -208,7 +297,7 @@ internal sealed partial class Emitter
                                 if (-not $value.ContainsKey($field.name)) {
                                     throw "$path.$($field.name): Missing required property."
                                 }
-                                $copy[$field.key] = & $convert $value[$field.name] $field.type "$path.$($field.name)"
+                                $copy[$field.key] = __rukbat_json_convert $value[$field.name] $field.type "$path.$($field.name)"
                             }
                             return $copy
                         }
@@ -216,11 +305,11 @@ internal sealed partial class Emitter
                 }
                 throw "${path}: JSON value is incompatible with $($type.name)."
             }
-            return (& $convert $node $schema '$')
+            return (__rukbat_json_convert $node $schema '$')
         }
         $__rukbat_json_encode = {
             param([object]$value, [hashtable]$schema)
-            $quote = {
+            function __rukbat_json_quote {
                 param([string]$text)
                 $builder = [System.Text.StringBuilder]::new()
                 $null = $builder.Append([char]34)
@@ -243,16 +332,15 @@ internal sealed partial class Emitter
                 $null = $builder.Append([char]34)
                 return $builder.ToString()
             }
-            $encode = $null
-            $encode = {
+            function __rukbat_json_encode_value {
                 param([object]$item, [hashtable]$type)
                 if ($null -eq $item) {
                     if ($type.kind -eq 'nullable') { return 'null' }
                     throw "Null is incompatible with $($type.name)."
                 }
-                if ($type.kind -eq 'nullable') { return (& $encode $item $type.element) }
+                if ($type.kind -eq 'nullable') { return (__rukbat_json_encode_value $item $type.element) }
                 switch ($type.kind) {
-                    'string' { return (& $quote ([string]$item)) }
+                    'string' { return (__rukbat_json_quote ([string]$item)) }
                     'bool' { return $(if ($item) { 'true' } else { 'false' }) }
                     'int' { return ([int]$item).ToString([System.Globalization.CultureInfo]::InvariantCulture) }
                     'float' {
@@ -264,25 +352,33 @@ internal sealed partial class Emitter
                     }
                     'array' {
                         $parts = [System.Collections.Generic.List[string]]::new()
-                        foreach ($element in $item) { $null = $parts.Add((& $encode $element $type.element)) }
+                        foreach ($element in $item) { $null = $parts.Add((__rukbat_json_encode_value $element $type.element)) }
                         return '[' + [string]::Join(',', $parts) + ']'
                     }
                     'struct' {
                         $parts = [System.Collections.Generic.List[string]]::new()
                         foreach ($field in $type.fields) {
-                            $parts.Add((& $quote $field.name) + ':' + (& $encode $item[$field.key] $field.type)) > $null
+                            $parts.Add((__rukbat_json_quote $field.name) + ':' + (__rukbat_json_encode_value $item[$field.key] $field.type)) > $null
                         }
                         return '{' + [string]::Join(',', $parts) + '}'
                     }
                 }
                 throw "Type $($type.name) cannot be encoded as JSON."
             }
-            return (& $encode $value $schema)
+            return (__rukbat_json_encode_value $value $schema)
         }
-        """;
+""";
         foreach (var line in runtime.Split('\n'))
         {
-            Line(line.TrimEnd('\r'));
+            var emitted = line.TrimEnd('\r');
+            if (emitted == "'@ | Out-Null")
+            {
+                RawLine(emitted);
+            }
+            else
+            {
+                Line(emitted);
+            }
         }
     }
 }

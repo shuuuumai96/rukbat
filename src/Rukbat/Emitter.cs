@@ -37,6 +37,7 @@ internal sealed partial class Emitter(TypeChecker checker)
     }
 
     private void Line(string text) => output.Append(' ', indentation * IndentationWidth).AppendLine(text);
+    private void RawLine(string text) => output.AppendLine(text);
 
     public string Emit(List<Module> modules)
     {
