@@ -11,6 +11,34 @@ public class TextTests : TestBase
     [Trait("Category", "CrossVersion")]
     [Trait("Category", "Runtime")]
     [Theory]
+    [InlineData("powershell")]
+    [InlineData("pwsh")]
+    public async Task TextTrimHandlesLongWhitespaceWithoutRevisitingTheMiddle(string shell)
+    {
+        using var project = new Project();
+        var spaces = new string(' ', 100_000);
+        project.Write("main.rukbat", $$"""
+            import text
+            middle := 'x{{spaces}}y'
+            print(text.trim(middle) == middle)
+            print(text.trim('{{spaces}}x'))
+            print(text.trim('x{{spaces}}'))
+            print(text.trim('{{spaces}}') == '')
+            """);
+        var compiled = project.Compile();
+        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+        File.WriteAllText(project.PathFor("job.ps1"), compiled.Output, new UTF8Encoding(true));
+
+        var result = await RunDeployed(shell, project.PathFor("job.ps1"), project.DirectoryPath, project.DirectoryPath);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("", result.Error);
+        Assert.Equal("True\nx\nx\nTrue\n", result.Output.Replace("\r\n", "\n"));
+    }
+
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
+    [Theory]
     [InlineData("powershell", "en-US")]
     [InlineData("powershell", "tr-TR")]
     [InlineData("pwsh", "en-US")]

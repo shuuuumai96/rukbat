@@ -5,8 +5,32 @@ internal sealed partial class Emitter
     private const string TextRuntime = """
     'text.trim' {
         # Fixed Unicode White_Space set; independent of the host's Unicode tables.
-        $whitespace = '[\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]'
-        return [regex]::Replace([string]$values[0], '\A' + $whitespace + '+|' + $whitespace + '+\z', '')
+        $value = [string]$values[0]
+        $start = 0
+        while ($start -lt $value.Length) {
+            $character = [int][char]$value[$start]
+            if (-not (($character -ge 9 -and $character -le 13) -or $character -eq 32 -or
+                $character -eq 133 -or $character -eq 160 -or $character -eq 5760 -or
+                ($character -ge 8192 -and $character -le 8202) -or $character -eq 8232 -or
+                $character -eq 8233 -or $character -eq 8239 -or $character -eq 8287 -or $character -eq 12288)) {
+                break
+            }
+            $start++
+        }
+        if ($start -eq $value.Length) { return '' }
+        $end = $value.Length - 1
+        while ($end -ge $start) {
+            $character = [int][char]$value[$end]
+            if (-not (($character -ge 9 -and $character -le 13) -or $character -eq 32 -or
+                $character -eq 133 -or $character -eq 160 -or $character -eq 5760 -or
+                ($character -ge 8192 -and $character -le 8202) -or $character -eq 8232 -or
+                $character -eq 8233 -or $character -eq 8239 -or $character -eq 8287 -or $character -eq 12288)) {
+                break
+            }
+            $end--
+        }
+        if ($start -eq 0 -and $end -eq $value.Length - 1) { return $value }
+        return $value.Substring($start, $end - $start + 1)
     }
     'text.contains' {
         return ([string]$values[0]).IndexOf([string]$values[1], [StringComparison]::Ordinal) -ge 0
