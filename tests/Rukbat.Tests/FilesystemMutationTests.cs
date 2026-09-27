@@ -41,8 +41,8 @@ public class FilesystemMutationTests : TestBase
             import files
             import json
             invalid := json.decode<string>('"\\uD800"')
-            try { files.write('{{RukbatLiteral(existing)}}', invalid) } catch err { print('existing') }
-            try { files.write('{{RukbatLiteral(missing)}}', invalid) } catch err { print('missing') }
+            try { files.write('{{RukbatLiteral(existing)}}', invalid, 'utf-8') } catch err { print('existing') }
+            try { files.write('{{RukbatLiteral(missing)}}', invalid, 'utf-8') } catch err { print('missing') }
             """);
 
         var invalidCompiled = project.Compile();
@@ -57,9 +57,9 @@ public class FilesystemMutationTests : TestBase
 
         project.Write("main.rukbat", $$"""
             import files
-            files.write('{{RukbatLiteral(existing)}}', 'new contents')
-            files.write('{{RukbatLiteral(empty)}}', 'old')
-            files.write('{{RukbatLiteral(empty)}}', '')
+            files.write('{{RukbatLiteral(existing)}}', 'new contents', 'utf-8')
+            files.write('{{RukbatLiteral(empty)}}', 'old', 'utf-8')
+            files.write('{{RukbatLiteral(empty)}}', '', 'utf-8')
             """);
         var validCompiled = project.Compile();
         Assert.True(validCompiled.Success, string.Join("\n", validCompiled.Diagnostics));
@@ -115,7 +115,7 @@ public class FilesystemMutationTests : TestBase
             powershell<void>('Invoke-Expression', "[Environment]::CurrentDirectory = '{{RukbatLiteral(deploy)}}'")
             directories.create('{{RukbatLiteral(special)}}/nested')
             print(directories.exists('{{RukbatLiteral(special)}}/nested'))
-            files.write('{{RukbatLiteral(special)}}/nested/source.txt', 'one')
+            files.write('{{RukbatLiteral(special)}}/nested/source.txt', 'one', 'utf-8')
             files.copy('{{RukbatLiteral(special)}}/nested/source.txt', '{{RukbatLiteral(special)}}/nested/copy.txt')
             listed := files.list('{{RukbatLiteral(special)}}/nested', '*.txt')
             print(listed.length)
@@ -125,7 +125,7 @@ public class FilesystemMutationTests : TestBase
             print(root_listed.length)
             try { files.copy('{{RukbatLiteral(special)}}/nested/source.txt', '{{RukbatLiteral(special)}}/nested/copy.txt') } catch err { print('existing destination') }
             files.move('{{RukbatLiteral(special)}}/nested/copy.txt', '{{RukbatLiteral(special)}}/nested/moved.txt')
-            print(files.read('{{RukbatLiteral(special)}}/nested/moved.txt'))
+            print(files.read('{{RukbatLiteral(special)}}/nested/moved.txt', 'utf-8'))
             files.remove('{{RukbatLiteral(special)}}/nested/moved.txt')
             files.remove('missing.txt')
             print(files.exists('{{RukbatLiteral(special)}}/nested/moved.txt'))
@@ -379,7 +379,7 @@ public class FilesystemMutationTests : TestBase
     [Fact]
     public void FilesWriteEmitsSameDirectoryStagedReplacement()
     {
-        var output = Success("import files\nfiles.write('report.txt', 'contents')");
+        var output = Success("import files\nfiles.write('report.txt', 'contents', 'utf-8')");
 
         Assert.Contains("[System.IO.Path]::Combine($directory, '.rukbat-write-' + [System.IO.Path]::GetRandomFileName())", output);
         Assert.Contains("[System.IO.File]::Open($candidate, [System.IO.FileMode]::CreateNew", output);

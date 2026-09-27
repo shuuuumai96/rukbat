@@ -261,6 +261,13 @@ Coverage includes struct value copies and `self` updates, explicit returns, scop
 The [log-filter example](examples/filter-errors.rukbat) reads a UTF-8 log, splits Windows or Unix line
 endings, trims each line, and saves lines starting with the case-sensitive prefix `ERROR:`.
 
+For a legacy Japanese Windows CSV, select CP932 explicitly:
+
+```rukbat
+text := files.read("legacy.csv", "windows-932")
+rows := csv.parse(text)
+```
+
 ```powershell
 .\rukbat.cmd run examples/filter-errors.rukbat -- application.log errors.log
 ```

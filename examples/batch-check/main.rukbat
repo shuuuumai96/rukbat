@@ -32,7 +32,7 @@ try {
     if arguments[0] == "" || arguments[1] == "" {
         throw Error {message: "Configuration and report paths must be non-empty.\n" + usage()}
     }
-    configuration_text: string = files.read(arguments[0])
+    configuration_text: string = files.read(arguments[0], "utf-8")
     configuration: Config = json.decode<Config>(configuration_text)
     if configuration.directory == "" || configuration.pattern == "" || configuration.executable == "" {
         throw Error {message: "Configuration directory, pattern, and executable must be non-empty."}
@@ -50,7 +50,7 @@ try {
         }
     }
     report: string = json.encode(results)
-    files.write(arguments[1], report)
+    files.write(arguments[1], report, "utf-8")
     if has_failed_check {
         exit(1)
     }

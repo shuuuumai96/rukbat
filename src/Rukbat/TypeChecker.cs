@@ -496,8 +496,10 @@ internal sealed partial class TypeChecker
         ValueType[]? parameters = (moduleName, call.Name) switch
         {
             ("files", "list") or ("files", "list_recursive") => [ValueType.String, ValueType.String],
-            ("files", "read") or ("files", "exists") or ("files", "remove") => [ValueType.String],
-            ("files", "write") or ("files", "copy") or ("files", "move") => [ValueType.String, ValueType.String],
+            ("files", "read") => [ValueType.String, ValueType.String],
+            ("files", "exists") or ("files", "remove") => [ValueType.String],
+            ("files", "write") => [ValueType.String, ValueType.String, ValueType.String],
+            ("files", "copy") or ("files", "move") => [ValueType.String, ValueType.String],
             ("directories", "create") or ("directories", "exists") or ("directories", "remove") or ("directories", "remove_all") => [ValueType.String],
             ("path", "script_dir") => [],
             ("path", "join") => [ValueType.ArrayOf(ValueType.String)],

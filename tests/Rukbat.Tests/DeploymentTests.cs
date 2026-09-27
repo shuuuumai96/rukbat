@@ -60,12 +60,12 @@ public class DeploymentTests : TestBase
             print(helper.directory())
             powershell<void>('Set-Location', LiteralPath: '{{SourcePath(other)}}')
             powershell<void>('Invoke-Expression', "[Environment]::CurrentDirectory = '{{SourcePath(project.PathFor("deploy"))}}'")
-            print(files.read('data.txt'))
-            files.write('result.txt', 'saved')
+            print(files.read('data.txt', 'utf-8'))
+            files.write('result.txt', 'saved', 'utf-8')
             print(files.exists('result.txt'))
             names := files.list('.', '*.txt')
             print(names.length)
-            print(files.read(path.join([path.script_dir(), 'config.json'])))
+            print(files.read(path.join([path.script_dir(), 'config.json']), 'utf-8'))
             result: process.Result = process.run('powershell', ['-NoLogo', '-NoProfile', '-Command', '[Console]::Write([Environment]::CurrentDirectory)'], null)
             print(result.stdout)
             relative: process.Result = process.run('{{SourcePath(Path.GetRelativePath(working, windowsShell))}}', ['-NoLogo', '-NoProfile', '-Command', '[Console]::Write([Environment]::CurrentDirectory)'], null)
@@ -140,8 +140,8 @@ public class DeploymentTests : TestBase
             print(files.exists('?:invalid'))
             print(files.exists('bad\npath'))
             try { path.join([]) } catch err { print('empty join') }
-            try { files.read('missing.txt') } catch err { print('read error') }
-            try { files.write('missing/child.txt', 'x') } catch err { print('write error') }
+            try { files.read('missing.txt', 'utf-8') } catch err { print('read error') }
+            try { files.write('missing/child.txt', 'x', 'utf-8') } catch err { print('write error') }
             """);
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));

@@ -62,8 +62,8 @@ struct CheckResult {
 Each `file` is an absolute path. Preserve each checker's exit code and captured stdout/stderr exactly, including trailing newlines.
 Report order follows enumeration order and is not guaranteed. Tests compare records by path rather than relying on order.
 No matches produce `[]` without launching a checker. One match still produces an array.
-Save only after all checks finish, using `files.write` and `json.encode`: UTF-8 without a BOM or trailing newline.
-An existing report is replaced on completed runs, including runs with failed checks. `files.write` stages complete report contents in the report directory before the final replacement; a failure before that step leaves an existing report unchanged. The final filesystem replacement has no durability or universal atomicity guarantee.
+Save only after all checks finish, using `files.write(..., "utf-8")` and `json.encode`: UTF-8 without a BOM or trailing newline.
+An existing report is replaced on completed runs, including runs with failed checks. `files.write` stages complete encoded report contents in the report directory before the final replacement; a conversion failure or failure before that step leaves an existing report unchanged. The final filesystem replacement has no durability or universal atomicity guarantee.
 
 On a normal run, stdout is empty; checker streams belong only in the report. Operational errors produce an English diagnostic through `eprint`.
 

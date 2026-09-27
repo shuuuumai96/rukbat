@@ -37,9 +37,9 @@ public class StandardLibraryTests : TestBase
             import path
             import env
             target: string = path.join(['{{directory}}', 'data.txt'])
-            files.write(target, 'hello')
+            files.write(target, 'hello', 'utf-8')
             print(files.exists(target))
-            print(files.read(target))
+            print(files.read(target, 'utf-8'))
             print(path.filename(target))
             print(path.extension(target))
             names: string[] = files.list('{{directory}}', '*.txt')
@@ -237,8 +237,8 @@ public class StandardLibraryTests : TestBase
             import files
             import process
             result := process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}'], null)
-            files.write('{{stdoutPath}}', result.stdout)
-            files.write('{{stderrPath}}', result.stderr)
+            files.write('{{stdoutPath}}', result.stdout, 'utf-8')
+            files.write('{{stderrPath}}', result.stderr, 'utf-8')
             print(result.exit_code)
             """);
 
@@ -315,8 +315,8 @@ public class StandardLibraryTests : TestBase
             import files
             import process
             result := process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}'], null)
-            files.write('{{stdoutPath}}', result.stdout)
-            files.write('{{stderrPath}}', result.stderr)
+            files.write('{{stdoutPath}}', result.stdout, 'utf-8')
+            files.write('{{stderrPath}}', result.stderr, 'utf-8')
             print(result.exit_code)
             """);
 
@@ -378,7 +378,7 @@ public class StandardLibraryTests : TestBase
         File.WriteAllBytes(project.PathFor("utf16.txt"), [0xff, 0xfe, 0x41, 0x00]);
         project.Write("main.rukbat", $$"""
             import files
-            try { files.read('{{path}}') } catch err { print('invalid UTF-8') }
+            try { files.read('{{path}}', 'utf-8') } catch err { print('invalid UTF-8') }
             """);
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
@@ -407,7 +407,7 @@ public class StandardLibraryTests : TestBase
 
     [Trait("Category", "Unit")]
     [Theory]
-    [InlineData("import files\nfiles.read(1)")]
+    [InlineData("import files\nfiles.read(1, 'utf-8')")]
     [InlineData("import path\npath.join('one')")]
     [InlineData("import env\nenv.set('x', null)")]
     [InlineData("import process\nprocess.run('x', [1], null)")]

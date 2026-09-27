@@ -15,7 +15,7 @@ try {
     if arguments.length != 1 || arguments[0] == "" {
         throw Error {message: "Expected exactly one non-empty plan path.\n" + usage()}
     }
-    rows: string[][] = csv.parse(files.read(arguments[0]))
+    rows: string[][] = csv.parse(files.read(arguments[0], "utf-8"))
     if rows.length == 0 {
         throw Error {message: "CSV record 1: expected header source,destination."}
     }

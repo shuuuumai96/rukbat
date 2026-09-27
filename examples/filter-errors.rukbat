@@ -6,7 +6,7 @@ if arguments.length != 2 {
     exit(2)
 }
 try {
-    content := files.read(arguments[0])
+    content := files.read(arguments[0], "utf-8")
     lines := text.split_lines(content)
     errors: string[] = []
     for line in lines {
@@ -16,7 +16,7 @@ try {
         }
     }
     report := text.join(errors, "\r\n")
-    files.write(arguments[1], report)
+    files.write(arguments[1], report, "utf-8")
 } catch err {
     eprint(err.message)
     exit(1)

@@ -12,6 +12,6 @@ if settings.help {
     if settings.output == "" {
         print(output)
     } else {
-        files.write(settings.output, output)
+        files.write(settings.output, output, "utf-8")
     }
 }

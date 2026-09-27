@@ -5,6 +5,7 @@ internal sealed partial class Emitter
     private void EmitStandardRuntime(IReadOnlySet<string> modules)
     {
         EmitLines(PathContextRuntime);
+        if (modules.Contains("files")) EmitLines(FileEncodingRuntime);
         Line("$__rukbat_standard = {");
         indentation++;
         Line("param([string]$operation, [object[]]$values)");
@@ -131,19 +132,29 @@ internal sealed partial class Emitter
         return ,([object[]]$paths)
     }
     'files.read' {
-        $encoding = [System.Text.UTF8Encoding]::new($false, $true)
+        $selected = & $__rukbat_file_encoding ([string]$values[1])
         $bytes = [System.IO.File]::ReadAllBytes((& $__rukbat_resolve_path ([string]$values[0])))
         $offset = 0
-        if ($bytes.Length -ge 3 -and $bytes[0] -eq 239 -and $bytes[1] -eq 187 -and $bytes[2] -eq 191) {
-            $offset = 3
+        switch ($selected.name) {
+            'utf-8' {
+                if ($bytes.Length -ge 3 -and $bytes[0] -eq 239 -and $bytes[1] -eq 187 -and $bytes[2] -eq 191) { $offset = 3 }
+            }
+            'utf-16le' {
+                if ($bytes.Length -ge 2 -and $bytes[0] -eq 255 -and $bytes[1] -eq 254) { $offset = 2 }
+                elseif ($bytes.Length -ge 2 -and $bytes[0] -eq 254 -and $bytes[1] -eq 255) { throw 'file encoding utf-16le conflicts with a UTF-16BE BOM.' }
+            }
+            'utf-16be' {
+                if ($bytes.Length -ge 2 -and $bytes[0] -eq 254 -and $bytes[1] -eq 255) { $offset = 2 }
+                elseif ($bytes.Length -ge 2 -and $bytes[0] -eq 255 -and $bytes[1] -eq 254) { throw 'file encoding utf-16be conflicts with a UTF-16LE BOM.' }
+            }
         }
-        return $encoding.GetString($bytes, $offset, $bytes.Length - $offset)
+        return $selected.encoding.GetString($bytes, $offset, $bytes.Length - $offset)
     }
     'files.write' {
-        $encoding = [System.Text.UTF8Encoding]::new($false, $true)
+        $selected = & $__rukbat_file_encoding ([string]$values[2])
         $path = & $__rukbat_resolve_path ([string]$values[0])
         $text = [string]$values[1]
-        $bytes = $encoding.GetBytes($text)
+        $bytes = $selected.encoding.GetBytes($text)
         $noBackup = [System.Management.Automation.Language.NullString]::Value
         $directory = [System.IO.Path]::GetDirectoryName($path)
         $tempPath = $null
@@ -239,6 +250,24 @@ internal sealed partial class Emitter
         try { return [System.IO.File]::Exists((& $__rukbat_resolve_path ([string]$values[0]))) }
         catch { return $false }
     }
+    """;
+
+    private const string FileEncodingRuntime = """
+    $__rukbat_file_encoding = {
+        param([string]$name)
+        switch -CaseSensitive ($name) {
+            'utf-8' { return [pscustomobject]@{ name = 'utf-8'; encoding = [System.Text.UTF8Encoding]::new($false, $true) } }
+            'utf-16le' { return [pscustomobject]@{ name = 'utf-16le'; encoding = [System.Text.UnicodeEncoding]::new($false, $false, $true) } }
+            'utf-16be' { return [pscustomobject]@{ name = 'utf-16be'; encoding = [System.Text.UnicodeEncoding]::new($true, $false, $true) } }
+            'windows-932' {
+                return [pscustomobject]@{
+                    name = 'windows-932'
+                    encoding = [System.Text.Encoding]::GetEncoding(932, [System.Text.EncoderExceptionFallback]::new(), [System.Text.DecoderExceptionFallback]::new())
+                }
+            }
+            default { throw "unsupported file encoding: $name" }
+        }
+    }.GetNewClosure()
     """;
 
     private const string DirectoriesRuntime = """
