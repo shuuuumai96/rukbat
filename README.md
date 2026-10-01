@@ -72,6 +72,8 @@ rukbat run examples/import-data.rukbat
 .\rukbat fmt examples/hello.rukbat
 # Format every .rukbat source under the current directory:
 .\rukbat fmt .
+# Run the current project's test_*.rukbat tests:
+.\rukbat test
 # A build-only shortcut is also available:
 .\build examples/hello.rukbat
 ```
@@ -106,7 +108,7 @@ dotnet publish src/Rukbat -c Release -o artifacts/rukbat
 - Prefer consistent syntax that is easy to read and write.
 - Line comments use `//`. Comment markers inside strings are literal text.
 - Named imports such as `import fs` load standard modules bundled with the compiler.
-- The v0.1 standard modules are `fs`, `path`, `json`, `csv`, `env`, `process`, and `text`. Their APIs and external-data contracts are defined in the [standard library specification](docs/STDLIB.md).
+- The v0.1 standard modules are `fs`, `path`, `json`, `csv`, `env`, `process`, `text`, and `test`. Their APIs and external-data contracts are defined in the [standard library specification](docs/STDLIB.md).
 - Use `fs` for actual file and directory operations, and `path` for constructing, decomposing, and comparing path values. For example, `fs.list_files` lists files, `fs.create_dir_all` creates directories and their parents, and `path.parent` computes a parent path without checking existence. See the [task guide](docs/STDLIB.md#choosing-filesystem-and-path-operations).
 - `exit(code)` terminates the process with a nonnegative `int` exit code. `eprint(text)` writes a line to standard error.
 - `text.from_int/from_float/from_bool` and `text.parse_int/parse_float/parse_bool` provide explicit, culture-independent string conversion and parsing.
@@ -246,6 +248,29 @@ The initial specification allows one catch clause and has no typed catches, `fin
 ```powershell
 .\rukbat.cmd run examples/errors.rukbat
 ```
+
+## Testing your programs
+
+Write ordinary `fn test_name(): void` functions in `test_*.rukbat` files:
+
+```rukbat
+import test
+
+fn test_add(): void {
+    test.assert(2 + 3 == 5)
+}
+```
+
+`rukbat test` discovers these functions and runs each in a separate PowerShell process.
+Failures show the source expression, location, comparison values, and captured output;
+remaining tests continue. `fn test_report(ctx: test.Context): void` receives a unique
+temporary directory for file operations. Use `rukbat test --filter test_report` to
+select a test, or `--shell pwsh` to validate with PowerShell 7 instead of the default
+Windows PowerShell 5.1. The default deadline is 30 seconds per test.
+
+See the [testing guide](docs/TESTING.md) for fixtures, multiple inputs, expected errors,
+exit codes, and isolation limits. Try `.\rukbat test examples/testing` for a working
+CSV/JSON/file-processing example. `dotnet test` below tests the compiler itself.
 
 ## Implementation and verification
 

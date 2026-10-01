@@ -1,0 +1,15 @@
+import csv
+
+fn enabled_names(source: string): string[] {
+    table := csv.parse_table(source)
+    names: string[] = []
+
+    for row in table.rows {
+        if csv.get(row, "enabled") == "true" {
+            names.append(csv.get(row, "name"))
+        }
+    }
+
+    return names
+}
+

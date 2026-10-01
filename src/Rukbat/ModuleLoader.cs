@@ -4,7 +4,7 @@ internal sealed class ModuleLoader
 {
     private static readonly HashSet<string> StandardModules = new(StringComparer.Ordinal)
     {
-        "fs", "path", "json", "csv", "env", "process", "text"
+        "fs", "path", "json", "csv", "env", "process", "text", "test"
     };
     private readonly Dictionary<string, Module> modules = new(
         OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
@@ -53,6 +53,7 @@ internal sealed class ModuleLoader
                         "process" => "struct Result { exit_code: int; stdout: string; stderr: string }",
                         "json" => "struct Value {}",
                         "csv" => "struct Row {}; struct Table { columns: string[]; rows: Row[] }",
+                        "test" => "struct Context { temp_dir: string; source_dir: string }",
                         _ => ""
                     };
                     var standardSource = new Source(standardText, standardPath);

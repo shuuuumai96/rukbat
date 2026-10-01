@@ -4,7 +4,7 @@ internal sealed class StructSymbol(Module module, StructDeclaration declaration)
 {
     public Module Module { get; } = module;
     public StructDeclaration Declaration { get; } = declaration;
-    public ValueType Type { get; } = new(module.StandardName is "json" or "csv"
+    public ValueType Type { get; } = new(module.StandardName is "json" or "csv" or "test"
         ? module.StandardName + "." + declaration.Token.Text : declaration.Token.Text);
     public bool IsCsvRow => Module.StandardName == "csv" && Declaration.Token.Text == "Row";
     public bool IsJsonValue => Module.StandardName == "json" && Declaration.Token.Text == "Value";

@@ -1,0 +1,64 @@
+import test
+import csv
+import json
+import fs
+import path
+import text
+import "./records.rukbat" as records
+
+struct ParseCase {
+    input: string
+    expected: int
+}
+
+fn test_filter_csv(ctx: test.Context): void {
+    input := path.join([ctx.source_dir, "fixtures", "people.csv"])
+    names := records.enabled_names(fs.read_text(input, "utf-8"))
+    test.assert(names.length == 2)
+    test.assert(names[0] == "Taro")
+    test.assert(names[1] == "Suzuki, Ichiro")
+}
+
+fn test_update_json(): void {
+    document := json.parse('{"settings":{"enabled":false},"other":[1,2]}')
+    settings := json.get(document, "settings")
+    settings = json.set(settings, "enabled", true)
+    document = json.set(document, "settings", settings)
+    reloaded := json.parse(json.stringify(document))
+    test.assert(json.as<bool>(json.get(json.get(reloaded, "settings"), "enabled")))
+    test.assert(json.items(json.get(reloaded, "other")).length == 2)
+}
+
+fn test_write_report(ctx: test.Context): void {
+    output := path.join([ctx.temp_dir, "report.csv"])
+    table := csv.table(["name", "status"], [["Taro", "ok"]])
+    fs.write_text(output, csv.stringify_table(table), "utf-8")
+    reloaded := csv.parse_table(fs.read_text(output, "utf-8"))
+    test.assert(reloaded.rows.length == 1)
+    test.assert(csv.get(reloaded.rows[0], "status") == "ok")
+}
+
+fn test_parse_int_cases(): void {
+    cases: ParseCase[] = [ParseCase {
+        input: "0", expected: 0
+    }, ParseCase {
+        input: "-12", expected: -12
+    }, ParseCase {
+        input: " +42 ", expected: 42
+    }]
+
+    for item in cases {
+        test.assert(text.parse_int(item.input) == item.expected)
+    }
+}
+
+fn test_invalid_csv(): void {
+    try {
+        csv.parse('"unterminated')
+    } catch err {
+        return
+    }
+
+    test.fail("Expected Error was not thrown")
+}
+

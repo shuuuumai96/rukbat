@@ -30,6 +30,7 @@ Each stage has a separate responsibility:
 - Emitter consumes validated syntax trees and type information to generate standalone Windows PowerShell 5.1-compatible `.ps1` files. It does not infer semantics or resolve names.
 - Compiler invokes these stages in order. It validates the generated PowerShell syntax as a generator sanity check; Windows PowerShell 5.1 compatibility is established by the execution test suite, not by this parser validation alone.
 - `rukbat check` stops after ModuleLoader, Resolver, and TypeChecker. It invokes neither Emitter nor the PowerShell parser.
+- `rukbat test` discovers source files in the CLI, uses the same front end to bind test function signatures, then emits and validates every selected entrypoint before execution. Emitter initializes the ordinary module graph, invokes one validated function with an optional bound `test.Context`, and writes a private completion marker only after that function returns. The runner captures each PowerShell host in a separate Windows process job; process exit alone does not imply test success. The same native `ProcessJob.cs.txt` is compiled into the CLI and embedded for deployed `process.run` scripts.
 - Formatter validates syntax, then normalizes tokens while preserving comments. It does not check types or resolve imports.
 - During formatting, Parser also records syntax facts such as continuation newlines, struct-literal closing braces, unary operators, type-argument delimiters, and adjacent statement kinds within each block. FormattingSyntax identifies required group boundaries, and Formatter uses these facts instead of guessing expression roles from token spelling. Ordinary compilation does not collect these optional facts.
 
@@ -58,5 +59,11 @@ table results to actual bound field keys. Only a `csv` import emits CSV helpers.
 Native Windows helpers for contained process execution and journaled file moves live in `Runtime/*.cs.txt`, embedded as compiler resources and copied into the generated script. `NativeEmission` emits lazy `Add-Type` loaders; the deployment machine uses its existing PowerShell/.NET facilities. These helpers use C# syntax compatible with the Windows PowerShell 5.1 compiler. Process job assignment is part of process creation, so host termination cannot leave a child executing outside the job. Move journals are flushed before renames; locked file handles preserve identity across moves and recovery.
 
 Generated scripts reject non-FullLanguage sessions before user operations. They do not change or bypass the machine's execution/security policy.
+
+The `test` module contributes a normal bound Context struct and compiler-emitted
+assertion calls; it does not require the filesystem, JSON parser, or a separate
+testing runtime. Direct primitive comparison assertions capture operands once and
+use the same operator lowering as ordinary expressions. Other assertions use the
+ordinary expression emitter, preserving short-circuit and nullable-array behavior.
 
 The entry wrapper captures working and script directories before module initialization. Standard-library runtime closures retain this path context and resolve paths explicitly; they do not depend on later `$PWD` or `Environment.CurrentDirectory` values. Emitter derives runtime source labels relative to the entry source directory while leaving compiler diagnostic paths unchanged.

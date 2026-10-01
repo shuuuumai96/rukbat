@@ -41,7 +41,7 @@ internal sealed partial class Emitter(TypeChecker checker)
     private void Line(string text) => output.Append(' ', indentation * IndentationWidth).AppendLine(text);
     private void RawLine(string text) => output.AppendLine(text);
 
-    public string Emit(List<Module> modules)
+    public string Emit(List<Module> modules, TestInvocation? test = null)
     {
         sourceDirectory = Path.IsPathFullyQualified(modules[^1].Source.Path)
             ? Path.GetDirectoryName(modules[^1].Source.Path) : null;
@@ -80,6 +80,19 @@ internal sealed partial class Emitter(TypeChecker checker)
         foreach (var current in modules)
         {
             EmitModule(current);
+        }
+        if (test is not null)
+        {
+            var symbol = test.Function;
+            var argument = "";
+            if (symbol.Function.Parameters.Count != 0)
+            {
+                var fields = checker.Variables[symbol.Function.Parameters[0]].Type.Struct!.Fields;
+                argument = $"@{{{Quote(fields["temp_dir"].Key)} = {Quote(test.WorkingDirectory)}; " +
+                    $"{Quote(fields["source_dir"].Key)} = {Quote(Path.GetDirectoryName(symbol.Module.Source.Path)!)}" + "}";
+            }
+            Line($"$null = $__rukbat_modules[{Quote(symbol.Module.Id)}].{symbol.PowerShellName}({argument})");
+            Line($"[IO.File]::WriteAllText({Quote(test.CompletionPath)}, 'completed')");
         }
         indentation--;
         Line("} catch {");
@@ -337,18 +350,7 @@ internal sealed partial class Emitter(TypeChecker checker)
             return $"($null {nullOperator} {Expr(value)})";
         }
 
-        var op = binary.Token.Text switch
-        {
-            "==" => "-ceq",
-            "!=" => "-cne",
-            "<" => "-lt",
-            "<=" => "-le",
-            ">" => "-gt",
-            ">=" => "-ge",
-            "&&" => "-and",
-            "||" => "-or",
-            _ => binary.Token.Text
-        };
+        var op = BinaryOperator(binary.Token.Text);
         var expression = $"({Expr(binary.Left)} {op} {Expr(binary.Right)})";
         if (checker.Types[binary] == ValueType.Int)
         {
@@ -361,6 +363,19 @@ internal sealed partial class Emitter(TypeChecker checker)
 
         return expression;
     }
+
+    private static string BinaryOperator(string operation) => operation switch
+    {
+        "==" => "-ceq",
+        "!=" => "-cne",
+        "<" => "-lt",
+        "<=" => "-le",
+        ">" => "-gt",
+        ">=" => "-ge",
+        "&&" => "-and",
+        "||" => "-or",
+        _ => operation
+    };
 
     private string Call(Call call)
     {
@@ -376,6 +391,14 @@ internal sealed partial class Emitter(TypeChecker checker)
         }
         if (checker.StandardCalls.TryGetValue(call, out var standardCall))
         {
+            if (standardCall == "test.assert")
+            {
+                return TestAssertion(call);
+            }
+            if (standardCall == "test.fail")
+            {
+                return $"(& $script:__rukbat_raise @{{message = ({Expr(call.Arguments[0].Value)})}} {Location(call)})";
+            }
             if (standardCall == "json.parse")
             {
                 return $"(& $script:__rukbat_json_decode ({Expr(call.Arguments[0].Value)}) {Schema(checker.Types[call])})";

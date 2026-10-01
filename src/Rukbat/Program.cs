@@ -2,6 +2,10 @@ using System.ComponentModel;
 using System.Diagnostics;
 using Rukbat;
 
+if (args.Length != 0 && args[0] == "test")
+{
+    Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+}
 return Cli.Run(args, Console.Out, Console.Error);
 
 public static class Cli
@@ -34,6 +38,10 @@ public static class Cli
 
     public static int Run(string[] args, TextWriter stdout, TextWriter stderr)
     {
+        if (args.Length != 0 && args[0] == "test")
+        {
+            return TestRunner.Run(args[1..], stdout, stderr);
+        }
         if (args.Length < CompilerArgumentCount ||
             args[0] is not ("build" or "run" or "check" or "fmt") ||
             (args[0] != "fmt" && !Path.GetExtension(args[1]).Equals(".rukbat", StringComparison.OrdinalIgnoreCase)) ||
@@ -41,6 +49,7 @@ public static class Cli
         {
             stderr.WriteLine("Usage: rukbat <build|run|check|fmt> input.rukbat [-- arguments... (run only)]");
             stderr.WriteLine("       rukbat fmt directory");
+            stderr.WriteLine("       rukbat test [path] [--filter text] [--timeout seconds] [--shell powershell|pwsh]");
             return UsageOrIoFailure;
         }
         try
@@ -152,7 +161,7 @@ public static class Cli
         }
     }
 
-    private static void WriteDiagnostics(IEnumerable<Diagnostic> diagnostics, TextWriter stderr)
+    internal static void WriteDiagnostics(IEnumerable<Diagnostic> diagnostics, TextWriter stderr)
     {
         foreach (var diagnostic in diagnostics)
         {

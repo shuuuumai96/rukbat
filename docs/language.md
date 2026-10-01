@@ -19,6 +19,13 @@ The generated script must be executed in its own PowerShell process; exit termin
 Both accept one positional value with the same type checks, append one platform newline, and do not contribute to function return values. Printing a diagnostic does not set the exit code.
 Explicit string conversion and strict parsing use the `text` module described in STDLIB.md.
 
+`rukbat test [path]` discovers ordinary top-level `fn test_name(): void` functions
+in `test_*.rukbat` files. A test may instead take one `test.Context` parameter for
+temporary filesystem fixtures. Testing adds no syntax or general function-value
+feature. Assertions are standard-library operations (`import test`). The
+[testing guide](TESTING.md) defines discovery, filtering, deadlines, isolation,
+and exit codes.
+
 ## Declarations and assignment
 
 ```rukbat

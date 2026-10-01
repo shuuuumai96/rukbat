@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Runtime/*.cs.txt" WithCulture="false" LogicalName="Rukbat.Runtime.%(Filename)%(Extension)" />
+    <Compile Include="Runtime/ProcessJob.cs.txt" Link="Runtime/ProcessJob.cs" />
   </ItemGroup>
 
 </Project>

@@ -12,6 +12,7 @@ import json
 import env
 import process
 import text
+import test
 ```
 
 A local module instead uses an explicit relative `.rukbat` path and an alias. Standard module names are reserved as aliases. Generated scripts contain only the standard-library runtime sections used by their imports and remain standalone on Windows PowerShell 5.1.
@@ -534,3 +535,26 @@ Standard filesystem operations resolve nonempty relative paths against the captu
 ## Program arguments
 
 `args(): string[]` returns command-line arguments supplied to the entry program in order. It returns `[]` when none were supplied. Argument parsing belongs to the program.
+
+## `test`
+
+| Signature | Meaning | Failure |
+|---|---|---|
+| `test.assert(condition: bool): void` | Verifies a condition evaluated once. | False raises Error containing the source expression and source location. Direct primitive comparisons also show both evaluated values. |
+| `test.fail(message: string): void` | Explicitly fails with a reason. | Always raises ordinary Error with that message. |
+
+The module exports `test.Context`, an ordinary struct with `temp_dir: string` and
+`source_dir: string`. `rukbat test` passes it to tests declaring a single parameter
+of that exact type. `temp_dir` is the test's unique temporary working directory;
+`source_dir` is the directory containing its source file. Both are absolute paths.
+
+Assertions use ordinary Rukbat type checking, evaluation order, numeric conversions,
+case-sensitive comparisons, and short-circuit boolean semantics. They accept only
+positional arguments and no type argument. Errors are catchable, including assertion
+errors; an assertion swallowed by a `catch` does not fail the test runner. No automatic
+deep equality is added to the language. Compare array lengths and elements explicitly.
+The module also works in regular standalone `build`/`run` output and needs no testing
+runtime on deployment machines.
+
+See [Testing Rukbat programs](TESTING.md) for discovery, execution, temporary fixtures,
+multiple cases, expected errors, and command-line exit codes.

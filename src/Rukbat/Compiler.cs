@@ -27,8 +27,14 @@ public sealed class Compiler
             return new(null, diagnostics);
         }
 
-        // Validate generated syntax with the official PowerShell parser without executing it.
         var output = new Emitter(checkedProgram.Checker!).Emit(checkedProgram.Modules!);
+        return ValidateOutput(output, path);
+    }
+
+    private static CompilationResult ValidateOutput(string output, string path)
+    {
+        // Validate generated syntax with the official PowerShell parser without executing it.
+        var diagnostics = new List<Diagnostic>();
         PowerShellParser.ParseInput(output, out _, out var errors);
         diagnostics.AddRange(errors.Select(error => new Diagnostic(
             "RUK9000",
@@ -37,6 +43,36 @@ public sealed class Compiler
             1,
             path)));
         return new(diagnostics.Count == 0 ? output : null, diagnostics);
+    }
+
+    internal TestCollection CollectTests(string path)
+    {
+        var program = CheckCore(File.ReadAllText(path), path, true);
+        if (program.Diagnostics.Count != 0)
+        {
+            return new([], program.Diagnostics);
+        }
+
+        var entry = program.Modules![^1];
+        var checker = program.Checker!;
+        var tests = new List<CollectedTest>();
+        foreach (var function in entry.Statements.OfType<Function>().Where(function => function.Name.StartsWith("test_", StringComparison.Ordinal)))
+        {
+            var symbol = checker.Functions[function];
+            var validParameter = function.Parameters.Count == 0 || function.Parameters.Count == 1 &&
+                checker.Variables[function.Parameters[0]].Type is { IsNullable: false, Element: null, Struct: { } structure } &&
+                structure.Module.StandardName == "test" && structure.Declaration.Token.Text == "Context";
+            if (symbol.ReturnType != ValueType.Void || !validParameter)
+            {
+                entry.Source.Error("RUK5000", "A test must return void and take either no parameters or one test.Context parameter.", function.Token);
+                continue;
+            }
+
+            tests.Add(new(function.Name, path, (workingDirectory, completionPath) =>
+                ValidateOutput(new Emitter(checker).Emit(program.Modules,
+                    new TestInvocation(symbol, workingDirectory, completionPath)), path)));
+        }
+        return new(tests, entry.Source.Diagnostics);
     }
 
     private static CheckedProgram CheckCore(string source, string path, bool resolveImports)
@@ -62,3 +98,7 @@ public sealed class Compiler
         TypeChecker? Checker,
         IReadOnlyList<Diagnostic> Diagnostics);
 }
+
+internal sealed record TestInvocation(FunctionSymbol Function, string WorkingDirectory, string CompletionPath);
+internal sealed record CollectedTest(string Name, string FilePath, Func<string, string, CompilationResult> Compile);
+internal sealed record TestCollection(List<CollectedTest> Tests, IReadOnlyList<Diagnostic> Diagnostics);

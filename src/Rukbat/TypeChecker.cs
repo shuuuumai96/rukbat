@@ -538,6 +538,8 @@ internal sealed partial class TypeChecker
             ("text", "contains" or "starts_with" or "ends_with" or "split") => [ValueType.String, ValueType.String],
             ("text", "replace_all") => [ValueType.String, ValueType.String, ValueType.String],
             ("text", "join") => [ValueType.ArrayOf(ValueType.String), ValueType.String],
+            ("test", "assert") => [ValueType.Bool],
+            ("test", "fail") => [ValueType.String],
             _ => null
         };
         if (parameters is null)
@@ -581,6 +583,7 @@ internal sealed partial class TypeChecker
             ("text", "contains" or "starts_with" or "ends_with") => ValueType.Bool,
             ("text", "split" or "split_lines") => ValueType.ArrayOf(ValueType.String),
             ("text", _) => ValueType.String,
+            ("test", _) => ValueType.Void,
             _ => ValueType.Error
         };
         StandardCalls[call] = $"{moduleName}.{call.Name}";
