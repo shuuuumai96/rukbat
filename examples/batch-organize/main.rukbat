@@ -1,5 +1,5 @@
 import csv
-import files
+import fs
 import path
 import text
 
@@ -17,7 +17,7 @@ try {
             }
         }
 
-        files.recover_moves(arguments[1] + ".rukbat-journal")
+        fs.recover_file_moves(arguments[1] + ".rukbat-journal")
         exit(0)
     }
 
@@ -27,7 +27,7 @@ try {
         }
     }
 
-    rows := csv.parse(files.read(arguments[0], "utf-8"))
+    rows := csv.parse(fs.read_text(arguments[0], "utf-8"))
 
     if rows.length == 0 {
         throw Error {
@@ -73,7 +73,7 @@ try {
         record = record + 1
     }
 
-    files.move_batch(sources, destinations, arguments[0] + ".rukbat-journal")
+    fs.move_files_batch(sources, destinations, arguments[0] + ".rukbat-journal")
 } catch err {
     eprint(err.message)
     exit(2)

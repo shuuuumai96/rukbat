@@ -1,6 +1,6 @@
 import "./services/file-listing.rukbat" as listing
 import "./options.rukbat" as options
-import files
+import fs
 import json
 
 settings: options.Options = options.parse(args())
@@ -14,7 +14,7 @@ if settings.help {
     if settings.output == "" {
         print(output)
     } else {
-        files.write(settings.output, output, "utf-8")
+        fs.write_text(settings.output, output, "utf-8")
     }
 }
 

@@ -126,6 +126,6 @@ public class CsvTests : TestBase
     public void CsvRuntimeIsEmittedOnlyForTheCsvModule()
     {
         Assert.Contains("'csv.parse'", Success("import csv\ncsv.parse('a,b')"));
-        Assert.DoesNotContain("'csv.parse'", Success("import files\nfiles.exists('x')"));
+        Assert.DoesNotContain("'csv.parse'", Success("import fs\nfs.is_file('x')"));
     }
 }

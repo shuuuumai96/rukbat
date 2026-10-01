@@ -17,11 +17,11 @@ public class StandardLibraryTests : TestBase
         Assert.Contains("JSON value", json);
         Assert.DoesNotContain("Unknown standard-library operation", json);
 
-        var files = Success("import files\nprint(files.exists('x'))");
+        var files = Success("import fs\nprint(fs.is_file('x'))");
         Assert.Contains("Unknown standard-library operation", files);
         Assert.DoesNotContain("JSON value", files);
-        Assert.Contains("'files.exists'", files);
-        Assert.Contains("'files.list_recursive'", files);
+        Assert.Contains("'fs.is_file'", files);
+        Assert.Contains("'fs.list_files_recursive'", files);
         Assert.DoesNotContain("'env.get'", files);
         Assert.DoesNotContain("'process.run'", files);
     }
@@ -34,16 +34,16 @@ public class StandardLibraryTests : TestBase
         var directory = project.DirectoryPath.Replace("\\", "\\\\");
         var variable = ("RUKBAT_TEST_" + Guid.NewGuid().ToString("N")).Replace("\\", "\\\\");
         project.Write("main.rukbat", $$"""
-            import files
+            import fs
             import path
             import env
             target: string = path.join(['{{directory}}', 'data.txt'])
-            files.write(target, 'hello', 'utf-8')
-            print(files.exists(target))
-            print(files.read(target, 'utf-8'))
+            fs.write_text(target, 'hello', 'utf-8')
+            print(fs.is_file(target))
+            print(fs.read_text(target, 'utf-8'))
             print(path.filename(target))
             print(path.extension(target))
-            names: string[] = files.list('{{directory}}', '*.txt')
+            names: string[] = fs.list_files('{{directory}}', '*.txt')
             print(names.length)
             env.set('{{variable}}', 'value')
             value: string? = env.get('{{variable}}')
@@ -250,11 +250,11 @@ public class StandardLibraryTests : TestBase
         var stdoutPath = project.PathFor("stdout.txt").Replace("\\", "\\\\");
         var stderrPath = project.PathFor("stderr.txt").Replace("\\", "\\\\");
         project.Write("main.rukbat", $$"""
-            import files
+            import fs
             import process
             result := process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}'], null)
-            files.write('{{stdoutPath}}', result.stdout, 'utf-8')
-            files.write('{{stderrPath}}', result.stderr, 'utf-8')
+            fs.write_text('{{stdoutPath}}', result.stdout, 'utf-8')
+            fs.write_text('{{stderrPath}}', result.stderr, 'utf-8')
             print(result.exit_code)
             """);
 
@@ -328,11 +328,11 @@ public class StandardLibraryTests : TestBase
         var stdoutPath = project.PathFor("stdout.txt").Replace("\\", "\\\\");
         var stderrPath = project.PathFor("stderr.txt").Replace("\\", "\\\\");
         project.Write("main.rukbat", $$"""
-            import files
+            import fs
             import process
             result := process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}'], null)
-            files.write('{{stdoutPath}}', result.stdout, 'utf-8')
-            files.write('{{stderrPath}}', result.stderr, 'utf-8')
+            fs.write_text('{{stdoutPath}}', result.stdout, 'utf-8')
+            fs.write_text('{{stderrPath}}', result.stderr, 'utf-8')
             print(result.exit_code)
             """);
 
@@ -393,8 +393,8 @@ public class StandardLibraryTests : TestBase
         var path = project.PathFor("utf16.txt").Replace("\\", "\\\\");
         File.WriteAllBytes(project.PathFor("utf16.txt"), [0xff, 0xfe, 0x41, 0x00]);
         project.Write("main.rukbat", $$"""
-            import files
-            try { files.read('{{path}}', 'utf-8') } catch err { print('invalid UTF-8') }
+            import fs
+            try { fs.read_text('{{path}}', 'utf-8') } catch err { print('invalid UTF-8') }
             """);
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
@@ -423,7 +423,7 @@ public class StandardLibraryTests : TestBase
 
     [Trait("Category", "Unit")]
     [Theory]
-    [InlineData("import files\nfiles.read(1, 'utf-8')")]
+    [InlineData("import fs\nfs.read_text(1, 'utf-8')")]
     [InlineData("import path\npath.join('one')")]
     [InlineData("import env\nenv.set('x', null)")]
     [InlineData("import process\nprocess.run('x', [1], null)")]

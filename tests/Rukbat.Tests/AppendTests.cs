@@ -130,13 +130,13 @@ public class AppendTests : TestBase
         File.WriteAllText(project.PathFor("skip.txt"), "text");
         var directory = project.DirectoryPath.Replace("\\", "/", StringComparison.Ordinal);
         project.Write("main.rukbat", $$"""
-            import files
+            import fs
             import path
             import json
             import process
 
             matches: string[] = []
-            for file in files.list('{{directory}}', '*') {
+            for file in fs.list_files('{{directory}}', '*') {
                 if path.extension(file) == '.log' {
                     matches.append(file)
                 }
@@ -151,7 +151,7 @@ public class AppendTests : TestBase
                 attempt = attempt + 1
             }
 
-            files.write(path.join(['{{directory}}', 'result.json']), json.encode(matches), 'utf-8')
+            fs.write_text(path.join(['{{directory}}', 'result.json']), json.encode(matches), 'utf-8')
             """);
 
         var result = await project.Run();

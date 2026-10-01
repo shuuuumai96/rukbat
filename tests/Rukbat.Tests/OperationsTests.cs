@@ -63,7 +63,7 @@ public class OperationsTests : TestBase
     public async Task ReleaseRunsWithoutSourcesPreservesArgumentsAndRecordsSuccess(string shell)
     {
         using var project = new Project();
-        await Prepare(project, shell, "import files; import json; files.write('result.json', json.encode(args()), 'utf-8')", ["", "日本語 ' ; $value", "-switch", "a\\b\\", "line\nnext"]);
+        await Prepare(project, shell, "import fs; import json; fs.write_text('result.json', json.encode(args()), 'utf-8')", ["", "日本語 ' ; $value", "-switch", "a\\b\\", "line\nnext"]);
         File.Delete(project.PathFor("main.rukbat"));
         var missing = await Monitor(project, shell);
         Assert.True(missing.ExitCode == 1, missing.Output + missing.Error);
@@ -96,7 +96,7 @@ public class OperationsTests : TestBase
     public async Task FailedJobsRequireExplicitReconciliationAndNotificationsAreBounded(string shell)
     {
         using var project = new Project();
-        var config = await Prepare(project, shell, "import files; if !files.exists('ready') { eprint('not ready'); exit(7) }; print('ready')");
+        var config = await Prepare(project, shell, "import fs; if !fs.is_file('ready') { eprint('not ready'); exit(7) }; print('ready')");
         config["max_attempts"] = 2;
         config["retry_exit_codes"] = new JsonArray(8);
         SaveConfig(project, config);
@@ -122,7 +122,7 @@ public class OperationsTests : TestBase
     public async Task OnlyConfiguredExitCodesAreRetriedWithinOneDeadline(string shell)
     {
         using var project = new Project();
-        var config = await Prepare(project, shell, "import files; if !files.exists('attempt') { files.write('attempt', 'first', 'utf-8'); exit(7) }; print('done')");
+        var config = await Prepare(project, shell, "import fs; if !fs.is_file('attempt') { fs.write_text('attempt', 'first', 'utf-8'); exit(7) }; print('done')");
         config["max_attempts"] = 2;
         config["retry_exit_codes"] = new JsonArray(7);
         SaveConfig(project, config);
@@ -139,7 +139,7 @@ public class OperationsTests : TestBase
     public async Task WholeJobDeadlineStopsAnInfiniteRukbatLoop(string shell)
     {
         using var project = new Project();
-        var config = await Prepare(project, shell, "import files; files.write('loop-started', 'yes', 'utf-8'); while true { }");
+        var config = await Prepare(project, shell, "import fs; fs.write_text('loop-started', 'yes', 'utf-8'); while true { }");
         config["timeout_seconds"] = 4;
         SaveConfig(project, config);
         Assert.Equal(1, (await Invoke(project, shell)).ExitCode);
@@ -156,7 +156,7 @@ public class OperationsTests : TestBase
     public async Task ConcurrentLaunchIsRejectedAndKilledSupervisorLeavesUnknownResult(string shell)
     {
         using var project = new Project();
-        var config = await Prepare(project, shell, "import files; pid := powershell<int>('Invoke-Expression', '$PID'); import text; files.write('pid.txt', text.from_int(pid), 'utf-8'); while true { }");
+        var config = await Prepare(project, shell, "import fs; pid := powershell<int>('Invoke-Expression', '$PID'); import text; fs.write_text('pid.txt', text.from_int(pid), 'utf-8'); while true { }");
         config["timeout_seconds"] = 30;
         SaveConfig(project, config);
         using var runner = Start(shell, project.PathFor("release/Invoke-Job.ps1"), "-ConfigPath", project.PathFor("job.json"));
@@ -191,7 +191,7 @@ public class OperationsTests : TestBase
     public async Task BuildFailureAndArtifactTamperingNeverExecuteStaleCode(string shell)
     {
         using var project = new Project();
-        await Prepare(project, shell, "import files; files.write('changed', 'yes', 'utf-8')");
+        await Prepare(project, shell, "import fs; fs.write_text('changed', 'yes', 'utf-8')");
         File.AppendAllText(project.PathFor("release/job.ps1"), "# altered");
         Assert.Equal(2, (await Invoke(project, shell)).ExitCode);
         Assert.False(File.Exists(project.PathFor("work/changed")));
@@ -269,10 +269,10 @@ public class OperationsTests : TestBase
         using var project = new Project();
         project.Write("work/data.txt", "backup original");
         File.Copy(project.PathFor("work/data.txt"), project.PathFor("backup.txt"));
-        var config = await Prepare(project, shell, "import files; files.write('version.txt', 'v1', 'utf-8')");
+        var config = await Prepare(project, shell, "import fs; fs.write_text('version.txt', 'v1', 'utf-8')");
         Assert.Equal(0, (await Invoke(project, shell)).ExitCode);
         var firstId = State(project)["run_id"]!.GetValue<string>();
-        project.Write("main.rukbat", "import files; files.write('version.txt', 'v2', 'utf-8'); files.write('data.txt', 'changed', 'utf-8')");
+        project.Write("main.rukbat", "import fs; fs.write_text('version.txt', 'v2', 'utf-8'); fs.write_text('data.txt', 'changed', 'utf-8')");
         var build = await Run(shell, Path.Combine(Root(), "tools/operations/New-Release.ps1"), "-Source", project.PathFor("main.rukbat"), "-CompilerDll", typeof(Cli).Assembly.Location, "-Destination", project.PathFor("release2"), "-ReleaseId", "acceptance-v2");
         Assert.True(build.ExitCode == 0, build.Error);
         config["release_directory"] = project.PathFor("release2");
@@ -300,7 +300,7 @@ public class OperationsTests : TestBase
     public async Task PreflightAndMonitoringFailuresDoNotPretendTheJobSucceeded(string shell)
     {
         using var project = new Project();
-        var config = await Prepare(project, shell, "import files; files.write('changed', 'yes', 'utf-8')");
+        var config = await Prepare(project, shell, "import fs; fs.write_text('changed', 'yes', 'utf-8')");
         config["first_due_utc"] = "2099-01-01T00:00:00Z";
         SaveConfig(project, config);
         Assert.Equal("not_due", JsonNode.Parse((await Monitor(project, shell)).Output)!["state"]!.GetValue<string>());

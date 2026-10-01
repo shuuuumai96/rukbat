@@ -52,7 +52,7 @@ public class DeploymentTests : TestBase
         var windowsShell = Path.Combine(Environment.GetEnvironmentVariable("SystemRoot")!, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
         project.Write("source/helper.rukbat", "import path\nfn directory(): string { return path.script_dir() }");
         project.Write("source/main.rukbat", $$"""
-            import files
+            import fs
             import path
             import process
             import "./helper.rukbat" as helper
@@ -60,12 +60,12 @@ public class DeploymentTests : TestBase
             print(helper.directory())
             powershell<void>('Set-Location', LiteralPath: '{{SourcePath(other)}}')
             powershell<void>('Invoke-Expression', "[Environment]::CurrentDirectory = '{{SourcePath(project.PathFor("deploy"))}}'")
-            print(files.read('data.txt', 'utf-8'))
-            files.write('result.txt', 'saved', 'utf-8')
-            print(files.exists('result.txt'))
-            names := files.list('.', '*.txt')
+            print(fs.read_text('data.txt', 'utf-8'))
+            fs.write_text('result.txt', 'saved', 'utf-8')
+            print(fs.is_file('result.txt'))
+            names := fs.list_files('.', '*.txt')
             print(names.length)
-            print(files.read(path.join([path.script_dir(), 'config.json']), 'utf-8'))
+            print(fs.read_text(path.join([path.script_dir(), 'config.json']), 'utf-8'))
             result: process.Result = process.run('powershell', ['-NoLogo', '-NoProfile', '-Command', '[Console]::Write([Environment]::CurrentDirectory)'], null)
             print(result.stdout)
             relative: process.Result = process.run('{{SourcePath(Path.GetRelativePath(working, windowsShell))}}', ['-NoLogo', '-NoProfile', '-Command', '[Console]::Write([Environment]::CurrentDirectory)'], null)
@@ -131,17 +131,17 @@ public class DeploymentTests : TestBase
         using var project = new Project();
         project.Write("present.txt", "exists");
         project.Write("main.rukbat", """
-            import files
+            import fs
             import path
-            print(files.exists('present.txt'))
-            print(files.exists('missing.txt'))
-            print(files.exists('.'))
-            print(files.exists(''))
-            print(files.exists('?:invalid'))
-            print(files.exists('bad\npath'))
+            print(fs.is_file('present.txt'))
+            print(fs.is_file('missing.txt'))
+            print(fs.is_file('.'))
+            print(fs.is_file(''))
+            print(fs.is_file('?:invalid'))
+            print(fs.is_file('bad\npath'))
             try { path.join([]) } catch err { print('empty join') }
-            try { files.read('missing.txt', 'utf-8') } catch err { print('read error') }
-            try { files.write('missing/child.txt', 'x', 'utf-8') } catch err { print('write error') }
+            try { fs.read_text('missing.txt', 'utf-8') } catch err { print('read error') }
+            try { fs.write_text('missing/child.txt', 'x', 'utf-8') } catch err { print('write error') }
             """);
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));

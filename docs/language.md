@@ -124,6 +124,8 @@ Methods use `fn` and may read or update `self`. A method that updates `self` may
 
 Imports are static and resolved before execution. Relative project modules use an explicit relative `.rukbat` path and an alias. Standard-library modules use their canonical module names as defined in `STDLIB.md`.
 
+Filesystem operations use `import fs`; path-value operations use `import path`.
+
 ## PowerShell boundary
 
 The generated script captures its initial filesystem working directory from PowerShell's location and its script directory from `$PSScriptRoot` before initializing modules. Relative standard-library file paths and child process working directories always use the captured working directory, even if escape-hatch code changes PowerShell's location or .NET's current directory. Escape-hatch commands themselves retain PowerShell semantics.

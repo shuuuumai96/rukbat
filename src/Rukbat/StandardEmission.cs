@@ -5,8 +5,8 @@ internal sealed partial class Emitter
     private void EmitStandardRuntime(IReadOnlySet<string> modules)
     {
         EmitLines(PathContextRuntime);
-        if (modules.Contains("files")) EmitLines(FileEncodingRuntime);
-        if (modules.Contains("files")) EmitNativeLoader("MoveBatch");
+        if (modules.Contains("fs")) EmitLines(FileEncodingRuntime);
+        if (modules.Contains("fs")) EmitNativeLoader("MoveBatch");
         if (modules.Contains("process")) EmitNativeLoader("ProcessJob");
         Line("$__rukbat_standard = {");
         indentation++;
@@ -14,8 +14,11 @@ internal sealed partial class Emitter
         Line("$ErrorActionPreference = 'Stop'");
         Line("switch ($operation) {");
         indentation++;
-        if (modules.Contains("files")) EmitLines(FilesRuntime);
-        if (modules.Contains("directories")) EmitLines(DirectoriesRuntime);
+        if (modules.Contains("fs"))
+        {
+            EmitLines(FilesRuntime);
+            EmitLines(DirectoriesRuntime);
+        }
         if (modules.Contains("path")) EmitLines(PathRuntime);
         if (modules.Contains("csv")) EmitLines(CsvRuntime);
         if (modules.Contains("env")) EmitLines(EnvironmentRuntime);
@@ -91,11 +94,11 @@ internal sealed partial class Emitter
     }
 
     private const string FilesRuntime = """
-    'files.list' {
+    'fs.list_files' {
         $directory = & $__rukbat_resolve_path ([string]$values[0])
         $pattern = [string]$values[1]
         if ([string]::IsNullOrWhiteSpace($pattern) -or $pattern.IndexOfAny([char[]]'\\/') -ge 0) {
-            throw 'files.list pattern must be a non-empty filename wildcard without directory separators.'
+            throw 'fs.list_files pattern must be a non-empty filename wildcard without directory separators.'
         }
         if (-not [System.IO.Directory]::Exists($directory)) {
             throw "Cannot access directory: $($values[0])"
@@ -106,11 +109,11 @@ internal sealed partial class Emitter
         }
         return ,([object[]]$paths)
     }
-    'files.list_recursive' {
+    'fs.list_files_recursive' {
         $root = & $__rukbat_resolve_path ([string]$values[0])
         $pattern = [string]$values[1]
         if ([string]::IsNullOrWhiteSpace($pattern) -or $pattern.IndexOfAny([char[]]'\\/') -ge 0) {
-            throw 'files.list_recursive pattern must be a non-empty filename wildcard without directory separators.'
+            throw 'fs.list_files_recursive pattern must be a non-empty filename wildcard without directory separators.'
         }
         $rootInfo = [System.IO.DirectoryInfo]::new($root)
         if (-not $rootInfo.Exists) {
@@ -135,7 +138,7 @@ internal sealed partial class Emitter
         }
         return ,([object[]]$paths)
     }
-    'files.read' {
+    'fs.read_text' {
         $selected = & $__rukbat_file_encoding ([string]$values[1])
         $bytes = [System.IO.File]::ReadAllBytes((& $__rukbat_resolve_path ([string]$values[0])))
         if ($selected.name -eq 'windows-932') { return (& $__rukbat_decode_windows932 $bytes) }
@@ -155,7 +158,7 @@ internal sealed partial class Emitter
         }
         return $selected.encoding.GetString($bytes, $offset, $bytes.Length - $offset)
     }
-    'files.write' {
+    'fs.write_text' {
         $selected = & $__rukbat_file_encoding ([string]$values[2])
         $path = & $__rukbat_resolve_path ([string]$values[0])
         $text = [string]$values[1]
@@ -176,7 +179,7 @@ internal sealed partial class Emitter
                 }
             }
             if ($null -eq $tempPath) {
-                throw 'files.write could not create a unique temporary file.'
+                throw 'fs.write_text could not create a unique temporary file.'
             }
             try {
                 $stream.Write($bytes, 0, $bytes.Length)
@@ -205,7 +208,7 @@ internal sealed partial class Emitter
         }
         return
     }
-    'files.move_batch' {
+    'fs.move_files_batch' {
         $sources = [System.Collections.Generic.List[string]]::new()
         $destinations = [System.Collections.Generic.List[string]]::new()
         foreach ($value in $values[0]) { $sources.Add((& $__rukbat_resolve_path ([string]$value))) }
@@ -215,17 +218,17 @@ internal sealed partial class Emitter
         [RukbatMoveBatch]::Run($sources.ToArray(), $destinations.ToArray(), $journal)
         return
     }
-    'files.recover_moves' {
+    'fs.recover_file_moves' {
         $journal = & $__rukbat_resolve_path ([string]$values[0])
         & $__rukbat_load_MoveBatch
         [RukbatMoveBatch]::Recover($journal)
         return
     }
-    'files.copy' {
+    'fs.copy_file' {
         $source = & $__rukbat_resolve_path ([string]$values[0])
         $destination = & $__rukbat_resolve_path ([string]$values[1])
         if ([string]::Equals($source, $destination, [System.StringComparison]::OrdinalIgnoreCase)) {
-            throw 'files.copy source and destination must differ.'
+            throw 'fs.copy_file source and destination must differ.'
         }
         $sourceAttributes = & $__rukbat_entry_attributes $source
         if ($null -eq $sourceAttributes) { throw "Cannot find file: $($values[0])" }
@@ -238,11 +241,11 @@ internal sealed partial class Emitter
         [System.IO.File]::Copy($source, $destination, $false)
         return
     }
-    'files.move' {
+    'fs.move_file' {
         $source = & $__rukbat_resolve_path ([string]$values[0])
         $destination = & $__rukbat_resolve_path ([string]$values[1])
         if ([string]::Equals($source, $destination, [System.StringComparison]::OrdinalIgnoreCase)) {
-            throw 'files.move source and destination must differ.'
+            throw 'fs.move_file source and destination must differ.'
         }
         $sourceAttributes = & $__rukbat_entry_attributes $source
         if ($null -eq $sourceAttributes) { throw "Cannot find file: $($values[0])" }
@@ -254,11 +257,11 @@ internal sealed partial class Emitter
         }
         [System.IO.File]::Move($source, $destination)
         if ([System.IO.File]::Exists($source)) {
-            throw "files.move did not remove source: $($values[0])"
+            throw "fs.move_file did not remove source: $($values[0])"
         }
         return
     }
-    'files.remove' {
+    'fs.remove_file' {
         $path = & $__rukbat_resolve_path ([string]$values[0])
         $attributes = & $__rukbat_entry_attributes $path
         if ($null -eq $attributes) { return }
@@ -268,7 +271,7 @@ internal sealed partial class Emitter
         [System.IO.File]::Delete($path)
         return
     }
-    'files.exists' {
+    'fs.is_file' {
         try { return [System.IO.File]::Exists((& $__rukbat_resolve_path ([string]$values[0]))) }
         catch { return $false }
     }
@@ -324,7 +327,7 @@ internal sealed partial class Emitter
     """;
 
     private const string DirectoriesRuntime = """
-    'directories.create' {
+    'fs.create_dir_all' {
         $path = & $__rukbat_resolve_path ([string]$values[0])
         $attributes = & $__rukbat_entry_attributes $path
         if ($null -ne $attributes -and ($attributes -band [System.IO.FileAttributes]::Directory) -eq 0) {
@@ -333,11 +336,11 @@ internal sealed partial class Emitter
         [System.IO.Directory]::CreateDirectory($path)
         return
     }
-    'directories.exists' {
+    'fs.is_dir' {
         try { return [System.IO.Directory]::Exists((& $__rukbat_resolve_path ([string]$values[0]))) }
         catch { return $false }
     }
-    'directories.remove' {
+    'fs.remove_dir' {
         $path = & $__rukbat_resolve_path ([string]$values[0])
         & $__rukbat_reject_directory_delete $path
         $attributes = & $__rukbat_entry_attributes $path
@@ -348,7 +351,7 @@ internal sealed partial class Emitter
         [System.IO.Directory]::Delete($path, $false)
         return
     }
-    'directories.remove_all' {
+    'fs.remove_dir_all' {
         $path = & $__rukbat_resolve_path ([string]$values[0])
         & $__rukbat_reject_directory_delete $path
         $attributes = & $__rukbat_entry_attributes $path

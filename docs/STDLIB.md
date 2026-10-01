@@ -5,8 +5,7 @@
 The standard library is part of the compiler version. A standard module is imported by its canonical name and cannot be aliased:
 
 ```rukbat
-import files
-import directories
+import fs
 import path
 import csv
 import json
@@ -18,6 +17,51 @@ import text
 A local module instead uses an explicit relative `.rukbat` path and an alias. Standard module names are reserved as aliases. Generated scripts contain only the standard-library runtime sections used by their imports and remain standalone on Windows PowerShell 5.1.
 
 All failures described below are ordinary Rukbat runtime `Error` values and can be handled with `try` / `catch`.
+
+## Choosing filesystem and path operations
+
+Use `fs` (filesystem) to inspect or change actual files and directories. Use `path` to construct,
+decompose, and compare path values without inspecting filesystem entries. Both use strings;
+no special path object or method chaining is required. A file need not exist to use `path.filename`
+or `path.parent`. `path.script_dir` reads the deployed script directory captured at startup;
+`path.equal` and `path.find_duplicate` use the captured working directory to resolve path spelling,
+not to compare the identity of filesystem entries.
+
+| Task | Canonical operation | Important boundary |
+|---|---|---|
+| Read or replace text | `fs.read_text`, `fs.write_text` | Encoding is required. A write replaces a file; it does not append or create parent directories. |
+| List matching files | `fs.list_files`, `fs.list_files_recursive` | Only files are returned. `_recursive` includes subdirectories. |
+| Check the target kind | `fs.is_file`, `fs.is_dir` | Missing or inaccessible entries return `false`. These checks do not guarantee a later operation will succeed. |
+| Create a directory and its parents | `fs.create_dir_all` | An existing directory succeeds; a file at that path is an Error. |
+| Copy or move one file | `fs.copy_file`, `fs.move_file` | Destination is the complete file path, not a directory. An existing destination is never overwritten; parents must exist. |
+| Remove one file | `fs.remove_file` | A directory is an Error. |
+| Remove an empty directory | `fs.remove_dir` | A file or a nonempty directory is an Error. |
+| Remove a directory tree | `fs.remove_dir_all` | Explicit recursive deletion; directory links are not traversed. |
+| Execute or recover a journaled file move plan | `fs.move_files_batch`, `fs.recover_file_moves` | Specialized same-drive, local NTFS operation; see the recovery contract below. |
+| Construct or inspect a path value | `path.join`, `path.filename`, `path.extension`, `path.parent` | These operations do not check existence. |
+| Compare resolved path spelling | `path.equal`, `path.find_duplicate` | Windows case-insensitive spelling comparison; not file identity. |
+| Locate data beside the deployed script | `path.script_dir` | This is the deployed `.ps1` directory, not the working directory or source directory. |
+
+All arguments are required and positional. Operations have no aliases, optional flags, or implicit
+file/directory dispatch. `_file` selects one file, `_dir` selects a directory, and `_all` in
+`create_dir_all` and `remove_dir_all` makes the parent/subtree scope explicit.
+
+```rukbat
+import fs
+import path
+
+output := path.join([path.script_dir(), "output"])
+fs.create_dir_all(output)
+
+for source in fs.list_files("input", "*.csv") {
+    destination := path.join([output, path.filename(source)])
+    fs.copy_file(source, destination)
+}
+```
+
+Here `input` is relative to the entry working directory, while `output` is beside the deployed script.
+The current filesystem API does not provide directory listing, directory copy/move, raw byte I/O,
+or file metadata. Those operations are not implied by similarly named file functions.
 
 ## Admission criteria
 
@@ -109,51 +153,58 @@ Invalid input, overflow, and nonzero float input that underflows to zero cause E
 Representable subnormal floats are accepted. Float formatting preserves the numeric value on reparse;
 it does not promise to preserve the input spelling or the sign of zero.
 
-## `files`
+## `fs`
+
+The module contains both file and directory operations. Import `fs` once for either kind.
+
+### File operations
 
 | Signature | Meaning | Failure |
 |---|---|---|
-| `files.list(directory: string, pattern: string): string[]` | Returns absolute paths of directly contained, non-Hidden files that match the file-system wildcard `pattern`. It excludes directories, does not recurse, and does not guarantee order. | An inaccessible or nonexistent directory, or an invalid pattern, causes Error. |
-| `files.list_recursive(directory: string, pattern: string): string[]` | Returns absolute paths to files matching the filename wildcard `pattern` at every depth beneath `directory`, including direct children. It excludes directories and does not guarantee order. | An inaccessible/nonexistent directory, a file passed as `directory`, an invalid path or pattern, or a traversal failure causes Error. |
-| `files.read(path: string, encoding: string): string` | Reads text with one explicit canonical encoding. | Missing/inaccessible files, an unsupported encoding, an invalid byte sequence, or a conflicting UTF-16 BOM causes Error. |
-| `files.write(path: string, text: string, encoding: string): void` | Replaces a file with one explicit canonical encoding, without a BOM or implicit newline. It does not create parent directories. Complete new contents are written to a temporary file in the destination directory before it is moved or used to replace the destination. | An inaccessible path, missing parent directory, unsupported encoding, or unencodable text causes Error. |
-| `files.exists(path: string): bool` | Returns `true` for an existing file. Missing files, directories, invalid paths, and access failures or other cases that File.Exists cannot determine return `false`. | This predicate returns `false` rather than raising Error when path resolution or existence checking fails. |
-| `files.copy(source: string, destination: string): void` | Copies one file without overwriting an existing destination or creating its parent directory. | A missing, inaccessible, or directory source; an existing destination; a missing parent; identical source and destination; or an I/O failure causes Error. |
-| `files.move(source: string, destination: string): void` | Moves one file. Moving within one directory renames it. It does not overwrite an existing destination or create its parent directory. On success the source no longer exists. | A missing or directory source; an existing destination; a missing parent; identical source and destination; or an I/O failure causes Error. Cross-volume moves are allowed but are not atomic; after an error, the destination may remain. |
-| `files.remove(path: string): void` | Deletes one file. Removing a missing file succeeds. | A directory, readonly or in-use file, invalid path, or I/O failure causes Error. A file reparse point removes the entry, not its target. |
+| `fs.list_files(directory: string, pattern: string): string[]` | Returns absolute paths of directly contained, non-Hidden files that match the file-system wildcard `pattern`. It excludes directories, does not recurse, and does not guarantee order. | An inaccessible or nonexistent directory, or an invalid pattern, causes Error. |
+| `fs.list_files_recursive(directory: string, pattern: string): string[]` | Returns absolute paths to files matching the filename wildcard `pattern` at every depth beneath `directory`, including direct children. It excludes directories and does not guarantee order. | An inaccessible/nonexistent directory, a file passed as `directory`, an invalid path or pattern, or a traversal failure causes Error. |
+| `fs.read_text(path: string, encoding: string): string` | Reads text with one explicit canonical encoding. | Missing/inaccessible files, an unsupported encoding, an invalid byte sequence, or a conflicting UTF-16 BOM causes Error. |
+| `fs.write_text(path: string, text: string, encoding: string): void` | Replaces a file with one explicit canonical encoding, without a BOM or implicit newline. It does not create parent directories. Complete new contents are written to a temporary file in the destination directory before it is moved or used to replace the destination. | An inaccessible path, missing parent directory, unsupported encoding, or unencodable text causes Error. |
+| `fs.is_file(path: string): bool` | Returns `true` for an existing file. Missing files, directories, invalid paths, and access failures or other cases that File.Exists cannot determine return `false`. | This predicate returns `false` rather than raising Error when path resolution or existence checking fails. |
+| `fs.copy_file(source: string, destination: string): void` | Copies one file without overwriting an existing destination or creating its parent directory. | A missing, inaccessible, or directory source; an existing destination; a missing parent; identical source and destination; or an I/O failure causes Error. |
+| `fs.move_file(source: string, destination: string): void` | Moves one file. Moving within one directory renames it. It does not overwrite an existing destination or create its parent directory. On success the source no longer exists. | A missing or directory source; an existing destination; a missing parent; identical source and destination; or an I/O failure causes Error. Cross-volume moves are allowed but are not atomic; after an error, the destination may remain. |
+| `fs.remove_file(path: string): void` | Deletes one file. Removing a missing file succeeds. | A directory, readonly or in-use file, invalid path, or I/O failure causes Error. A file reparse point removes the entry, not its target. |
 
 `encoding` must be exactly one of these case-sensitive names; aliases are not accepted: `utf-8`, `utf-16le`, `utf-16be`, or `windows-932`. `utf-8` accepts and removes only a leading UTF-8 BOM on read. `utf-16le` and `utf-16be` accept and remove their matching leading BOM, accept no BOM, and reject the opposite-endian BOM. All writes are strict and BOM-free. `windows-932` means Windows code page 932 (CP932 / Windows Shift-JIS), for Shift-JIS-compatible text commonly used by legacy Japanese Windows software. It is deliberately CP932 rather than a claim to implement every Shift_JIS variant, and it has no BOM handling. Every encoding rejects invalid input and unencodable output rather than replacing data.
 
-Relative paths for `files` and `directories` are resolved from the filesystem working directory captured at entry-script startup, not the script directory or a later PowerShell location. `files.write` first validates and encodes its complete contents to bytes, then writes and flushes those bytes to a uniquely named temporary file in the destination directory. It then uses `File.Replace` for an existing destination or `File.Move` for a missing one. Failures before that final filesystem operation leave an existing destination unchanged. A concurrent creator that wins the missing-destination race is replaced through `File.Replace`, not deleted. Rukbat does not guarantee durability against process, system, storage, or filesystem failure during the final operation, nor does it guarantee atomic behavior on every filesystem. `File.Replace` can merge destination metadata such as attributes and ACLs and can fail while doing so; `files.write` makes no metadata or ACL preservation guarantee.
+Relative paths for `fs` are resolved from the filesystem working directory captured at entry-script startup, not the script directory or a later PowerShell location. `fs.write_text` first validates and encodes its complete contents to bytes, then writes and flushes those bytes to a uniquely named temporary file in the destination directory. It then uses `File.Replace` for an existing destination or `File.Move` for a missing one. Failures before that final filesystem operation leave an existing destination unchanged. A concurrent creator that wins the missing-destination race is replaced through `File.Replace`, not deleted. Rukbat does not guarantee durability against process, system, storage, or filesystem failure during the final operation, nor does it guarantee atomic behavior on every filesystem. `File.Replace` can merge destination metadata such as attributes and ACLs and can fail while doing so; `fs.write_text` makes no metadata or ACL preservation guarantee.
 
-`files.list` and `files.list_recursive` return absolute paths. `list` considers only direct children; `list_recursive` considers every depth. Both treat `directory` as a literal path. Their nonempty `pattern` applies only to each filename, using the same file-system filter behavior; the supported simple forms include `*` and `?`. It cannot contain `/` or `\\`, so it cannot express directory hierarchy globs. `list` excludes Hidden files. `list_recursive` excludes Hidden files and directories, including hidden subtrees. System attributes do not exclude entries. A directory reparse point explicitly supplied as the `list_recursive` root is a valid traversal root. ReparsePoint entries discovered beneath that root are excluded, so that operation neither returns nor recurses into child symbolic links or junctions. Enumeration returns no partial result when a platform error occurs.
+`fs.list_files` and `fs.list_files_recursive` return absolute paths. `list_files` considers only direct children; `list_files_recursive` considers every depth. Both treat `directory` as a literal path. Their nonempty `pattern` applies only to each filename, using the same file-system filter behavior; the supported simple forms include `*` and `?`. It cannot contain `/` or `\\`, so it cannot express directory hierarchy globs. `list_files` excludes Hidden files. `list_files_recursive` excludes Hidden files and directories, including hidden subtrees. System attributes do not exclude entries. A directory reparse point explicitly supplied as the `list_files_recursive` root is a valid traversal root. ReparsePoint entries discovered beneath that root are excluded, so that operation neither returns nor recurses into child symbolic links or junctions. Enumeration returns no partial result when a platform error occurs.
 
 `windows-932` reads use the Windows code-page mapping with strict validation, including NEC-selected IBM and IBM extension byte sequences for the same character (for example, `EE E0` and `FB FC` both decode to U+9AD9). A valid read does not imply that re-encoding reproduces the original bytes. The generated script embeds its decoder and requires no additional installation.
+
+### Directory operations
+
+| Signature | Meaning | Failure |
+|---|---|---|
+| `fs.create_dir_all(path: string): void` | Creates the directory and any missing parent directories. Creating an existing directory succeeds. | A file at the target path, an invalid path, or an I/O failure causes Error. |
+| `fs.is_dir(path: string): bool` | Returns `true` only for an existing reachable directory. Files, missing paths, invalid paths, inaccessible paths, and indeterminate checks return `false`. | This predicate returns `false` rather than raising Error. |
+| `fs.remove_dir(path: string): void` | Deletes an empty directory. Removing a missing directory succeeds. | A file, a non-empty directory, a filesystem root, the captured working directory or its ancestor, or an I/O failure causes Error. A directory reparse point removes the entry, not its target. |
+| `fs.remove_dir_all(path: string): void` | Deletes a directory and its ordinary subtree. Removing a missing directory succeeds. | A file, a filesystem root, the captured working directory or its ancestor, or an I/O failure causes Error. Partial deletion is possible. Reparse points at the target or beneath it are removed as entries and are never traversed. |
 
 ### Recoverable file moves
 
 A move plan is limited to 100000 entries and a 64 MiB serialized plan. Oversized plans are rejected before source mutation; journal reads enforce corresponding size limits.
 
-`files.move_batch(sources: string[], destinations: string[], journal: string): void` moves a complete plan with exclusive file locks and a persistent recovery journal. `files.recover_moves(journal: string): void` rolls an interrupted, uncommitted plan back to its original source paths. These operations require local fixed NTFS storage; every source, destination, and journal must be on the same drive. Reparse points anywhere in their paths, multiply linked files, alternate data streams, overlapping paths, and ambiguous trailing-dot/space paths are rejected. Parent directories for the journal must already exist.
+`fs.move_files_batch(sources: string[], destinations: string[], journal: string): void` moves a complete plan with exclusive file locks and a persistent recovery journal. `fs.recover_file_moves(journal: string): void` rolls an interrupted, uncommitted plan back to its original source paths. These operations require local fixed NTFS storage; every source, destination, and journal must be on the same drive. Reparse points anywhere in their paths, multiply linked files, alternate data streams, overlapping paths, and ambiguous trailing-dot/space paths are rejected. Parent directories for the journal must already exist.
 
 Before the first rename, the implementation locks all source files against writes/deletes, locks their directories against renames/deletes, creates and locks destination directories, records absolute paths, file IDs, creation times and SHA-256 hashes, and flushes the checksummed journal to storage. The journal itself is exclusively locked, so concurrent uses of the same journal fail before moving files. Renames operate on the locked file handles and never replace an existing destination. All destination parents are prepared before any source is moved. Empty directories and an empty journal can remain after a preparation failure.
 
-A normal move failure rolls completed moves back. If rollback also fails, Error identifies the retained journal; do not discard it. After host termination, call `recover_moves`, or call `move_batch` again with the same plan and journal. Recovery verifies every recorded file's identity and contents before changing any file. A foreign/replaced/modified file, corrupt journal, ambiguous source/destination state, or inaccessible path stops recovery without overwriting data. Recovery can itself be interrupted and repeated. Once rollback has finished, the same `move_batch` call can execute the plan again.
+A normal move failure rolls completed moves back. If rollback also fails, Error identifies the retained journal; do not discard it. After host termination, call `recover_file_moves`, or call `move_files_batch` again with the same plan and journal. Recovery verifies every recorded file's identity and contents before changing any file. A foreign/replaced/modified file, corrupt journal, ambiguous source/destination state, or inaccessible path stops recovery without overwriting data. Recovery can itself be interrupted and repeated. Once rollback has finished, the same `move_files_batch` call can execute the plan again.
 
-The commit marker is flushed after all moves finish. Repeating a committed plan verifies the destinations and returns without moving anything again. A different plan cannot reuse that journal. `recover_moves` on a committed plan only verifies it; it does not undo committed work. Retain the journal as the completion record; use a new journal for a genuinely new job. A missing journal is an error for recovery, and a damaged or truncated nonempty journal is never silently reset.
+The commit marker is flushed after all moves finish. Repeating a committed plan verifies the destinations and returns without moving anything again. A different plan cannot reuse that journal. `recover_file_moves` on a committed plan only verifies it; it does not undo committed work. Retain the journal as the completion record; use a new journal for a genuinely new job. A missing journal is an error for recovery, and a damaged or truncated nonempty journal is never silently reset.
 
-This is crash-recoverable execution, not an atomic snapshot for other readers: they may observe intermediate paths. Created directories are retained. Process-termination recovery is tested; it is not a guarantee against disk corruption or hardware that ignores flush requests. Keep the journal and operated directories under the job account's control. These guarantees apply to `move_batch`, not to arbitrary sequences of `files.move`, deletion, or external-program side effects.
-
-## `directories`
-
-| Signature | Meaning | Failure |
-|---|---|---|
-| `directories.create(path: string): void` | Creates the directory and any missing parent directories. Creating an existing directory succeeds. | A file at the target path, an invalid path, or an I/O failure causes Error. |
-| `directories.exists(path: string): bool` | Returns `true` only for an existing reachable directory. Files, missing paths, invalid paths, inaccessible paths, and indeterminate checks return `false`. | This predicate returns `false` rather than raising Error. |
-| `directories.remove(path: string): void` | Deletes an empty directory. Removing a missing directory succeeds. | A file, a non-empty directory, a filesystem root, the captured working directory or its ancestor, or an I/O failure causes Error. A directory reparse point removes the entry, not its target. |
-| `directories.remove_all(path: string): void` | Deletes a directory and its ordinary subtree. Removing a missing directory succeeds. | A file, a filesystem root, the captured working directory or its ancestor, or an I/O failure causes Error. Partial deletion is possible. Reparse points at the target or beneath it are removed as entries and are never traversed. |
+This is crash-recoverable execution, not an atomic snapshot for other readers: they may observe intermediate paths. Created directories are retained. Process-termination recovery is tested; it is not a guarantee against disk corruption or hardware that ignores flush requests. Keep the journal and operated directories under the job account's control. These guarantees apply to `move_files_batch`, not to arbitrary sequences of `fs.move_file`, deletion, or external-program side effects.
 
 ## `path`
+
+This module operates on path values without inspecting filesystem entries. Existence checks belong
+to `fs.is_file` and `fs.is_dir`; `path.parent` only computes the parent path value.
 
 | Signature | Meaning | Failure |
 |---|---|---|
@@ -182,7 +233,7 @@ config := path.join([path.script_dir(), "config.json"])
 |---|---|---|
 | `csv.parse(text: string): string[][]` | Parses CSV records and fields as strings. It does not infer types, interpret headers, require a rectangular table, or map records to structs. | Invalid CSV syntax causes Error. |
 
-The separator is comma. CRLF and LF separate records; a final separator is optional. Quoted fields preserve commas and newlines, and `""` inside a quoted field becomes `"`. Whitespace and Unicode are preserved. Empty fields, including quoted empty fields, return `""`. An empty input returns `[]`; a blank record returns `[""]` and is not discarded. A bare CR outside a quoted field, an unquoted quote, an unclosed quote, or non-separator content after a closing quote causes Error. `csv.parse` accepts a Rukbat string and does not decode text encodings or treat U+FEFF specially; select the file encoding with `files.read`, for example `csv.parse(files.read("legacy.csv", "windows-932"))`.
+The separator is comma. CRLF and LF separate records; a final separator is optional. Quoted fields preserve commas and newlines, and `""` inside a quoted field becomes `"`. Whitespace and Unicode are preserved. Empty fields, including quoted empty fields, return `""`. An empty input returns `[]`; a blank record returns `[""]` and is not discarded. A bare CR outside a quoted field, an unquoted quote, an unclosed quote, or non-separator content after a closing quote causes Error. `csv.parse` accepts a Rukbat string and does not decode text encodings or treat U+FEFF specially; select the file encoding with `fs.read_text`, for example `csv.parse(fs.read_text("legacy.csv", "windows-932"))`.
 
 ## `json`
 
@@ -243,7 +294,7 @@ Child processes start in the captured entry working directory. Executable paths 
 
 ## Runtime path resolution
 
-Standard filesystem operations resolve nonempty relative paths against the captured entry working directory before calling PowerShell or .NET. Absolute paths stay absolute. A root-relative path such as `\data\file.txt` uses the captured directory's drive root. Drive-relative forms such as `C:file.txt` are rejected because they depend on implicit per-drive state; `files.exists` and `directories.exists` return `false` for them. Invalid/empty operation paths raise Error, except for these existence predicates. This does not change the Error contracts of read, write, list, copy, move, create, or remove.
+Standard filesystem operations resolve nonempty relative paths against the captured entry working directory before calling PowerShell or .NET. Absolute paths stay absolute. A root-relative path such as `\data\file.txt` uses the captured directory's drive root. Drive-relative forms such as `C:file.txt` are rejected because they depend on implicit per-drive state; `fs.is_file` and `fs.is_dir` return `false` for them. Invalid/empty operation paths raise Error, except for these existence predicates. This does not change the Error contracts of read, write, list, copy, move, create, or remove.
 
 ## Program arguments
 

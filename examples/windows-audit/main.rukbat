@@ -1,4 +1,4 @@
-import files
+import fs
 import json
 
 struct ServiceState {
@@ -26,7 +26,7 @@ try {
         }
     }
 
-    files.write(arguments[1], json.encode(ServiceState {
+    fs.write_text(arguments[1], json.encode(ServiceState {
         name: service_name, running: running
     }), "utf-8")
 

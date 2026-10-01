@@ -104,8 +104,9 @@ dotnet publish src/Rukbat -c Release -o artifacts/rukbat
 ## Principles and current scope
 
 - Prefer consistent syntax that is easy to read and write.
-- Named imports such as `import files` load standard modules bundled with the compiler.
-- The v0.1 standard modules are `files`, `directories`, `path`, `json`, `csv`, `env`, `process`, and `text`. Their APIs and external-data contracts are defined in the [standard library specification](docs/STDLIB.md).
+- Named imports such as `import fs` load standard modules bundled with the compiler.
+- The v0.1 standard modules are `fs`, `path`, `json`, `csv`, `env`, `process`, and `text`. Their APIs and external-data contracts are defined in the [standard library specification](docs/STDLIB.md).
+- Use `fs` for actual file and directory operations, and `path` for constructing, decomposing, and comparing path values. For example, `fs.list_files` lists files, `fs.create_dir_all` creates directories and their parents, and `path.parent` computes a parent path without checking existence. See the [task guide](docs/STDLIB.md#choosing-filesystem-and-path-operations).
 - `exit(code)` terminates the process with a nonnegative `int` exit code. `eprint(text)` writes a line to standard error.
 - `text.from_int/from_float/from_bool` and `text.parse_int/parse_float/parse_bool` provide explicit, culture-independent string conversion and parsing.
 - `import "./models/user.rukbat" as model` loads a module relative to the importing file, including across directories.
@@ -191,7 +192,7 @@ Paths are relative to the runtime working directory. Quote paths and patterns co
 Missing arguments, unknown options, directory access failures, and save failures produce a message on stderr and exit code `1`.
 Success and help use exit code `0`.
 
-File operations and JSON encoding use the compiler's `files` and `json` standard modules.
+File operations and JSON encoding use the compiler's `fs` and `json` standard modules.
 Only imported standard-library implementations are embedded in the generated script; no separate library files are needed at deployment.
 
 ## Arrays, loops, and external data
@@ -268,8 +269,11 @@ endings, trims each line, and saves lines starting with the case-sensitive prefi
 For a legacy Japanese Windows CSV, select CP932 explicitly:
 
 ```rukbat
-text := files.read("legacy.csv", "windows-932")
-rows := csv.parse(text)
+import fs
+import csv
+
+content := fs.read_text("legacy.csv", "windows-932")
+rows := csv.parse(content)
 ```
 
 ```powershell
@@ -290,6 +294,6 @@ The implemented [batch validation acceptance example](examples/batch-check/main.
 
 ## Batch organization acceptance example
 
-The [batch organization acceptance example](examples/batch-organize/main.rukbat) follows the [batch organization contract](docs/BATCH_ORGANIZE_ACCEPTANCE.md). It parses a CSV move plan and uses `files.move_batch` for locked, journaled moves on one local NTFS volume. Interrupted work can be recovered or retried, and committed plans can be replayed without repeating moves. See [unattended operation](docs/UNATTENDED.md) for the supported environment, recovery procedure, and fault tests.
+The [batch organization acceptance example](examples/batch-organize/main.rukbat) follows the [batch organization contract](docs/BATCH_ORGANIZE_ACCEPTANCE.md). It parses a CSV move plan and uses `fs.move_files_batch` for locked, journaled moves on one local NTFS volume. Interrupted work can be recovered or retried, and committed plans can be replayed without repeating moves. See [unattended operation](docs/UNATTENDED.md) for the supported environment, recovery procedure, and fault tests.
 
 The [operations toolkit](docs/OPERATIONS.md) packages versioned releases, runs them with a whole-job deadline and exclusive job lock, records outcomes, generates scheduled tasks, and exposes a JSON health probe with notification integration. It includes file, CLI and Windows administration acceptance examples. Target-account scheduling, backup restoration and production alert delivery remain explicit deployment acceptance checks.

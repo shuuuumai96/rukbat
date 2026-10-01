@@ -495,14 +495,14 @@ internal sealed partial class TypeChecker
 
         ValueType[]? parameters = (moduleName, call.Name) switch
         {
-            ("files", "list") or ("files", "list_recursive") => [ValueType.String, ValueType.String],
-            ("files", "read") => [ValueType.String, ValueType.String],
-            ("files", "exists") or ("files", "remove") => [ValueType.String],
-            ("files", "write") => [ValueType.String, ValueType.String, ValueType.String],
-            ("files", "copy") or ("files", "move") => [ValueType.String, ValueType.String],
-            ("files", "move_batch") => [ValueType.ArrayOf(ValueType.String), ValueType.ArrayOf(ValueType.String), ValueType.String],
-            ("files", "recover_moves") => [ValueType.String],
-            ("directories", "create") or ("directories", "exists") or ("directories", "remove") or ("directories", "remove_all") => [ValueType.String],
+            ("fs", "list_files") or ("fs", "list_files_recursive") => [ValueType.String, ValueType.String],
+            ("fs", "read_text") => [ValueType.String, ValueType.String],
+            ("fs", "is_file") or ("fs", "remove_file") => [ValueType.String],
+            ("fs", "write_text") => [ValueType.String, ValueType.String, ValueType.String],
+            ("fs", "copy_file") or ("fs", "move_file") => [ValueType.String, ValueType.String],
+            ("fs", "move_files_batch") => [ValueType.ArrayOf(ValueType.String), ValueType.ArrayOf(ValueType.String), ValueType.String],
+            ("fs", "recover_file_moves") => [ValueType.String],
+            ("fs", "create_dir_all") or ("fs", "is_dir") or ("fs", "remove_dir") or ("fs", "remove_dir_all") => [ValueType.String],
             ("path", "script_dir") => [],
             ("path", "join" or "find_duplicate") => [ValueType.ArrayOf(ValueType.String)],
             ("path", "filename") or ("path", "extension") or ("path", "parent") => [ValueType.String],
@@ -530,16 +530,16 @@ internal sealed partial class TypeChecker
         {
             Error("RUK2005", $"{moduleName}.{call.Name} does not accept a type argument.", call);
         }
-        CheckStandardArguments(call, scope, parameters);
+        CheckStandardArguments(call, scope, parameters, $"{moduleName}.{call.Name}");
         var returnType = (moduleName, call.Name) switch
         {
-            ("files", "list") or ("files", "list_recursive") => ValueType.ArrayOf(ValueType.String),
-            ("files", "read") => ValueType.String,
-            ("files", "exists") => ValueType.Bool,
-            ("files", "write") or ("files", "copy") or ("files", "move") or ("files", "remove") => ValueType.Void,
-            ("files", "move_batch" or "recover_moves") => ValueType.Void,
-            ("directories", "exists") => ValueType.Bool,
-            ("directories", "create") or ("directories", "remove") or ("directories", "remove_all") => ValueType.Void,
+            ("fs", "list_files") or ("fs", "list_files_recursive") => ValueType.ArrayOf(ValueType.String),
+            ("fs", "read_text") => ValueType.String,
+            ("fs", "is_file") => ValueType.Bool,
+            ("fs", "write_text") or ("fs", "copy_file") or ("fs", "move_file") or ("fs", "remove_file") => ValueType.Void,
+            ("fs", "move_files_batch" or "recover_file_moves") => ValueType.Void,
+            ("fs", "is_dir") => ValueType.Bool,
+            ("fs", "create_dir_all") or ("fs", "remove_dir") or ("fs", "remove_dir_all") => ValueType.Void,
             ("path", "equal") => ValueType.Bool,
             ("path", "find_duplicate") => ValueType.NullableOf(ValueType.String),
             ("path", _) => ValueType.String,
@@ -559,11 +559,15 @@ internal sealed partial class TypeChecker
         return returnType;
     }
 
-    private void CheckStandardArguments(Call call, Symbols scope, IReadOnlyList<ValueType> parameters)
+    private void CheckStandardArguments(Call call, Symbols scope, IReadOnlyList<ValueType> parameters, string name)
     {
-        if (call.Arguments.Count != parameters.Count || call.Arguments.Any(argument => argument.Name is not null))
+        if (call.Arguments.Count != parameters.Count)
         {
-            Error("RUK2005", $"{call.Name} expects {parameters.Count} positional arguments, got {call.Arguments.Count}.", call);
+            Error("RUK2005", $"{name} expects {parameters.Count} positional arguments, got {call.Arguments.Count}.", call);
+        }
+        if (call.Arguments.Any(argument => argument.Name is not null))
+        {
+            Error("RUK2005", $"{name} accepts positional arguments only. Remove the argument names.", call);
         }
         for (var index = 0; index < call.Arguments.Count; index++)
         {

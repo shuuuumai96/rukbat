@@ -2,7 +2,7 @@
 
 ## Status and purpose
 
-This is the acceptance contract for `examples/batch-organize`. It reads a CSV move plan, uses files.move_batch to validate and lock a complete plan, create destination parent directories, and move files in CSV-record order with a persistent recovery journal.
+This is the acceptance contract for `examples/batch-organize`. It reads a CSV move plan, uses fs.move_files_batch to validate and lock a complete plan, create destination parent directories, and move files in CSV-record order with a persistent recovery journal.
 
 ## Invocation and exit codes
 
@@ -28,11 +28,11 @@ Every later record must have exactly two nonempty fields. CSV record numbers cou
 
 The CSV plan itself must not be listed as a source. It must remain available for repeat invocations.
 
-`files.move_batch` validates the complete plan, locks sources and directories, and flushes `<plan.csv>.rukbat-journal` before any source rename. Sources must be regular files with one link; destinations must be absent. Sources, destinations and journal must have non-overlapping paths on one local fixed NTFS drive. Reparse points, alternate data streams, and ambiguous paths are rejected. Parent directory creation can leave empty directories on failure, but no source is moved until preparation and journaling succeed.
+`fs.move_files_batch` validates the complete plan, locks sources and directories, and flushes `<plan.csv>.rukbat-journal` before any source rename. Sources must be regular files with one link; destinations must be absent. Sources, destinations and journal must have non-overlapping paths on one local fixed NTFS drive. Reparse points, alternate data streams, and ambiguous paths are rejected. Parent directory creation can leave empty directories on failure, but no source is moved until preparation and journaling succeed.
 
 The journal records absolute paths, file identities and content hashes. A normal failure rolls back moved files. After abrupt termination, the same invocation restores interrupted moves and retries; `--recover` only restores them. A committed journal causes verified replay without another move. Different plans cannot reuse a journal, and concurrent uses of one journal fail before mutation. Changed files or a corrupt journal stop recovery without overwriting data.
 
-These are the [standard-library contracts](STDLIB.md#recoverable-file-moves), with operating instructions in [UNATTENDED.md](UNATTENDED.md). Created directories are retained, and other readers can observe intermediate paths; the batch is recoverable rather than atomically visible. Single-file `files.move` retains its existing behavior, including cross-volume support, but this example uses the stricter batch API.
+These are the [standard-library contracts](STDLIB.md#recoverable-file-moves), with operating instructions in [UNATTENDED.md](UNATTENDED.md). Created directories are retained, and other readers can observe intermediate paths; the batch is recoverable rather than atomically visible. Single-file `fs.move_file` retains its existing behavior, including cross-volume support, but this example uses the stricter batch API.
 
 ## CSV dependency
 

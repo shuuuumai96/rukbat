@@ -49,7 +49,7 @@ public static class RukbatMoveBatch
             foreach (var handle in Directories) handle.Dispose();
         }
     }
-    private static IOException Error(string message) { return new IOException("files.move_batch: " + message); }
+    private static IOException Error(string message) { return new IOException("fs.move_files_batch: " + message); }
     private static FileInformation Information(SafeFileHandle handle)
     {
         FileInformation info;

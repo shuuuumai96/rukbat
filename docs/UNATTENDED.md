@@ -45,4 +45,4 @@ Containment is established before child code runs, using the Windows [job-list p
 - closed stdin, excessive output, and restricted-language rejection;
 - 500-file execution with every output's contents checked.
 
-`files.write` flushes its staged bytes before replacement; journals flush their plan before moves and commit after completion. Fault tests cover process termination, not physical power removal, damaged storage, or devices that do not honor flush requests. Keep independent backups appropriate to the data's value. These contracts support the listed workflows; the choice of language cannot make arbitrary external actions transactional.
+`fs.write_text` flushes its staged bytes before replacement; journals flush their plan before moves and commit after completion. Fault tests cover process termination, not physical power removal, damaged storage, or devices that do not honor flush requests. Keep independent backups appropriate to the data's value. These contracts support the listed workflows; the choice of language cannot make arbitrary external actions transactional.

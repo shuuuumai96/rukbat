@@ -35,6 +35,11 @@ Each stage has a separate responsibility:
 
 Generated scripts include small PowerShell helpers implementing Rukbat value copies, array bounds, error propagation, and PowerShell boundaries. Only imported standard-library runtime sections are included. Deployment requires neither the Rukbat compiler nor a separate Rukbat runtime.
 
+The `fs` standard module owns both file and directory operations; `path` owns path-value operations.
+An `fs` import emits both file and directory implementations. A `path` import alone emits neither
+filesystem operations nor the native move helper. Selection is by imported module, not by individual
+function.
+
 Native Windows helpers for contained process execution and journaled file moves live in `Runtime/*.cs.txt`, embedded as compiler resources and copied into the generated script. `NativeEmission` emits lazy `Add-Type` loaders; the deployment machine uses its existing PowerShell/.NET facilities. These helpers use C# syntax compatible with the Windows PowerShell 5.1 compiler. Process job assignment is part of process creation, so host termination cannot leave a child executing outside the job. Move journals are flushed before renames; locked file handles preserve identity across moves and recovery.
 
 Generated scripts reject non-FullLanguage sessions before user operations. They do not change or bypass the machine's execution/security policy.

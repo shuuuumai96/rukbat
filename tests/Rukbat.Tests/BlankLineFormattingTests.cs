@@ -18,7 +18,7 @@ public sealed class BlankLineFormattingTests : TestBase
     [InlineData("// comment", "// comment\n\n")]
     [InlineData("", "\n")]
     [InlineData("\n\n \t\n", "\n")]
-    [InlineData("import csv;import files;fn f():void{};arguments:=args();try{}catch err{}", "import csv\nimport files\n\nfn f(): void {\n}\n\narguments := args()\n\ntry {\n} catch err {\n}\n\n")]
+    [InlineData("import csv;import fs;fn f():void{};arguments:=args();try{}catch err{}", "import csv\nimport fs\n\nfn f(): void {\n}\n\narguments := args()\n\ntry {\n} catch err {\n}\n\n")]
     [InlineData("a:=1;if true{};b:=2;while false{};for item in []{};try{}catch err{}", "a := 1\n\nif true {\n}\n\nb := 2\n\nwhile false {\n}\n\nfor item in [] {\n}\n\ntry {\n} catch err {\n}\n\n")]
     [InlineData("a:=1\n// function documentation\nfn f():void{}", "a := 1\n\n// function documentation\nfn f(): void {\n}\n\n")]
     [InlineData("a:=1 // trailing\n// function documentation\nfn f():void{}", "a := 1  // trailing\n\n// function documentation\nfn f(): void {\n}\n\n")]
@@ -54,17 +54,17 @@ public sealed class BlankLineFormattingTests : TestBase
         Assert.Empty(compiler.CheckFile(input));
         Assert.Equal(0, Cli.Run(["fmt", input], TextWriter.Null, TextWriter.Null));
         var formatted = File.ReadAllText(input);
-        Assert.Contains("import csv\nimport files\nimport path\nimport text\n\nfn usage()", formatted);
+        Assert.Contains("import csv\nimport fs\nimport path\nimport text\n\nfn usage()", formatted);
         Assert.Contains("}\n\narguments: string[] = args()\n\ntry {", formatted);
-        Assert.Contains("        }\n\n        files.recover_moves", formatted);
+        Assert.Contains("        }\n\n        fs.recover_file_moves", formatted);
         Assert.Contains("        exit(0)\n    }\n\n    if arguments.length", formatted);
         Assert.Contains("    }\n\n    rows := csv.parse", formatted);
-        Assert.Contains("    rows := csv.parse(files.read(arguments[0], \"utf-8\"))\n\n    if rows.length", formatted);
+        Assert.Contains("    rows := csv.parse(fs.read_text(arguments[0], \"utf-8\"))\n\n    if rows.length", formatted);
         Assert.Contains("    }\n\n    header := rows[0]\n\n    if header.length", formatted);
         Assert.Contains("    sources: string[] = []\n    destinations: string[] = []\n    record := 1\n\n    while record", formatted);
         Assert.Contains("        row := rows[record]\n\n        if row.length", formatted);
         Assert.Contains("        }\n\n        sources.append", formatted);
-        Assert.Contains("    }\n\n    files.move_batch", formatted);
+        Assert.Contains("    }\n\n    fs.move_files_batch", formatted);
         Assert.Contains("} catch err {\n    eprint(err.message)\n    exit(2)\n}\n\n", formatted);
         Assert.DoesNotContain("\n\n\n", formatted);
         Assert.Empty(compiler.CheckFile(input));

@@ -69,16 +69,16 @@ public class RecursiveFilesTests : TestBase
             var changed = project.PathFor("changed");
             Directory.CreateDirectory(changed);
             project.Write("source/main.rukbat", $$"""
-            import files
+            import fs
             powershell<void>('Set-Location', LiteralPath: '{{RukbatLiteral(changed)}}')
             powershell<void>('Invoke-Expression', "[Environment]::CurrentDirectory = '{{RukbatLiteral(project.PathFor("deploy"))}}'")
-            for file in files.list_recursive('[data]', '*.json') { print(file) }
+            for file in fs.list_files_recursive('[data]', '*.json') { print(file) }
             print('question')
-            for file in files.list_recursive('[data]', 'test?.csv') { print(file) }
+            for file in fs.list_files_recursive('[data]', 'test?.csv') { print(file) }
             print('direct')
-            for file in files.list('[data]', 'test?.csv') { print(file) }
+            for file in fs.list_files('[data]', 'test?.csv') { print(file) }
             print('direct-json')
-            for file in files.list('[data]', '*.json') { print(file) }
+            for file in fs.list_files('[data]', '*.json') { print(file) }
             """);
             var compiled = new Compiler().CompileFile(project.PathFor("source/main.rukbat"));
             Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
@@ -132,25 +132,25 @@ public class RecursiveFilesTests : TestBase
         project.Write("root/nested/only.txt", "file");
         project.Write("not-directory.txt", "file");
         project.Write("main.rukbat", """
-            import files
-            empty := files.list_recursive('empty', '*')
+            import fs
+            empty := fs.list_files_recursive('empty', '*')
             print(empty.length)
-            directEmpty := files.list('empty', '*')
+            directEmpty := fs.list_files('empty', '*')
             print(directEmpty.length)
-            none := files.list_recursive('root', '*.json')
+            none := fs.list_files_recursive('root', '*.json')
             print(none.length)
-            direct := files.list('root', '*.txt')
+            direct := fs.list_files('root', '*.txt')
             print(direct.length)
-            try { files.list_recursive('missing', '*') } catch err { print('missing') }
-            try { files.list_recursive('not-directory.txt', '*') } catch err { print('file root') }
-            try { files.list_recursive('root', '') } catch err { print('empty pattern') }
-            try { files.list_recursive('root', 'nested/*.txt') } catch err { print('hierarchy pattern') }
-            try { files.list_recursive('C:drive-relative', '*') } catch err { print('drive relative') }
-            try { files.list('missing', '*') } catch err { print('direct missing') }
-            try { files.list('not-directory.txt', '*') } catch err { print('direct file root') }
-            try { files.list('root', '') } catch err { print('direct empty pattern') }
-            try { files.list('root', 'nested/*.txt') } catch err { print('direct hierarchy pattern') }
-            try { files.list('C:drive-relative', '*') } catch err { print('direct drive relative') }
+            try { fs.list_files_recursive('missing', '*') } catch err { print('missing') }
+            try { fs.list_files_recursive('not-directory.txt', '*') } catch err { print('file root') }
+            try { fs.list_files_recursive('root', '') } catch err { print('empty pattern') }
+            try { fs.list_files_recursive('root', 'nested/*.txt') } catch err { print('hierarchy pattern') }
+            try { fs.list_files_recursive('C:drive-relative', '*') } catch err { print('drive relative') }
+            try { fs.list_files('missing', '*') } catch err { print('direct missing') }
+            try { fs.list_files('not-directory.txt', '*') } catch err { print('direct file root') }
+            try { fs.list_files('root', '') } catch err { print('direct empty pattern') }
+            try { fs.list_files('root', 'nested/*.txt') } catch err { print('direct hierarchy pattern') }
+            try { fs.list_files('C:drive-relative', '*') } catch err { print('direct drive relative') }
             """);
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
@@ -180,8 +180,8 @@ public class RecursiveFilesTests : TestBase
         try
         {
             project.Write("main.rukbat", """
-            import files
-            for file in files.list_recursive('root-link', '*.json') { print(file) }
+            import fs
+            for file in fs.list_files_recursive('root-link', '*.json') { print(file) }
             """);
             var compiled = project.Compile();
             Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
@@ -207,9 +207,9 @@ public class RecursiveFilesTests : TestBase
 
     [Trait("Category", "Unit")]
     [Theory]
-    [InlineData("import files\nfiles.list_recursive(1, '*')")]
-    [InlineData("import files\nfiles.list_recursive('.', 1)")]
-    [InlineData("import files\nfiles.list_recursive('.')")]
+    [InlineData("import fs\nfs.list_files_recursive(1, '*')")]
+    [InlineData("import fs\nfs.list_files_recursive('.', 1)")]
+    [InlineData("import fs\nfs.list_files_recursive('.')")]
     public void FilesListRecursiveUsesFilesTypedContract(string source)
         => Assert.NotEmpty(new Compiler().Check(source));
 }

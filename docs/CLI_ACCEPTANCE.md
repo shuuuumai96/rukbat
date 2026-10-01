@@ -62,8 +62,8 @@ struct CheckResult {
 Each `file` is an absolute path. Preserve each checker's exit code and captured stdout/stderr exactly, including trailing newlines.
 Report order follows enumeration order and is not guaranteed. Tests compare records by path rather than relying on order.
 No matches produce `[]` without launching a checker. One match still produces an array.
-Save only after all checks finish, using `files.write(..., "utf-8")` and `json.encode`: UTF-8 without a BOM or trailing newline.
-An existing report is replaced on completed runs, including runs with failed checks. `files.write` stages complete encoded report contents in the report directory before the final replacement; a conversion failure or failure before that step leaves an existing report unchanged. The final filesystem replacement has no durability or universal atomicity guarantee.
+Save only after all checks finish, using `fs.write_text(..., "utf-8")` and `json.encode`: UTF-8 without a BOM or trailing newline.
+An existing report is replaced on completed runs, including runs with failed checks. `fs.write_text` stages complete encoded report contents in the report directory before the final replacement; a conversion failure or failure before that step leaves an existing report unchanged. The final filesystem replacement has no durability or universal atomicity guarantee.
 
 On a normal run, stdout is empty; checker streams belong only in the report. Operational errors produce an English diagnostic through `eprint`.
 
@@ -78,9 +78,9 @@ Checker side effects cannot be rolled back. This example is intended for read-on
 
 ## Standard-library dependencies
 
-`files.list_recursive` was introduced to satisfy this scenario and is now part of the confirmed v0.1 standard library. Its normative contract is defined in `STDLIB.md`.
+`fs.list_files_recursive` was introduced to satisfy this scenario and is now part of the confirmed v0.1 standard library. Its normative contract is defined in `STDLIB.md`.
 
-Existing `args`, arrays/append, control flow, `files.read/write`, `json.decode/encode`, `process.run`, `eprint`, and `exit` cover the rest.
+Existing `args`, arrays/append, control flow, `fs.read_text/write`, `json.decode/encode`, `process.run`, `eprint`, and `exit` cover the rest.
 The recursive listing already returns absolute paths, so this scenario does not require a separate `path.absolute` API. It also does not yet justify copy, move, remove, directory creation, parent-path lookup, additional text operations, CSV, or a new test runner.
 
 ## Acceptance tests for the completed example

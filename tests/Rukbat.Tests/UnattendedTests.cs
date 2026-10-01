@@ -27,8 +27,8 @@ public class UnattendedTests : TestBase
         project.Write("first.txt", "first");
         project.Write("second.txt", "second");
         Build(project, """
-            import files
-            files.move_batch(['first.txt', 'second.txt'], ['archive/first.txt', 'archive/second.txt'], 'moves.journal')
+            import fs
+            fs.move_files_batch(['first.txt', 'second.txt'], ['archive/first.txt', 'archive/second.txt'], 'moves.journal')
             """);
         for (var attempt = 0; attempt < 2; attempt++)
         {
@@ -56,8 +56,8 @@ public class UnattendedTests : TestBase
         project.Write("second.txt", "second");
         project.Write("archive/second.txt", "unrelated");
         Build(project, """
-            import files
-            files.move_batch(['first.txt', 'second.txt'], ['archive/first.txt', 'archive/second.txt'], 'moves.journal')
+            import fs
+            fs.move_files_batch(['first.txt', 'second.txt'], ['archive/first.txt', 'archive/second.txt'], 'moves.journal')
             """);
         var result = await RunDeployed(shell, project.PathFor("job.ps1"), project.DirectoryPath, project.DirectoryPath);
         Assert.NotEqual(0, result.ExitCode);
@@ -68,10 +68,10 @@ public class UnattendedTests : TestBase
     }
 
     [Theory]
-    [InlineData("import files; files.move_batch(['x'], ['y'])")]
-    [InlineData("import files; files.move_batch('x', ['y'], 'j')")]
-    [InlineData("import files; files.move_batch(['x'], [1], 'j')")]
-    [InlineData("import files; files.recover_moves(1)")]
+    [InlineData("import fs; fs.move_files_batch(['x'], ['y'])")]
+    [InlineData("import fs; fs.move_files_batch('x', ['y'], 'j')")]
+    [InlineData("import fs; fs.move_files_batch(['x'], [1], 'j')")]
+    [InlineData("import fs; fs.recover_file_moves(1)")]
     [Trait("Category", "Unit")]
     public void BatchOperationsRejectInvalidArguments(string source) => Assert.False(Compile(source).Success);
 
@@ -115,8 +115,8 @@ public class UnattendedTests : TestBase
     }
 
     private const string TwoMoves = """
-        import files
-        files.move_batch(['first.txt', 'second.txt'], ['archive/first.txt', 'archive/second.txt'], 'moves.journal')
+        import fs
+        fs.move_files_batch(['first.txt', 'second.txt'], ['archive/first.txt', 'archive/second.txt'], 'moves.journal')
         """;
 
     [Theory]
@@ -140,7 +140,7 @@ public class UnattendedTests : TestBase
             finally { if (!runner.HasExited) runner.Kill(); await runner.WaitForExitAsync(); }
         }
         Assert.Equal(afterRename, File.Exists(project.PathFor("archive/first.txt")));
-        Build(project, "import files; files.recover_moves('moves.journal')");
+        Build(project, "import fs; fs.recover_file_moves('moves.journal')");
         for (var repeat = 0; repeat < 2; repeat++)
         {
             var recovered = await RunDeployed(shell, project.PathFor("job.ps1"), project.DirectoryPath, project.DirectoryPath);
@@ -178,7 +178,7 @@ public class UnattendedTests : TestBase
         }
         finally { if (!runner.HasExited) runner.Kill(); await runner.WaitForExitAsync(); }
         // Exercise the ordinary exception path separately from hard termination.
-        Build(project, "import files; files.recover_moves('moves.journal')");
+        Build(project, "import fs; fs.recover_file_moves('moves.journal')");
         var recovery = await RunDeployed(shell, project.PathFor("job.ps1"), project.DirectoryPath, project.DirectoryPath);
         Assert.True(recovery.ExitCode == 0, recovery.Error);
         project.Write("job.ps1", generated.Replace("entry.Moved = true;", "entry.Moved = true; if (entry.Moved) throw new IOException(\"injected failure\");"));
@@ -208,7 +208,7 @@ public class UnattendedTests : TestBase
         }
         await WaitForFileRelease(project);
         project.Write("archive/first.txt", "external change");
-        Build(project, "import files; files.recover_moves('moves.journal')");
+        Build(project, "import fs; fs.recover_file_moves('moves.journal')");
         var result = await RunDeployed(shell, project.PathFor("job.ps1"), project.DirectoryPath, project.DirectoryPath);
         Assert.NotEqual(0, result.ExitCode);
         Assert.Contains("contents changed", result.Error);
@@ -339,7 +339,7 @@ public class UnattendedTests : TestBase
             finally { if (!runner.HasExited) runner.Kill(); await runner.WaitForExitAsync(); }
         }
         File.Delete(project.PathFor("ready"));
-        generated = Build(project, "import files; files.recover_moves('moves.journal')");
+        generated = Build(project, "import fs; fs.recover_file_moves('moves.journal')");
         project.Write("job.ps1", generated.Replace("Rename(entry, entry.Source);", "Rename(entry, entry.Source); " + Pause(project)));
         using (var runner = Start(project, shell))
         {
@@ -365,13 +365,13 @@ public class UnattendedTests : TestBase
         Build(project, TwoMoves);
         var result = await RunDeployed(shell, project.PathFor("job.ps1"), project.DirectoryPath, project.DirectoryPath);
         Assert.True(result.ExitCode == 0, result.Error);
-        Build(project, "import files; files.move_batch(['first.txt'], ['elsewhere.txt'], 'moves.journal')");
+        Build(project, "import fs; fs.move_files_batch(['first.txt'], ['elsewhere.txt'], 'moves.journal')");
         result = await RunDeployed(shell, project.PathFor("job.ps1"), project.DirectoryPath, project.DirectoryPath);
         Assert.NotEqual(0, result.ExitCode);
         Assert.Contains("another plan", result.Error);
         var other = DriveInfo.GetDrives().First(d => d.IsReady && d.DriveType == DriveType.Fixed && d.DriveFormat == "NTFS" && d.Name != Path.GetPathRoot(project.DirectoryPath));
         project.Write("third.txt", "third");
-        Build(project, $"import files; files.move_batch(['third.txt'], ['{Literal(Path.Combine(other.Name, "rukbat-must-not-create-" + Guid.NewGuid()))}'], 'other.journal')");
+        Build(project, $"import fs; fs.move_files_batch(['third.txt'], ['{Literal(Path.Combine(other.Name, "rukbat-must-not-create-" + Guid.NewGuid()))}'], 'other.journal')");
         result = await RunDeployed(shell, project.PathFor("job.ps1"), project.DirectoryPath, project.DirectoryPath);
         Assert.NotEqual(0, result.ExitCode);
         Assert.Contains("one NTFS volume", result.Error);
@@ -386,7 +386,7 @@ public class UnattendedTests : TestBase
     public async Task ConstrainedLanguageFailsBeforeUserOperations(string shell)
     {
         using var project = new Project();
-        var generated = Build(project, "import files; files.write('must-not-exist', 'changed', 'utf-8')");
+        var generated = Build(project, "import fs; fs.write_text('must-not-exist', 'changed', 'utf-8')");
         project.Write("job.ps1", "$ExecutionContext.SessionState.LanguageMode = 'ConstrainedLanguage'\n" + generated);
         var result = await RunDeployed(shell, project.PathFor("job.ps1"), project.DirectoryPath, project.DirectoryPath);
         Assert.NotEqual(0, result.ExitCode);
@@ -405,12 +405,12 @@ public class UnattendedTests : TestBase
         project.Write("untouched.txt", "original");
         using (var large = File.Create(project.PathFor("large.journal"))) large.SetLength(64 * 1024 * 1024 + 1025);
         Build(project, """
-            import files
-            files.move_batch([], [], 'seed.journal')
+            import fs
+            fs.move_files_batch([], [], 'seed.journal')
             try {
                 powershell<void>('Invoke-Expression', "[RukbatMoveBatch]::Run([string[]]::new(100001), [string[]]::new(100001), 'oversized.journal')")
             } catch err { print(err.message) }
-            try { files.recover_moves('large.journal') } catch err { print(err.message) }
+            try { fs.recover_file_moves('large.journal') } catch err { print(err.message) }
             """);
         var result = await RunDeployed(shell, project.PathFor("job.ps1"), project.DirectoryPath, project.DirectoryPath);
         Assert.True(result.ExitCode == 0, result.Error);
@@ -434,7 +434,7 @@ public class UnattendedTests : TestBase
         var source = linkType == "Junction" ? "linked/original.txt" : "linked.txt";
         var target = linkType == "Junction" ? project.PathFor("real") : project.PathFor("real/original.txt");
         var link = linkType == "Junction" ? project.PathFor("linked") : project.PathFor("linked.txt");
-        var generated = Build(project, $"import files; files.move_batch(['{source}'], ['archive/moved.txt'], 'moves.journal')");
+        var generated = Build(project, $"import fs; fs.move_files_batch(['{source}'], ['archive/moved.txt'], 'moves.journal')");
         var setup = $"New-Item -ItemType {linkType} -Path '{link.Replace("'", "''")}' -Target '{target.Replace("'", "''")}' -ErrorAction Stop | Out-Null\n";
         project.Write("job.ps1", setup + generated);
         try

@@ -38,11 +38,11 @@ public class FilesystemMutationTests : TestBase
         var original = Encoding.UTF8.GetBytes("known existing contents\n");
         File.WriteAllBytes(existing, original);
         project.Write("main.rukbat", $$"""
-            import files
+            import fs
             import json
             invalid := json.decode<string>('"\\uD800"')
-            try { files.write('{{RukbatLiteral(existing)}}', invalid, 'utf-8') } catch err { print('existing') }
-            try { files.write('{{RukbatLiteral(missing)}}', invalid, 'utf-8') } catch err { print('missing') }
+            try { fs.write_text('{{RukbatLiteral(existing)}}', invalid, 'utf-8') } catch err { print('existing') }
+            try { fs.write_text('{{RukbatLiteral(missing)}}', invalid, 'utf-8') } catch err { print('missing') }
             """);
 
         var invalidCompiled = project.Compile();
@@ -56,10 +56,10 @@ public class FilesystemMutationTests : TestBase
         Assert.Empty(Directory.EnumerateFiles(project.DirectoryPath, ".rukbat-write-*"));
 
         project.Write("main.rukbat", $$"""
-            import files
-            files.write('{{RukbatLiteral(existing)}}', 'new contents', 'utf-8')
-            files.write('{{RukbatLiteral(empty)}}', 'old', 'utf-8')
-            files.write('{{RukbatLiteral(empty)}}', '', 'utf-8')
+            import fs
+            fs.write_text('{{RukbatLiteral(existing)}}', 'new contents', 'utf-8')
+            fs.write_text('{{RukbatLiteral(empty)}}', 'old', 'utf-8')
+            fs.write_text('{{RukbatLiteral(empty)}}', '', 'utf-8')
             """);
         var validCompiled = project.Compile();
         Assert.True(validCompiled.Success, string.Join("\n", validCompiled.Diagnostics));
@@ -107,35 +107,34 @@ public class FilesystemMutationTests : TestBase
         var rootRelativeListedDirectory = "/" + Path.GetRelativePath(root, listedDirectory).Replace("\\", "/");
         Directory.CreateDirectory(changed);
         project.Write("source/main.rukbat", $$"""
-            import directories
-            import files
+            import fs
             import path
 
             powershell<void>('Set-Location', LiteralPath: '{{RukbatLiteral(changed)}}')
             powershell<void>('Invoke-Expression', "[Environment]::CurrentDirectory = '{{RukbatLiteral(deploy)}}'")
-            directories.create('{{RukbatLiteral(special)}}/nested')
-            print(directories.exists('{{RukbatLiteral(special)}}/nested'))
-            files.write('{{RukbatLiteral(special)}}/nested/source.txt', 'one', 'utf-8')
-            files.copy('{{RukbatLiteral(special)}}/nested/source.txt', '{{RukbatLiteral(special)}}/nested/copy.txt')
-            listed := files.list('{{RukbatLiteral(special)}}/nested', '*.txt')
+            fs.create_dir_all('{{RukbatLiteral(special)}}/nested')
+            print(fs.is_dir('{{RukbatLiteral(special)}}/nested'))
+            fs.write_text('{{RukbatLiteral(special)}}/nested/source.txt', 'one', 'utf-8')
+            fs.copy_file('{{RukbatLiteral(special)}}/nested/source.txt', '{{RukbatLiteral(special)}}/nested/copy.txt')
+            listed := fs.list_files('{{RukbatLiteral(special)}}/nested', '*.txt')
             print(listed.length)
-            absolute_listed := files.list('{{RukbatLiteral(listedDirectory)}}', '*.txt')
+            absolute_listed := fs.list_files('{{RukbatLiteral(listedDirectory)}}', '*.txt')
             print(absolute_listed.length)
-            root_listed := files.list('{{RukbatLiteral(rootRelativeListedDirectory)}}', '*.txt')
+            root_listed := fs.list_files('{{RukbatLiteral(rootRelativeListedDirectory)}}', '*.txt')
             print(root_listed.length)
-            try { files.copy('{{RukbatLiteral(special)}}/nested/source.txt', '{{RukbatLiteral(special)}}/nested/copy.txt') } catch err { print('existing destination') }
-            files.move('{{RukbatLiteral(special)}}/nested/copy.txt', '{{RukbatLiteral(special)}}/nested/moved.txt')
-            print(files.read('{{RukbatLiteral(special)}}/nested/moved.txt', 'utf-8'))
-            files.remove('{{RukbatLiteral(special)}}/nested/moved.txt')
-            files.remove('missing.txt')
-            print(files.exists('{{RukbatLiteral(special)}}/nested/moved.txt'))
-            try { files.remove('readonly.txt') } catch err { print('readonly') }
-            directories.create('empty')
-            directories.remove('empty')
-            print(directories.exists('empty'))
-            directories.remove('missing-directory')
-            directories.remove_all('tree')
-            print(directories.exists('tree'))
+            try { fs.copy_file('{{RukbatLiteral(special)}}/nested/source.txt', '{{RukbatLiteral(special)}}/nested/copy.txt') } catch err { print('existing destination') }
+            fs.move_file('{{RukbatLiteral(special)}}/nested/copy.txt', '{{RukbatLiteral(special)}}/nested/moved.txt')
+            print(fs.read_text('{{RukbatLiteral(special)}}/nested/moved.txt', 'utf-8'))
+            fs.remove_file('{{RukbatLiteral(special)}}/nested/moved.txt')
+            fs.remove_file('missing.txt')
+            print(fs.is_file('{{RukbatLiteral(special)}}/nested/moved.txt'))
+            try { fs.remove_file('readonly.txt') } catch err { print('readonly') }
+            fs.create_dir_all('empty')
+            fs.remove_dir('empty')
+            print(fs.is_dir('empty'))
+            fs.remove_dir('missing-directory')
+            fs.remove_dir_all('tree')
+            print(fs.is_dir('tree'))
             print(path.parent('a/b.txt'))
             print(path.parent('a.txt'))
             print(path.parent('a/b/'))
@@ -147,7 +146,7 @@ public class FilesystemMutationTests : TestBase
             print(path.parent('C:relative'))
             try { path.parent('') } catch err { print('empty parent') }
             try { path.parent('?:invalid') } catch err { print('invalid parent') }
-            try { files.copy('C:relative.txt', 'destination.txt') } catch err { print('drive relative') }
+            try { fs.copy_file('C:relative.txt', 'destination.txt') } catch err { print('drive relative') }
             """);
         var compiled = new Compiler().CompileFile(project.PathFor("source/main.rukbat"));
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
@@ -201,25 +200,24 @@ public class FilesystemMutationTests : TestBase
         Directory.CreateDirectory(samePrefixSibling);
         File.WriteAllText(Path.Combine(samePrefixSibling, "remove.txt"), "remove");
         project.Write("source/main.rukbat", $$"""
-            import directories
-            import files
+            import fs
 
-            directories.remove_all('root')
-            print(directories.exists('root'))
-            print(files.exists('outside/keep.txt'))
-            directories.remove_all('root-link')
-            print(directories.exists('root-link'))
-            print(files.exists('target/keep.txt'))
-            directories.remove_all('missing')
-            try { directories.remove_all('file.txt') } catch err { print('file') }
-            try { directories.remove_all('.') } catch err { print('working') }
-            try { directories.remove_all('..') } catch err { print('ancestor') }
-            try { directories.remove_all('./') } catch err { print('trailing working') }
-            try { directories.remove_all('{{RukbatLiteral(project.DirectoryPath.ToUpperInvariant())}}') } catch err { print('case working') }
-            try { directories.remove_all('{{RukbatLiteral(rootRelativeWorking)}}') } catch err { print('root relative working') }
-            try { directories.remove_all('{{RukbatLiteral(root)}}') } catch err { print('root') }
-            directories.remove_all('{{RukbatLiteral(samePrefixSibling)}}')
-            print(directories.exists('{{RukbatLiteral(samePrefixSibling)}}'))
+            fs.remove_dir_all('root')
+            print(fs.is_dir('root'))
+            print(fs.is_file('outside/keep.txt'))
+            fs.remove_dir_all('root-link')
+            print(fs.is_dir('root-link'))
+            print(fs.is_file('target/keep.txt'))
+            fs.remove_dir_all('missing')
+            try { fs.remove_dir_all('file.txt') } catch err { print('file') }
+            try { fs.remove_dir_all('.') } catch err { print('working') }
+            try { fs.remove_dir_all('..') } catch err { print('ancestor') }
+            try { fs.remove_dir_all('./') } catch err { print('trailing working') }
+            try { fs.remove_dir_all('{{RukbatLiteral(project.DirectoryPath.ToUpperInvariant())}}') } catch err { print('case working') }
+            try { fs.remove_dir_all('{{RukbatLiteral(rootRelativeWorking)}}') } catch err { print('root relative working') }
+            try { fs.remove_dir_all('{{RukbatLiteral(root)}}') } catch err { print('root') }
+            fs.remove_dir_all('{{RukbatLiteral(samePrefixSibling)}}')
+            print(fs.is_dir('{{RukbatLiteral(samePrefixSibling)}}'))
             """);
         var compiled = new Compiler().CompileFile(project.PathFor("source/main.rukbat"));
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
@@ -251,17 +249,17 @@ public class FilesystemMutationTests : TestBase
         project.Write("same-case.txt", "five");
         var absolute = RukbatLiteral(project.PathFor("same-relative.txt"));
         project.Write("main.rukbat", $$"""
-            import files
-            try { files.copy('same-relative.txt', '{{absolute}}') } catch err { print('copy relative') }
-            try { files.copy('./same-dot.txt', 'same-dot.txt') } catch err { print('copy dot') }
-            try { files.copy('folder/../same-dotdot.txt', 'same-dotdot.txt') } catch err { print('copy dotdot') }
-            try { files.copy('folder/same-separator.txt', 'folder\\same-separator.txt') } catch err { print('copy separator') }
-            try { files.copy('same-case.txt', 'SAME-CASE.TXT') } catch err { print('copy case') }
-            try { files.move('same-relative.txt', '{{absolute}}') } catch err { print('move relative') }
-            try { files.move('./same-dot.txt', 'same-dot.txt') } catch err { print('move dot') }
-            try { files.move('folder/../same-dotdot.txt', 'same-dotdot.txt') } catch err { print('move dotdot') }
-            try { files.move('folder/same-separator.txt', 'folder\\same-separator.txt') } catch err { print('move separator') }
-            try { files.move('same-case.txt', 'SAME-CASE.TXT') } catch err { print('move case') }
+            import fs
+            try { fs.copy_file('same-relative.txt', '{{absolute}}') } catch err { print('copy relative') }
+            try { fs.copy_file('./same-dot.txt', 'same-dot.txt') } catch err { print('copy dot') }
+            try { fs.copy_file('folder/../same-dotdot.txt', 'same-dotdot.txt') } catch err { print('copy dotdot') }
+            try { fs.copy_file('folder/same-separator.txt', 'folder\\same-separator.txt') } catch err { print('copy separator') }
+            try { fs.copy_file('same-case.txt', 'SAME-CASE.TXT') } catch err { print('copy case') }
+            try { fs.move_file('same-relative.txt', '{{absolute}}') } catch err { print('move relative') }
+            try { fs.move_file('./same-dot.txt', 'same-dot.txt') } catch err { print('move dot') }
+            try { fs.move_file('folder/../same-dotdot.txt', 'same-dotdot.txt') } catch err { print('move dotdot') }
+            try { fs.move_file('folder/same-separator.txt', 'folder\\same-separator.txt') } catch err { print('move separator') }
+            try { fs.move_file('same-case.txt', 'SAME-CASE.TXT') } catch err { print('move case') }
             """);
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
@@ -349,16 +347,16 @@ public class FilesystemMutationTests : TestBase
             drive.IsReady && drive.DriveType == DriveType.Fixed &&
             !string.Equals(drive.RootDirectory.FullName, sourceRoot, StringComparison.OrdinalIgnoreCase));
         Assert.True(targetDrive is not null,
-            $"Cross-volume files.move test requires a writable fixed drive other than {sourceRoot}.");
+            $"Cross-volume fs.move_file test requires a writable fixed drive other than {sourceRoot}.");
         var targetDirectory = Path.Combine(targetDrive!.RootDirectory.FullName, "rukbat-tests-" + Guid.NewGuid());
         Directory.CreateDirectory(targetDirectory);
         project.Write("source.txt", "cross-volume");
         var destination = Path.Combine(targetDirectory, "moved.txt");
         project.Write("main.rukbat", $$"""
-            import files
-            files.move('source.txt', '{{RukbatLiteral(destination)}}')
-            print(files.exists('source.txt'))
-            print(files.exists('{{RukbatLiteral(destination)}}'))
+            import fs
+            fs.move_file('source.txt', '{{RukbatLiteral(destination)}}')
+            print(fs.is_file('source.txt'))
+            print(fs.is_file('{{RukbatLiteral(destination)}}'))
             """);
         try
         {
@@ -380,12 +378,12 @@ public class FilesystemMutationTests : TestBase
 
     [Trait("Category", "Unit")]
     [Theory]
-    [InlineData("import directories\ndirectories.create(1)")]
-    [InlineData("import directories\ndirectories.exists('x', 'y')")]
-    [InlineData("import directories\ndirectories.remove_all()")]
-    [InlineData("import files\nfiles.copy('x')")]
-    [InlineData("import files\nfiles.move('x', 1)")]
-    [InlineData("import files\nfiles.remove(1)")]
+    [InlineData("import fs\nfs.create_dir_all(1)")]
+    [InlineData("import fs\nfs.is_dir('x', 'y')")]
+    [InlineData("import fs\nfs.remove_dir_all()")]
+    [InlineData("import fs\nfs.copy_file('x')")]
+    [InlineData("import fs\nfs.move_file('x', 1)")]
+    [InlineData("import fs\nfs.remove_file(1)")]
     [InlineData("import path\npath.parent(1)")]
     [InlineData("import path\npath.equal('x')")]
     [InlineData("import path\npath.equal('x', 1)")]
@@ -399,23 +397,24 @@ public class FilesystemMutationTests : TestBase
     [Fact]
     public void GeneratedScriptIncludesFilesystemRuntimesOnlyWhenImported()
     {
-        var directories = Success("import directories\ndirectories.create('x')");
-        Assert.Contains("'directories.remove_all'", directories);
-        Assert.DoesNotContain("'files.copy'", directories);
+        var filesystem = Success("import fs\nfs.create_dir_all('x'); fs.remove_file('y')");
+        Assert.Contains("'fs.remove_dir_all'", filesystem);
+        Assert.Contains("'fs.copy_file'", filesystem);
+        Assert.Contains("[System.IO.File]::Replace($tempPath, $path, $noBackup)", filesystem);
+        Assert.Contains("[System.IO.FileMode]::CreateNew", filesystem);
+        Assert.DoesNotContain("[System.IO.File]::WriteAllText($path", filesystem);
 
-        var files = Success("import files\nfiles.remove('x')");
-        Assert.Contains("'files.copy'", files);
-        Assert.Contains("[System.IO.File]::Replace($tempPath, $path, $noBackup)", files);
-        Assert.Contains("[System.IO.FileMode]::CreateNew", files);
-        Assert.DoesNotContain("[System.IO.File]::WriteAllText($path", files);
-        Assert.DoesNotContain("'directories.remove_all'", files);
+        var paths = Success("import path\nprint(path.filename('x'))");
+        Assert.DoesNotContain("'fs.remove_dir_all'", paths);
+        Assert.DoesNotContain("'fs.copy_file'", paths);
+        Assert.DoesNotContain("class RukbatMoveBatch", paths);
     }
 
     [Trait("Category", "Unit")]
     [Fact]
     public void FilesWriteEmitsSameDirectoryStagedReplacement()
     {
-        var output = Success("import files\nfiles.write('report.txt', 'contents', 'utf-8')");
+        var output = Success("import fs\nfs.write_text('report.txt', 'contents', 'utf-8')");
 
         Assert.Contains("[System.IO.Path]::Combine($directory, '.rukbat-write-' + [System.IO.Path]::GetRandomFileName())", output);
         Assert.Contains("[System.IO.File]::Open($candidate, [System.IO.FileMode]::CreateNew", output);

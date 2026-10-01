@@ -1,4 +1,4 @@
-import files
+import fs
 import json
 import process
 
@@ -40,7 +40,7 @@ try {
         }
     }
 
-    configuration_text: string = files.read(arguments[0], "utf-8")
+    configuration_text: string = fs.read_text(arguments[0], "utf-8")
     configuration: Config = json.decode<Config>(configuration_text)
 
     if configuration.directory == "" || configuration.pattern == "" || configuration.executable == "" {
@@ -49,7 +49,7 @@ try {
         }
     }
 
-    matched_files: string[] = files.list_recursive(configuration.directory, configuration.pattern)
+    matched_files: string[] = fs.list_files_recursive(configuration.directory, configuration.pattern)
     results: CheckResult[] = []
     has_failed_check: bool = false
 
@@ -67,7 +67,7 @@ try {
     }
 
     report: string = json.encode(results)
-    files.write(arguments[1], report, "utf-8")
+    fs.write_text(arguments[1], report, "utf-8")
 
     if has_failed_check {
         exit(1)

@@ -1,8 +1,8 @@
-import files
+import fs
 import path
 
 fn matching_files(directory: string, pattern: string): string[] {
-    paths: string[] = files.list(directory, pattern)
+    paths: string[] = fs.list_files(directory, pattern)
     names: string[] = []
 
     for file in paths {
