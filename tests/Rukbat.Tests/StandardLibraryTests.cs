@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 
 namespace Rukbat.Tests;
@@ -165,12 +166,15 @@ public class StandardLibraryTests : TestBase
 
     [Trait("Category", "CrossVersion")]
     [Trait("Category", "Runtime")]
-    [Fact]
-    public async Task ProcessRunTimeoutReturnsWhenDescendantRetainsOutputHandles()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ProcessRunTimeoutReturnsWhenDescendantRetainsOutputHandles(bool rootExitsEarly)
     {
         using var project = new Project();
-        project.Write("descendant.ps1", "param([string]$marker)\n[IO.File]::WriteAllText($marker, [string]$PID)\nStart-Sleep -Seconds 10");
-        project.Write("parent.ps1", "param([string]$childScript, [string]$marker)\n$arguments = @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', ('\"' + $childScript + '\"'), ('\"' + $marker + '\"'))\n$child = Start-Process -FilePath 'powershell' -ArgumentList $arguments -NoNewWindow -PassThru\n$child.WaitForExit()");
+        project.Write("descendant.ps1", "param([string]$marker)\n[IO.File]::WriteAllText($marker, [string]$PID)\nStart-Sleep -Seconds 30");
+        project.Write("parent.ps1", "param([string]$childScript, [string]$marker)\n$arguments = @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', ('\"' + $childScript + '\"'), ('\"' + $marker + '\"'))\n$child = Start-Process -FilePath 'powershell' -ArgumentList $arguments -NoNewWindow -PassThru\n" +
+            (rootExitsEarly ? "exit 0" : "$child.WaitForExit()"));
         var parent = project.PathFor("parent.ps1").Replace("\\", "\\\\");
         var descendant = project.PathFor("descendant.ps1").Replace("\\", "\\\\");
         foreach (var host in new[] { "pwsh", "powershell" })
@@ -184,22 +188,32 @@ public class StandardLibraryTests : TestBase
             var compiled = project.Compile();
             Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
 
-            int? descendantPid = null;
+            project.Write("main.ps1", compiled.Output!);
+            var info = new ProcessStartInfo(host)
+            {
+                UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            foreach (var argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-File", project.PathFor("main.ps1") })
+                info.ArgumentList.Add(argument);
+            using var runner = Process.Start(info)!;
+            var stdout = runner.StandardOutput.ReadToEndAsync();
+            var stderr = runner.StandardError.ReadToEndAsync();
             try
             {
-                var result = await RunOnHost(project, compiled.Output!, host);
-                Assert.Equal(0, result.ExitCode);
-                Assert.Contains("process timed out after 3000 ms", result.Output);
-                descendantPid = int.Parse(File.ReadAllText(marker));
+                using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                await runner.WaitForExitAsync(deadline.Token);
+                Assert.Equal(0, runner.ExitCode);
+                Assert.True(File.Exists(marker), "The descendant must have started and inherited the output handles.");
             }
             finally
             {
-                if (descendantPid is null && File.Exists(marker))
+                if (!runner.HasExited) runner.Kill(true);
+                // Windows can also inherit the test runner's capture handles. Terminate the
+                // fixture after checking the script deadline, before awaiting capture EOF.
+                if (File.Exists(marker))
                 {
-                    descendantPid = int.Parse(File.ReadAllText(marker));
-                }
-                if (descendantPid is int pid)
-                {
+                    var pid = int.Parse(File.ReadAllText(marker));
                     try
                     {
                         using var process = System.Diagnostics.Process.GetProcessById(pid);
@@ -211,6 +225,8 @@ public class StandardLibraryTests : TestBase
                     }
                 }
             }
+            Assert.Contains("process timed out after 3000 ms", await stdout.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.Equal("", await stderr.WaitAsync(TimeSpan.FromSeconds(5)));
         }
     }
 

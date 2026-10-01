@@ -136,6 +136,8 @@ No output is distinct from one explicit `$null` output. No output is an Error fo
 
 Generated scripts do not require the Rukbat compiler or a PowerShell 7 installation. PowerShell is the target implementation, not part of Rukbat source syntax or standard-library semantics.
 
+Execution requires FullLanguage mode. Generated scripts check this before user operations and exit nonzero with a diagnostic in restricted modes. They do not relax execution policy. Additional operating-system and filesystem requirements for contained processes and recoverable file moves are specified in `STDLIB.md`.
+
 ## Formatting
 
 Formatting is canonical and has no configuration. `rukbat fmt` uses four-space indentation, one statement per line, spaces around binary operators and after commas/colons, no padding immediately inside delimiters, braces on the declaration or control-flow line, and `else` / `catch` on the same line as the preceding closing brace. It preserves comments, writes UTF-8 without a BOM, and normalizes a nonempty file to LF line endings with one final newline. Tree-sitter grammar, syntax highlighting, and LSP are not implemented.

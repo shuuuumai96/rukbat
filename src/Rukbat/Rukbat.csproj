@@ -13,4 +13,8 @@
     <PackageReference Include="System.Management.Automation" Version="7.4.19" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Runtime/*.cs.txt" WithCulture="false" LogicalName="Rukbat.Runtime.%(Filename)%(Extension)" />
+  </ItemGroup>
+
 </Project>

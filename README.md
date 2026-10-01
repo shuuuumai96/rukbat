@@ -50,7 +50,7 @@ Use `powershell<void>(...)` when no return value is needed.
 
 ## Running programs
 
-Building requires the .NET 8 SDK. Generated scripts require Windows PowerShell 5.1 or later.
+Building requires the .NET 8 SDK. Generated scripts require Windows PowerShell 5.1 or later in FullLanguage mode. Process containment requires Windows 10 / Server 2016 or later; unsupported launch conditions fail closed.
 The initial dependency restore requires a network connection.
 
 ```powershell
@@ -234,7 +234,7 @@ Rethrowing with `throw err` preserves the original location.
 Unhandled errors report the Rukbat file, line, and message on stderr and terminate with exit code `1`.
 For external executables called directly through `powershell<T>`, exit code `0` means success and any other code causes Error.
 
-The `process.run(executable, arguments, timeout_ms)` standard API captures stdout and stderr and treats a nonzero child exit code as a normal result. Pass a positive millisecond timeout or `null` for no deadline. A nonpositive timeout fails before launch. On timeout Rukbat terminates the directly started process and raises Error; descendant-process termination is not guaranteed.
+The `process.run(executable, arguments, timeout_ms)` API captures stdout and stderr and returns nonzero child exit codes as normal results. A positive deadline covers the process tree and output capture; `null` is deliberately unbounded. Windows Job Objects terminate the tree on timeout, capture failure, or host termination. This requires Windows 10 / Server 2016 or later. Input is closed and each output stream is limited to 64 MiB. See [the process contract](docs/STDLIB.md#process) for containment and cleanup details.
 The initial specification allows one catch clause and has no typed catches, `finally`, or `throws` declarations.
 
 ```powershell
@@ -286,4 +286,4 @@ The implemented [batch validation acceptance example](examples/batch-check/main.
 
 ## Batch organization acceptance example
 
-The [batch organization acceptance example](examples/batch-organize/main.rukbat) follows the [batch organization contract](docs/BATCH_ORGANIZE_ACCEPTANCE.md). It parses a CSV move plan, validates every planned move before mutation, creates destination directories, and moves files without using the PowerShell escape hatch.
+The [batch organization acceptance example](examples/batch-organize/main.rukbat) follows the [batch organization contract](docs/BATCH_ORGANIZE_ACCEPTANCE.md). It parses a CSV move plan and uses `files.move_batch` for locked, journaled moves on one local NTFS volume. Interrupted work can be recovered or retried, and committed plans can be replayed without repeating moves. See [unattended operation](docs/UNATTENDED.md) for the supported environment, recovery procedure, and fault tests.

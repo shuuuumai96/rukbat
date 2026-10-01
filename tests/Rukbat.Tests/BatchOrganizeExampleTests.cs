@@ -12,6 +12,35 @@ public class BatchOrganizeExampleTests : TestBase
     [Theory]
     [InlineData("powershell")]
     [InlineData("pwsh")]
+    public async Task BatchOrganizeMovesFiveHundredFilesWithinExecutionBudget(string shell)
+    {
+        const int fileCount = 500;
+        using var project = new Project();
+        var plan = new StringBuilder("source,destination\n");
+        for (var index = 0; index < fileCount; index++)
+        {
+            project.Write($"incoming/{index}.txt", $"content-{index}");
+            plan.AppendLine($"incoming/{index}.txt,archive/{index}.txt");
+        }
+        project.Write("plan.csv", plan.ToString());
+        project.Write("main.rukbat", ExampleSource);
+        var compiled = project.Compile();
+        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+        File.WriteAllText(project.PathFor("job.ps1"), compiled.Output, new UTF8Encoding(true));
+        var result = await RunScript(shell, project.PathFor("job.ps1"), project.DirectoryPath, "plan.csv");
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("", result.Output);
+        Assert.Equal("", result.Error);
+        Assert.Empty(Directory.EnumerateFiles(project.PathFor("incoming")));
+        for (var index = 0; index < fileCount; index++)
+            Assert.Equal($"content-{index}", File.ReadAllText(project.PathFor($"archive/{index}.txt")));
+    }
+
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
+    [Theory]
+    [InlineData("powershell")]
+    [InlineData("pwsh")]
     public async Task BatchOrganizeMovesFilesCreatesParentsAndRunsStandalone(string shell)
     {
         using var project = new Project();
@@ -61,6 +90,7 @@ public class BatchOrganizeExampleTests : TestBase
             ("duplicate source", "source,destination\nincoming/keep.txt,archive/one.txt\n./incoming/KEEP.txt,archive/two.txt"),
             ("duplicate destination", "source,destination\nincoming/keep.txt,archive/same.txt\nincoming/other.txt,./archive/SAME.txt"),
             ("same path", "source,destination\nincoming/keep.txt,./incoming/KEEP.txt"),
+            ("plan as source", "source,destination\n./plan.csv,archive/plan.csv"),
             ("malformed csv", "source,destination\n\"unclosed")
         };
         foreach (var (name, plan) in cases)
@@ -96,7 +126,7 @@ public class BatchOrganizeExampleTests : TestBase
     [Theory]
     [InlineData("powershell")]
     [InlineData("pwsh")]
-    public async Task BatchOrganizeLeavesCompletedMovesWhenLaterMutationFails(string shell)
+    public async Task BatchOrganizePreservesSourcesWhenAParentCannotBeCreated(string shell)
     {
         using var project = new Project();
         project.Write("main.rukbat", ExampleSource);
@@ -117,8 +147,8 @@ public class BatchOrganizeExampleTests : TestBase
         Assert.Equal(2, result.ExitCode);
         Assert.Equal("", result.Output);
         Assert.NotEqual("", result.Error);
-        Assert.Equal("first", File.ReadAllText(project.PathFor("archive/first.txt")));
-        Assert.False(File.Exists(project.PathFor("incoming/first.txt")));
+        Assert.Equal("first", File.ReadAllText(project.PathFor("incoming/first.txt")));
+        Assert.False(File.Exists(project.PathFor("archive/first.txt")));
         Assert.True(File.Exists(project.PathFor("incoming/second.txt")));
     }
 

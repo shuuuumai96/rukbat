@@ -6,6 +6,8 @@ internal sealed partial class Emitter
     {
         EmitLines(PathContextRuntime);
         if (modules.Contains("files")) EmitLines(FileEncodingRuntime);
+        if (modules.Contains("files")) EmitNativeLoader("MoveBatch");
+        if (modules.Contains("process")) EmitNativeLoader("ProcessJob");
         Line("$__rukbat_standard = {");
         indentation++;
         Line("param([string]$operation, [object[]]$values)");
@@ -178,6 +180,7 @@ internal sealed partial class Emitter
             }
             try {
                 $stream.Write($bytes, 0, $bytes.Length)
+                $stream.Flush($true)
             } finally {
                 if ($null -ne $stream) {
                     try { $stream.Dispose() } finally { $stream = $null }
@@ -200,6 +203,22 @@ internal sealed partial class Emitter
                 try { [System.IO.File]::Delete($tempPath) } catch { }
             }
         }
+        return
+    }
+    'files.move_batch' {
+        $sources = [System.Collections.Generic.List[string]]::new()
+        $destinations = [System.Collections.Generic.List[string]]::new()
+        foreach ($value in $values[0]) { $sources.Add((& $__rukbat_resolve_path ([string]$value))) }
+        foreach ($value in $values[1]) { $destinations.Add((& $__rukbat_resolve_path ([string]$value))) }
+        $journal = & $__rukbat_resolve_path ([string]$values[2])
+        & $__rukbat_load_MoveBatch
+        [RukbatMoveBatch]::Run($sources.ToArray(), $destinations.ToArray(), $journal)
+        return
+    }
+    'files.recover_moves' {
+        $journal = & $__rukbat_resolve_path ([string]$values[0])
+        & $__rukbat_load_MoveBatch
+        [RukbatMoveBatch]::Recover($journal)
         return
     }
     'files.copy' {
@@ -608,57 +627,8 @@ internal sealed partial class Emitter
             if ($null -eq $found) { throw "Could not find executable '$executable'." }
             $start.FileName = $found
         }
-        $start.WorkingDirectory = $__rukbat_working_dir
-        $start.Arguments = [string]::Join(' ', $quoted)
-        $start.UseShellExecute = $false
-        $start.RedirectStandardOutput = $true
-        $start.RedirectStandardError = $true
-        $start.CreateNoWindow = $true
-        $encoding = [System.Text.UTF8Encoding]::new($false, $true)
-        $process = [System.Diagnostics.Process]::new()
-        $process.StartInfo = $start
-        $stdoutBytes = $null
-        $stderrBytes = $null
-        try {
-            if (-not $process.Start()) { throw "Could not start process '$($values[0])'." }
-            # Drain raw bytes before decoding. A decoding failure must not stop a pipe reader while
-            # the child is still writing, because then WaitForExit and the child can block each other.
-            $stdoutBytes = [System.IO.MemoryStream]::new()
-            $stderrBytes = [System.IO.MemoryStream]::new()
-            $stdoutTask = $process.StandardOutput.BaseStream.CopyToAsync($stdoutBytes)
-            $stderrTask = $process.StandardError.BaseStream.CopyToAsync($stderrBytes)
-            $completed = if ($null -eq $timeout) {
-                $process.WaitForExit()
-                $true
-            } else {
-                $process.WaitForExit([int]$timeout)
-            }
-            if (-not $completed) {
-                try {
-                    $process.Kill()
-                } catch [System.InvalidOperationException] {
-                    if (-not $process.HasExited) { throw }
-                }
-                if (-not $process.WaitForExit(5000)) {
-                    throw "process timed out after $timeout ms and the root process did not terminate."
-                }
-                $process.StandardOutput.Close()
-                $process.StandardError.Close()
-                try { [void][System.Threading.Tasks.Task]::WaitAll(
-                    [System.Threading.Tasks.Task[]]@($stdoutTask, $stderrTask), 1000) } catch [System.AggregateException] {}
-                throw "process timed out after $timeout ms."
-            }
-            $process.WaitForExit()
-            [void]$stdoutTask.GetAwaiter().GetResult()
-            [void]$stderrTask.GetAwaiter().GetResult()
-            $stdout = $encoding.GetString($stdoutBytes.ToArray())
-            $stderr = $encoding.GetString($stderrBytes.ToArray())
-            return ,([object[]]@($process.ExitCode, $stdout, $stderr))
-        } finally {
-            if ($null -ne $stdoutBytes) { $stdoutBytes.Dispose() }
-            if ($null -ne $stderrBytes) { $stderrBytes.Dispose() }
-            $process.Dispose()
-        }
+        & $__rukbat_load_ProcessJob
+        return ,([RukbatProcessJob]::Run($start.FileName, [string]::Join(' ', $quoted), $__rukbat_working_dir, $timeout))
     }
     """;
 }

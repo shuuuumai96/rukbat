@@ -1,0 +1,202 @@
+using System;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.Win32.SafeHandles;
+
+public static class RukbatProcessJob
+{
+    private const uint KillOnJobClose = 0x2000;
+    private const uint ExtendedStartupInfoPresent = 0x80000;
+    private const uint CreateNoWindow = 0x8000000;
+    private const uint CreateSuspended = 4;
+    private const uint StartUseStdHandles = 0x100;
+    private const uint HandleFlagInherit = 1;
+    private const int JobExtendedLimitInformation = 9;
+    private const int JobBasicAccountingInformation = 1;
+    private const int CleanupMilliseconds = 5000;
+    private const int CaptureLimit = 64 * 1024 * 1024;
+    private static readonly IntPtr HandleListAttribute = new IntPtr(0x20002);
+    private static readonly IntPtr JobListAttribute = new IntPtr(0x2000D);
+    private static readonly IntPtr InvalidHandle = new IntPtr(-1);
+
+    [StructLayout(LayoutKind.Sequential)] private struct SecurityAttributes { public int Size; public IntPtr Descriptor; public int Inherit; }
+    [StructLayout(LayoutKind.Sequential)] private struct StartupInfo
+    {
+        public int Size; public IntPtr Reserved, Desktop, Title;
+        public uint X, Y, XSize, YSize, XCountChars, YCountChars, FillAttribute, Flags;
+        public short ShowWindow, ReservedBytes; public IntPtr ReservedPointer, Input, Output, Error;
+    }
+    [StructLayout(LayoutKind.Sequential)] private struct StartupInfoEx { public StartupInfo Info; public IntPtr Attributes; }
+    [StructLayout(LayoutKind.Sequential)] private struct ProcessInformation { public IntPtr Process, Thread; public uint ProcessId, ThreadId; }
+    [StructLayout(LayoutKind.Sequential)] private struct BasicLimits
+    {
+        public long ProcessTime, JobTime; public uint Flags; public UIntPtr MinimumWorkingSet, MaximumWorkingSet;
+        public uint ActiveProcessLimit; public UIntPtr Affinity; public uint PriorityClass, SchedulingClass;
+    }
+    [StructLayout(LayoutKind.Sequential)] private struct IoCounters { public ulong ReadOperations, WriteOperations, OtherOperations, ReadBytes, WriteBytes, OtherBytes; }
+    [StructLayout(LayoutKind.Sequential)] private struct ExtendedLimits
+    {
+        public BasicLimits Basic; public IoCounters Io;
+        public UIntPtr ProcessMemory, JobMemory, PeakProcessMemory, PeakJobMemory;
+    }
+    [StructLayout(LayoutKind.Sequential)] private struct Accounting
+    {
+        public long UserTime, KernelTime, PeriodUserTime, PeriodKernelTime;
+        public uint PageFaults, TotalProcesses, ActiveProcesses, TerminatedProcesses;
+    }
+    [DllImport("kernel32.dll", SetLastError=true)] private static extern IntPtr CreateJobObject(IntPtr security, string name);
+    [DllImport("kernel32.dll", SetLastError=true)] private static extern bool SetInformationJobObject(IntPtr job, int infoClass, ref ExtendedLimits limits, int size);
+    [DllImport("kernel32.dll", SetLastError=true)] private static extern bool QueryInformationJobObject(IntPtr job, int infoClass, out Accounting accounting, int size, IntPtr returned);
+    [DllImport("kernel32.dll", SetLastError=true)] private static extern bool TerminateJobObject(IntPtr job, uint code);
+    [DllImport("kernel32.dll", SetLastError=true)] private static extern bool CreatePipe(out IntPtr read, out IntPtr write, ref SecurityAttributes security, int size);
+    [DllImport("kernel32.dll", SetLastError=true)] private static extern bool SetHandleInformation(IntPtr handle, uint mask, uint flags);
+    [DllImport("kernel32.dll", SetLastError=true)] private static extern bool InitializeProcThreadAttributeList(IntPtr list, int count, int flags, ref IntPtr size);
+    [DllImport("kernel32.dll", SetLastError=true)] private static extern bool UpdateProcThreadAttribute(IntPtr list, uint flags, IntPtr attribute, IntPtr value, IntPtr size, IntPtr previous, IntPtr returned);
+    [DllImport("kernel32.dll")] private static extern void DeleteProcThreadAttributeList(IntPtr list);
+    [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)] private static extern bool CreateProcess(string application, StringBuilder command, IntPtr processSecurity, IntPtr threadSecurity, bool inherit, uint flags, IntPtr environment, string directory, ref StartupInfoEx startup, out ProcessInformation process);
+    [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)] private static extern IntPtr CreateFile(string path, uint access, uint share, ref SecurityAttributes security, uint disposition, uint flags, IntPtr template);
+    [DllImport("kernel32.dll", SetLastError=true)] private static extern uint ResumeThread(IntPtr thread);
+    [DllImport("kernel32.dll", SetLastError=true)] private static extern bool GetExitCodeProcess(IntPtr process, out uint code);
+    [DllImport("kernel32.dll")] private static extern bool CloseHandle(IntPtr handle);
+
+    private static void Check(bool success, string operation)
+    {
+        if (!success) throw new Win32Exception(Marshal.GetLastWin32Error(), operation);
+    }
+    private static void Close(ref IntPtr handle)
+    {
+        if (handle != IntPtr.Zero && handle != InvalidHandle) CloseHandle(handle);
+        handle = IntPtr.Zero;
+    }
+    private static uint Active(IntPtr job)
+    {
+        Accounting value;
+        Check(QueryInformationJobObject(job, JobBasicAccountingInformation, out value, Marshal.SizeOf(typeof(Accounting)), IntPtr.Zero), "Cannot inspect process job.");
+        return value.ActiveProcesses;
+    }
+    private static byte[] Capture(IntPtr handle)
+    {
+        using (var stream = new FileStream(new SafeFileHandle(handle, true), FileAccess.Read))
+        using (var output = new MemoryStream())
+        {
+            byte[] buffer = new byte[8192];
+            int count;
+            while ((count = stream.Read(buffer, 0, buffer.Length)) != 0)
+            {
+                if (output.Length + count > CaptureLimit)
+                {
+                    throw new IOException("process output exceeded 64 MiB per stream.");
+                }
+                output.Write(buffer, 0, count);
+            }
+            return output.ToArray();
+        }
+    }
+    public static object[] Run(string executable, string arguments, string directory, int? timeout)
+    {
+        IntPtr job = IntPtr.Zero, outRead = IntPtr.Zero, outWrite = IntPtr.Zero;
+        IntPtr errRead = IntPtr.Zero, errWrite = IntPtr.Zero, input = IntPtr.Zero;
+        IntPtr attributes = IntPtr.Zero, handles = IntPtr.Zero, jobs = IntPtr.Zero;
+        ProcessInformation process = new ProcessInformation();
+        bool initialized = false;
+        Task<byte[]> stdout = null, stderr = null;
+        try
+        {
+            job = CreateJobObject(IntPtr.Zero, null);
+            Check(job != IntPtr.Zero, "Cannot create process job.");
+            var limits = new ExtendedLimits();
+            limits.Basic.Flags = KillOnJobClose;
+            Check(SetInformationJobObject(job, JobExtendedLimitInformation, ref limits, Marshal.SizeOf(typeof(ExtendedLimits))), "Cannot configure process job.");
+            var security = new SecurityAttributes { Size = Marshal.SizeOf(typeof(SecurityAttributes)), Inherit = 1 };
+            Check(CreatePipe(out outRead, out outWrite, ref security, 0), "Cannot create stdout pipe.");
+            Check(CreatePipe(out errRead, out errWrite, ref security, 0), "Cannot create stderr pipe.");
+            Check(SetHandleInformation(outRead, HandleFlagInherit, 0), "Cannot protect stdout capture handle.");
+            Check(SetHandleInformation(errRead, HandleFlagInherit, 0), "Cannot protect stderr capture handle.");
+            const uint GenericRead = 0x80000000, ShareReadWrite = 3, OpenExisting = 3;
+            input = CreateFile("NUL", GenericRead, ShareReadWrite, ref security, OpenExisting, 0, IntPtr.Zero);
+            Check(input != InvalidHandle, "Cannot open closed process input.");
+            IntPtr size = IntPtr.Zero;
+            InitializeProcThreadAttributeList(IntPtr.Zero, 2, 0, ref size);
+            attributes = Marshal.AllocHGlobal(size);
+            Check(InitializeProcThreadAttributeList(attributes, 2, 0, ref size), "Cannot initialize process attributes.");
+            initialized = true;
+            handles = Marshal.AllocHGlobal(3 * IntPtr.Size);
+            Marshal.WriteIntPtr(handles, 0, input);
+            Marshal.WriteIntPtr(handles, IntPtr.Size, outWrite);
+            Marshal.WriteIntPtr(handles, 2 * IntPtr.Size, errWrite);
+            Check(UpdateProcThreadAttribute(attributes, 0, HandleListAttribute, handles, new IntPtr(3 * IntPtr.Size), IntPtr.Zero, IntPtr.Zero), "Cannot restrict inherited process handles.");
+            jobs = Marshal.AllocHGlobal(IntPtr.Size);
+            Marshal.WriteIntPtr(jobs, job);
+            // Atomic assignment at creation avoids a host-crash gap before job containment.
+            Check(UpdateProcThreadAttribute(attributes, 0, JobListAttribute, jobs, new IntPtr(IntPtr.Size), IntPtr.Zero, IntPtr.Zero), "Process jobs require Windows 10 / Server 2016 or later.");
+            var startup = new StartupInfoEx();
+            startup.Info.Size = Marshal.SizeOf(typeof(StartupInfoEx));
+            startup.Info.Flags = StartUseStdHandles;
+            startup.Info.Input = input; startup.Info.Output = outWrite; startup.Info.Error = errWrite;
+            startup.Attributes = attributes;
+            var command = new StringBuilder("\"" + executable + "\" " + arguments);
+            Check(CreateProcess(executable, command, IntPtr.Zero, IntPtr.Zero, true,
+                ExtendedStartupInfoPresent | CreateNoWindow | CreateSuspended,
+                IntPtr.Zero, directory, ref startup, out process), "Could not start contained process: " + executable);
+            var timer = Stopwatch.StartNew();
+            Close(ref outWrite); Close(ref errWrite); Close(ref input);
+            IntPtr capturedOut = outRead, capturedErr = errRead;
+            stdout = Task.Factory.StartNew(() => Capture(capturedOut), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+            outRead = IntPtr.Zero;
+            stderr = Task.Factory.StartNew(() => Capture(capturedErr), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+            errRead = IntPtr.Zero;
+            Check(ResumeThread(process.Thread) != UInt32.MaxValue, "Cannot resume contained process.");
+            while (true)
+            {
+                if (stdout.IsFaulted) stdout.GetAwaiter().GetResult();
+                if (stderr.IsFaulted) stderr.GetAwaiter().GetResult();
+                if (Active(job) == 0 && stdout.IsCompleted && stderr.IsCompleted) break;
+                if (timeout.HasValue && timer.ElapsedMilliseconds >= timeout.Value)
+                    throw new TimeoutException("process timed out after " + timeout.Value + " ms.");
+                Thread.Sleep(10);
+            }
+            uint code;
+            Check(GetExitCodeProcess(process.Process, out code), "Cannot obtain process exit code.");
+            var encoding = new UTF8Encoding(false, true);
+            return new object[] { unchecked((int)code), encoding.GetString(stdout.Result), encoding.GetString(stderr.Result) };
+        }
+        finally
+        {
+            try
+            {
+                if (job != IntPtr.Zero)
+                {
+                    Check(TerminateJobObject(job, 1), "Could not terminate process job.");
+                    var cleanup = Stopwatch.StartNew();
+                    while (Active(job) != 0 && cleanup.ElapsedMilliseconds < CleanupMilliseconds) Thread.Sleep(10);
+                    if (Active(job) != 0) throw new IOException("Process job cleanup did not finish within five seconds.");
+                }
+                Close(ref outWrite); Close(ref errWrite); Close(ref input);
+                if (stdout != null && stderr != null)
+                {
+                    try
+                    {
+                        if (!Task.WaitAll(new Task[] { stdout, stderr }, CleanupMilliseconds))
+                            throw new IOException("Process capture cleanup did not finish within five seconds.");
+                    }
+                    catch (AggregateException) { }
+                }
+            }
+            finally
+            {
+                Close(ref outWrite); Close(ref errWrite); Close(ref input);
+                Close(ref outRead); Close(ref errRead);
+                Close(ref process.Thread); Close(ref process.Process); Close(ref job);
+                if (initialized) DeleteProcThreadAttributeList(attributes);
+                if (attributes != IntPtr.Zero) Marshal.FreeHGlobal(attributes);
+                if (handles != IntPtr.Zero) Marshal.FreeHGlobal(handles);
+                if (jobs != IntPtr.Zero) Marshal.FreeHGlobal(jobs);
+            }
+        }
+    }
+}

@@ -34,4 +34,8 @@ Each stage has a separate responsibility:
 
 Generated scripts include small PowerShell helpers implementing Rukbat value copies, array bounds, error propagation, and PowerShell boundaries. Only imported standard-library runtime sections are included. Deployment requires neither the Rukbat compiler nor a separate Rukbat runtime.
 
+Native Windows helpers for contained process execution and journaled file moves live in `Runtime/*.cs.txt`, embedded as compiler resources and copied into the generated script. `NativeEmission` emits lazy `Add-Type` loaders; the deployment machine uses its existing PowerShell/.NET facilities. These helpers use C# syntax compatible with the Windows PowerShell 5.1 compiler. Process job assignment is part of process creation, so host termination cannot leave a child executing outside the job. Move journals are flushed before renames; locked file handles preserve identity across moves and recovery.
+
+Generated scripts reject non-FullLanguage sessions before user operations. They do not change or bypass the machine's execution/security policy.
+
 The entry wrapper captures working and script directories before module initialization. Standard-library runtime closures retain this path context and resolve paths explicitly; they do not depend on later `$PWD` or `Environment.CurrentDirectory` values. Emitter derives runtime source labels relative to the entry source directory while leaving compiler diagnostic paths unchanged.

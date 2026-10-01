@@ -1,74 +1,63 @@
 import csv
-import directories
 import files
 import path
 import text
-struct MoveEntry {
-    source: string
-    destination: string
-}
 fn usage(): string {
-    return "Usage: rukbat run examples/batch-organize/main.rukbat -- <plan.csv>"
+    return "Usage: rukbat run examples/batch-organize/main.rukbat -- [--recover] <plan.csv>"
 }
 arguments: string[] = args()
 try {
+    if arguments.length == 2 {
+        if arguments[0] != "--recover" || arguments[1] == "" {
+            throw Error {
+                message: usage()
+            }
+        }
+        files.recover_moves(arguments[1] + ".rukbat-journal")
+        exit(0)
+    }
     if arguments.length != 1 || arguments[0] == "" {
-        throw Error {message: "Expected exactly one non-empty plan path.\n" + usage()}
+        throw Error {
+            message: "Expected exactly one non-empty plan path.\n" + usage()
+        }
     }
-    rows: string[][] = csv.parse(files.read(arguments[0], "utf-8"))
+    rows := csv.parse(files.read(arguments[0], "utf-8"))
     if rows.length == 0 {
-        throw Error {message: "CSV record 1: expected header source,destination."}
+        throw Error {
+            message: "CSV record 1: expected header source,destination."
+        }
     }
-    header: string[] = rows[0]
+    header := rows[0]
     if header.length != 2 || header[0] != "source" || header[1] != "destination" {
-        throw Error {message: "CSV record 1: expected exactly source,destination header."}
+        throw Error {
+            message: "CSV record 1: expected exactly source,destination header."
+        }
     }
-    entries: MoveEntry[] = []
-    record: int = 1
+    sources: string[] = []
+    destinations: string[] = []
+    record := 1
     while record < rows.length {
-        row: string[] = rows[record]
+        row := rows[record]
         if row.length != 2 {
-            throw Error {message: "CSV record " + text.from_int(record + 1) + ": expected exactly 2 fields."}
+            throw Error {
+                message: "CSV record " + text.from_int(record + 1) + ": expected exactly 2 fields."
+            }
         }
-        if row[0] == "" {
-            throw Error {message: "CSV record " + text.from_int(record + 1) + ": source is empty."}
+        if row[0] == "" || row[1] == "" {
+            throw Error {
+                message: "CSV record " + text.from_int(record + 1) + ": source and destination must be non-empty."
+            }
         }
-        if row[1] == "" {
-            throw Error {message: "CSV record " + text.from_int(record + 1) + ": destination is empty."}
+        if path.equal(row[0], arguments[0]) {
+            throw Error {
+                message: "The move plan itself must not be a source."
+            }
         }
-        entries.append(MoveEntry {source: row[0], destination: row[1]})
+        sources.append(row[0])
+        destinations.append(row[1])
         record = record + 1
     }
-    seen_sources: string[] = []
-    seen_destinations: string[] = []
-    for entry in entries {
-        if !files.exists(entry.source) {
-            throw Error {message: "Source file does not exist: " + entry.source}
-        }
-        if files.exists(entry.destination) || directories.exists(entry.destination) {
-            throw Error {message: "Destination already exists: " + entry.destination}
-        }
-        if path.equal(entry.source, entry.destination) {
-            throw Error {message: "Source and destination must differ: " + entry.source}
-        }
-        for seen in seen_sources {
-            if path.equal(entry.source, seen) {
-                throw Error {message: "Duplicate source: " + entry.source}
-            }
-        }
-        for seen in seen_destinations {
-            if path.equal(entry.destination, seen) {
-                throw Error {message: "Duplicate destination: " + entry.destination}
-            }
-        }
-        parent: string = path.parent(entry.destination)
-        seen_sources.append(entry.source)
-        seen_destinations.append(entry.destination)
-    }
-    for entry in entries {
-        directories.create(path.parent(entry.destination))
-        files.move(entry.source, entry.destination)
-    }
+    files.move_batch(sources, destinations, arguments[0] + ".rukbat-journal")
 } catch err {
     eprint(err.message)
     exit(2)
