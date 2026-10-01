@@ -1,0 +1,33 @@
+import files
+import json
+struct ServiceState {
+    name: string
+    running: bool
+}
+arguments := args()
+try {
+    if arguments.length != 2 {
+        throw Error {
+            message: "Expected service name and output JSON path."
+        }
+    }
+    // Read-only administration: no service state is changed by this example.
+    service_name := arguments[0]
+    running_names := powershell<string[]>("Invoke-Expression", "Get-Service -ErrorAction Stop | Where-Object { $_.Status -eq 'Running' } | ForEach-Object { $_.Name }")
+    running := false
+    for name in running_names {
+        if name == service_name {
+            running = true
+        }
+    }
+    files.write(arguments[1], json.encode(ServiceState {
+        name: service_name, running: running
+    }
+    ), "utf-8")
+    if !running {
+        exit(1)
+    }
+} catch err {
+    eprint(err.message)
+    exit(2)
+}

@@ -1,5 +1,7 @@
 # Unattended Windows jobs
 
+The [operations guide](OPERATIONS.md) supplies the responsibility boundary, release packaging, job runner, scheduler integration, health probe, notification adapter and deployment acceptance procedure. The API contracts below remain narrower than a complete business workflow.
+
 Rukbat's supported unattended path uses Windows 10 / Server 2016 or later, PowerShell 5.1 or 7 in FullLanguage mode, a dedicated working directory, and an account allowed to operate the required files. Journaled moves require one local fixed NTFS drive. Restricted language modes are rejected before user operations; no policy bypass is attempted.
 
 ## Recoverable file organization

@@ -287,3 +287,5 @@ The implemented [batch validation acceptance example](examples/batch-check/main.
 ## Batch organization acceptance example
 
 The [batch organization acceptance example](examples/batch-organize/main.rukbat) follows the [batch organization contract](docs/BATCH_ORGANIZE_ACCEPTANCE.md). It parses a CSV move plan and uses `files.move_batch` for locked, journaled moves on one local NTFS volume. Interrupted work can be recovered or retried, and committed plans can be replayed without repeating moves. See [unattended operation](docs/UNATTENDED.md) for the supported environment, recovery procedure, and fault tests.
+
+The [operations toolkit](docs/OPERATIONS.md) packages versioned releases, runs them with a whole-job deadline and exclusive job lock, records outcomes, generates scheduled tasks, and exposes a JSON health probe with notification integration. It includes file, CLI and Windows administration acceptance examples. Target-account scheduling, backup restoration and production alert delivery remain explicit deployment acceptance checks.

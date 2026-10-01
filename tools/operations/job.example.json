@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "job_id": "file-organize",
+  "release_directory": "C:\\Jobs\\file-organize\\releases\\v1",
+  "working_directory": "C:\\Jobs\\file-organize\\work",
+  "state_directory": "C:\\Jobs\\file-organize\\state",
+  "powershell": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+  "arguments": ["C:\\Jobs\\file-organize\\work\\plan.csv"],
+  "timeout_seconds": 300,
+  "max_attempts": 1,
+  "retry_exit_codes": [],
+  "retry_delay_seconds": 5,
+  "first_due_utc": "2026-10-02T00:05:00Z",
+  "max_success_age_seconds": 90000
+}
