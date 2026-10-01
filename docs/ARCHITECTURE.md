@@ -31,6 +31,7 @@ Each stage has a separate responsibility:
 - Compiler invokes these stages in order. It validates the generated PowerShell syntax as a generator sanity check; Windows PowerShell 5.1 compatibility is established by the execution test suite, not by this parser validation alone.
 - `rukbat check` stops after ModuleLoader, Resolver, and TypeChecker. It invokes neither Emitter nor the PowerShell parser.
 - Formatter validates syntax, then normalizes tokens while preserving comments. It does not check types or resolve imports.
+- During formatting, Parser also records syntax facts such as continuation newlines, struct-literal closing braces, unary operators, type-argument delimiters, and adjacent statement kinds within each block. FormattingSyntax identifies required group boundaries, and Formatter uses these facts instead of guessing expression roles from token spelling. Ordinary compilation does not collect these optional facts.
 
 Generated scripts include small PowerShell helpers implementing Rukbat value copies, array bounds, error propagation, and PowerShell boundaries. Only imported standard-library runtime sections are included. Deployment requires neither the Rukbat compiler nor a separate Rukbat runtime.
 

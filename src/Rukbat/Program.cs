@@ -11,6 +11,8 @@ public static class Cli
     private const int UsageOrIoFailure = 2;
     private const int CompilerArgumentCount = 2;
     private const int ApplicationArgumentsOffset = CompilerArgumentCount + 1;
+    private static readonly HashSet<string> FormattingExcludedDirectories =
+        new(StringComparer.OrdinalIgnoreCase) { ".git", "bin", "obj" };
 
     private static int Execute(string output, IEnumerable<string> arguments)
     {
@@ -34,10 +36,11 @@ public static class Cli
     {
         if (args.Length < CompilerArgumentCount ||
             args[0] is not ("build" or "run" or "check" or "fmt") ||
-            !Path.GetExtension(args[1]).Equals(".rukbat", StringComparison.OrdinalIgnoreCase) ||
+            (args[0] != "fmt" && !Path.GetExtension(args[1]).Equals(".rukbat", StringComparison.OrdinalIgnoreCase)) ||
             args.Length > CompilerArgumentCount && (args[0] != "run" || args[CompilerArgumentCount] != "--"))
         {
             stderr.WriteLine("Usage: rukbat <build|run|check|fmt> input.rukbat [-- arguments... (run only)]");
+            stderr.WriteLine("       rukbat fmt directory");
             return UsageOrIoFailure;
         }
         try
@@ -51,14 +54,7 @@ public static class Cli
             }
             if (args[0] == "fmt")
             {
-                var formatted = Formatter.Format(File.ReadAllText(input), input);
-                WriteDiagnostics(formatted.Diagnostics, stderr);
-                if (!formatted.Success)
-                {
-                    return CompilationFailure;
-                }
-                File.WriteAllText(input, formatted.Output, new System.Text.UTF8Encoding(false));
-                return Success;
+                return FormatPath(input, stderr);
             }
             var result = new Compiler().CompileFile(input);
             WriteDiagnostics(result.Diagnostics, stderr);
@@ -86,11 +82,73 @@ public static class Cli
                 $"and make it available on PATH. {error.Message}");
             return UsageOrIoFailure;
         }
-        catch (Exception error) when (
-            error is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        catch (Exception error) when (IsInputOutputError(error))
         {
             stderr.WriteLine($"error: {error.Message}");
             return UsageOrIoFailure;
+        }
+    }
+
+    private static bool IsInputOutputError(Exception error) =>
+        error is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException;
+
+    private static int FormatPath(string input, TextWriter stderr)
+    {
+        if (!Directory.Exists(input) && !Path.GetExtension(input).Equals(".rukbat", StringComparison.OrdinalIgnoreCase))
+        {
+            stderr.WriteLine($"error: Expected a .rukbat file or an existing directory: {input}");
+            return UsageOrIoFailure;
+        }
+
+        var files = Directory.Exists(input) ? FormattingFiles(input) : [input];
+        var result = Success;
+        foreach (var file in files)
+        {
+            try
+            {
+                var source = File.ReadAllText(file);
+                var formatted = Formatter.Format(source, file);
+                WriteDiagnostics(formatted.Diagnostics, stderr);
+                if (!formatted.Success)
+                {
+                    result = Math.Max(result, CompilationFailure);
+                    continue;
+                }
+                File.WriteAllText(file, formatted.Output, new System.Text.UTF8Encoding(false));
+            }
+            catch (Exception error) when (IsInputOutputError(error))
+            {
+                stderr.WriteLine($"error: {file}: {error.Message}");
+                result = UsageOrIoFailure;
+            }
+        }
+        return result;
+    }
+
+    private static IEnumerable<string> FormattingFiles(string directory)
+    {
+        var options = new EnumerationOptions
+        {
+            AttributesToSkip = FileAttributes.ReparsePoint,
+            IgnoreInaccessible = false
+        };
+        foreach (var file in Directory.EnumerateFiles(directory, "*", options).Order(StringComparer.Ordinal))
+        {
+            if (Path.GetExtension(file).Equals(".rukbat", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return file;
+            }
+        }
+        foreach (var child in Directory.EnumerateDirectories(directory, "*", options).Order(StringComparer.Ordinal))
+        {
+            if (FormattingExcludedDirectories.Contains(Path.GetFileName(child)))
+            {
+                continue;
+            }
+            foreach (var file in FormattingFiles(child))
+            {
+                yield return file;
+            }
         }
     }
 

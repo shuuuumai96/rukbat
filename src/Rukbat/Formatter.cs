@@ -9,22 +9,23 @@ internal sealed record FormatResult(string? Output, IReadOnlyList<Diagnostic> Di
 
 internal static class Formatter
 {
-    private sealed record Item(string Text, bool IsComment = false, bool IsNewLine = false);
+    private sealed record Item(string Text, int Offset, bool IsComment = false, bool IsNewLine = false);
 
     public static FormatResult Format(string text, string path)
     {
         var source = new Source(text, path);
         var tokens = new Lexer(source).Scan();
+        var syntax = new FormattingSyntax();
         if (source.Diagnostics.Count == 0)
         {
-            _ = new Parser(source, tokens).Parse();
+            _ = new Parser(source, tokens, syntax).Parse();
         }
         if (source.Diagnostics.Count != 0)
         {
             return new(null, source.Diagnostics);
         }
 
-        return new(Write(Items(text, tokens)), []);
+        return new(Write(Items(text, tokens), syntax), []);
     }
 
     private static List<Item> Items(string source, List<Token> tokens)
@@ -39,10 +40,13 @@ internal static class Formatter
                 if (gap.StartsWith("#", StringComparison.Ordinal) ||
                     gap.StartsWith("//", StringComparison.Ordinal))
                 {
-                    items.Add(new(gap, IsComment: true));
+                    items.Add(new(gap, end, IsComment: true));
                 }
             }
-            items.Add(token.Text == "\n" ? new("\n", IsNewLine: true) : new(token.Text));
+            // Escape physical line breaks without altering the string's value.
+            var text = token.StringValue is null ? token.Text
+                : token.Text.Replace("\r", "\\r").Replace("\n", "\\n");
+            items.Add(new(text, token.Offset, IsNewLine: token.Text == "\n"));
             end = token.Offset + token.Text.Length;
         }
         if (end < source.Length)
@@ -51,28 +55,41 @@ internal static class Formatter
             if (gap.StartsWith("#", StringComparison.Ordinal) ||
                 gap.StartsWith("//", StringComparison.Ordinal))
             {
-                items.Add(new(gap, IsComment: true));
+                items.Add(new(gap, end, IsComment: true));
             }
         }
         return items;
     }
 
-    private static string Write(List<Item> items)
+    private static string Write(List<Item> items, FormattingSyntax syntax)
     {
         const int indentationWidth = 4;
+        var requiredBlankLines = BlankLinePositions(items, syntax);
         var output = new StringBuilder();
         var line = new StringBuilder();
         var indentation = 0;
-        var parentheses = 0;
-        var brackets = 0;
-        var genericDepth = 0;
+        var continuations = new Stack<int>();
+        var commentContinuation = false;
+        var sourceNewlines = 0;
+        var pendingBlankLine = false;
+        string? lastContent = null;
         string? previous = null;
 
-        void Append(string value, bool spaceBefore = false)
+        void Append(string value, bool spaceBefore = false, bool indentContinuation = true)
         {
+            if (pendingBlankLine)
+            {
+                if (line.Length == 0 && output.Length != 0 && lastContent != "{" && value != "}")
+                {
+                    output.Append('\n');
+                }
+                pendingBlankLine = false;
+            }
             if (line.Length == 0)
             {
-                line.Append(' ', indentation * indentationWidth);
+                var extra = indentContinuation &&
+                    (commentContinuation || continuations.Any(depth => depth == indentation)) ? 1 : 0;
+                line.Append(' ', (indentation + extra) * indentationWidth);
             }
             else if (spaceBefore && line[^1] != ' ')
             {
@@ -97,7 +114,7 @@ internal static class Formatter
             }
             if (line.Length != 0)
             {
-                output.AppendLine(line.ToString());
+                output.Append(line).Append('\n');
                 line.Clear();
             }
         }
@@ -105,74 +122,93 @@ internal static class Formatter
         for (var index = 0; index < items.Count; index++)
         {
             var item = items[index];
+            if (requiredBlankLines.Contains(index))
+            {
+                NewLine();
+                pendingBlankLine = true;
+            }
             if (item.IsComment)
             {
+                sourceNewlines = 0;
                 if (line.Length != 0)
                 {
                     TrimSpace(line);
                     line.Append("  ");
                 }
                 Append(item.Text);
+                lastContent = item.Text;
                 NewLine();
-                previous = null;
+                if (index + 1 < items.Count && syntax.ContinuationNewlines.Contains(items[index + 1].Offset) &&
+                    previous is not (null or "{" or "}"))
+                {
+                    commentContinuation = true;
+                }
                 continue;
             }
             if (item.IsNewLine)
             {
-                if (previous == "}" && NextToken(items, index) is "else" or "catch")
-                {
-                    continue;
-                }
-                if (parentheses == 0 && brackets == 0 && genericDepth == 0 &&
-                    previous is not null && previous is not ("{" or "," or ".") && !IsOperator(previous))
+                sourceNewlines++;
+                if (!syntax.ContinuationNewlines.Contains(item.Offset))
                 {
                     NewLine();
                     previous = null;
+                    commentContinuation = false;
+                    if (sourceNewlines > 1)
+                    {
+                        pendingBlankLine = true;
+                    }
                 }
                 continue;
             }
 
             var token = item.Text;
+            sourceNewlines = 0;
             switch (token)
             {
                 case "{":
-                    Append("{", spaceBefore: true);
+                    commentContinuation = false;
+                    Append("{", spaceBefore: true, indentContinuation: false);
                     NewLine();
                     indentation++;
                     break;
                 case "}":
                     NewLine();
                     indentation = Math.Max(0, indentation - 1);
-                    Append("}");
+                    Append("}", indentContinuation: false);
+                    if (syntax.ExpressionClosings.Contains(item.Offset))
+                    {
+                        break;
+                    }
                     if (NextToken(items, index) is "else" or "catch")
                     {
                         Space();
                     }
-                    else
+                    else if (index + 1 >= items.Count || !items[index + 1].IsComment)
                     {
                         NewLine();
                     }
                     break;
                 case ";":
                     NewLine();
+                    commentContinuation = false;
                     break;
                 case "(":
-                    Append("(");
-                    parentheses++;
+                    Append("(", syntax.ExpressionOpenings.Contains(item.Offset) && NeedsWordSpace(previous));
+                    continuations.Push(indentation);
                     break;
                 case ")":
+                    continuations.Pop();
                     TrimSpace(line);
-                    Append(")");
-                    parentheses--;
+                    Append(")", indentContinuation: false);
                     break;
                 case "[":
-                    Append("[");
-                    brackets++;
+                    Append("[", syntax.ExpressionOpenings.Contains(item.Offset) && NeedsWordSpace(previous));
+                    continuations.Push(indentation);
                     break;
                 case "]":
+                    continuations.Pop();
                     TrimSpace(line);
-                    Append("]");
-                    brackets--;
+                    Append("]", indentContinuation: false);
                     break;
                 case ",":
                     TrimSpace(line);
@@ -192,20 +228,18 @@ internal static class Formatter
                     TrimSpace(line);
                     Append("?");
                     break;
-                case "<" when IsGenericOpen(items, index):
+                case "<" when syntax.GenericDelimiters.Contains(item.Offset):
                     TrimSpace(line);
                     Append("<");
-                    genericDepth++;
                     break;
-                case ">" when genericDepth != 0:
+                case ">" when syntax.GenericDelimiters.Contains(item.Offset):
                     TrimSpace(line);
                     Append(">");
-                    genericDepth--;
                     break;
                 case "!":
                     Append("!", NeedsWordSpace(previous));
                     break;
-                case "+" or "-" when IsUnary(previous):
+                case "+" or "-" when syntax.UnaryOperators.Contains(item.Offset):
                     Append(token, NeedsWordSpace(previous));
                     break;
                 case ":=" or "=" or "==" or "!=" or "<=" or ">=" or "<" or ">" or
@@ -219,10 +253,12 @@ internal static class Formatter
                     break;
             }
             previous = token is ";" ? null : token;
+            lastContent = token;
         }
 
         NewLine();
-        return output.ToString().Replace("\r\n", "\n");
+        output.Append('\n');
+        return output.ToString();
     }
 
     private static void TrimSpace(StringBuilder line)
@@ -233,13 +269,38 @@ internal static class Formatter
         }
     }
 
+    private static HashSet<int> BlankLinePositions(List<Item> items, FormattingSyntax syntax)
+    {
+        var positions = new HashSet<int>();
+        for (var index = 0; index < items.Count; index++)
+        {
+            if (!syntax.RequiredBlankLines.Contains(items[index].Offset) || items[index].IsComment || items[index].IsNewLine)
+            {
+                continue;
+            }
+            var start = index;
+            while (start > 0 && (items[start - 1].IsComment || items[start - 1].IsNewLine))
+            {
+                start--;
+            }
+            // Keep a trailing comment with the previous statement; a leading
+            // comment belongs to the statement following it.
+            if (start < index && items[start].IsComment)
+            {
+                start++;
+            }
+            while (start < index && items[start].IsNewLine)
+            {
+                start++;
+            }
+            positions.Add(start);
+        }
+        return positions;
+    }
+
     private static bool NeedsWordSpace(string? previous) => previous is not null &&
         previous is not ("(" or "[" or "." or "<" or "!" or "+" or "-") &&
         !IsOperator(previous);
-
-    private static bool IsUnary(string? previous) => previous is null or
-        "(" or "[" or "," or ":" or ":=" or "=" or "==" or "!=" or "<=" or ">=" or
-        "<" or ">" or "+" or "-" or "*" or "/" or "%" or "&&" or "||" or "return" or "throw";
 
     private static bool IsOperator(string token) => token is
         ":=" or "=" or "==" or "!=" or "<=" or ">=" or "<" or ">" or
@@ -252,41 +313,6 @@ internal static class Formatter
             if (!items[next].IsNewLine)
             {
                 return items[next].IsComment ? null : items[next].Text;
-            }
-        }
-        return null;
-    }
-
-    private static bool IsGenericOpen(List<Item> items, int index)
-    {
-        var previous = PreviousToken(items, index);
-        if (previous is not ("powershell" or "decode"))
-        {
-            return false;
-        }
-        var depth = 1;
-        for (var next = index + 1; next < items.Count; next++)
-        {
-            if (items[next].IsComment || items[next].IsNewLine)
-            {
-                continue;
-            }
-            if (items[next].Text == "<") depth++;
-            if (items[next].Text == ">" && --depth == 0)
-            {
-                return NextToken(items, next) == "(";
-            }
-        }
-        return false;
-    }
-
-    private static string? PreviousToken(List<Item> items, int index)
-    {
-        for (var previous = index - 1; previous >= 0; previous--)
-        {
-            if (!items[previous].IsNewLine && !items[previous].IsComment)
-            {
-                return items[previous].Text;
             }
         }
         return null;

@@ -70,6 +70,8 @@ rukbat run examples/import-data.rukbat
 .\rukbat check examples/hello.rukbat
 # Apply canonical source formatting:
 .\rukbat fmt examples/hello.rukbat
+# Format every .rukbat source under the current directory:
+.\rukbat fmt .
 # A build-only shortcut is also available:
 .\build examples/hello.rukbat
 ```
@@ -85,7 +87,9 @@ To run a generated script directly, use `powershell -File input.ps1 arguments...
 `build` and `run` write a `.ps1` with the entry file's base name in the same directory, replacing existing output on success.
 Syntax, type, and import errors leave existing output unchanged. Always check the compiler exit code in automation: stale output may remain.
 `check` generates no PowerShell and leaves existing `.ps1` files untouched.
-`fmt` rewrites one syntactically valid `.rukbat` file using canonical four-space indentation while preserving comments. Syntax errors leave the source unchanged.
+`fmt` accepts a `.rukbat` file or a directory and uses canonical four-space indentation while preserving comments. `rukbat fmt .` recursively formats sources under the current directory, excluding `.git`, `bin`, `obj`, and symbolic links/junctions. An empty directory succeeds. Files with syntax or I/O errors are reported, and remaining files are still processed; successful files are rewritten and invalid sources stay unchanged. The command returns `1` if any source has a syntax error, or `2` if an I/O error occurs.
+Blank lines between statements are preserved, with consecutive blank lines collapsed to one. Every formatted file ends with one blank line (`\n\n` after nonempty content).
+Formatting also inserts blank lines around functions, struct declarations, and control-flow statements, and after import groups. Related simple statements remain adjacent, and comments stay with their statements.
 Compiler success is `0`, compilation errors are `1`, and CLI argument or I/O errors are `2`.
 Diagnostics use `file(line,column): error RUKxxxx: message`. Errors in imported files identify the location in that file.
 Compilation never executes Rukbat or PowerShell user code.

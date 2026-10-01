@@ -1,23 +1,30 @@
 import files
 import text
+
 arguments := args()
+
 if arguments.length != 2 {
     eprint("Usage: filter-errors.ps1 <input.log> <output.log>")
     exit(2)
 }
+
 try {
     content := files.read(arguments[0], "utf-8")
     lines := text.split_lines(content)
     errors: string[] = []
+
     for line in lines {
         cleaned := text.trim(line)
+
         if text.starts_with(cleaned, "ERROR:") {
             errors.append(cleaned)
         }
     }
+
     report := text.join(errors, "\r\n")
     files.write(arguments[1], report, "utf-8")
 } catch err {
     eprint(err.message)
     exit(1)
 }
+

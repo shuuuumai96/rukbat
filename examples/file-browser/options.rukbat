@@ -11,62 +11,94 @@ fn usage(): string {
 
 fn parse(arguments: string[]): Options {
     if arguments.length == 0 {
-        throw Error {message: usage()}
+        throw Error {
+            message: usage()
+        }
     }
-    options: Options = Options {directory: arguments[0], pattern: "*", output: "", help: false}
+
+    options: Options = Options {
+        directory: arguments[0], pattern: "*", output: "", help: false
+    }
+
     if arguments.length == 1 && arguments[0] == "--help" {
         options.help = true
         return options
     }
+
     if options.directory == "" {
-        throw Error {message: "Please specify a directory"}
+        throw Error {
+            message: "Please specify a directory"
+        }
     }
 
     first: bool = true
     pending: string = ""
     pattern_seen: bool = false
     output_seen: bool = false
+
     for argument in arguments {
         if first {
             first = false
             continue
         }
+
         if pending == "--pattern" {
             if argument == "" {
-                throw Error {message: "--pattern requires a non-empty pattern"}
+                throw Error {
+                    message: "--pattern requires a non-empty pattern"
+                }
             }
+
             options.pattern = argument
             pending = ""
             continue
         }
+
         if pending == "--output" {
             if argument == "" {
-                throw Error {message: "--output requires a non-empty output path"}
+                throw Error {
+                    message: "--output requires a non-empty output path"
+                }
             }
+
             options.output = argument
             pending = ""
             continue
         }
+
         if argument == "--pattern" {
             if pattern_seen {
-                throw Error {message: "--pattern may only be specified once"}
+                throw Error {
+                    message: "--pattern may only be specified once"
+                }
             }
+
             pattern_seen = true
             pending = argument
         } else {
             if argument == "--output" {
                 if output_seen {
-                    throw Error {message: "--output may only be specified once"}
+                    throw Error {
+                        message: "--output may only be specified once"
+                    }
                 }
+
                 output_seen = true
                 pending = argument
             } else {
-                throw Error {message: "Unknown option or extra argument: " + argument + "\n" + usage()}
+                throw Error {
+                    message: "Unknown option or extra argument: " + argument + "\n" + usage()
+                }
             }
         }
     }
+
     if pending != "" {
-        throw Error {message: pending + " requires a value"}
+        throw Error {
+            message: pending + " requires a value"
+        }
     }
+
     return options
 }
+

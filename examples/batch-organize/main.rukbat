@@ -2,10 +2,13 @@ import csv
 import files
 import path
 import text
+
 fn usage(): string {
     return "Usage: rukbat run examples/batch-organize/main.rukbat -- [--recover] <plan.csv>"
 }
+
 arguments: string[] = args()
+
 try {
     if arguments.length == 2 {
         if arguments[0] != "--recover" || arguments[1] == "" {
@@ -13,52 +16,66 @@ try {
                 message: usage()
             }
         }
+
         files.recover_moves(arguments[1] + ".rukbat-journal")
         exit(0)
     }
+
     if arguments.length != 1 || arguments[0] == "" {
         throw Error {
             message: "Expected exactly one non-empty plan path.\n" + usage()
         }
     }
+
     rows := csv.parse(files.read(arguments[0], "utf-8"))
+
     if rows.length == 0 {
         throw Error {
             message: "CSV record 1: expected header source,destination."
         }
     }
+
     header := rows[0]
+
     if header.length != 2 || header[0] != "source" || header[1] != "destination" {
         throw Error {
             message: "CSV record 1: expected exactly source,destination header."
         }
     }
+
     sources: string[] = []
     destinations: string[] = []
     record := 1
+
     while record < rows.length {
         row := rows[record]
+
         if row.length != 2 {
             throw Error {
                 message: "CSV record " + text.from_int(record + 1) + ": expected exactly 2 fields."
             }
         }
+
         if row[0] == "" || row[1] == "" {
             throw Error {
                 message: "CSV record " + text.from_int(record + 1) + ": source and destination must be non-empty."
             }
         }
+
         if path.equal(row[0], arguments[0]) {
             throw Error {
                 message: "The move plan itself must not be a source."
             }
         }
+
         sources.append(row[0])
         destinations.append(row[1])
         record = record + 1
     }
+
     files.move_batch(sources, destinations, arguments[0] + ".rukbat-journal")
 } catch err {
     eprint(err.message)
     exit(2)
 }
+

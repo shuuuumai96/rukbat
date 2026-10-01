@@ -4,8 +4,11 @@ import path
 fn matching_files(directory: string, pattern: string): string[] {
     paths: string[] = files.list(directory, pattern)
     names: string[] = []
+
     for file in paths {
         names.append(path.filename(file))
     }
+
     return names
 }
+

@@ -25,8 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="../../examples/file-browser/**/*.rukbat" Link="Fixtures/examples/file-browser/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="../../examples/filter-errors.rukbat" Link="Fixtures/examples/filter-errors.rukbat" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../examples/**/*.rukbat" Link="Fixtures/examples/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

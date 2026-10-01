@@ -7,13 +7,11 @@ struct User {
     }
 }
 
-users: User[] = powershell<User[]>(
-    "ConvertFrom-Json",
-    '[{"name":"Taro","age":30},{"name":"Hanako","age":25}]'
-)
+users: User[] = powershell<User[]>("ConvertFrom-Json", '[{"name":"Taro","age":30},{"name":"Hanako","age":25}]')
 users[0].birthday()
 
 for user in users {
     print(user.name)
     print(user.age)
 }
+

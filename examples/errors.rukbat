@@ -1,6 +1,8 @@
 fn require_directory(directory: string): void {
     if directory == "" {
-        throw Error {message: "Please specify a directory"}
+        throw Error {
+            message: "Please specify a directory"
+        }
     }
 }
 
@@ -18,7 +20,9 @@ try {
 
 try {
     try {
-        throw Error {message: "Rethrown error"}
+        throw Error {
+            message: "Rethrown error"
+        }
     } catch err {
         throw err
     }
@@ -27,3 +31,4 @@ try {
 }
 
 print("Execution continues after error handling")
+

@@ -10,10 +10,8 @@ struct User {
 }
 
 user := User {
-    name: "Taro",
-    age: 30
+    name: "Taro", age: 30
 }
-
 result := math.add(user.age, 2)
 print(user.name)
 print(result)
@@ -24,3 +22,4 @@ if user.is_adult() {
 
 year: string = powershell<string>("Get-Date", Format: "yyyy")
 print(year)
+

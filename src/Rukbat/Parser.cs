@@ -3,7 +3,7 @@ using System.Globalization;
 namespace Rukbat;
 
 // Parse statements by recursive descent and binary expressions by precedence climbing.
-internal sealed class Parser(Source source, List<Token> tokens)
+internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax? formatting = null)
 {
     private sealed class ParseFailure : Exception;
     private int position;
@@ -36,8 +36,10 @@ internal sealed class Parser(Source source, List<Token> tokens)
 
     private void NewLines()
     {
-        while (Match("\n"))
+        while (Current.Text == "\n")
         {
+            var newline = Take();
+            formatting?.ContinuationNewlines.Add(newline.Offset);
         }
     }
 
@@ -45,6 +47,7 @@ internal sealed class Parser(Source source, List<Token> tokens)
     {
         while (Current.Text is "\n" or ";")
         {
+            formatting?.ContinuationNewlines.Remove(Current.Offset);
             Take();
         }
     }
@@ -76,7 +79,10 @@ internal sealed class Parser(Source source, List<Token> tokens)
             Separators();
             while (Current.Text != "<eof>")
             {
-                statements.Add(Statement());
+                var start = Current.Offset;
+                var statement = Statement();
+                formatting?.SeparateStatements(statements.LastOrDefault(), statement, start);
+                statements.Add(statement);
                 EndStatement();
             }
         }
@@ -105,7 +111,10 @@ internal sealed class Parser(Source source, List<Token> tokens)
         var statements = new List<Statement>();
         while (Current.Text is not ("}" or "<eof>"))
         {
-            statements.Add(Statement());
+            var start = Current.Offset;
+            var statement = Statement();
+            formatting?.SeparateStatements(statements.LastOrDefault(), statement, start);
+            statements.Add(statement);
             EndStatement();
         }
         Expect("}");
@@ -171,12 +180,21 @@ internal sealed class Parser(Source source, List<Token> tokens)
         var methods = new List<Function>();
         while (Current.Text is not ("}" or "<eof>"))
         {
+            var start = Current.Offset;
             if (Match("fn"))
             {
+                if (fields.Count != 0 || methods.Count != 0)
+                {
+                    formatting?.RequiredBlankLines.Add(start);
+                }
                 methods.Add(FunctionDeclaration());
             }
             else
             {
+                if (methods.Count != 0)
+                {
+                    formatting?.RequiredBlankLines.Add(start);
+                }
                 var field = Identifier();
                 Expect(":");
                 fields.Add(new(field, Type()));
@@ -349,8 +367,10 @@ internal sealed class Parser(Source source, List<Token> tokens)
                 var member = Identifier();
                 if (Current.Text == "<")
                 {
-                    Take();
+                    var delimiter = Take();
+                    formatting?.GenericDelimiters.Add(delimiter.Offset);
                     var typeArgument = Type();
+                    formatting?.GenericDelimiters.Add(Current.Offset);
                     Expect(">");
                     expression = new Call(member, expression, member.Text, Arguments(), TypeArgument: typeArgument);
                 }
@@ -379,6 +399,7 @@ internal sealed class Parser(Source source, List<Token> tokens)
         var token = Current;
         if (Current.Text is "-" or "+" or "!")
         {
+            formatting?.UnaryOperators.Add(token.Offset);
             Take();
             // The magnitude of int.MinValue exceeds the positive range, so consume its sign here.
             if (token.Text == "-" && Current.Text == "2147483648")
@@ -390,6 +411,7 @@ internal sealed class Parser(Source source, List<Token> tokens)
         }
         if (Match("["))
         {
+            formatting?.ExpressionOpenings.Add(token.Offset);
             NewLines();
             var items = new List<Expression>();
             while (Current.Text != "]")
@@ -408,6 +430,7 @@ internal sealed class Parser(Source source, List<Token> tokens)
         }
         if (Match("("))
         {
+            formatting?.ExpressionOpenings.Add(token.Offset);
             NewLines();
             var expression = Expression();
             NewLines();
@@ -450,8 +473,10 @@ internal sealed class Parser(Source source, List<Token> tokens)
         }
         if (Match("powershell"))
         {
+            formatting?.GenericDelimiters.Add(Current.Offset);
             Expect("<");
             var type = Type();
+            formatting?.GenericDelimiters.Add(Current.Offset);
             Expect(">");
             return new Call(token, null, "powershell", Arguments(), type);
         }
@@ -499,6 +524,10 @@ internal sealed class Parser(Source source, List<Token> tokens)
             } while (Match(","));
         }
 
+        if (close == "}")
+        {
+            formatting?.ExpressionClosings.Add(Current.Offset);
+        }
         Expect(close);
         return arguments;
     }
