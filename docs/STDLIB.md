@@ -128,6 +128,8 @@ Relative paths for `files` and `directories` are resolved from the filesystem wo
 
 `files.list` and `files.list_recursive` return absolute paths. `list` considers only direct children; `list_recursive` considers every depth. Both treat `directory` as a literal path. Their nonempty `pattern` applies only to each filename, using the same file-system filter behavior; the supported simple forms include `*` and `?`. It cannot contain `/` or `\\`, so it cannot express directory hierarchy globs. `list` excludes Hidden files. `list_recursive` excludes Hidden files and directories, including hidden subtrees. System attributes do not exclude entries. A directory reparse point explicitly supplied as the `list_recursive` root is a valid traversal root. ReparsePoint entries discovered beneath that root are excluded, so that operation neither returns nor recurses into child symbolic links or junctions. Enumeration returns no partial result when a platform error occurs.
 
+`windows-932` reads use the Windows code-page mapping with strict validation, including NEC-selected IBM and IBM extension byte sequences for the same character (for example, `EE E0` and `FB FC` both decode to U+9AD9). A valid read does not imply that re-encoding reproduces the original bytes. The generated script embeds its decoder and requires no additional installation.
+
 ## `directories`
 
 | Signature | Meaning | Failure |

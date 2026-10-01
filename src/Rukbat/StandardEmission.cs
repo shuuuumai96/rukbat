@@ -82,7 +82,9 @@ internal sealed partial class Emitter
     {
         foreach (var line in text.Split('\n'))
         {
-            Line(line.TrimEnd('\r'));
+            var emitted = line.TrimEnd('\r');
+            if (emitted.Trim() == "'@ | Out-Null") RawLine(emitted.Trim());
+            else Line(emitted);
         }
     }
 
@@ -134,6 +136,7 @@ internal sealed partial class Emitter
     'files.read' {
         $selected = & $__rukbat_file_encoding ([string]$values[1])
         $bytes = [System.IO.File]::ReadAllBytes((& $__rukbat_resolve_path ([string]$values[0])))
+        if ($selected.name -eq 'windows-932') { return (& $__rukbat_decode_windows932 $bytes) }
         $offset = 0
         switch ($selected.name) {
             'utf-8' {
@@ -253,6 +256,37 @@ internal sealed partial class Emitter
     """;
 
     private const string FileEncodingRuntime = """
+    $__rukbat_decode_windows932 = {
+        param([byte[]]$bytes)
+        if ($null -eq ('RukbatWindows932Decoder' -as [type])) {
+            Add-Type -TypeDefinition @'
+    using System;
+    using System.ComponentModel;
+    using System.Runtime.InteropServices;
+    public static class RukbatWindows932Decoder {
+        private const uint Windows932 = 932;
+        private const uint RejectInvalidCharacters = 8;
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern int MultiByteToWideChar(uint codePage, uint flags,
+            byte[] input, int byteCount, IntPtr output, int charCount);
+        public static string Decode(byte[] bytes) {
+            if (bytes.Length == 0) return String.Empty;
+            int length = MultiByteToWideChar(Windows932, RejectInvalidCharacters,
+                bytes, bytes.Length, IntPtr.Zero, 0);
+            if (length == 0) throw new Win32Exception(Marshal.GetLastWin32Error(), "Invalid windows-932 input.");
+            IntPtr buffer = Marshal.AllocHGlobal(checked(length * sizeof(char)));
+            try {
+                if (MultiByteToWideChar(Windows932, RejectInvalidCharacters,
+                    bytes, bytes.Length, buffer, length) == 0)
+                    throw new Win32Exception(Marshal.GetLastWin32Error(), "Invalid windows-932 input.");
+                return Marshal.PtrToStringUni(buffer, length);
+            } finally { Marshal.FreeHGlobal(buffer); }
+        }
+    }
+    '@ | Out-Null
+        }
+        return [RukbatWindows932Decoder]::Decode($bytes)
+    }.GetNewClosure()
     $__rukbat_file_encoding = {
         param([string]$name)
         switch -CaseSensitive ($name) {

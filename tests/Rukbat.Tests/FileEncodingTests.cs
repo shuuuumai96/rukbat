@@ -6,6 +6,38 @@ public class FileEncodingTests : TestBase
 {
     private static string RukbatLiteral(string value) => value.Replace("\\", "/").Replace("'", "\\'");
 
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
+    [Theory]
+    [InlineData("powershell")]
+    [InlineData("pwsh")]
+    public async Task Windows932ReadsExternalNecAndIbmMappingsWithoutReplacingInvalidBytes(string shell)
+    {
+        using var project = new Project();
+        File.WriteAllBytes(project.PathFor("nec.csv"), [0x6e, 0x61, 0x6d, 0x65, 0x0d, 0x0a, 0xee, 0xe0]);
+        File.WriteAllBytes(project.PathFor("ibm.txt"), [0xfb, 0xfc]);
+        File.WriteAllBytes(project.PathFor("invalid.txt"), [0x82, 0x20]);
+        var directory = RukbatLiteral(project.DirectoryPath);
+        project.Write("main.rukbat", $$"""
+            import files
+            import csv
+            import json
+            expected := json.decode<string>('"\\u9ad9"')
+            rows := csv.parse(files.read('{{directory}}/nec.csv', 'windows-932'))
+            print(rows[1][0] == expected)
+            print(files.read('{{directory}}/ibm.txt', 'windows-932') == expected)
+            try { files.read('{{directory}}/invalid.txt', 'windows-932') } catch err { print('invalid') }
+            """);
+        var compiled = project.Compile();
+        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+        var result = shell == "powershell"
+            ? await project.RunOutputWithWindowsPowerShell(compiled.Output!)
+            : await project.RunOutput(compiled.Output!);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("True\nTrue\ninvalid\n", result.Output);
+        Assert.Equal("", result.Error);
+    }
+
     [Trait("Category", "Unit")]
     [Fact]
     public void FilesTextOperationsRequireAnExplicitEncoding()
