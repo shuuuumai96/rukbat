@@ -32,10 +32,10 @@ public class CommentTests : TestBase
 
     [Trait("Category", "Unit")]
     [Theory]
-    [InlineData("// # $ { invalid syntax", "// # $ { invalid syntax\n\n")]
-    [InlineData("value:=8/2 // # trailing", "value := 8 / 2  // # trailing\n\n")]
-    [InlineData("value:='# // data'", "value := '# // data'\n\n")]
-    [InlineData("value:=\"https://example.test/#fragment\"", "value := \"https://example.test/#fragment\"\n\n")]
+    [InlineData("// # $ { invalid syntax", "// # $ { invalid syntax\n")]
+    [InlineData("value:=8/2 // # trailing", "value := 8 / 2  // # trailing\n")]
+    [InlineData("value:='# // data'", "value := '# // data'\n")]
+    [InlineData("value:=\"https://example.test/#fragment\"", "value := \"https://example.test/#fragment\"\n")]
     public void DoubleSlashCommentsAndLiteralMarkersArePreserved(string source, string expected)
     {
         Assert.Empty(new Compiler().Check(source));

@@ -342,12 +342,12 @@ public class CompilerTests
             }
 
             """;
-        Assert.Equal(expected.Replace("\r\n", "\n") + "\n", File.ReadAllText(input));
+        Assert.Equal(expected.Replace("\r\n", "\n"), File.ReadAllText(input));
         var bytes = File.ReadAllBytes(input);
         Assert.False(bytes.Length >= 3 && bytes[0] == 0xef && bytes[1] == 0xbb && bytes[2] == 0xbf);
         Assert.Empty(new Compiler().CheckFile(input));
         Assert.Equal(0, Cli.Run(["fmt", input], TextWriter.Null, TextWriter.Null));
-        Assert.Equal(expected.Replace("\r\n", "\n") + "\n", File.ReadAllText(input));
+        Assert.Equal(expected.Replace("\r\n", "\n"), File.ReadAllText(input));
     }
 
     [Trait("Category", "Unit")]

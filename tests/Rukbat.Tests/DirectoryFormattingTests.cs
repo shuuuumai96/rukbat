@@ -16,8 +16,8 @@ public sealed class DirectoryFormattingTests : TestBase
         }
         var result = await RunCli(project, ["fmt", "."]);
         Assert.True(result.ExitCode == 0, result.Error);
-        Assert.Equal("value := 1\n\n", File.ReadAllText(project.PathFor("main.rukbat")));
-        Assert.Equal("fn f(): void {\n    print(2)\n}\n\n", File.ReadAllText(project.PathFor("nested/deeper/module.RUKBAT")));
+        Assert.Equal("value := 1\n", File.ReadAllText(project.PathFor("main.rukbat")));
+        Assert.Equal("fn f(): void {\n    print(2)\n}\n", File.ReadAllText(project.PathFor("nested/deeper/module.RUKBAT")));
         Assert.Equal("value:=3", File.ReadAllText(project.PathFor("keep.txt")));
         foreach (var directory in new[] { ".git", "bin", "obj" })
         {
@@ -38,7 +38,7 @@ public sealed class DirectoryFormattingTests : TestBase
         Assert.Equal(1, Cli.Run(["fmt", project.DirectoryPath], TextWriter.Null, errors));
         Assert.Contains("a-bad.rukbat", errors.ToString());
         Assert.Equal(invalid, File.ReadAllText(project.PathFor("a-bad.rukbat")));
-        Assert.Equal("value := 2\n\n", File.ReadAllText(project.PathFor("z-good.rukbat")));
+        Assert.Equal("value := 2\n", File.ReadAllText(project.PathFor("z-good.rukbat")));
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public sealed class DirectoryFormattingTests : TestBase
         using var errors = new StringWriter();
         Assert.Equal(2, Cli.Run(["fmt", project.DirectoryPath], TextWriter.Null, errors));
         Assert.Contains("a-locked.rukbat", errors.ToString());
-        Assert.Equal("value := 2\n\n", File.ReadAllText(project.PathFor("z-good.rukbat")));
+        Assert.Equal("value := 2\n", File.ReadAllText(project.PathFor("z-good.rukbat")));
     }
 
     [Fact]

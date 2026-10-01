@@ -128,7 +128,7 @@ public class StructTests : TestBase
 
         Assert.Equal(0, Cli.Run(["fmt", input], TextWriter.Null, TextWriter.Null));
         var formatted = File.ReadAllText(input);
-        Assert.Equal("struct User {\n    name: string\n    age: int\n}\n\nuser := User {\n    name: 'Taro', age: 30\n}\n\n", formatted);
+        Assert.Equal("struct User {\n    name: string\n    age: int\n}\n\nuser := User {\n    name: 'Taro', age: 30\n}\n", formatted);
         Assert.Empty(new Compiler().Check(formatted));
     }
 

@@ -39,7 +39,7 @@ public sealed class FormatterTests : TestBase
         { "comments in block", "// top\nif true{ // block\n// inside\nprint(1) // end\n}\n// tail", "// top\nif true {\n    // block\n    // inside\n    print(1)  // end\n}\n// tail\n" },
         { "comment between else and braces", "if true{} // then\nelse{};try{} // try\ncatch error{}", "if true {\n}  // then\nelse {\n}\n\ntry {\n}  // try\ncatch error {\n}\n" },
         { "comment-only source", "  // first\r\n\t// second", "// first\n// second\n" },
-        { "empty source", " \r\n\t", "" },
+        { "empty source", " \r\n\t", "\n" },
     };
 
     [Theory]
@@ -53,7 +53,7 @@ public sealed class FormatterTests : TestBase
         using var errors = new StringWriter();
         Assert.True(Cli.Run(["fmt", input], TextWriter.Null, errors) == 0, $"{name}: {errors}");
         var formatted = File.ReadAllText(input);
-        Assert.Equal(expected + "\n", formatted);
+        Assert.Equal(expected, formatted);
         var compiler = new Compiler();
         Assert.Equal(
             compiler.Check(source).Select(diagnostic => (diagnostic.Code, diagnostic.Message)),
@@ -149,7 +149,7 @@ public sealed class FormatterTests : TestBase
         using var project = new Project();
         project.Write("main.rukbat", source);
         Assert.Equal(0, Cli.Run(["fmt", project.PathFor("main.rukbat")], TextWriter.Null, TextWriter.Null));
-        Assert.Equal("if true {\n    print(1)\n} else {\n    print(2)\n}\n\n", File.ReadAllText(project.PathFor("main.rukbat")));
+        Assert.Equal("if true {\n    print(1)\n} else {\n    print(2)\n}\n", File.ReadAllText(project.PathFor("main.rukbat")));
     }
 
     [Fact]

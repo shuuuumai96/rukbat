@@ -61,4 +61,3 @@ fn test_invalid_csv(): void {
 
     test.fail("Expected Error was not thrown")
 }
-

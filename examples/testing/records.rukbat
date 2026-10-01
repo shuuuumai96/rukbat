@@ -12,4 +12,3 @@ fn enabled_names(source: string): string[] {
 
     return names
 }
-

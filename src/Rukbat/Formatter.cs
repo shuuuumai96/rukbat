@@ -255,7 +255,10 @@ internal static class Formatter
         }
 
         NewLine();
-        output.Append('\n');
+        if (output.Length == 0)
+        {
+            output.Append('\n');
+        }
         return output.ToString();
     }
 

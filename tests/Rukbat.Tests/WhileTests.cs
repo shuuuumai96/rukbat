@@ -41,7 +41,7 @@ public class WhileTests : TestBase
 
         Assert.Equal(0, Cli.Run(["fmt", input], TextWriter.Null, TextWriter.Null));
         Assert.Equal(
-            "n := 0\n\nwhile n < 2 {\n    n = n + 1\n\n    if n == 1 {\n        continue\n    }\n\n    break\n}\n\n",
+            "n := 0\n\nwhile n < 2 {\n    n = n + 1\n\n    if n == 1 {\n        continue\n    }\n\n    break\n}\n",
             File.ReadAllText(input));
     }
 
