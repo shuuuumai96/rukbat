@@ -39,7 +39,9 @@ fn greet(person: string): void {
 - Redeclaring a name in the same scope is invalid. `:=` never means assignment.
 - `fn` is the only function declaration syntax. Free functions are defined at module scope. Methods are defined inside a struct declaration.
 
-Names are case-sensitive. Statements are separated by a newline or `;`. Blocks use braces. Comments begin with `//` or `#`.
+Names are case-sensitive. Statements are separated by a newline or `;`. Blocks use braces.
+Line comments begin with `//` and continue to the end of the line. Block comments are not supported.
+Comment markers inside strings are literal text. Outside strings and `//` comments, `#` is an invalid character.
 
 ## Scope and execution
 

@@ -22,7 +22,7 @@ internal sealed class Lexer(Source source)
                 continue;
             }
 
-            if (c == '#' || (c == '/' && Peek() == '/'))
+            if (c == '/' && Peek() == '/')
             {
                 while (position < source.Text.Length && Peek() != '\n')
                 {

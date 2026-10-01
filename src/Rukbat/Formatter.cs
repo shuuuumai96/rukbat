@@ -37,8 +37,7 @@ internal static class Formatter
             if (token.Offset > end)
             {
                 var gap = source[end..token.Offset].Trim();
-                if (gap.StartsWith("#", StringComparison.Ordinal) ||
-                    gap.StartsWith("//", StringComparison.Ordinal))
+                if (gap.StartsWith("//", StringComparison.Ordinal))
                 {
                     items.Add(new(gap, end, IsComment: true));
                 }
@@ -52,8 +51,7 @@ internal static class Formatter
         if (end < source.Length)
         {
             var gap = source[end..].Trim();
-            if (gap.StartsWith("#", StringComparison.Ordinal) ||
-                gap.StartsWith("//", StringComparison.Ordinal))
+            if (gap.StartsWith("//", StringComparison.Ordinal))
             {
                 items.Add(new(gap, end, IsComment: true));
             }

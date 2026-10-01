@@ -104,6 +104,7 @@ dotnet publish src/Rukbat -c Release -o artifacts/rukbat
 ## Principles and current scope
 
 - Prefer consistent syntax that is easy to read and write.
+- Line comments use `//`. Comment markers inside strings are literal text.
 - Named imports such as `import fs` load standard modules bundled with the compiler.
 - The v0.1 standard modules are `fs`, `path`, `json`, `csv`, `env`, `process`, and `text`. Their APIs and external-data contracts are defined in the [standard library specification](docs/STDLIB.md).
 - Use `fs` for actual file and directory operations, and `path` for constructing, decomposing, and comparing path values. For example, `fs.list_files` lists files, `fs.create_dir_all` creates directories and their parents, and `path.parent` computes a parent path without checking existence. See the [task guide](docs/STDLIB.md#choosing-filesystem-and-path-operations).

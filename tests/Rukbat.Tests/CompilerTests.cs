@@ -27,7 +27,7 @@ public class CompilerTests
     [InlineData("fn f(x: int): int { if x > 0 { return x } else { return -x } }")]
     [InlineData("x: int = -2147483648\ny: int = 2147483647")]
     [InlineData("fn f(): string { return 'line\\nquote\\\" apostrophe\\\' slash\\\\' }")]
-    [InlineData("// return fake(): int {\n# name: int = 'bad'\ns: string = '$x: int; $(throw); { return }'")]
+    [InlineData("// return fake(): int {\n// name: int = 'bad'\ns: string = '$x: int; $(throw); { return }'")]
     [InlineData("year: string = powershell<string>('Get-Date', Format: 'yyyy')")]
     [InlineData("fn f(\n a: int,\n b: int\n): int { return a +\n b }\nprint(f(\n1,\n2\n))")]
     [InlineData("fn f(): int { return 1 }\nfn F(): int { return 2 }\nprint(f() + F())")]
@@ -327,10 +327,10 @@ public class CompilerTests
     {
         using var project = new Project();
         var input = project.PathFor("main.rukbat");
-        project.Write("main.rukbat", "# add values\nfn add( a:int,b:int):int{\nreturn a+b // result\n}\nif true{print(add(1,2))}\nelse{print('no')}\n");
+        project.Write("main.rukbat", "// add values\nfn add( a:int,b:int):int{\nreturn a+b // result\n}\nif true{print(add(1,2))}\nelse{print('no')}\n");
         Assert.Equal(0, Cli.Run(["fmt", input], TextWriter.Null, TextWriter.Null));
         var expected = """
-            # add values
+            // add values
             fn add(a: int, b: int): int {
                 return a + b  // result
             }
