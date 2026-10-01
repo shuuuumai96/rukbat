@@ -55,6 +55,18 @@ Structs and arrays are mutable value types. Their stored values can be updated, 
 
 The primitive types are `int`, `float`, `string`, and `bool`. `int` is a signed 32-bit integer. `float` is a finite IEEE 754 binary64 value. `void` is return-only. Rukbat also has user-defined `struct` types, typed arrays `T[]`, and nullable types `T?`.
 
+`import json` provides the opaque, immutable type `json.Value` for JSON documents with an unknown
+structure. It uses ordinary variable, parameter, array, struct-field, and return syntax. It has no
+public fields, struct literal, or general dynamic member/index access. Read, update, and convert
+its contents with the operations in STDLIB.md. A `json.Value` representing JSON `null` is a value,
+distinct from a Rukbat `null`; the latter requires `json.Value?`. JSON updates return new values
+and require explicit assignment. Original documents and previously selected children are unchanged.
+
+`import csv` provides `csv.Table` with `columns: string[]` and `rows: csv.Row[]`. `csv.Row` is an
+opaque, immutable row accessed by column name through standard-library functions. Tables use
+ordinary struct and array copy semantics; row updates return new rows. These types do not add
+dynamic indexing or new syntax. See STDLIB.md for header validation and serialization.
+
 ```rukbat
 nickname: string? = null
 values: string?[] = ["one", null]
@@ -78,6 +90,9 @@ Float literals include `1.0`, `1e3`, `1E3`, and `1.5e-2`. The abbreviated forms 
 Integer or float division by zero is a runtime Error. A float literal, arithmetic result, or external value that is NaN or positive or negative Infinity is rejected. Other float operations use binary64 behavior.
 
 Primitive equality requires compatible non-null values and string equality is case-sensitive. Mixed `int`/`float` equality uses the `int` to `float` conversion. Struct and array equality are not defined. A nullable value may be compared directly with `null`.
+
+Equality and direct `print` / `eprint` are not defined for `json.Value` or `csv.Row`. Use `json.as<T>` to read a
+primitive or `json.stringify` to obtain JSON text.
 
 ## Errors
 
@@ -135,6 +150,9 @@ The generated script captures its initial filesystem working directory from Powe
 Local imports remain compile-time paths relative to the importing source file. They are unrelated to runtime working and script directories. `path.script_dir()` explicitly locates data beside the deployed `.ps1`. Execute the generated artifact as a file in a separate PowerShell process; source mapping is error reporting, not a `rukbat debug` command.
 
 `powershell<T>(command, ...)` is the explicit escape hatch for a PowerShell operation not covered by Rukbat. It checks the returned value against `T`; a scalar result requires exactly one value and `T[]` collects values into an array. PowerShell failures and incompatible results are runtime errors.
+
+PowerShell arguments and result types cannot contain `json.Value` or `csv.Row`. Request a string and use
+`json.parse` to read a JSON document from an external command.
 
 No output is distinct from one explicit `$null` output. No output is an Error for `T` and `T?`, while an explicit `$null` is accepted only by `T?`. No output becomes `[]` for `T[]`; one `$null` becomes `[null]` for `T?[]` and is an Error for `T[]`. Nullable arrays `T[]?` accept one explicit `$null`, but no output remains an Error. External float values must be numeric and finite.
 

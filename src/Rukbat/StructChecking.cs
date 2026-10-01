@@ -4,7 +4,10 @@ internal sealed class StructSymbol(Module module, StructDeclaration declaration)
 {
     public Module Module { get; } = module;
     public StructDeclaration Declaration { get; } = declaration;
-    public ValueType Type { get; } = new(declaration.Token.Text);
+    public ValueType Type { get; } = new(module.StandardName is "json" or "csv"
+        ? module.StandardName + "." + declaration.Token.Text : declaration.Token.Text);
+    public bool IsCsvRow => Module.StandardName == "csv" && Declaration.Token.Text == "Row";
+    public bool IsJsonValue => Module.StandardName == "json" && Declaration.Token.Text == "Value";
     public Dictionary<string, FieldSymbol> Fields { get; } = new(StringComparer.Ordinal);
     public Dictionary<string, FunctionSymbol> Methods { get; } = new(StringComparer.Ordinal);
     public ValueType BoundType => Type with { Struct = this };

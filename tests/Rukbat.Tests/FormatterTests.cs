@@ -29,7 +29,7 @@ public sealed class FormatterTests : TestBase
         { "member and index updates", "values[\n0\n].items[1]=2;values[0].items.append(3);n:=values[0].items.length", "values[0].items[1] = 2\nvalues[0].items.append(3)\nn := values[0].items.length\n" },
         { "empty arrays and trailing comma", "values:int[]=[];other:=[1,\n2,\n]", "values: int[] = []\nother := [1, 2,]\n" },
         { "PowerShell boundary", "value:=powershell< string?[] >('Write-Output',null)", "value := powershell<string?[]>('Write-Output', null)\n" },
-        { "typed module calls", "value:=json.decode<mod.User[]?>('[]');other:=module.convert<int>('1')", "value := json.decode<mod.User[]?>('[]')\nother := module.convert<int>('1')\n" },
+        { "typed module calls", "value:=json.parse<mod.User[]?>('[]');other:=module.convert<int>('1')", "value := json.parse<mod.User[]?>('[]')\nother := module.convert<int>('1')\n" },
         { "comparison using decode name", "value:=decode<other>(last)", "value := decode < other > (last)\n" },
         { "comments in expression", "value:=1+ // add\n2;other:=[1, // first\n2]", "value := 1 +  // add\n    2\nother := [1,  // first\n    2]\n" },
         { "comments in header", "if true // condition\n{print(1)}", "if true  // condition\n{\n    print(1)\n}\n" },
@@ -172,7 +172,7 @@ public sealed class FormatterTests : TestBase
             index:=0;while index<3{index=index+1;if index==1{continue};if index==3{break};print(index)}
             try{throw Error{message:'caught'}}catch error{print(error.message)}
             print(data.get().value)
-            print(json.decode<int>('7')+powershell<int>('Write-Output',1))
+            print(json.parse<int>('7')+powershell<int>('Write-Output',1))
             print([Error{message:'nested'}][0].message)
             count:=1+ // continuation
             2;print(count)

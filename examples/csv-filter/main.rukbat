@@ -1,0 +1,40 @@
+import csv
+import fs
+import text
+
+fn main(): void {
+    arguments := args()
+
+    if arguments.length != 3 {
+        throw Error {
+            message: "Usage: csv-filter INPUT.csv OUTPUT.csv INPUT_ENCODING"
+        }
+    }
+
+    people := csv.parse_table(fs.read_text(arguments[0], arguments[2]))
+
+    if !csv.has_column(people, "enabled") || !csv.has_column(people, "note") {
+        throw Error {
+            message: "CSV requires enabled and note columns."
+        }
+    }
+
+    kept: csv.Row[] = []
+
+    for person in people.rows {
+        if text.parse_bool(csv.get(person, "enabled")) {
+            kept.append(csv.set(person, "note", "checked"))
+        }
+    }
+
+    people.rows = kept
+    fs.write_text(arguments[1], csv.stringify_table(people), "utf-8")
+}
+
+try {
+    main()
+} catch err {
+    eprint(err.message)
+    exit(2)
+}
+

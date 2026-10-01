@@ -13,9 +13,11 @@ public class StandardLibraryTests : TestBase
         Assert.DoesNotContain("Unknown standard-library operation", plain);
         Assert.DoesNotContain("JSON value", plain);
 
-        var json = Success("import json\nprint(json.encode([1]))");
+        var json = Success("import json\nprint(json.stringify([1]))");
         Assert.Contains("JSON value", json);
-        Assert.DoesNotContain("Unknown standard-library operation", json);
+        Assert.Contains("'json.get'", json);
+        Assert.DoesNotContain("'fs.read_text'", json);
+        Assert.DoesNotContain("'csv.parse'", json);
 
         var files = Success("import fs\nprint(fs.is_file('x'))");
         Assert.Contains("Unknown standard-library operation", files);

@@ -31,7 +31,7 @@ public class CsvTests : TestBase
         project.Write("main.rukbat", $$"""
             import csv
             import json
-            print(json.encode(csv.parse('{{RukbatLiteral(input)}}')))
+            print(json.stringify(csv.parse('{{RukbatLiteral(input)}}')))
             """);
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
@@ -55,7 +55,7 @@ public class CsvTests : TestBase
         project.Write("main.rukbat", $$"""
             import csv
             import json
-            print(json.encode(csv.parse('{{RukbatLiteral(input)}}')))
+            print(json.stringify(csv.parse('{{RukbatLiteral(input)}}')))
             """);
         var result = await project.Run();
         Assert.Equal(0, result.ExitCode);

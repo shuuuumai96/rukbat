@@ -9,7 +9,7 @@ if settings.help {
     print(options.usage())
 } else {
     items: string[] = listing.matching_files(settings.directory, settings.pattern)
-    output: string = json.encode(items)
+    output: string = json.stringify(items)
 
     if settings.output == "" {
         print(output)

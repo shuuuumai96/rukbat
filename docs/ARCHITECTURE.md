@@ -40,6 +40,21 @@ An `fs` import emits both file and directory implementations. A `path` import al
 filesystem operations nor the native move helper. Selection is by imported module, not by individual
 function.
 
+`json.Value` is a standard-module type bound through the existing type-name infrastructure. It is
+opaque to Rukbat source: its schema and storage are emitted as a JSON value rather than a user
+struct. The JSON parser is shared by typed and schema-free parsing; `json.as<T>` uses the same
+conversion as `json.parse<T>`. Immutable JSON nodes may share storage safely, while arrays returned
+by `json.items` and `json.keys` follow ordinary Rukbat copy semantics. Only a `json` import emits
+the JSON parser, inspection operations, and updates. Updates copy the changed object or array and
+share untouched immutable subtrees. Typed replacements use the existing JSON encoder before
+becoming JSON nodes; JSON values are retained directly.
+
+`csv.Table` uses an ordinary bound struct with column and row arrays. `csv.Row` is opaque,
+emitted as an immutable row with a shared ordinal column lookup. Table and raw parsing share
+one CSV parser; both serializers share one quoting implementation. The checker excludes CSV rows
+from JSON conversion and PowerShell results, including nested containers. The emitter adapts
+table results to actual bound field keys. Only a `csv` import emits CSV helpers.
+
 Native Windows helpers for contained process execution and journaled file moves live in `Runtime/*.cs.txt`, embedded as compiler resources and copied into the generated script. `NativeEmission` emits lazy `Add-Type` loaders; the deployment machine uses its existing PowerShell/.NET facilities. These helpers use C# syntax compatible with the Windows PowerShell 5.1 compiler. Process job assignment is part of process creation, so host termination cannot leave a child executing outside the job. Move journals are flushed before renames; locked file handles preserve identity across moves and recovery.
 
 Generated scripts reject non-FullLanguage sessions before user operations. They do not change or bypass the machine's execution/security policy.

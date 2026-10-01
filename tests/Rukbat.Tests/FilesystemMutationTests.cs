@@ -40,7 +40,7 @@ public class FilesystemMutationTests : TestBase
         project.Write("main.rukbat", $$"""
             import fs
             import json
-            invalid := json.decode<string>('"\\uD800"')
+            invalid := json.parse<string>('"\\uD800"')
             try { fs.write_text('{{RukbatLiteral(existing)}}', invalid, 'utf-8') } catch err { print('existing') }
             try { fs.write_text('{{RukbatLiteral(missing)}}', invalid, 'utf-8') } catch err { print('missing') }
             """);

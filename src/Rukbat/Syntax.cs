@@ -30,6 +30,8 @@ internal sealed record ValueType(
     public static ValueType ArrayOf(ValueType element) => new(element.Name + "[]", Element: element);
     public static ValueType NullableOf(ValueType element) => new(element.Name + "?", NullableElement: element);
     public bool IsNullable => NullableElement is not null;
+    public bool IsCsvRow => Struct?.IsCsvRow == true;
+    public bool IsJsonValue => Struct?.IsJsonValue == true;
     public ValueType NonNullable => NullableElement ?? this;
     public bool IsComposite => NonNullable.Struct is not null || NonNullable.Element is not null;
     public override string ToString() => Name;

@@ -151,7 +151,7 @@ public class AppendTests : TestBase
                 attempt = attempt + 1
             }
 
-            fs.write_text(path.join(['{{directory}}', 'result.json']), json.encode(matches), 'utf-8')
+            fs.write_text(path.join(['{{directory}}', 'result.json']), json.stringify(matches), 'utf-8')
             """);
 
         var result = await project.Run();

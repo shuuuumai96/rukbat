@@ -123,7 +123,7 @@ public class TextTests : TestBase
             cases.Add(($"text.trim({Literal(value)})", value));
         }
         using var project = new Project();
-        var source = "import text\nimport json\n" + string.Join("\n", cases.Select(c => $"print(json.encode({c.Expression}))"));
+        var source = "import text\nimport json\n" + string.Join("\n", cases.Select(c => $"print(json.stringify({c.Expression}))"));
         var output = Success(source);
         var script = project.PathFor("job.ps1");
         File.WriteAllText(script,

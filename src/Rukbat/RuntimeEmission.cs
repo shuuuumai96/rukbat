@@ -207,6 +207,11 @@ internal sealed partial class Emitter
             return $"@{{kind = 'array'; name = {Quote(type.Name)}; element = {Schema(element)}}}";
         }
 
+        if (type.IsCsvRow) return "@{kind = 'csv_row'; name = 'csv.Row'}";
+        if (type.IsJsonValue)
+        {
+            return "@{kind = 'json'; name = 'json.Value'}";
+        }
         if (type.Struct is { } structure)
         {
             var fields = structure.Fields.Select(f =>

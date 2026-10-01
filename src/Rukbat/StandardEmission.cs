@@ -8,6 +8,7 @@ internal sealed partial class Emitter
         if (modules.Contains("fs")) EmitLines(FileEncodingRuntime);
         if (modules.Contains("fs")) EmitNativeLoader("MoveBatch");
         if (modules.Contains("process")) EmitNativeLoader("ProcessJob");
+        if (modules.Contains("csv")) EmitCsvRuntime();
         Line("$__rukbat_standard = {");
         indentation++;
         Line("param([string]$operation, [object[]]$values)");
@@ -21,6 +22,7 @@ internal sealed partial class Emitter
         }
         if (modules.Contains("path")) EmitLines(PathRuntime);
         if (modules.Contains("csv")) EmitLines(CsvRuntime);
+        if (modules.Contains("json")) EmitLines(JsonValueRuntime);
         if (modules.Contains("env")) EmitLines(EnvironmentRuntime);
         if (modules.Contains("process")) EmitLines(ProcessRuntime);
         if (modules.Contains("text")) EmitLines(TextRuntime);
@@ -435,108 +437,47 @@ internal sealed partial class Emitter
     }
     """;
 
+    private const string JsonValueRuntime = """
+    'json.get' { return $values[0].Get([string]$values[1]) }
+    'json.has' { return $values[0].Has([string]$values[1]) }
+    'json.items' { return ,$values[0].Items() }
+    'json.keys' { return ,$values[0].Keys() }
+    'json.kind' { return $values[0].Kind }
+    'json.set' { return $values[0].Set([string]$values[1], $values[2]) }
+    'json.remove' { return $values[0].Remove([string]$values[1]) }
+    'json.set_at' { return $values[0].SetAt([int]$values[1], $values[2]) }
+    'json.remove_at' { return $values[0].RemoveAt([int]$values[1]) }
+    'json.append' { return $values[0].Append($values[1]) }
+    """;
+
     private const string CsvRuntime = """
-    'csv.parse' {
-        $text = [string]$values[0]
+    'csv.parse' { return ,(& $__rukbat_csv_parse ([string]$values[0])) }
+    'csv.stringify' { return (& $__rukbat_csv_stringify $values[0]) }
+    'csv.parse_table' {
+        $records = & $__rukbat_csv_parse ([string]$values[0])
+        if ($records.Count -eq 0) { throw 'CSV table requires a header record.' }
+        $columns = [string[]]$records[0]
+        $data = [System.Collections.Generic.List[object]]::new()
+        for ($index = 1; $index -lt $records.Count; $index++) { $data.Add($records[$index]) }
+        $rows = [RukbatCsvRow]::CreateRows($columns, [object[]]$data, 2)
+        return ,@((,$columns); (,$rows))
+    }
+    'csv.table' {
+        $columns = [string[]]$values[0]
+        $rows = [RukbatCsvRow]::CreateRows($columns, [object[]]$values[1], 1)
+        return ,@((,$columns); (,$rows))
+    }
+    'csv.row' { return [RukbatCsvRow]::Create([string[]]$values[0], [string[]]$values[1]) }
+    'csv.get' { return $values[0].Get([string]$values[1]) }
+    'csv.has_column' { return [RukbatCsvRow]::HasColumn([string[]]$values[0], [string]$values[1]) }
+    'csv.set' { return $values[0].Set([string]$values[1], [string]$values[2]) }
+    'csv.stringify_table' {
+        $columns = [string[]]$values[0]
+        [RukbatCsvRow]::ValidateColumns($columns)
         $records = [System.Collections.Generic.List[object]]::new()
-        if ($text.Length -eq 0) { return ,([object[]]$records) }
-        $data = @{
-            record = [System.Collections.Generic.List[object]]::new()
-            field = [System.Text.StringBuilder]::new()
-            recordStarted = $false
-        }
-        $state = 'field'
-        $finishField = {
-            $null = $data.record.Add($data.field.ToString())
-            $null = $data.field.Clear()
-        }
-        $finishRecord = {
-            & $finishField
-            $null = $records.Add($data.record)
-            $data.record = [System.Collections.Generic.List[object]]::new()
-            $data.recordStarted = $false
-        }
-        for ($index = 0; $index -lt $text.Length; $index++) {
-            $character = $text[$index]
-            switch ($state) {
-                'field' {
-                    if ($character -eq '"') {
-                        $state = 'quoted'
-                        $data.recordStarted = $true
-                    } elseif ($character -eq ',') {
-                        & $finishField
-                        $data.recordStarted = $true
-                    } elseif ($character -eq [char]10) {
-                        & $finishRecord
-                    } elseif ($character -eq [char]13) {
-                        if ($index + 1 -ge $text.Length -or $text[$index + 1] -ne [char]10) {
-                            throw "CSV at offset ${index}: Bare carriage return outside a quoted field."
-                        }
-                        $index++
-                        & $finishRecord
-                    } else {
-                        $null = $data.field.Append($character)
-                        $state = 'unquoted'
-                        $data.recordStarted = $true
-                    }
-                    break
-                }
-                'unquoted' {
-                    if ($character -eq '"') {
-                        throw "CSV at offset ${index}: Quote is not allowed in an unquoted field."
-                    } elseif ($character -eq ',') {
-                        & $finishField
-                        $state = 'field'
-                    } elseif ($character -eq [char]10) {
-                        & $finishRecord
-                        $state = 'field'
-                    } elseif ($character -eq [char]13) {
-                        if ($index + 1 -ge $text.Length -or $text[$index + 1] -ne [char]10) {
-                            throw "CSV at offset ${index}: Bare carriage return outside a quoted field."
-                        }
-                        $index++
-                        & $finishRecord
-                        $state = 'field'
-                    } else {
-                        $null = $data.field.Append($character)
-                    }
-                    break
-                }
-                'quoted' {
-                    if ($character -eq '"') {
-                        $state = 'after quote'
-                    } else {
-                        $null = $data.field.Append($character)
-                    }
-                    break
-                }
-                'after quote' {
-                    if ($character -eq '"') {
-                        $null = $data.field.Append('"')
-                        $state = 'quoted'
-                    } elseif ($character -eq ',') {
-                        & $finishField
-                        $state = 'field'
-                    } elseif ($character -eq [char]10) {
-                        & $finishRecord
-                        $state = 'field'
-                    } elseif ($character -eq [char]13) {
-                        if ($index + 1 -ge $text.Length -or $text[$index + 1] -ne [char]10) {
-                            throw "CSV at offset ${index}: Bare carriage return outside a quoted field."
-                        }
-                        $index++
-                        & $finishRecord
-                        $state = 'field'
-                    } else {
-                        throw "CSV at offset ${index}: Expected a separator or record end after a closing quote."
-                    }
-                    break
-                }
-            }
-        }
-        if ($state -eq 'quoted') { throw "CSV at offset $($text.Length): Unclosed quoted field." }
-        if ($data.recordStarted) { & $finishRecord }
-        return ,([object[]]$records)
+        $records.Add($columns)
+        foreach ($row in $values[1]) { $records.Add($row.Fields($columns)) }
+        return (& $__rukbat_csv_stringify $records)
     }
     """;
 

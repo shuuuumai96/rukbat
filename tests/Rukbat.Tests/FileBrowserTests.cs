@@ -156,7 +156,7 @@ public class FileBrowserTests : TestBase
     {
         using var project = new Project();
         CopyFileBrowser(project);
-        project.Write("main.rukbat", "import json\nprint(json.encode(args()))");
+        project.Write("main.rukbat", "import json\nprint(json.stringify(args()))");
         var result = await RunCli(project, ["run", project.PathFor("main.rukbat"), "--", .. values]);
         Assert.True(result.ExitCode == 0, result.Error);
         Assert.Equal(values, JsonSerializer.Deserialize<string[]>(result.Output));

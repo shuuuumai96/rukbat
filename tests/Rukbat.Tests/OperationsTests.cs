@@ -63,7 +63,7 @@ public class OperationsTests : TestBase
     public async Task ReleaseRunsWithoutSourcesPreservesArgumentsAndRecordsSuccess(string shell)
     {
         using var project = new Project();
-        await Prepare(project, shell, "import fs; import json; fs.write_text('result.json', json.encode(args()), 'utf-8')", ["", "日本語 ' ; $value", "-switch", "a\\b\\", "line\nnext"]);
+        await Prepare(project, shell, "import fs; import json; fs.write_text('result.json', json.stringify(args()), 'utf-8')", ["", "日本語 ' ; $value", "-switch", "a\\b\\", "line\nnext"]);
         File.Delete(project.PathFor("main.rukbat"));
         var missing = await Monitor(project, shell);
         Assert.True(missing.ExitCode == 1, missing.Output + missing.Error);

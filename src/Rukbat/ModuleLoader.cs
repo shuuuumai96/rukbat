@@ -48,9 +48,13 @@ internal sealed class ModuleLoader
                 var standardPath = $"<stdlib:{import.Path}>";
                 if (!modules.TryGetValue(standardPath, out var standard))
                 {
-                    var standardText = import.Path == "process"
-                        ? "struct Result { exit_code: int; stdout: string; stderr: string }"
-                        : "";
+                    var standardText = import.Path switch
+                    {
+                        "process" => "struct Result { exit_code: int; stdout: string; stderr: string }",
+                        "json" => "struct Value {}",
+                        "csv" => "struct Row {}; struct Table { columns: string[]; rows: Row[] }",
+                        _ => ""
+                    };
                     var standardSource = new Source(standardText, standardPath);
                     var standardTokens = new Lexer(standardSource).Scan();
                     var standardStatements = new Parser(standardSource, standardTokens).Parse();

@@ -22,7 +22,7 @@ public class FileEncodingTests : TestBase
             import fs
             import csv
             import json
-            expected := json.decode<string>('"\\u9ad9"')
+            expected := json.parse<string>('"\\u9ad9"')
             rows := csv.parse(fs.read_text('{{directory}}/nec.csv', 'windows-932'))
             print(rows[1][0] == expected)
             print(fs.read_text('{{directory}}/ibm.txt', 'windows-932') == expected)
@@ -60,8 +60,8 @@ public class FileEncodingTests : TestBase
             import fs
             import json
             encoding := 'utf-8'
-            text := json.decode<string>('"ASCII \\u65e5\\u672c\\u8a9e \\uff8a\\uff9d\\uff76\\uff85"')
-            cp932_text := json.decode<string>('"ASCII \\u65e5\\u672c\\u8a9e \\uff8a\\uff9d\\uff76\\uff85 \\u9ad9"')
+            text := json.parse<string>('"ASCII \\u65e5\\u672c\\u8a9e \\uff8a\\uff9d\\uff76\\uff85"')
+            cp932_text := json.parse<string>('"ASCII \\u65e5\\u672c\\u8a9e \\uff8a\\uff9d\\uff76\\uff85 \\u9ad9"')
             fs.write_text('{{directory}}/utf8.txt', text, encoding)
             fs.write_text('{{directory}}/le.txt', text, 'utf-16le')
             fs.write_text('{{directory}}/be.txt', text, 'utf-16be')
@@ -137,8 +137,8 @@ public class FileEncodingTests : TestBase
         project.Write("main.rukbat", $$"""
             import fs
             import json
-            invalid := json.decode<string>('"\\uD800"')
-            emoji := json.decode<string>('"\\uD83D\\uDE00"')
+            invalid := json.parse<string>('"\\uD800"')
+            emoji := json.parse<string>('"\\uD83D\\uDE00"')
             try { fs.write_text('{{directory}}/utf8.txt', invalid, 'utf-8') } catch err { print('utf8') }
             try { fs.write_text('{{directory}}/utf16.txt', invalid, 'utf-16le') } catch err { print('utf16') }
             try { fs.write_text('{{directory}}/cp932.txt', emoji, 'windows-932') } catch err { print('cp932') }
@@ -170,9 +170,9 @@ public class FileEncodingTests : TestBase
             import csv
             import fs
             import json
-            source := json.decode<string>('"\\u540d\\u524d,\\u5024\\n\\u592a\\u90ce,\\uff8a\\uff9d\\uff76\\uff85"')
+            source := json.parse<string>('"\\u540d\\u524d,\\u5024\\n\\u592a\\u90ce,\\uff8a\\uff9d\\uff76\\uff85"')
             fs.write_text('{{path}}', source, 'windows-932')
-            print(csv.parse(fs.read_text('{{path}}', 'windows-932'))[1][1] == json.decode<string>('"\\uff8a\\uff9d\\uff76\\uff85"'))
+            print(csv.parse(fs.read_text('{{path}}', 'windows-932'))[1][1] == json.parse<string>('"\\uff8a\\uff9d\\uff76\\uff85"'))
             """);
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));

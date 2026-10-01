@@ -289,6 +289,53 @@ failure exits `1` with a diagnostic on stderr.
 The `text` module also provides literal `contains`, `ends_with`, `replace_all`, and `split` operations.
 See the [text API contracts and examples](docs/STDLIB.md#text).
 
+## CSV and JSON conversions
+
+For CSV with headers, read and update cells by column name. Loading validates header names and
+row widths. Cells remain strings; choose numeric or boolean conversion explicitly when needed.
+
+```rukbat
+import csv
+import fs
+
+people := csv.parse_table(fs.read_text("people.csv", "windows-932"))
+kept: csv.Row[] = []
+
+for person in people.rows {
+    if csv.get(person, "enabled") == "true" {
+        kept.append(csv.set(person, "note", "checked"))
+    }
+}
+people.rows = kept
+fs.write_text("enabled.csv", csv.stringify_table(people), "utf-8")
+```
+
+For CSV without headers, `csv.parse` returns `string[][]` and `csv.stringify` writes those records.
+For JSON, omit a type to read an unknown or complex document. No structs are required. Select only
+the properties you need and retain unknown properties when updating a configuration:
+
+```rukbat
+import json
+import fs
+
+config := json.parse(fs.read_text("config.json", "utf-8"))
+service := json.get(config, "service")
+print(json.as<bool>(json.get(service, "enabled")))
+service = json.set(service, "enabled", true)
+config = json.set(config, "service", service)
+config = json.remove(config, "obsolete")
+fs.write_text("updated.json", json.stringify(config), "utf-8")
+```
+
+Updates return copies: assign the result to retain a change. JSON arrays support `items`, `set_at`,
+`remove_at`, and `append`. For a fixed schema, `json.parse<Config>` and `json.as<Config>` validate
+that type. Struct conversion ignores unknown fields; use `json.Value` to retain unknown data.
+
+See the [CSV and JSON contracts](docs/STDLIB.md#choosing-csv-and-json-operations) for the full APIs,
+empty values, escaping, and errors. Runnable examples are [CSV filtering](examples/csv-filter/main.rukbat)
+and [JSON configuration updates](examples/json-config/main.rukbat). Both formats are processed in
+memory; serialization retains data rather than the original whitespace and layout.
+
 ## Batch validation acceptance example
 
 The implemented [batch validation acceptance example](examples/batch-check/main.rukbat) follows the [CLI acceptance scenario](docs/CLI_ACCEPTANCE.md). Its end-to-end tests cover the contract from configuration through checker execution and report output.

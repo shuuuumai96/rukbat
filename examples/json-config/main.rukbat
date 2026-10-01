@@ -1,0 +1,27 @@
+import json
+import fs
+
+fn main(): void {
+    arguments := args()
+
+    if arguments.length != 2 {
+        throw Error {
+            message: "Usage: json-config INPUT.json OUTPUT.json"
+        }
+    }
+
+    config := json.parse(fs.read_text(arguments[0], "utf-8"))
+    service := json.get(config, "service")
+    service = json.set(service, "enabled", true)
+    config = json.set(config, "service", service)
+    config = json.remove(config, "obsolete")
+    fs.write_text(arguments[1], json.stringify(config), "utf-8")
+}
+
+try {
+    main()
+} catch err {
+    eprint(err.message)
+    exit(2)
+}
+

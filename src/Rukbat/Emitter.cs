@@ -33,6 +33,8 @@ internal sealed partial class Emitter(TypeChecker checker)
         {
             return "double";
         }
+        if (type.IsJsonValue) return "RukbatJsonValue";
+        if (type.IsCsvRow) return "RukbatCsvRow";
         return type.Struct is null ? type.Name : "hashtable";
     }
 
@@ -66,7 +68,7 @@ internal sealed partial class Emitter(TypeChecker checker)
             EmitJsonRuntime();
         }
         var standardModules = modules
-            .Where(current => current.StandardName is "fs" or "path" or "csv" or "env" or "process" or "text")
+            .Where(current => current.StandardName is "fs" or "path" or "csv" or "json" or "env" or "process" or "text")
             .Select(current => current.StandardName!)
             .ToHashSet(StringComparer.Ordinal);
         if (standardModules.Count != 0)
@@ -374,16 +376,44 @@ internal sealed partial class Emitter(TypeChecker checker)
         }
         if (checker.StandardCalls.TryGetValue(call, out var standardCall))
         {
-            if (standardCall == "json.decode")
+            if (standardCall == "json.parse")
             {
                 return $"(& $script:__rukbat_json_decode ({Expr(call.Arguments[0].Value)}) {Schema(checker.Types[call])})";
             }
-            if (standardCall == "json.encode")
+            if (standardCall == "json.as")
+            {
+                return $"(& $script:__rukbat_json_decode ({Expr(call.Arguments[0].Value)}) {Schema(checker.Types[call])} $true)";
+            }
+            if (standardCall == "json.stringify")
             {
                 return $"(& $script:__rukbat_json_encode ({Expr(call.Arguments[0].Value)}) {Schema(checker.Types[call.Arguments[0].Value])})";
             }
-            var standardArguments = string.Join("; ", call.Arguments.Select(argument => ",(" + Expr(argument.Value) + ")"));
+            var argumentExpressions = call.Arguments.Select(argument => Expr(argument.Value)).ToArray();
+            if (standardCall is "json.set" or "json.set_at" or "json.append")
+            {
+                var replacement = call.Arguments[^1].Value;
+                var replacementType = checker.Types[replacement];
+                argumentExpressions[^1] = replacementType == ValueType.Null ? "[RukbatJsonValue]::new($null)" :
+                    replacementType.IsJsonValue ? argumentExpressions[^1] :
+                    $"[RukbatJsonValue]::new([RukbatJsonParser]::Parse((& $script:__rukbat_json_encode ({argumentExpressions[^1]}) {Schema(replacementType)})))";
+            }
+            if (standardCall is "csv.stringify_table" or "csv.has_column")
+            {
+                var fields = checker.Types[call.Arguments[0].Value].Struct!.Fields;
+                var secondArgument = standardCall == "csv.stringify_table"
+                    ? $"$table[{Quote(fields["rows"].Key)}]" : argumentExpressions[1];
+                // Evaluate the table expression once before extracting its two fields.
+                return $"(& {{ $table = {argumentExpressions[0]}; return (& $script:__rukbat_standard {Quote(standardCall)} @((,$table[{Quote(fields["columns"].Key)}]); (,({secondArgument})))) }})";
+            }
+            var standardArguments = string.Join("; ", argumentExpressions.Select(expression => ",(" + expression + ")"));
             var invocation = $"(& $script:__rukbat_standard {Quote(standardCall)} @({standardArguments}))";
+            if (standardCall is "csv.parse_table" or "csv.table")
+            {
+                var fields = checker.Types[call].Struct!.Fields;
+                return $"(& {{ $result = {invocation}; return @{{" +
+                    $"{Quote(fields["columns"].Key)} = (& $script:__rukbat_array $result[0]); " +
+                    $"{Quote(fields["rows"].Key)} = (& $script:__rukbat_array $result[1])" + "}})";
+            }
             if (standardCall == "process.run")
             {
                 var fields = checker.Types[call].Struct!.Fields;

@@ -227,34 +227,269 @@ config := path.join([path.script_dir(), "config.json"])
 
 `path.find_duplicate(paths: string[]): string?` scans paths in input order and returns the original spelling of the first path equal to an earlier path, or `null` when no path repeats (including an empty array). Equality uses the same captured-working-directory resolution and ordinal case-insensitive comparison as `path.equal`; entries need not exist. An invalid path encountered before a duplicate raises Error. Scanning stops at the first duplicate. Each visited path is resolved once and checked against a set, avoiding pairwise comparisons when validating file plans. The input array is not changed.
 
+## Choosing CSV and JSON operations
+
+Choose the representation that matches the input:
+
+| Task | API |
+|---|---|
+| CSV with a header; access cells by name | `csv.parse_table(text)` returns `csv.Table`; use `csv.get`, `csv.set`, and `csv.stringify_table` |
+| CSV without a header, or records with different widths | `csv.parse(text)` returns `string[][]`; write with `csv.stringify(rows)` |
+| JSON with unknown or mixed structure | `json.parse(text)` returns `json.Value`; select with `get` / `items`, convert with `as<T>` |
+| JSON with a fixed schema | `json.parse<T>(text)` validates that type |
+| Update JSON while retaining unknown properties | `json.set` / `remove`, `set_at` / `remove_at` / `append`; assign the returned value |
+| Write JSON | `json.stringify(value)` infers the input type |
+
+Parsers accept document contents, not a filename. Stringifiers return document contents without
+writing a file. Use `fs.read_text` and `fs.write_text` for file access and explicit encodings.
+These APIs accept positional arguments only and have no aliases. Documents are held in memory;
+these are not streaming APIs. Serialization preserves data, not the original text layout.
+
 ## `csv`
+
+### Header tables
+
+Use this representation for CSV files whose first record contains column names.
+`csv.Table` has two public fields: `columns: string[]` in header order and `rows: csv.Row[]`
+containing only data rows. `csv.Row` is opaque and immutable; use `get` and `set` to access cells.
+Neither type has a public struct literal. Create tables with `parse_table` or `table`, and new
+rows with `row`.
 
 | Signature | Meaning | Failure |
 |---|---|---|
-| `csv.parse(text: string): string[][]` | Parses CSV records and fields as strings. It does not infer types, interpret headers, require a rectangular table, or map records to structs. | Invalid CSV syntax causes Error. |
+| `csv.parse_table(text: string): csv.Table` | Parses the header and validates all data rows before returning. | Empty input, empty or duplicate column names, invalid CSV, or unequal row widths cause Error. Width errors identify the one-based CSV record number, including the header. |
+| `csv.table(columns: string[], rows: string[][]): csv.Table` | Creates a table from explicit columns and cell strings. `[]` creates a header-only table. | Invalid columns or unequal row widths cause Error. Row numbers start at 1 in the supplied data rows. |
+| `csv.row(columns: string[], values: string[]): csv.Row` | Creates one row with the given columns and cell strings. | Invalid columns or a width mismatch causes Error. |
+| `csv.get(row: csv.Row, column: string): string` | Reads a cell by its exact, case-sensitive column name. | An unknown column causes Error. |
+| `csv.has_column(table: csv.Table, column: string): bool` | Checks the current header for a column, including when there are no data rows. | Invalid table column names cause Error. |
+| `csv.set(row: csv.Row, column: string, value: string): csv.Row` | Returns a copy with one cell replaced. Assign the result to keep the change. | An unknown column causes Error. |
+| `csv.stringify_table(table: csv.Table): string` | Writes the header followed by data rows with the same escaping as `stringify`. | Invalid table columns or any row whose columns differ in name or order causes Error. |
+
+Names are literal strings: dots, slashes, brackets, spaces, and Unicode have no special meaning.
+Names are not trimmed; `A` and `a` are distinct. There must be at least one nonempty column name.
+Cells remain strings, including empty strings. Use `text.parse_int`, `text.parse_float`, or
+`text.parse_bool` when a script needs a typed value.
+Use `has_column` to validate required columns before iterating, or to handle optional columns.
+
+A header-only file returns zero data rows. A blank data record represents one empty field and
+must match the header width. Rows keep their order. Tables and their arrays follow ordinary
+Rukbat copy semantics. `set` never changes the original row or any table that contains it.
+Filter by building a `csv.Row[]`, append a row created from `table.columns`, and update a cell by
+assigning the returned row:
+
+```rukbat
+import csv
+import fs
+
+people := csv.parse_table(fs.read_text("people.csv", "windows-932"))
+kept: csv.Row[] = []
+
+for person in people.rows {
+    if csv.get(person, "enabled") == "true" {
+        kept.append(csv.set(person, "note", "checked"))
+    }
+}
+people.rows = kept
+people.rows.append(csv.row(people.columns, ["Hanako", "true", "new"]))
+fs.write_text("enabled.csv", csv.stringify_table(people), "utf-8")
+```
+
+This example expects columns `name,enabled,note` in that order for the appended row. Named access
+works regardless of input column order. To create a different layout, build a new table with
+`csv.table` and new rows in that layout. Changing `table.columns` does not rename or reorder
+existing rows; `stringify_table` rejects mismatches rather than assigning cells to the wrong
+columns. `csv.Row` cannot be converted by `json` or returned by `powershell<T>`; build a normal
+struct or string array explicitly when exporting data to another format.
+
+### Raw records
+
+Use raw records when input has no header or intentionally contains different record widths.
+
+| Signature | Meaning | Failure |
+|---|---|---|
+| `csv.parse(text: string): string[][]` | Parses records as strings without interpreting headers or requiring a rectangular table. | Invalid CSV syntax causes Error. |
+| `csv.stringify(rows: string[][]): string` | Converts rows to CSV, escaping commas, quotes, and newlines. | A row with no fields causes Error and identifies its one-based record number. |
 
 The separator is comma. CRLF and LF separate records; a final separator is optional. Quoted fields preserve commas and newlines, and `""` inside a quoted field becomes `"`. Whitespace and Unicode are preserved. Empty fields, including quoted empty fields, return `""`. An empty input returns `[]`; a blank record returns `[""]` and is not discarded. A bare CR outside a quoted field, an unquoted quote, an unclosed quote, or non-separator content after a closing quote causes Error. `csv.parse` accepts a Rukbat string and does not decode text encodings or treat U+FEFF specially; select the file encoding with `fs.read_text`, for example `csv.parse(fs.read_text("legacy.csv", "windows-932"))`.
+
+`stringify` uses commas between fields and CRLF after every record, including the last. Empty fields
+and fields containing a comma, quote, CR, or LF are quoted; a quote inside a quoted field becomes
+`""`. Other fields are emitted unchanged. `[]` becomes `""`; `[[""]]` becomes `"\"\"\r\n"`.
+Rows may have different numbers of fields, but an empty row `[]` is rejected because CSV cannot
+represent a record with zero fields. Every representable row survives `parse(stringify(rows))`
+without changing its strings or order. Neither operation modifies the input or changes field
+contents according to their numeric, boolean, or spreadsheet-like spelling.
+
+With raw records the first record is ordinary data. Use `parse_table` for header validation and
+named access. Raw records can explicitly include a header when writing a document:
+
+```rukbat
+import csv
+import fs
+
+rows: string[][] = [
+    ["name", "note"],
+    ["Taro", "contains, a comma"],
+    ["Hanako", ""]
+]
+fs.write_text("people.csv", csv.stringify(rows), "utf-8")
+
+loaded := csv.parse(fs.read_text("people.csv", "utf-8"))
+print(loaded[1][0]) // Taro
+```
 
 ## `json`
 
 | Signature | Meaning | Failure |
 |---|---|---|
-| `json.encode(value: T): string` | Encodes a supported typed value as compact JSON. | An unsupported value or non-finite float causes Error. |
-| `json.decode<T>(text: string): T` | Decodes JSON as the explicitly requested Rukbat type. | Invalid JSON or any mismatch with `T` causes Error. |
+| `json.parse(text: string): json.Value` | Parses a JSON document without requiring a schema or user-defined struct. Preserves every property, array element, and number token. | Invalid JSON or duplicate property names cause Error. |
+| `json.parse<T>(text: string): T` | Parses JSON into the explicitly requested Rukbat type. | Invalid JSON or any mismatch with `T` causes Error. |
+| `json.stringify(value: T): string` | Converts a supported typed value or `json.Value` to compact JSON text. | An unsupported value or non-finite Rukbat float causes Error. |
+| `json.get(value: json.Value, name: string): json.Value` | Returns one object property by its exact, case-sensitive name. | A missing property or a non-object value causes Error. |
+| `json.has(value: json.Value, name: string): bool` | Checks whether an object contains the named property, including a property whose value is JSON `null`. | A non-object value causes Error. |
+| `json.keys(value: json.Value): string[]` | Returns an object's property names in ordinal sort order. An empty object returns `[]`. | A non-object value causes Error. |
+| `json.items(value: json.Value): json.Value[]` | Returns an array's elements in order, including nulls and values of different kinds. An empty array returns `[]`. | A non-array value causes Error. |
+| `json.kind(value: json.Value): string` | Returns `"object"`, `"array"`, `"string"`, `"number"`, `"bool"`, or `"null"`. | None. |
+| `json.set(value: json.Value, name: string, replacement: T): json.Value` | Returns an object with a property added or replaced. Other properties are retained. | A non-object value causes Error. |
+| `json.remove(value: json.Value, name: string): json.Value` | Returns an object with the named property removed. A missing property succeeds. | A non-object value causes Error. |
+| `json.set_at(value: json.Value, index: int, replacement: T): json.Value` | Returns an array with one existing element replaced; indices start at zero. | A non-array value or an out-of-range index causes Error. |
+| `json.remove_at(value: json.Value, index: int): json.Value` | Returns an array with one element removed; later elements shift left. | A non-array value or an out-of-range index causes Error. |
+| `json.append(value: json.Value, replacement: T): json.Value` | Returns an array with one element appended, including to an empty array. | A non-array value causes Error. |
+| `json.as<T>(value: json.Value): T` | Converts just the selected JSON value to the explicitly requested Rukbat type, using the same strict rules as `parse<T>`. | Any mismatch with `T` causes Error. |
 
-`T` may be `int`, `float`, `string`, `bool`, a struct, an array of supported values, or a nullable form of a supported type. `<T>` is a dedicated explicit result type like `powershell<T>`; it does not introduce general-purpose generics.
+### Reading JSON without a schema
 
-Decoding is strict:
+`json.Value` is an opaque, immutable standard-library value. It represents any JSON value, including
+an entire document or a nested property. No struct declaration is required. It can be assigned,
+passed to functions, returned, and stored in arrays or struct fields. Its contents are accessed only
+through the JSON operations; it has no public fields or constructors. Updates return a new value
+and never mutate the original.
+
+Use `get` for properties, `items` for array iteration or indexing, and `as<T>` for only the values
+your script actually needs. Property names are literal strings, so dots, slashes, brackets, and an
+empty name need no special escaping or path syntax. Use `keys` to inspect unknown object properties.
+
+For a response such as `{"data":{"users":[{"name":"Taro","nickname":null,"extra":{"unknown":1}}]}}`:
+
+```rukbat
+import json
+import fs
+
+document := json.parse(fs.read_text("response.json", "utf-8"))
+data := json.get(document, "data")
+users := json.items(json.get(data, "users"))
+
+for user in users {
+    name := json.as<string>(json.get(user, "name"))
+    print(name)
+
+    if json.has(user, "nickname") {
+        nickname := json.as<string?>(json.get(user, "nickname"))
+
+        if nickname != null {
+            print(nickname)
+        }
+    }
+}
+```
+
+A present JSON `null` is a valid `json.Value` with kind `"null"`. A missing property is different:
+`has` returns `false` and `get` raises Error. `json.Value?` additionally permits a Rukbat `null`
+for an optional value; this is distinct from a non-null `json.Value` representing JSON `null`.
+
+Numbers remain JSON number tokens until converted. For example, `9007199254740993` and `1e400` can
+be parsed, selected, and stringified without precision loss. Conversion to `int` still requires
+an exact 32-bit integer, and conversion to `float` still requires a finite binary64 value.
+`stringify` preserves numeric spelling, emits object properties in ordinal name order, and preserves
+array order. Whitespace and the original spelling of string escapes are not preserved.
+
+`items` and `keys` return ordinary independent Rukbat arrays. Updating those arrays does not change
+the original JSON document. Convert a selected object with `as<MyStruct>` when a small part of a
+large document has a useful known structure. Known structs may also declare a `json.Value` field
+to retain an arbitrary subtree.
+
+### Updating JSON while retaining unknown data
+
+Every update returns a new `json.Value`. Assign that result explicitly. Object names use the same
+literal, case-sensitive rules as `get`. `set_at` and `remove_at` require an existing element;
+use `append` to add at the end. Replacements may be `json.Value`, primitives, supported structs or
+arrays, nullable values, or literal `null`. Replacement types are inferred; updates do not accept
+`<T>`. Empty replacement arrays need explicitly typed variables. `append` adds an array replacement
+as one element, without flattening it.
+
+Update a nested child first, then assign it back to its parent. Unknown siblings and untouched
+subtrees retain their data, including original JSON number tokens. Updating a child alone does
+not change its parent. Replacing an entire child intentionally replaces all its contents.
+
+```rukbat
+import json
+import fs
+
+config := json.parse(fs.read_text("config.json", "utf-8"))
+service := json.get(config, "service")
+service = json.set(service, "enabled", true)
+config = json.set(config, "service", service)
+config = json.remove(config, "obsolete")
+config = json.set(config, "note", null)
+
+workers := json.get(config, "workers")
+worker := json.items(workers)[0]
+worker = json.set(worker, "enabled", false)
+workers = json.set_at(workers, 0, worker)
+workers = json.append(workers, json.parse('{"name":"new","enabled":true}'))
+config = json.set(config, "workers", workers)
+fs.write_text("updated.json", json.stringify(config), "utf-8")
+```
+
+Use schema-free parsing for updates that must retain unknown properties. Converting an object to
+a struct with `parse<T>` or `as<T>` ignores undeclared properties; stringifying that struct cannot
+restore them. Serialization emits compact text and sorted keys for dynamic objects, so original
+whitespace, key order, and escape spelling are not retained.
+
+### Reading a known type
+
+`T` may be `int`, `float`, `string`, `bool`, `json.Value`, a struct, an array of supported values, or
+a nullable form of a supported type. `csv.Row` and containers containing it are not supported.
+`<T>` on `parse` and `as` is a dedicated result type like `powershell<T>`; it does not introduce
+general-purpose generics.
+
+Both `parse<T>` and `as<T>` use strict conversion:
 
 - property names are case-sensitive and duplicate properties cause Error;
 - every declared struct field must be present, including nullable fields;
 - extra properties are ignored;
-- JSON `null` is accepted only by `T?`;
+- JSON `null` converts to Rukbat `null` only for `T?`; a `json.Value` destination retains it as a JSON value;
 - a JSON number converts to `int` only when its lexical form has no decimal point or exponent and its value fits `int` exactly;
 - a JSON number converts to `float` only when the result is finite;
 - strings, booleans, arrays, and objects are not coerced to other kinds.
 
-Encoding uses compact output and emits struct properties in declaration order. Nullable values encode as either their contained value or JSON `null`.
+`stringify` uses compact output without a trailing newline and emits struct properties in declaration
+order. Embedded `json.Value` objects use ordinal property order. Nullable values become either
+their contained value or JSON `null`. The input is not modified.
+The input type is inferred; `stringify` does not accept `<T>`. Use an explicitly typed variable for
+an empty array or `null` so that the value has a concrete type.
+
+```rukbat
+import json
+import fs
+
+struct Config {
+    name: string
+    enabled: bool
+}
+
+config := Config {
+    name: "nightly",
+    enabled: true
+}
+fs.write_text("config.json", json.stringify(config), "utf-8")
+
+loaded := json.parse<Config>(fs.read_text("config.json", "utf-8"))
+print(loaded.name)
+
+numbers := json.parse<int[]>("[1,2,3]")
+print(numbers[0])
+```
 
 ## `env`
 
