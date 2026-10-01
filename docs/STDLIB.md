@@ -148,6 +148,7 @@ Relative paths for `files` and `directories` are resolved from the filesystem wo
 | `path.extension(value: string): string` | Returns the final component's extension including its leading `.`, or `""` when none exists. | An invalid path causes Error. |
 | `path.parent(value: string): string` | Returns the lexical parent without checking the filesystem or resolving relative paths. It returns `"."` when there is no parent component and preserves a root path. Trailing separators are ignored except for a root. | Empty, whitespace-only, or invalid paths cause Error. |
 | `path.equal(left: string, right: string): bool` | Resolves both paths against the captured entry working directory and compares the resulting paths with Windows ordinal case-insensitive comparison. It does not require either path to exist. | Invalid, empty, whitespace-only, or drive-relative paths cause Error. |
+| `path.find_duplicate(paths: string[]): string?` | Returns the original spelling of the first repeated path, using `path.equal` semantics, or `null`. | An invalid path encountered before a duplicate causes Error. |
 
 `join`, `filename`, `extension`, and `parent` manipulate strings without resolving relative paths or requiring existence. `parent("C:child")` is `"C:"`; filesystem operations reject that drive-relative spelling. A UNC share root is preserved with its trailing separator. `join` may return a relative path; its later use by a standard API resolves against the captured working directory.
 
@@ -158,6 +159,8 @@ config := path.join([path.script_dir(), "config.json"])
 ```
 
 `equal` compares resolved path spelling, not filesystem object identity. It does not resolve symbolic links, junctions, hard links, short names, or filesystem object IDs.
+
+`path.find_duplicate(paths: string[]): string?` scans paths in input order and returns the original spelling of the first path equal to an earlier path, or `null` when no path repeats (including an empty array). Equality uses the same captured-working-directory resolution and ordinal case-insensitive comparison as `path.equal`; entries need not exist. An invalid path encountered before a duplicate raises Error. Scanning stops at the first duplicate. Each visited path is resolved once and checked against a set, avoiding pairwise comparisons when validating file plans. The input array is not changed.
 
 ## `csv`
 

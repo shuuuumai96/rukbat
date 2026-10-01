@@ -403,6 +403,14 @@ internal sealed partial class Emitter
         $right = & $__rukbat_resolve_path ([string]$values[1])
         return [string]::Equals($left, $right, [System.StringComparison]::OrdinalIgnoreCase)
     }
+    'path.find_duplicate' {
+        $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($value in $values[0]) {
+            $resolved = & $__rukbat_resolve_path ([string]$value)
+            if (-not $seen.Add($resolved)) { return [string]$value }
+        }
+        return $null
+    }
     """;
 
     private const string CsvRuntime = """

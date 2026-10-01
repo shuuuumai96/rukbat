@@ -308,6 +308,39 @@ public class FilesystemMutationTests : TestBase
     [Theory]
     [InlineData("powershell")]
     [InlineData("pwsh")]
+    public async Task PathFindDuplicateUsesPathEqualityAndReturnsTheFirstRepeatedSpelling(string shell)
+    {
+        using var project = new Project();
+        var absolute = RukbatLiteral(project.PathFor("missing/item.txt"));
+        project.Write("main.rukbat", $$"""
+            import path
+            print(path.find_duplicate([]) == null)
+            print(path.find_duplicate(['a', 'b']) == null)
+            early := path.find_duplicate(['a', './A', 'bad|path'])
+            if early != null { print(early == './A') }
+            duplicate := path.find_duplicate(['missing/item.txt', '{{absolute}}', './missing/ITEM.txt'])
+            if duplicate != null { print(duplicate == '{{absolute}}') }
+            variants := path.find_duplicate(['missing/item.txt', 'folder/../missing/ITEM.txt'])
+            if variants != null { print(variants == 'folder/../missing/ITEM.txt') }
+            separators := path.find_duplicate(['missing/item.txt', 'missing\\item.txt'])
+            if separators != null { print(path.equal(separators, 'missing/item.txt')) }
+            try { path.find_duplicate(['C:relative.txt']) } catch err { print('drive relative') }
+            try { path.find_duplicate(['bad|path']) } catch err { print('invalid') }
+            """);
+        var compiled = project.Compile();
+        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+        File.WriteAllText(project.PathFor("job.ps1"), compiled.Output, new UTF8Encoding(true));
+        var result = await RunDeployed(shell, project.PathFor("job.ps1"), project.DirectoryPath, project.DirectoryPath);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("", result.Error);
+        Assert.Equal("True\nTrue\nTrue\nTrue\nTrue\nTrue\ndrive relative\ninvalid\n", result.Output);
+    }
+
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
+    [Theory]
+    [InlineData("powershell")]
+    [InlineData("pwsh")]
     public async Task FileMoveAcrossVolumesRemovesTheSource(string shell)
     {
         using var project = new Project();
@@ -356,6 +389,9 @@ public class FilesystemMutationTests : TestBase
     [InlineData("import path\npath.parent(1)")]
     [InlineData("import path\npath.equal('x')")]
     [InlineData("import path\npath.equal('x', 1)")]
+    [InlineData("import path\npath.find_duplicate('x')")]
+    [InlineData("import path\npath.find_duplicate([1])")]
+    [InlineData("import path\npath.find_duplicate([] , [])")]
     public void FilesystemMutationsUseTypedStandardLibraryContracts(string source)
         => Assert.NotEmpty(new Compiler().Check(source));
 
