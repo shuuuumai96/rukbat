@@ -195,6 +195,13 @@ errors. From the repository root:
 
 ## Compiler contributor tests
 
+LSP protocol, unsaved-import, scope, diagnostic, hover, definition, and formatting
+tests are part of `Unit`. Run them separately with
+`dotnet test --filter FullyQualifiedName~LanguageServerTests`.
+In `editors/vscode`, run `npm ci` and `npm test` for TextMate tokenization, then
+`npm run test:editor` for the real VS Code extension-host integration tests.
+The latter downloads VS Code and requires a built compiler; see the extension guide.
+
 Rukbat keeps compiler checks separate from generated-PowerShell execution.
 Windows PowerShell 5.1 is the primary deployment target. PowerShell 7 is an
 additional runtime and cross-version check; it is never required for deployed scripts.

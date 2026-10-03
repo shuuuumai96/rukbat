@@ -10,6 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="../../docs/STDLIB.md" LogicalName="Rukbat.StandardLibrary.md" />
     <PackageReference Include="System.Management.Automation" Version="7.4.19" />
   </ItemGroup>
 

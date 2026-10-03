@@ -3,5 +3,7 @@ obj/
 .local/
 artifacts/
 TestResults/
+node_modules/
+.vscode-test/
 examples/*.ps1
 examples/**/*.ps1

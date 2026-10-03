@@ -4,6 +4,19 @@ Rukbat is a small, statically typed language that compiles to PowerShell.
 It removes `$` prefixes from variables and provides conventional function calls and file-based modules.
 Source files use `.rukbat`; the output is a single `.ps1` containing all Rukbat modules needed to run it.
 
+## Editor support
+
+The [VS Code extension](editors/vscode/README.md) provides syntax highlighting,
+diagnostics, completion, hover, go to definition, and canonical formatting.
+Build the compiler with `dotnet build Rukbat.sln`, package the extension with
+`npm ci` and `npm run package` in `editors/vscode`, then install its VSIX.
+The extension defaults to `rukbat lsp`; its guide explains using a locally built
+compiler DLL when Rukbat is not installed on PATH.
+
+Other LSP clients can launch `rukbat lsp` over stdio. The initial server supports
+file-backed documents and uses UTF-16 positions. It checks unsaved source and
+imports without running scripts or generating PowerShell.
+
 ## Syntax
 
 `math.rukbat`:

@@ -75,16 +75,17 @@ public sealed class Compiler
         return new(tests, entry.Source.Diagnostics);
     }
 
-    private static CheckedProgram CheckCore(string source, string path, bool resolveImports)
+    internal static CheckedProgram CheckCore(string source, string path, bool resolveImports,
+        Func<string, string>? readSource = null, bool collectSyntax = false)
     {
         // Stop after the language front end. `rukbat check` deliberately performs no lowering
         // or PowerShell generation, so it remains independent of backend behavior.
-        var loader = new ModuleLoader();
+        var loader = new ModuleLoader(readSource, collectSyntax);
         loader.Load(source, path, resolveImports);
         var diagnostics = loader.Diagnostics.ToList();
         if (diagnostics.Count != 0)
         {
-            return new(null, null, diagnostics);
+            return new(loader.Ordered, null, diagnostics);
         }
 
         var checker = new TypeChecker();
@@ -93,7 +94,7 @@ public sealed class Compiler
         return new(loader.Ordered, checker, diagnostics);
     }
 
-    private sealed record CheckedProgram(
+    internal sealed record CheckedProgram(
         List<Module>? Modules,
         TypeChecker? Checker,
         IReadOnlyList<Diagnostic> Diagnostics);

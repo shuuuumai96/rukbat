@@ -3,7 +3,9 @@ using System.Globalization;
 namespace Rukbat;
 
 // Parse statements by recursive descent and binary expressions by precedence climbing.
-internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax? formatting = null)
+internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax? formatting = null,
+    Dictionary<List<Statement>, (int Start, int End)>? blocks = null,
+    Dictionary<ValueType, Token>? typeTokens = null)
 {
     private sealed class ParseFailure : Exception;
     private int position;
@@ -106,7 +108,7 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
     private List<Statement> Block()
     {
         NewLines();
-        Expect("{");
+        var opening = Expect("{");
         Separators();
         var statements = new List<Statement>();
         while (Current.Text is not ("}" or "<eof>"))
@@ -117,16 +119,19 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
             statements.Add(statement);
             EndStatement();
         }
-        Expect("}");
+        var closing = Expect("}");
+        blocks?.Add(statements, (opening.Offset, closing.Offset + 1));
         return statements;
     }
 
     private ValueType Type()
     {
-        var name = Identifier().Text;
+        var token = Identifier();
+        var name = token.Text;
         if (Match("."))
         {
-            name += "." + Identifier().Text;
+            token = Identifier();
+            name += "." + token.Text;
         }
 
         var type = new ValueType(name);
@@ -143,6 +148,7 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
                 type = ValueType.ArrayOf(type);
             }
         }
+        typeTokens?.Add(type, token);
         return type;
     }
 

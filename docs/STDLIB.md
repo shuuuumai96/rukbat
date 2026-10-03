@@ -190,6 +190,11 @@ Relative paths for `fs` are resolved from the filesystem working directory captu
 
 ### Recoverable file moves
 
+| Signature | Meaning |
+|---|---|
+| `fs.move_files_batch(sources: string[], destinations: string[], journal: string): void` | Executes a move plan with a persistent recovery journal, under the restrictions below. |
+| `fs.recover_file_moves(journal: string): void` | Recovers or verifies the recorded move plan, under the restrictions below. |
+
 A move plan is limited to 100000 entries and a 64 MiB serialized plan. Oversized plans are rejected before source mutation; journal reads enforce corresponding size limits.
 
 `fs.move_files_batch(sources: string[], destinations: string[], journal: string): void` moves a complete plan with exclusive file locks and a persistent recovery journal. `fs.recover_file_moves(journal: string): void` rolls an interrupted, uncommitted plan back to its original source paths. These operations require local fixed NTFS storage; every source, destination, and journal must be on the same drive. Reparse points anywhere in their paths, multiply linked files, alternate data streams, overlapping paths, and ambiguous trailing-dot/space paths are rejected. Parent directories for the journal must already exist.
@@ -209,6 +214,7 @@ to `fs.is_file` and `fs.is_dir`; `path.parent` only computes the parent path val
 
 | Signature | Meaning | Failure |
 |---|---|---|
+| `path.script_dir(): string` | Returns the deployed script directory captured at startup. | None. |
 | `path.join(parts: string[]): string` | Joins one or more path components using the target platform's path rules. | An empty array or an invalid component causes Error. |
 | `path.filename(value: string): string` | Returns the final file-name component, or `""` when the path ends in a directory separator. | An invalid path causes Error. |
 | `path.extension(value: string): string` | Returns the final component's extension including its leading `.`, or `""` when none exists. | An invalid path causes Error. |

@@ -1,0 +1,34 @@
+{
+  "name": "rukbat",
+  "displayName": "Rukbat",
+  "description": "Language support for Rukbat Windows system scripts.",
+  "version": "0.1.0",
+  "publisher": "rukbat",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": { "vscode": "^1.82.0" },
+  "categories": ["Programming Languages"],
+  "main": "./extension.js",
+  "capabilities": { "untrustedWorkspaces": { "supported": "limited", "description": "Syntax highlighting is available; the language server starts only in trusted workspaces." } },
+  "contributes": {
+    "languages": [{ "id": "rukbat", "aliases": ["Rukbat", "rukbat"], "extensions": [".rukbat"], "configuration": "./language-configuration.json" }],
+    "grammars": [{ "language": "rukbat", "scopeName": "source.rukbat", "path": "./syntaxes/rukbat.tmLanguage.json" }],
+    "snippets": [{ "language": "rukbat", "path": "./snippets/rukbat.json" }],
+    "commands": [{ "command": "rukbat.restartServer", "title": "Rukbat: Restart Language Server" }],
+    "configuration": {
+      "title": "Rukbat",
+      "properties": {
+        "rukbat.server.command": { "type": "string", "default": "rukbat", "scope": "machine-overridable", "description": "Compiler executable to launch. Use dotnet when running an uninstalled compiler DLL." },
+        "rukbat.server.arguments": { "type": "array", "items": { "type": "string" }, "default": [], "scope": "machine-overridable", "description": "Arguments before lsp, such as the absolute path to rukbat.dll when using dotnet." }
+      }
+    },
+    "configurationDefaults": { "[rukbat]": { "editor.insertSpaces": true, "editor.tabSize": 4 } }
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "test:editor": "node test/run-editor.js",
+    "package": "node -e \"require('node:fs').mkdirSync('artifacts',{recursive:true})\" && vsce package --allow-missing-repository --skip-license --out artifacts/rukbat.vsix"
+  },
+  "dependencies": { "vscode-languageclient": "9.0.1" },
+  "devDependencies": { "@vscode/vsce": "4.0.0", "@vscode/test-electron": "3.1.0", "vscode-textmate": "9.3.2", "vscode-oniguruma": "2.0.1" }
+}

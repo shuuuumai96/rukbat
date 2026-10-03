@@ -169,11 +169,33 @@ Execution requires FullLanguage mode. Generated scripts check this before user o
 
 ## Formatting
 
-Formatting is canonical and has no configuration. `rukbat fmt` uses four-space indentation, one statement per line, spaces around binary operators and after commas/colons, no padding immediately inside delimiters, braces on the declaration or control-flow line, and `else` / `catch` on the same line as the preceding closing brace. It preserves comments and blank lines between statements or comments, collapsing consecutive blank lines to one. Leading blank lines and blank lines immediately inside block braces are removed. It writes UTF-8 without a BOM and LF line endings, and ends with one LF newline (`\n`) without an additional trailing blank line. An empty source becomes `\n`. Tree-sitter grammar, syntax highlighting, and LSP are not implemented.
+Formatting is canonical and has no configuration. `rukbat fmt` uses four-space indentation, one statement per line, spaces around binary operators and after commas/colons, no padding immediately inside delimiters, braces on the declaration or control-flow line, and `else` / `catch` on the same line as the preceding closing brace. It preserves comments and blank lines between statements or comments, collapsing consecutive blank lines to one. Leading blank lines and blank lines immediately inside block braces are removed. It writes UTF-8 without a BOM and LF line endings, and ends with one LF newline (`\n`) without an additional trailing blank line. An empty source becomes `\n`.
 
 The formatter also inserts one blank line between an import group and other statements, and before and after functions, struct declarations, and control-flow statements (`if`, `for`, `while`, and `try`) when another statement exists in the same block. Struct fields and methods are separated in the same way. Consecutive simple statements remain adjacent unless the source explicitly separates them. No blank line is inserted at a block's edges or between an `if` and its `else`, or a `try` and its `catch`. Leading comments stay with the following statement; trailing comments stay with the preceding statement.
 
 Struct literals use indented braces; their closing brace stays attached to any following comma, member access, index, or closing expression delimiter. Expression continuations normally join onto one line. When a line comment requires a continuation to remain on a new line, it receives one additional four-space indent. Closing delimiters align with the enclosing block. Comments can also require an opening brace, `else`, or `catch` to remain on a separate line. Physical CR and LF characters inside string literals become `\r` and `\n` escapes, preserving the string value while keeping source line endings canonical. Formatting twice produces the same result as formatting once.
+
+## Editor support
+
+`rukbat lsp` serves Language Server Protocol over standard input/output with UTF-8
+Content-Length framing and UTF-16 positions. Standard output contains only protocol
+messages; server logs use standard error. It provides compiler diagnostics,
+scope-aware completion, hover signatures/types and standard-API documentation,
+go to definition, and canonical document formatting. Analysis uses unsaved buffers
+for both the entry and any open imported files. Open documents are rechecked when
+documents change, are saved/closed, or watched files change.
+
+The [VS Code extension](../editors/vscode/README.md) supplies TextMate highlighting,
+`//` commenting, bracket handling, snippets, and the LSP client. The compiler runs
+only in trusted workspaces. Language-server analysis never generates or executes
+PowerShell, and formatting returns editor edits without writing files.
+
+Only `file:` documents are supported. The first version advertises full-document
+sync and also accepts ordered incremental edits. Completion may repair a missing
+member and unclosed delimiters in a temporary analysis copy; diagnostics always
+come from the real document. Syntax errors can limit available semantic features.
+Tree-sitter, references, rename, signature help, and inferred-type hints remain
+unimplemented.
 
 ## Current exclusions
 

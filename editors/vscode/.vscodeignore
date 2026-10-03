@@ -1,0 +1,8 @@
+test/**
+.vscode/**
+.vscode-test/**
+artifacts/**
+node_modules/@vscode/**
+node_modules/vscode-textmate/**
+node_modules/vscode-oniguruma/**
+package-lock.json

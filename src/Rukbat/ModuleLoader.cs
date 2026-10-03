@@ -1,6 +1,6 @@
 namespace Rukbat;
 
-internal sealed class ModuleLoader
+internal sealed class ModuleLoader(Func<string, string>? readSource = null, bool collectSyntax = false)
 {
     private static readonly HashSet<string> StandardModules = new(StringComparer.Ordinal)
     {
@@ -21,8 +21,12 @@ internal sealed class ModuleLoader
     {
         var source = new Source(text, path);
         var tokens = new Lexer(source).Scan();
-        var statements = source.Diagnostics.Count == 0 ? new Parser(source, tokens).Parse() : [];
+        var blocks = collectSyntax ? new Dictionary<List<Statement>, (int Start, int End)>(ReferenceEqualityComparer.Instance) : null;
+        var typeTokens = collectSyntax ? new Dictionary<ValueType, Token>(ReferenceEqualityComparer.Instance) : null;
+        var statements = source.Diagnostics.Count == 0 ? new Parser(source, tokens, blocks: blocks, typeTokens: typeTokens).Parse() : [];
         var module = new Module(source, $"m{modules.Count}", statements);
+        module.Blocks = blocks;
+        module.TypeTokens = typeTokens;
         modules.Add(path, module);
         // Distinguish an already loaded shared dependency from a cycle on the active traversal path.
         visiting.Add(module);
@@ -103,7 +107,7 @@ internal sealed class ModuleLoader
             {
                 try
                 {
-                    imported = Visit(File.ReadAllText(importedPath), importedPath, true);
+                    imported = Visit((readSource ?? File.ReadAllText)(importedPath), importedPath, true);
                 }
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException)
                 {

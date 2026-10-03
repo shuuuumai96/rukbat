@@ -6,6 +6,10 @@ if (args.Length != 0 && args[0] == "test")
 {
     Console.OutputEncoding = new System.Text.UTF8Encoding(false);
 }
+if (args is ["lsp"])
+{
+    return LanguageServer.Run(Console.OpenStandardInput(), Console.OpenStandardOutput(), Console.Error);
+}
 return Cli.Run(args, Console.Out, Console.Error);
 
 public static class Cli
@@ -50,6 +54,7 @@ public static class Cli
             stderr.WriteLine("Usage: rukbat <build|run|check|fmt> input.rukbat [-- arguments... (run only)]");
             stderr.WriteLine("       rukbat fmt directory");
             stderr.WriteLine("       rukbat test [path] [--filter text] [--timeout seconds] [--shell powershell|pwsh]");
+            stderr.WriteLine("       rukbat lsp");
             return UsageOrIoFailure;
         }
         try
