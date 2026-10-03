@@ -1,4 +1,5 @@
 import csv
+import encoding
 import fs
 import path
 import text
@@ -27,7 +28,7 @@ try {
         }
     }
 
-    rows := csv.parse(fs.read_text(arguments[0], "utf-8"))
+    rows := csv.parse(fs.read_text(arguments[0], encoding.utf8))
 
     if rows.length == 0 {
         throw Error {

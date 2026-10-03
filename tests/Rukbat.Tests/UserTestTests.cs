@@ -145,7 +145,7 @@ public class UserTestTests : TestBase
         using var project = new Project();
         project.Write("test_timeout.rukbat", """
             import test
-            import fs
+            import encoding; import fs
             import path
             fn test_a_timeout(ctx: test.Context): void {
                 script := path.join([ctx.temp_dir, 'child.ps1'])
@@ -153,7 +153,7 @@ public class UserTestTests : TestBase
                 marker := path.join([ctx.source_dir, 'late.txt'])
                 fs.write_text(script,
                     "[IO.File]::WriteAllText('" + pid_file + "', [string]$PID); Start-Sleep -Seconds 8; [IO.File]::WriteAllText('" + marker + "', 'orphan')",
-                    'utf-8')
+                    encoding.utf8)
                 powershell<void>('Start-Process', FilePath: 'powershell', ArgumentList: ['-NoProfile', '-File', script], WindowStyle: 'Hidden')
                 powershell<void>('Start-Sleep', Seconds: 20)
             }
@@ -243,7 +243,7 @@ public class UserTestTests : TestBase
         project.Write("math.rukbat", "fn add(a: int, b: int): int { return a + b }");
         project.Write("tests/test_sample.rukbat", """
             import test
-            import fs
+            import encoding; import fs
             import path
             import env
             import "../math.rukbat" as math
@@ -258,8 +258,8 @@ public class UserTestTests : TestBase
             fn test_b_isolated(ctx: test.Context): void {
                 test.assert(next() == 1)
                 test.assert(!fs.is_file('result.txt'))
-                fs.write_text('result.txt', '内容', 'utf-8')
-                test.assert(fs.read_text(path.join([ctx.temp_dir, 'result.txt']), 'utf-8') == '内容')
+                fs.write_text('result.txt', '内容', encoding.utf8)
+                test.assert(fs.read_text(path.join([ctx.temp_dir, 'result.txt']), encoding.utf8) == '内容')
                 test.assert(fs.is_file(path.join([ctx.source_dir, 'test_sample.rukbat'])))
                 env.set('RUKBAT_USER_TEST_LOCAL', 'value')
             }

@@ -55,6 +55,10 @@ internal static class EditorCatalog
 {
     // Embed the canonical API documentation rather than maintain a second list of signatures.
     public static readonly List<EditorSymbol> Standard = Load();
+    public static readonly EditorSymbol EncodingType = new("Encoding", "encoding.Encoding", 13,
+        "A validated encoding type. Use predefined encoding values or encoding.from_code_page for an explicit Windows code page.", Type: ValueType.Encoding);
+    public static EditorSymbol EncodingValue(StandardEncoding value) => new(value.Name,
+        $"encoding.{value.Name}: encoding.Encoding", 20, value.Documentation + " Read-only.", Type: ValueType.Encoding);
     public static readonly string[] Modules = Standard.Select(s => s.Detail.Split('.')[0]).Distinct().Order().ToArray();
     public static readonly string[] Keywords = ["import",
         "fn",
@@ -101,6 +105,7 @@ internal static class EditorCatalog
             result.Add(new(match.Groups["name"].Value, match.Groups["signature"].Value, 3, docs));
         }
         // Zero-argument signatures are covered by the same expression (the ')' is nonempty).
+        result.AddRange(EncodingValues.All.Select(EncodingValue));
         return result;
     }
 }
@@ -308,7 +313,9 @@ internal sealed class LanguageAnalysis
                 break;
             case Member member:
                 Walk(member.Receiver, scope);
-                if (checker!.Fields.TryGetValue(member, out var field))
+                if (checker!.EncodingConstants.TryGetValue(member, out var encoding))
+                    Add(scope.Module, member.Token, EditorCatalog.EncodingValue(encoding));
+                else if (checker.Fields.TryGetValue(member, out var field))
                     Add(scope.Module, member.Token, symbols[field]);
                 else if (member.Name == "length" && checker.Types.GetValueOrDefault(member.Receiver)?.Element is not null)
                     Add(scope.Module, member.Token, new("length", "length: int", 5, "The number of array elements."));
@@ -376,6 +383,8 @@ internal sealed class LanguageAnalysis
                 bound = bound.NullableElement ?? bound.Element;
             if (bound?.Struct is { } structure)
                 Add(module, token, symbols[structure]);
+            else if (bound == ValueType.Encoding)
+                Add(module, token, EditorCatalog.EncodingType);
         }
     }
 
@@ -406,6 +415,8 @@ internal sealed class LanguageAnalysis
                 candidates = imported.StandardName is { } standard
                     ? EditorCatalog.Standard.Where(s => s.Detail.StartsWith(standard + ".", StringComparison.Ordinal)).Concat(imported.Structs.Values.Select(s => symbols[s]))
                     : imported.Functions.Values.Select(f => symbols[checker!.Functions[f]]).Concat(imported.Structs.Values.Select(s => symbols[s]));
+                if (imported.StandardName == "encoding")
+                    candidates = candidates.Append(EditorCatalog.EncodingType);
             }
             else
             {

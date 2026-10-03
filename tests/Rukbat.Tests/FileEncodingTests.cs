@@ -19,14 +19,14 @@ public class FileEncodingTests : TestBase
         File.WriteAllBytes(project.PathFor("invalid.txt"), [0x82, 0x20]);
         var directory = RukbatLiteral(project.DirectoryPath);
         project.Write("main.rukbat", $$"""
-            import fs
+            import encoding; import fs
             import csv
             import json
             expected := json.parse<string>('"\\u9ad9"')
-            rows := csv.parse(fs.read_text('{{directory}}/nec.csv', 'windows-932'))
+            rows := csv.parse(fs.read_text('{{directory}}/nec.csv', encoding.windows_932))
             print(rows[1][0] == expected)
-            print(fs.read_text('{{directory}}/ibm.txt', 'windows-932') == expected)
-            try { fs.read_text('{{directory}}/invalid.txt', 'windows-932') } catch err { print('invalid') }
+            print(fs.read_text('{{directory}}/ibm.txt', encoding.windows_932) == expected)
+            try { fs.read_text('{{directory}}/invalid.txt', encoding.windows_932) } catch err { print('invalid') }
             """);
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
@@ -44,7 +44,7 @@ public class FileEncodingTests : TestBase
     {
         Assert.False(Compile("import fs\nfs.read_text('input.txt')").Success);
         Assert.False(Compile("import fs\nfs.write_text('output.txt', 'text')").Success);
-        Assert.True(Compile("import fs\nname := 'utf-8'\nfs.write_text('output.txt', 'text', name)\nfs.read_text('output.txt', name)").Success);
+        Assert.True(Compile("import encoding; import fs\nname := encoding.utf8\nfs.write_text('output.txt', 'text', name)\nfs.read_text('output.txt', name)").Success);
     }
 
     [Trait("Category", "CrossVersion")]
@@ -57,20 +57,20 @@ public class FileEncodingTests : TestBase
         using var project = new Project();
         var directory = RukbatLiteral(project.DirectoryPath);
         project.Write("main.rukbat", $$"""
-            import fs
+            import encoding; import fs
             import json
-            encoding := 'utf-8'
+            selected := encoding.utf8
             text := json.parse<string>('"ASCII \\u65e5\\u672c\\u8a9e \\uff8a\\uff9d\\uff76\\uff85"')
             cp932_text := json.parse<string>('"ASCII \\u65e5\\u672c\\u8a9e \\uff8a\\uff9d\\uff76\\uff85 \\u9ad9"')
-            fs.write_text('{{directory}}/utf8.txt', text, encoding)
-            fs.write_text('{{directory}}/le.txt', text, 'utf-16le')
-            fs.write_text('{{directory}}/be.txt', text, 'utf-16be')
-            fs.write_text('{{directory}}/cp932.txt', cp932_text, 'windows-932')
-            fs.write_text('{{directory}}/empty.txt', '', 'windows-932')
-            print(fs.read_text('{{directory}}/utf8.txt', 'utf-8') == text)
-            print(fs.read_text('{{directory}}/le.txt', 'utf-16le') == text)
-            print(fs.read_text('{{directory}}/be.txt', 'utf-16be') == text)
-            print(fs.read_text('{{directory}}/cp932.txt', 'windows-932') == cp932_text)
+            fs.write_text('{{directory}}/utf8.txt', text, selected)
+            fs.write_text('{{directory}}/le.txt', text, encoding.utf16_le)
+            fs.write_text('{{directory}}/be.txt', text, encoding.utf16_be)
+            fs.write_text('{{directory}}/cp932.txt', cp932_text, encoding.windows_932)
+            fs.write_text('{{directory}}/empty.txt', '', encoding.windows_932)
+            print(fs.read_text('{{directory}}/utf8.txt', encoding.utf8) == text)
+            print(fs.read_text('{{directory}}/le.txt', encoding.utf16_le) == text)
+            print(fs.read_text('{{directory}}/be.txt', encoding.utf16_be) == text)
+            print(fs.read_text('{{directory}}/cp932.txt', encoding.windows_932) == cp932_text)
             """);
 
         var compiled = project.Compile();
@@ -103,15 +103,15 @@ public class FileEncodingTests : TestBase
         File.WriteAllBytes(project.PathFor("invalid-cp932.txt"), [0x82]);
         var directory = RukbatLiteral(project.DirectoryPath);
         project.Write("main.rukbat", $$"""
-            import fs
-            print(fs.read_text('{{directory}}/utf8-bom.txt', 'utf-8'))
-            print(fs.read_text('{{directory}}/le-bom.txt', 'utf-16le'))
-            print(fs.read_text('{{directory}}/be-bom.txt', 'utf-16be'))
-            try { fs.read_text('{{directory}}/le-bom.txt', 'utf-16be') } catch err { print('opposite') }
-            try { fs.read_text('{{directory}}/odd.txt', 'utf-16le') } catch err { print('odd') }
-            try { fs.read_text('{{directory}}/invalid-cp932.txt', 'windows-932') } catch err { print('cp932 invalid') }
-            try { fs.read_text('{{directory}}/utf8-bom.txt', 'shift-jis') } catch err { print(err.message) }
-            try { fs.read_text('{{directory}}/utf8-bom.txt', 'UTF-8') } catch err { print(err.message) }
+            import encoding; import fs
+            print(fs.read_text('{{directory}}/utf8-bom.txt', encoding.utf8))
+            print(fs.read_text('{{directory}}/le-bom.txt', encoding.utf16_le))
+            print(fs.read_text('{{directory}}/be-bom.txt', encoding.utf16_be))
+            try { fs.read_text('{{directory}}/le-bom.txt', encoding.utf16_be) } catch err { print('opposite') }
+            try { fs.read_text('{{directory}}/odd.txt', encoding.utf16_le) } catch err { print('odd') }
+            try { fs.read_text('{{directory}}/invalid-cp932.txt', encoding.windows_932) } catch err { print('cp932 invalid') }
+            try { fs.read_text('{{directory}}/utf8-bom.txt', encoding.parse('shift-jis')) } catch err { print(err.message) }
+            try { fs.read_text('{{directory}}/utf8-bom.txt', encoding.parse('UTF-8')) } catch err { print(err.message) }
             """);
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
@@ -120,7 +120,7 @@ public class FileEncodingTests : TestBase
             : await project.RunOutput(compiled.Output!);
 
         Assert.Equal(0, result.ExitCode);
-        Assert.Equal("A\nA\nA\nopposite\nodd\ncp932 invalid\nunsupported file encoding: shift-jis\nunsupported file encoding: UTF-8\n", result.Output);
+        Assert.Equal("A\nA\nA\nopposite\nodd\ncp932 invalid\nunsupported encoding: shift-jis\nunsupported encoding: UTF-8\n", result.Output);
         Assert.Equal("", result.Error);
     }
 
@@ -135,13 +135,13 @@ public class FileEncodingTests : TestBase
         foreach (var name in new[] { "utf8", "utf16", "cp932" }) File.WriteAllBytes(project.PathFor(name + ".txt"), Encoding.ASCII.GetBytes(name));
         var directory = RukbatLiteral(project.DirectoryPath);
         project.Write("main.rukbat", $$"""
-            import fs
+            import encoding; import fs
             import json
             invalid := json.parse<string>('"\\uD800"')
             emoji := json.parse<string>('"\\uD83D\\uDE00"')
-            try { fs.write_text('{{directory}}/utf8.txt', invalid, 'utf-8') } catch err { print('utf8') }
-            try { fs.write_text('{{directory}}/utf16.txt', invalid, 'utf-16le') } catch err { print('utf16') }
-            try { fs.write_text('{{directory}}/cp932.txt', emoji, 'windows-932') } catch err { print('cp932') }
+            try { fs.write_text('{{directory}}/utf8.txt', invalid, encoding.utf8) } catch err { print('utf8') }
+            try { fs.write_text('{{directory}}/utf16.txt', invalid, encoding.utf16_le) } catch err { print('utf16') }
+            try { fs.write_text('{{directory}}/cp932.txt', emoji, encoding.windows_932) } catch err { print('cp932') }
             """);
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
@@ -168,11 +168,11 @@ public class FileEncodingTests : TestBase
         var path = RukbatLiteral(project.PathFor("legacy.csv"));
         project.Write("main.rukbat", $$"""
             import csv
-            import fs
+            import encoding; import fs
             import json
             source := json.parse<string>('"\\u540d\\u524d,\\u5024\\n\\u592a\\u90ce,\\uff8a\\uff9d\\uff76\\uff85"')
-            fs.write_text('{{path}}', source, 'windows-932')
-            print(csv.parse(fs.read_text('{{path}}', 'windows-932'))[1][1] == json.parse<string>('"\\uff8a\\uff9d\\uff76\\uff85"'))
+            fs.write_text('{{path}}', source, encoding.windows_932)
+            print(csv.parse(fs.read_text('{{path}}', encoding.windows_932))[1][1] == json.parse<string>('"\\uff8a\\uff9d\\uff76\\uff85"'))
             """);
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));

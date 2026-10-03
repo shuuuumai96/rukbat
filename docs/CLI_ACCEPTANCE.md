@@ -42,7 +42,7 @@ Example configuration (the checker executable is illustrative):
 ```
 
 `directory`, `pattern`, and `executable` must be nonempty. Parse with `json.parse<Config>` and its existing strict type rules.
-For each matching file, copy the configured arguments, append the file's absolute path as one argument, and call `process.run` with a fixed 30-second timeout.
+For each matching file, copy the configured arguments, append the file's absolute path as one argument, and call `process.run` with a fixed 30-second timeout and explicit `encoding.utf8` output encoding. The checker must produce UTF-8 output.
 Do not build a shell command string or interpolate the path into code. Run checkers sequentially.
 A checker exit code of zero means that file passed. Any nonzero checker code means it failed, but does not stop checks of the remaining files. A timeout is an operational Error: Rukbat terminates the directly started checker process, stops the run, and does not guarantee termination of checker descendants.
 
@@ -62,7 +62,7 @@ struct CheckResult {
 Each `file` is an absolute path. Preserve each checker's exit code and captured stdout/stderr exactly, including trailing newlines.
 Report order follows enumeration order and is not guaranteed. Tests compare records by path rather than relying on order.
 No matches produce `[]` without launching a checker. One match still produces an array.
-Save only after all checks finish, using `fs.write_text(..., "utf-8")` and `json.stringify`: UTF-8 without a BOM or trailing newline.
+Save only after all checks finish, using `fs.write_text(..., encoding.utf8)` and `json.stringify`: UTF-8 without a BOM or trailing newline.
 An existing report is replaced on completed runs, including runs with failed checks. `fs.write_text` stages complete encoded report contents in the report directory before the final replacement; a conversion failure or failure before that step leaves an existing report unchanged. The final filesystem replacement has no durability or universal atomicity guarantee.
 
 On a normal run, stdout is empty; checker streams belong only in the report. Operational errors produce an English diagnostic through `eprint`.

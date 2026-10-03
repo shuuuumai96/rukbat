@@ -1,3 +1,4 @@
+import encoding
 import fs
 import json
 
@@ -28,7 +29,7 @@ try {
 
     fs.write_text(arguments[1], json.stringify(ServiceState {
         name: service_name, running: running
-    }), "utf-8")
+    }), encoding.utf8)
 
     if !running {
         exit(1)

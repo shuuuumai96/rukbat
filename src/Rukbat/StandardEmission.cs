@@ -5,7 +5,11 @@ internal sealed partial class Emitter
     private void EmitStandardRuntime(IReadOnlySet<string> modules)
     {
         EmitLines(PathContextRuntime);
-        if (modules.Contains("fs")) EmitLines(FileEncodingRuntime);
+        if (modules.Contains("encoding") || modules.Contains("fs") || modules.Contains("process"))
+        {
+            EmitNativeLoader("CodePageCodec");
+            EmitEncodingSelector();
+        }
         if (modules.Contains("fs")) EmitNativeLoader("MoveBatch");
         if (modules.Contains("process")) EmitNativeLoader("ProcessJob");
         if (modules.Contains("csv")) EmitCsvRuntime();
@@ -26,10 +30,49 @@ internal sealed partial class Emitter
         if (modules.Contains("env")) EmitLines(EnvironmentRuntime);
         if (modules.Contains("process")) EmitLines(ProcessRuntime);
         if (modules.Contains("text")) EmitLines(TextRuntime);
+        if (modules.Contains("encoding")) EmitEncodingOperations();
         indentation--;
         Line("}");
         Line("throw \"Unknown standard-library operation '$operation'.\"");
         indentation--;
+        Line("}.GetNewClosure()");
+    }
+
+    private void EmitEncodingOperations()
+    {
+        Line("'encoding.parse' { return (& $__rukbat_text_encoding ([string]$values[0]) 'text').name }");
+        Line("'encoding.from_code_page' {");
+        Line("    $number = [int]$values[0]");
+        Line("    switch ($number) {");
+        foreach (var value in EncodingValues.All)
+            Line($"        {value.CodePage} {{ return (& $__rukbat_text_encoding {Quote(value.Label)} 'text').name }}");
+        Line("    }");
+        Line("    return (& $__rukbat_text_encoding ('windows-' + $number) 'text').name");
+        Line("}");
+        Line("'encoding.name' { return [string]$values[0] }");
+    }
+
+    private void EmitEncodingSelector()
+    {
+        Line("$__rukbat_text_encoding = {");
+        Line("    param([string]$name, [string]$operation)");
+        Line("    & $__rukbat_load_CodePageCodec");
+        Line("    switch -CaseSensitive ($name) {");
+        foreach (var value in EncodingValues.All)
+            Line($"        {Quote(value.Label)} {{ return [pscustomobject]@{{ name = {Quote(value.Label)}; encoding = {value.Codec} }} }}");
+        Line("    }");
+        Line("    if ($name -cmatch '^windows-([1-9][0-9]*)$') {");
+        Line("        $number = 0");
+        Line("        if ([int]::TryParse($Matches[1], [ref]$number)) {");
+        Line("            switch ($number) {");
+        foreach (var value in EncodingValues.All.Where(v => v.Label != $"windows-{v.CodePage}"))
+            Line($"                {value.CodePage} {{ throw \"Use canonical encoding name {value.Label}.\" }}");
+        Line("            }");
+        Line("            try { return [pscustomobject]@{ name = $name; encoding = [RukbatCodePageCodec]::new($number) } }");
+        Line("            catch { throw \"unsupported encoding: $name\" }");
+        Line("        }");
+        Line("    }");
+        Line("    throw \"unsupported encoding: $name\"");
         Line("}.GetNewClosure()");
     }
 
@@ -141,9 +184,8 @@ internal sealed partial class Emitter
         return ,([object[]]$paths)
     }
     'fs.read_text' {
-        $selected = & $__rukbat_file_encoding ([string]$values[1])
+        $selected = & $__rukbat_text_encoding ([string]$values[1]) 'file'
         $bytes = [System.IO.File]::ReadAllBytes((& $__rukbat_resolve_path ([string]$values[0])))
-        if ($selected.name -eq 'windows-932') { return (& $__rukbat_decode_windows932 $bytes) }
         $offset = 0
         switch ($selected.name) {
             'utf-8' {
@@ -157,11 +199,19 @@ internal sealed partial class Emitter
                 if ($bytes.Length -ge 2 -and $bytes[0] -eq 254 -and $bytes[1] -eq 255) { $offset = 2 }
                 elseif ($bytes.Length -ge 2 -and $bytes[0] -eq 255 -and $bytes[1] -eq 254) { throw 'file encoding utf-16be conflicts with a UTF-16LE BOM.' }
             }
+            'utf-32le' {
+                if ($bytes.Length -ge 4 -and $bytes[0] -eq 255 -and $bytes[1] -eq 254 -and $bytes[2] -eq 0 -and $bytes[3] -eq 0) { $offset = 4 }
+                elseif ($bytes.Length -ge 4 -and $bytes[0] -eq 0 -and $bytes[1] -eq 0 -and $bytes[2] -eq 254 -and $bytes[3] -eq 255) { throw 'file encoding utf-32le conflicts with a UTF-32BE BOM.' }
+            }
+            'utf-32be' {
+                if ($bytes.Length -ge 4 -and $bytes[0] -eq 0 -and $bytes[1] -eq 0 -and $bytes[2] -eq 254 -and $bytes[3] -eq 255) { $offset = 4 }
+                elseif ($bytes.Length -ge 4 -and $bytes[0] -eq 255 -and $bytes[1] -eq 254 -and $bytes[2] -eq 0 -and $bytes[3] -eq 0) { throw 'file encoding utf-32be conflicts with a UTF-32LE BOM.' }
+            }
         }
         return $selected.encoding.GetString($bytes, $offset, $bytes.Length - $offset)
     }
     'fs.write_text' {
-        $selected = & $__rukbat_file_encoding ([string]$values[2])
+        $selected = & $__rukbat_text_encoding ([string]$values[2]) 'file'
         $path = & $__rukbat_resolve_path ([string]$values[0])
         $text = [string]$values[1]
         $bytes = $selected.encoding.GetBytes($text)
@@ -277,55 +327,6 @@ internal sealed partial class Emitter
         try { return [System.IO.File]::Exists((& $__rukbat_resolve_path ([string]$values[0]))) }
         catch { return $false }
     }
-    """;
-
-    private const string FileEncodingRuntime = """
-    $__rukbat_decode_windows932 = {
-        param([byte[]]$bytes)
-        if ($null -eq ('RukbatWindows932Decoder' -as [type])) {
-            Add-Type -TypeDefinition @'
-    using System;
-    using System.ComponentModel;
-    using System.Runtime.InteropServices;
-    public static class RukbatWindows932Decoder {
-        private const uint Windows932 = 932;
-        private const uint RejectInvalidCharacters = 8;
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern int MultiByteToWideChar(uint codePage, uint flags,
-            byte[] input, int byteCount, IntPtr output, int charCount);
-        public static string Decode(byte[] bytes) {
-            if (bytes.Length == 0) return String.Empty;
-            int length = MultiByteToWideChar(Windows932, RejectInvalidCharacters,
-                bytes, bytes.Length, IntPtr.Zero, 0);
-            if (length == 0) throw new Win32Exception(Marshal.GetLastWin32Error(), "Invalid windows-932 input.");
-            IntPtr buffer = Marshal.AllocHGlobal(checked(length * sizeof(char)));
-            try {
-                if (MultiByteToWideChar(Windows932, RejectInvalidCharacters,
-                    bytes, bytes.Length, buffer, length) == 0)
-                    throw new Win32Exception(Marshal.GetLastWin32Error(), "Invalid windows-932 input.");
-                return Marshal.PtrToStringUni(buffer, length);
-            } finally { Marshal.FreeHGlobal(buffer); }
-        }
-    }
-    '@ | Out-Null
-        }
-        return [RukbatWindows932Decoder]::Decode($bytes)
-    }.GetNewClosure()
-    $__rukbat_file_encoding = {
-        param([string]$name)
-        switch -CaseSensitive ($name) {
-            'utf-8' { return [pscustomobject]@{ name = 'utf-8'; encoding = [System.Text.UTF8Encoding]::new($false, $true) } }
-            'utf-16le' { return [pscustomobject]@{ name = 'utf-16le'; encoding = [System.Text.UnicodeEncoding]::new($false, $false, $true) } }
-            'utf-16be' { return [pscustomobject]@{ name = 'utf-16be'; encoding = [System.Text.UnicodeEncoding]::new($true, $false, $true) } }
-            'windows-932' {
-                return [pscustomobject]@{
-                    name = 'windows-932'
-                    encoding = [System.Text.Encoding]::GetEncoding(932, [System.Text.EncoderExceptionFallback]::new(), [System.Text.DecoderExceptionFallback]::new())
-                }
-            }
-            default { throw "unsupported file encoding: $name" }
-        }
-    }.GetNewClosure()
     """;
 
     private const string DirectoriesRuntime = """
@@ -513,6 +514,7 @@ internal sealed partial class Emitter
 
     private const string ProcessRuntime = """
     'process.run' {
+        $selected = & $__rukbat_text_encoding ([string]$values[3]) 'process'
         $timeout = $values[2]
         if ($null -ne $timeout -and [int]$timeout -le 0) {
             throw 'process timeout must be greater than zero.'
@@ -572,7 +574,10 @@ internal sealed partial class Emitter
             $start.FileName = $found
         }
         & $__rukbat_load_ProcessJob
-        return ,([RukbatProcessJob]::Run($start.FileName, [string]::Join(' ', $quoted), $__rukbat_working_dir, $timeout))
+        $result = [RukbatProcessJob]::RunBytes($start.FileName, [string]::Join(' ', $quoted), $__rukbat_working_dir, $timeout)
+        $stdout = $selected.encoding.GetString([byte[]]$result[1])
+        $stderr = $selected.encoding.GetString([byte[]]$result[2])
+        return ,([object[]]@($result[0], [string]$stdout, [string]$stderr))
     }
     """;
 }

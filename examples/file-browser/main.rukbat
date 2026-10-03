@@ -1,5 +1,6 @@
 import "./services/file-listing.rukbat" as listing
 import "./options.rukbat" as options
+import encoding
 import fs
 import json
 
@@ -14,6 +15,6 @@ if settings.help {
     if settings.output == "" {
         print(output)
     } else {
-        fs.write_text(settings.output, output, "utf-8")
+        fs.write_text(settings.output, output, encoding.utf8)
     }
 }

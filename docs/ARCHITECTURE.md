@@ -68,3 +68,14 @@ use the same operator lowering as ordinary expressions. Other assertions use the
 ordinary expression emitter, preserving short-circuit and nullable-array behavior.
 
 The entry wrapper captures working and script directories before module initialization. Standard-library runtime closures retain this path context and resolve paths explicitly; they do not depend on later `$PWD` or `Environment.CurrentDirectory` values. Emitter derives runtime source labels relative to the entry source directory while leaving compiler diagnostic paths unchanged.
+
+File and process output decoding share the canonical encoding selector and strict native Windows code-page codec. The native process helper captures bounded byte streams; `process.run` decodes them using its explicit encoding. The CLI test runner and operations toolkit use the helper's UTF-8 wrapper for their own controlled hosts.
+
+`encoding.Encoding` is a validated standard-library type bound through existing qualified type
+syntax. `EncodingValues` supplies its member names, external labels, editor descriptions, and
+runtime codec constructors. The checker records bound read-only members; the emitter lowers
+validated values to private string tags. `encoding.parse` and `encoding.from_code_page` validate external names and numbers on the target.
+Managed strict Unicode codecs handle UTF-8/16/32; native Windows conversion flags reject
+invalid bytes, unencodable characters, and best-fit substitutions for legacy code pages. JSON and PowerShell boundaries reject this type recursively. An `encoding`
+import alone emits conversion operations without filesystem/process native helpers. No parser
+syntax or deployment runtime is added.

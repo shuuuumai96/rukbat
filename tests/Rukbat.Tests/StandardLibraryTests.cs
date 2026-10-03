@@ -36,13 +36,13 @@ public class StandardLibraryTests : TestBase
         var directory = project.DirectoryPath.Replace("\\", "\\\\");
         var variable = ("RUKBAT_TEST_" + Guid.NewGuid().ToString("N")).Replace("\\", "\\\\");
         project.Write("main.rukbat", $$"""
-            import fs
+            import encoding; import fs
             import path
             import env
             target: string = path.join(['{{directory}}', 'data.txt'])
-            fs.write_text(target, 'hello', 'utf-8')
+            fs.write_text(target, 'hello', encoding.utf8)
             print(fs.is_file(target))
-            print(fs.read_text(target, 'utf-8'))
+            print(fs.read_text(target, encoding.utf8))
             print(path.filename(target))
             print(path.extension(target))
             names: string[] = fs.list_files('{{directory}}', '*.txt')
@@ -114,8 +114,8 @@ public class StandardLibraryTests : TestBase
         {
             var marker = project.PathFor(host + ".pid");
             project.Write("main.rukbat", $$"""
-                import process
-                try { process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}', '{{marker.Replace("\\", "\\\\")}}'], 3000) }
+                import encoding; import process
+                try { process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}', '{{marker.Replace("\\", "\\\\")}}'], 3000, encoding.utf8) }
                 catch err { print(err.message) }
                 """);
             var compiled = project.Compile();
@@ -136,7 +136,7 @@ public class StandardLibraryTests : TestBase
     {
         using var project = new Project();
         var marker = project.PathFor("started.txt").Replace("\\", "\\\\");
-        project.Write("main.rukbat", $"import process\ntry {{ process.run('powershell', ['-Command', '[IO.File]::WriteAllText(\"{marker}\", \"started\")'], {timeout}) }} catch err {{ print(err.message) }}");
+        project.Write("main.rukbat", $"import encoding; import process\ntry {{ process.run('powershell', ['-Command', '[IO.File]::WriteAllText(\"{marker}\", \"started\")'], {timeout}, encoding.utf8) }} catch err {{ print(err.message) }}");
         var result = await project.Run();
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("timeout must be greater than zero", result.Output);
@@ -152,8 +152,8 @@ public class StandardLibraryTests : TestBase
         project.Write("noisy.ps1", "$text = 'x' * 4096\nwhile ($true) { [Console]::Out.Write($text); [Console]::Error.Write($text) }");
         var fixture = project.PathFor("noisy.ps1").Replace("\\", "\\\\");
         project.Write("main.rukbat", $$"""
-            import process
-            try { process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}'], 500) }
+            import encoding; import process
+            try { process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}'], 500, encoding.utf8) }
             catch err { print(err.message) }
             """);
         var compiled = project.Compile();
@@ -183,8 +183,8 @@ public class StandardLibraryTests : TestBase
         {
             var marker = project.PathFor(host + "-descendant.pid");
             project.Write("main.rukbat", $$"""
-                import process
-                try { process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{parent}}', '{{descendant}}', '{{marker.Replace("\\", "\\\\")}}'], 3000) }
+                import encoding; import process
+                try { process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{parent}}', '{{descendant}}', '{{marker.Replace("\\", "\\\\")}}'], 3000, encoding.utf8) }
                 catch err { print(err.message) }
                 """);
             var compiled = project.Compile();
@@ -252,11 +252,11 @@ public class StandardLibraryTests : TestBase
         var stdoutPath = project.PathFor("stdout.txt").Replace("\\", "\\\\");
         var stderrPath = project.PathFor("stderr.txt").Replace("\\", "\\\\");
         project.Write("main.rukbat", $$"""
-            import fs
+            import encoding; import fs
             import process
-            result := process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}'], null)
-            fs.write_text('{{stdoutPath}}', result.stdout, 'utf-8')
-            fs.write_text('{{stderrPath}}', result.stderr, 'utf-8')
+            result := process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}'], null, encoding.utf8)
+            fs.write_text('{{stdoutPath}}', result.stdout, encoding.utf8)
+            fs.write_text('{{stderrPath}}', result.stderr, encoding.utf8)
             print(result.exit_code)
             """);
 
@@ -287,8 +287,8 @@ public class StandardLibraryTests : TestBase
             """);
         var fixture = project.PathFor("invalid-output.ps1").Replace("\\", "\\\\");
         project.Write("main.rukbat", $$"""
-            import process
-            try { process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}'], null) }
+            import encoding; import process
+            try { process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}'], null, encoding.utf8) }
             catch err { print('caught') }
             """);
 
@@ -330,11 +330,11 @@ public class StandardLibraryTests : TestBase
         var stdoutPath = project.PathFor("stdout.txt").Replace("\\", "\\\\");
         var stderrPath = project.PathFor("stderr.txt").Replace("\\", "\\\\");
         project.Write("main.rukbat", $$"""
-            import fs
+            import encoding; import fs
             import process
-            result := process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}'], null)
-            fs.write_text('{{stdoutPath}}', result.stdout, 'utf-8')
-            fs.write_text('{{stderrPath}}', result.stderr, 'utf-8')
+            result := process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', '{{fixture}}'], null, encoding.utf8)
+            fs.write_text('{{stdoutPath}}', result.stdout, encoding.utf8)
+            fs.write_text('{{stderrPath}}', result.stderr, encoding.utf8)
             print(result.exit_code)
             """);
 
@@ -364,11 +364,11 @@ public class StandardLibraryTests : TestBase
     {
         using var project = new Project();
         project.Write("main.rukbat", """
-            import process
+            import encoding; import process
             result: process.Result = process.run('powershell', [
                 '-NoLogo', '-NoProfile', '-Command',
                 'Start-Sleep -Milliseconds 100; [Console]::Out.Write("out"); [Console]::Error.Write("err"); exit 7'
-            ], 5000)
+            ], 5000, encoding.utf8)
             print(result.exit_code)
             print(result.stdout)
             print(result.stderr)
@@ -395,8 +395,8 @@ public class StandardLibraryTests : TestBase
         var path = project.PathFor("utf16.txt").Replace("\\", "\\\\");
         File.WriteAllBytes(project.PathFor("utf16.txt"), [0xff, 0xfe, 0x41, 0x00]);
         project.Write("main.rukbat", $$"""
-            import fs
-            try { fs.read_text('{{path}}', 'utf-8') } catch err { print('invalid UTF-8') }
+            import encoding; import fs
+            try { fs.read_text('{{path}}', encoding.utf8) } catch err { print('invalid UTF-8') }
             """);
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
@@ -417,7 +417,7 @@ public class StandardLibraryTests : TestBase
     public async Task ProcessLaunchFailureIsAnRukbatError()
     {
         using var project = new Project();
-        project.Write("main.rukbat", "import process\nprocess.run('missing-rukbat-executable', [], null)");
+        project.Write("main.rukbat", "import encoding; import process\nprocess.run('missing-rukbat-executable', [], null, encoding.utf8)");
         var result = await project.Run();
         Assert.NotEqual(0, result.ExitCode);
         Assert.Contains("missing-rukbat-executable", result.Error);
@@ -425,10 +425,10 @@ public class StandardLibraryTests : TestBase
 
     [Trait("Category", "Unit")]
     [Theory]
-    [InlineData("import fs\nfs.read_text(1, 'utf-8')")]
+    [InlineData("import encoding; import fs\nfs.read_text(1, encoding.utf8)")]
     [InlineData("import path\npath.join('one')")]
     [InlineData("import env\nenv.set('x', null)")]
-    [InlineData("import process\nprocess.run('x', [1], null)")]
+    [InlineData("import encoding; import process\nprocess.run('x', [1], null, encoding.utf8)")]
     [InlineData("import process\nprocess.run('x', [])")]
     [InlineData("import json as j")]
     [InlineData("import './json.rukbat' as json")]

@@ -235,8 +235,8 @@ public class UnattendedTests : TestBase
         project.Write("child.ps1", "[IO.File]::WriteAllText('ready', [string]$PID); Start-Sleep -Seconds 60");
         project.Write("parent.ps1", "Start-Process powershell -ArgumentList '-NoProfile -NonInteractive -File child.ps1' -NoNewWindow | Out-Null; exit 0");
         Build(project, $$"""
-            import process
-            try { process.run('powershell', ['-NoProfile', '-NonInteractive', '-File', 'parent.ps1'], {{(killHost ? "null" : "4000")}}) }
+            import encoding; import process
+            try { process.run('powershell', ['-NoProfile', '-NonInteractive', '-File', 'parent.ps1'], {{(killHost ? "null" : "4000")}}, encoding.utf8) }
             catch err { print(err.message) }
             """);
         using var runner = Start(project, shell);
@@ -277,10 +277,10 @@ public class UnattendedTests : TestBase
         using var project = new Project();
         project.Write("output.ps1", "$buffer = New-Object byte[] 1048576; $out = [Console]::OpenStandardOutput(); for ($i=0; $i -lt 80; $i++) { $out.Write($buffer,0,$buffer.Length) }; Start-Sleep 60");
         Build(project, """
-            import process
-            input := process.run('powershell', ['-NoProfile', '-Command', '[Console]::Write([Console]::In.ReadToEnd().Length)'], 5000)
+            import encoding; import process
+            input := process.run('powershell', ['-NoProfile', '-Command', '[Console]::Write([Console]::In.ReadToEnd().Length)'], 5000, encoding.utf8)
             print(input.stdout)
-            try { process.run('powershell', ['-NoProfile', '-File', 'output.ps1'], 10000) }
+            try { process.run('powershell', ['-NoProfile', '-File', 'output.ps1'], 10000, encoding.utf8) }
             catch err { print(err.message) }
             """);
         var result = await RunDeployed(shell, project.PathFor("job.ps1"), project.DirectoryPath, project.DirectoryPath);
@@ -386,7 +386,7 @@ public class UnattendedTests : TestBase
     public async Task ConstrainedLanguageFailsBeforeUserOperations(string shell)
     {
         using var project = new Project();
-        var generated = Build(project, "import fs; fs.write_text('must-not-exist', 'changed', 'utf-8')");
+        var generated = Build(project, "import encoding; import fs; fs.write_text('must-not-exist', 'changed', encoding.utf8)");
         project.Write("job.ps1", "$ExecutionContext.SessionState.LanguageMode = 'ConstrainedLanguage'\n" + generated);
         var result = await RunDeployed(shell, project.PathFor("job.ps1"), project.DirectoryPath, project.DirectoryPath);
         Assert.NotEqual(0, result.ExitCode);

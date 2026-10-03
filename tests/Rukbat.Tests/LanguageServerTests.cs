@@ -189,6 +189,9 @@ public sealed class LanguageServerTests : TestBase
     [InlineData("process", "run")]
     [InlineData("text", "parse_int")]
     [InlineData("test", "assert")]
+    [InlineData("encoding", "utf8")]
+    [InlineData("encoding", "Encoding")]
+    [InlineData("encoding", "parse")]
     public void IncompleteMemberCompletionShowsCanonicalStandardApi(string module, string expected)
     {
         using var project = new Project();
@@ -289,10 +292,64 @@ public sealed class LanguageServerTests : TestBase
     {
         using var project = new Project();
         var uri = UriFor(project);
-        var result = Result(Session(Open(uri, "import fs\nx := fs.read_text(\"data.csv\", \"utf-8\")"), Feature(uri, "hover", 1, 9)));
+        var result = Result(Session(Open(uri, "import encoding; import fs\nx := fs.read_text(\"data.csv\", encoding.utf8)"), Feature(uri, "hover", 1, 9)));
         var markdown = result.GetProperty("contents").GetProperty("value").GetString();
-        Assert.Contains("fs.read_text(path: string, encoding: string): string", markdown);
+        Assert.Contains("fs.read_text(path: string, encoding: encoding.Encoding): string", markdown);
         Assert.Contains("Error", markdown);
+    }
+
+    [Fact]
+    public void ProcessEncodingAppearsInHoverAndCompletion()
+    {
+        using var project = new Project();
+        var uri = UriFor(project);
+        var messages = Session(Open(uri, "import encoding; import process\nresult := process.run('tool.exe', [], null, encoding.windows_932)"),
+            Feature(uri, "hover", 1, 19));
+        Assert.Empty(LastDiagnostics(messages, uri).GetProperty("diagnostics").EnumerateArray());
+        var signature = "process.run(executable: string, arguments: string[], timeout_ms: int?, encoding: encoding.Encoding): process.Result";
+        Assert.Contains(signature, Result(messages).GetProperty("contents").GetProperty("value").GetString());
+        var completion = Result(Session(Open(uri, "import process\nprocess."), Feature(uri, "completion", 1, 8)));
+        var run = completion.EnumerateArray().Single(item => item.GetProperty("label").GetString() == "run");
+        Assert.Equal(signature, run.GetProperty("detail").GetString());
+    }
+
+    [Fact]
+    public void EncodingCompletionAndHoverDescribeValidatedValuesAndTheirType()
+    {
+        using var project = new Project();
+        var uri = UriFor(project);
+        var completion = Result(Session(Open(uri, "import encoding\nencoding."), Feature(uri, "completion", 1, 9)));
+        foreach (var name in new[] { "utf8", "utf16_le", "utf16_be", "utf32_le", "utf32_be", "ascii", "iso_8859_1",
+            "windows_874", "windows_1250", "windows_1251", "windows_1252", "windows_1253", "windows_1254",
+            "windows_1255", "windows_1256", "windows_1257", "windows_1258", "windows_932", "windows_936",
+            "windows_949", "windows_950", "gb18030", "windows_437", "windows_850", "windows_852", "windows_866" })
+        {
+            var item = completion.EnumerateArray().Single(item => item.GetProperty("label").GetString() == name);
+            Assert.Equal(20, item.GetProperty("kind").GetInt32());
+            Assert.Equal($"encoding.{name}: encoding.Encoding", item.GetProperty("detail").GetString());
+            Assert.Contains("Read-only", item.GetProperty("documentation").GetProperty("value").GetString());
+        }
+        var factory = completion.EnumerateArray().Single(item => item.GetProperty("label").GetString() == "from_code_page");
+        Assert.Contains("encoding.from_code_page(number: int): encoding.Encoding", factory.GetProperty("detail").GetString());
+        const string source = "import encoding\nselected := encoding.windows_932\nother: encoding.Encoding? = selected";
+        var messages = Session(Open(uri, source), Feature(uri, "hover", 1, 23, "value"),
+            Feature(uri, "hover", 1, 2, "inferred"), Feature(uri, "hover", 2, 19, "type"));
+        Assert.Empty(LastDiagnostics(messages, uri).GetProperty("diagnostics").EnumerateArray());
+        Assert.Contains("Windows CP932", Result(messages, "value").GetProperty("contents").GetProperty("value").GetString());
+        Assert.Contains("selected: encoding.Encoding", Result(messages, "inferred").GetProperty("contents").GetProperty("value").GetString());
+        Assert.Contains("validated encoding type", Result(messages, "type").GetProperty("contents").GetProperty("value").GetString());
+    }
+
+    [Theory]
+    [InlineData("encoding.utf8 = encoding.windows_932", "RUK2010")]
+    [InlineData("selected := encoding.UTF8", "RUK2004")]
+    [InlineData("import fs; fs.read_text('data.txt', 'utf-8')", "RUK2001")]
+    public void EncodingDiagnosticsReuseCompilerValidation(string body, string code)
+    {
+        using var project = new Project();
+        var uri = UriFor(project);
+        var diagnostics = LastDiagnostics(Session(Open(uri, "import encoding\n" + body)), uri);
+        Assert.Contains(diagnostics.GetProperty("diagnostics").EnumerateArray(), d => d.GetProperty("code").GetString() == code);
     }
 
     [Fact]

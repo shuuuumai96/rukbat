@@ -255,7 +255,7 @@ Rethrowing with `throw err` preserves the original location.
 Unhandled errors report the Rukbat file, line, and message on stderr and terminate with exit code `1`.
 For external executables called directly through `powershell<T>`, exit code `0` means success and any other code causes Error.
 
-The `process.run(executable, arguments, timeout_ms)` API captures stdout and stderr and returns nonzero child exit codes as normal results. A positive deadline covers the process tree and output capture; `null` is deliberately unbounded. Windows Job Objects terminate the tree on timeout, capture failure, or host termination. This requires Windows 10 / Server 2016 or later. Input is closed and each output stream is limited to 64 MiB. See [the process contract](docs/STDLIB.md#process) for containment and cleanup details.
+The `process.run(executable, arguments, timeout_ms, encoding)` API captures stdout and stderr with an explicit `encoding.Encoding` value (for example `encoding.utf8`, `encoding.windows_932`, or `encoding.windows_1252`) and returns nonzero child exit codes as normal results. File text operations use the same type. There are 26 predefined values; `encoding.from_code_page(number)` validates additional fixed Windows code pages. Strings are rejected during checking; use `encoding.parse(name)` for external configuration and `encoding.name(value)` for logging or serialization. A positive deadline covers the process tree and output capture; `null` is deliberately unbounded. Windows Job Objects terminate the tree on timeout, capture failure, or host termination. This requires Windows 10 / Server 2016 or later. Input is closed and each output stream is limited to 64 MiB. See [the process contract](docs/STDLIB.md#process) for containment and cleanup details.
 The initial specification allows one catch clause and has no typed catches, `finally`, or `throws` declarations.
 
 ```powershell
@@ -308,10 +308,11 @@ endings, trims each line, and saves lines starting with the case-sensitive prefi
 For a legacy Japanese Windows CSV, select CP932 explicitly:
 
 ```rukbat
+import encoding
 import fs
 import csv
 
-content := fs.read_text("legacy.csv", "windows-932")
+content := fs.read_text("legacy.csv", encoding.windows_932)
 rows := csv.parse(content)
 ```
 
@@ -334,9 +335,10 @@ row widths. Cells remain strings; choose numeric or boolean conversion explicitl
 
 ```rukbat
 import csv
+import encoding
 import fs
 
-people := csv.parse_table(fs.read_text("people.csv", "windows-932"))
+people := csv.parse_table(fs.read_text("people.csv", encoding.windows_932))
 kept: csv.Row[] = []
 
 for person in people.rows {
@@ -345,7 +347,7 @@ for person in people.rows {
     }
 }
 people.rows = kept
-fs.write_text("enabled.csv", csv.stringify_table(people), "utf-8")
+fs.write_text("enabled.csv", csv.stringify_table(people), encoding.utf8)
 ```
 
 For CSV without headers, `csv.parse` returns `string[][]` and `csv.stringify` writes those records.
@@ -354,15 +356,16 @@ the properties you need and retain unknown properties when updating a configurat
 
 ```rukbat
 import json
+import encoding
 import fs
 
-config := json.parse(fs.read_text("config.json", "utf-8"))
+config := json.parse(fs.read_text("config.json", encoding.utf8))
 service := json.get(config, "service")
 print(json.as<bool>(json.get(service, "enabled")))
 service = json.set(service, "enabled", true)
 config = json.set(config, "service", service)
 config = json.remove(config, "obsolete")
-fs.write_text("updated.json", json.stringify(config), "utf-8")
+fs.write_text("updated.json", json.stringify(config), encoding.utf8)
 ```
 
 Updates return copies: assign the result to retain a change. JSON arrays support `items`, `set_at`,

@@ -74,6 +74,16 @@ opaque, immutable row accessed by column name through standard-library functions
 ordinary struct and array copy semantics; row updates return new rows. These types do not add
 dynamic indexing or new syntax. See STDLIB.md for header validation and serialization.
 
+`import encoding` provides the validated standard type `encoding.Encoding` and its read-only
+values such as `encoding.utf8`, `encoding.windows_932`, and `encoding.windows_1252`.
+`encoding.from_code_page(number)` validates additional fixed Windows code pages on the target.
+See STDLIB.md for predefined values and unsupported conversion families.
+It supports variables, parameters, returns, arrays, struct fields, nullable wrappers, and
+same-type equality. It has no public fields or constructors and no implicit string or numeric
+conversions. Convert external names explicitly with `encoding.parse` / `encoding.name`.
+Direct printing, JSON conversion, and PowerShell arguments/results containing this type are
+rejected; convert to/from a string at these boundaries. There is no general enum declaration.
+
 ```rukbat
 nickname: string? = null
 values: string?[] = ["one", null]
@@ -88,7 +98,7 @@ A nullable variable or parameter can be narrowed by a direct `== null` or `!= nu
 
 Module variables can also be narrowed. A call to an ordinary function in the same module invalidates their narrowing because that function may modify them. `print`, standard built-ins, and functions in another module do not invalidate current-module narrowing.
 
-Before narrowing, a `T?` value can only be compared directly with the `null` literal, stored in a compatible nullable location, passed or returned as a nullable value, encoded as JSON, or passed through a nullable-aware external boundary. General equality between two nullable expressions is not defined in v0.1.
+Before narrowing, a `T?` value can only be compared directly with the `null` literal, stored in a compatible nullable location, passed or returned as a nullable value, encoded as JSON when its type supports JSON, or passed through a supported nullable-aware external boundary. General equality between two nullable expressions is not defined in v0.1.
 
 ## Numbers and equality
 
@@ -97,6 +107,8 @@ Float literals include `1.0`, `1e3`, `1E3`, and `1.5e-2`. The abbreviated forms 
 Integer or float division by zero is a runtime Error. A float literal, arithmetic result, or external value that is NaN or positive or negative Infinity is rejected. Other float operations use binary64 behavior.
 
 Primitive equality requires compatible non-null values and string equality is case-sensitive. Mixed `int`/`float` equality uses the `int` to `float` conversion. Struct and array equality are not defined. A nullable value may be compared directly with `null`.
+
+Two non-null `encoding.Encoding` values support `==` and `!=`; arithmetic and ordering are not defined.
 
 Equality and direct `print` / `eprint` are not defined for `json.Value` or `csv.Row`. Use `json.as<T>` to read a
 primitive or `json.stringify` to obtain JSON text.
@@ -158,8 +170,9 @@ Local imports remain compile-time paths relative to the importing source file. T
 
 `powershell<T>(command, ...)` is the explicit escape hatch for a PowerShell operation not covered by Rukbat. It checks the returned value against `T`; a scalar result requires exactly one value and `T[]` collects values into an array. PowerShell failures and incompatible results are runtime errors.
 
-PowerShell arguments and result types cannot contain `json.Value` or `csv.Row`. Request a string and use
-`json.parse` to read a JSON document from an external command.
+PowerShell arguments and result types cannot contain `json.Value`, `csv.Row`, or `encoding.Encoding`.
+Request a string and use `json.parse` to read a JSON document from an external command.
+For encodings, pass `encoding.name(value)` and parse returned text with `encoding.parse`.
 
 No output is distinct from one explicit `$null` output. No output is an Error for `T` and `T?`, while an explicit `$null` is accepted only by `T?`. No output becomes `[]` for `T[]`; one `$null` becomes `[null]` for `T?[]` and is an Error for `T[]`. Nullable arrays `T[]?` accept one explicit `$null`, but no output remains an Error. External float values must be numeric and finite.
 

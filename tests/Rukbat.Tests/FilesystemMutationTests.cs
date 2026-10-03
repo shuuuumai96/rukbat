@@ -38,11 +38,11 @@ public class FilesystemMutationTests : TestBase
         var original = Encoding.UTF8.GetBytes("known existing contents\n");
         File.WriteAllBytes(existing, original);
         project.Write("main.rukbat", $$"""
-            import fs
+            import encoding; import fs
             import json
             invalid := json.parse<string>('"\\uD800"')
-            try { fs.write_text('{{RukbatLiteral(existing)}}', invalid, 'utf-8') } catch err { print('existing') }
-            try { fs.write_text('{{RukbatLiteral(missing)}}', invalid, 'utf-8') } catch err { print('missing') }
+            try { fs.write_text('{{RukbatLiteral(existing)}}', invalid, encoding.utf8) } catch err { print('existing') }
+            try { fs.write_text('{{RukbatLiteral(missing)}}', invalid, encoding.utf8) } catch err { print('missing') }
             """);
 
         var invalidCompiled = project.Compile();
@@ -56,10 +56,10 @@ public class FilesystemMutationTests : TestBase
         Assert.Empty(Directory.EnumerateFiles(project.DirectoryPath, ".rukbat-write-*"));
 
         project.Write("main.rukbat", $$"""
-            import fs
-            fs.write_text('{{RukbatLiteral(existing)}}', 'new contents', 'utf-8')
-            fs.write_text('{{RukbatLiteral(empty)}}', 'old', 'utf-8')
-            fs.write_text('{{RukbatLiteral(empty)}}', '', 'utf-8')
+            import encoding; import fs
+            fs.write_text('{{RukbatLiteral(existing)}}', 'new contents', encoding.utf8)
+            fs.write_text('{{RukbatLiteral(empty)}}', 'old', encoding.utf8)
+            fs.write_text('{{RukbatLiteral(empty)}}', '', encoding.utf8)
             """);
         var validCompiled = project.Compile();
         Assert.True(validCompiled.Success, string.Join("\n", validCompiled.Diagnostics));
@@ -107,14 +107,14 @@ public class FilesystemMutationTests : TestBase
         var rootRelativeListedDirectory = "/" + Path.GetRelativePath(root, listedDirectory).Replace("\\", "/");
         Directory.CreateDirectory(changed);
         project.Write("source/main.rukbat", $$"""
-            import fs
+            import encoding; import fs
             import path
 
             powershell<void>('Set-Location', LiteralPath: '{{RukbatLiteral(changed)}}')
             powershell<void>('Invoke-Expression', "[Environment]::CurrentDirectory = '{{RukbatLiteral(deploy)}}'")
             fs.create_dir_all('{{RukbatLiteral(special)}}/nested')
             print(fs.is_dir('{{RukbatLiteral(special)}}/nested'))
-            fs.write_text('{{RukbatLiteral(special)}}/nested/source.txt', 'one', 'utf-8')
+            fs.write_text('{{RukbatLiteral(special)}}/nested/source.txt', 'one', encoding.utf8)
             fs.copy_file('{{RukbatLiteral(special)}}/nested/source.txt', '{{RukbatLiteral(special)}}/nested/copy.txt')
             listed := fs.list_files('{{RukbatLiteral(special)}}/nested', '*.txt')
             print(listed.length)
@@ -124,7 +124,7 @@ public class FilesystemMutationTests : TestBase
             print(root_listed.length)
             try { fs.copy_file('{{RukbatLiteral(special)}}/nested/source.txt', '{{RukbatLiteral(special)}}/nested/copy.txt') } catch err { print('existing destination') }
             fs.move_file('{{RukbatLiteral(special)}}/nested/copy.txt', '{{RukbatLiteral(special)}}/nested/moved.txt')
-            print(fs.read_text('{{RukbatLiteral(special)}}/nested/moved.txt', 'utf-8'))
+            print(fs.read_text('{{RukbatLiteral(special)}}/nested/moved.txt', encoding.utf8))
             fs.remove_file('{{RukbatLiteral(special)}}/nested/moved.txt')
             fs.remove_file('missing.txt')
             print(fs.is_file('{{RukbatLiteral(special)}}/nested/moved.txt'))
@@ -414,7 +414,7 @@ public class FilesystemMutationTests : TestBase
     [Fact]
     public void FilesWriteEmitsSameDirectoryStagedReplacement()
     {
-        var output = Success("import fs\nfs.write_text('report.txt', 'contents', 'utf-8')");
+        var output = Success("import encoding; import fs\nfs.write_text('report.txt', 'contents', encoding.utf8)");
 
         Assert.Contains("[System.IO.Path]::Combine($directory, '.rukbat-write-' + [System.IO.Path]::GetRandomFileName())", output);
         Assert.Contains("[System.IO.File]::Open($candidate, [System.IO.FileMode]::CreateNew", output);

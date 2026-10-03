@@ -80,13 +80,14 @@ counts. The runner writes UTF-8 diagnostics, including when its streams are redi
 
 ```rukbat
 import test
+import encoding
 import fs
 import path
 
 fn test_report(ctx: test.Context): void {
     input := path.join([ctx.source_dir, "fixtures", "input.txt"])
     output := path.join([ctx.temp_dir, "report.txt"])
-    fs.write_text(output, fs.read_text(input, "utf-8"), "utf-8")
+    fs.write_text(output, fs.read_text(input, encoding.utf8), encoding.utf8)
     test.assert(fs.is_file(output))
 }
 ```

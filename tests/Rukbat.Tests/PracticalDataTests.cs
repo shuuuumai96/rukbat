@@ -67,10 +67,10 @@ public class PracticalDataTests : TestBase
         using var project = new Project();
         project.Write("main.rukbat", """
             import csv
-            import fs
+            import encoding; import fs
             import json
-            fs.write_text('input.csv', 'name,enabled,note\r\n日本語,true,"a,b"\r\nHanako,false,""\r\n', 'windows-932')
-            table := csv.parse_table(fs.read_text('input.csv', 'windows-932'))
+            fs.write_text('input.csv', 'name,enabled,note\r\n日本語,true,"a,b"\r\nHanako,false,""\r\n', encoding.windows_932)
+            table := csv.parse_table(fs.read_text('input.csv', encoding.windows_932))
             original := table
             kept: csv.Row[] = []
             for row in table.rows {
@@ -78,8 +78,8 @@ public class PracticalDataTests : TestBase
             }
             table.rows = kept
             table.rows.append(csv.row(table.columns, ['追加', 'true', '']))
-            fs.write_text('output.csv', csv.stringify_table(table), 'utf-8')
-            print(json.stringify(csv.parse(fs.read_text('output.csv', 'utf-8'))))
+            fs.write_text('output.csv', csv.stringify_table(table), encoding.utf8)
+            print(json.stringify(csv.parse(fs.read_text('output.csv', encoding.utf8))))
             print(csv.get(original.rows[0], 'note'))
             print(original.rows.length)
             print(csv.stringify_table(csv.table(['name'], [])) == 'name\r\n')
@@ -112,10 +112,10 @@ public class PracticalDataTests : TestBase
         using var project = new Project();
         project.Write("main.rukbat", """
             import json
-            import fs
+            import encoding; import fs
             struct Worker { name: string; enabled: bool }
-            fs.write_text('config.json', '{"service":{"enabled":false,"unknown":{"huge":1e400,"large":9007199254740993}},"workers":[{"name":"old","other":true}],"obsolete":1,"A":1,"a":2}', 'utf-8')
-            doc := json.parse(fs.read_text('config.json', 'utf-8'))
+            fs.write_text('config.json', '{"service":{"enabled":false,"unknown":{"huge":1e400,"large":9007199254740993}},"workers":[{"name":"old","other":true}],"obsolete":1,"A":1,"a":2}', encoding.utf8)
+            doc := json.parse(fs.read_text('config.json', encoding.utf8))
             original := doc
             service := json.get(doc, 'service')
             service = json.set(service, 'enabled', true)
@@ -135,8 +135,8 @@ public class PracticalDataTests : TestBase
             optional: int? = null
             doc = json.set(doc, 'nullable', optional)
             doc = json.set(doc, 'array', [1, 2])
-            fs.write_text('config.json', json.stringify(doc), 'utf-8')
-            print(fs.read_text('config.json', 'utf-8'))
+            fs.write_text('config.json', json.stringify(doc), encoding.utf8)
+            print(fs.read_text('config.json', encoding.utf8))
             print(json.as<bool>(json.get(json.get(original, 'service'), 'enabled')))
             print(json.as<string>(json.get(json.items(json.get(original, 'workers'))[0], 'name')))
             print(json.has(original, 'obsolete'))
@@ -312,12 +312,12 @@ public class PracticalDataTests : TestBase
         project.Write("input.csv", input.ToString());
         project.Write("main.rukbat", """
             import csv
-            import fs
-            table := csv.parse_table(fs.read_text('input.csv', 'utf-8'))
+            import encoding; import fs
+            table := csv.parse_table(fs.read_text('input.csv', encoding.utf8))
             print(table.rows.length)
             print(csv.get(table.rows[9999], 'note'))
             table.rows[9999] = csv.set(table.rows[9999], 'note', 'updated')
-            fs.write_text('output.csv', csv.stringify_table(table), 'utf-8')
+            fs.write_text('output.csv', csv.stringify_table(table), encoding.utf8)
             """);
         var result = await DeployAndRun(project, shell);
         Assert.True(result.ExitCode == 0, result.Error);

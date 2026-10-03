@@ -1,4 +1,5 @@
 import json
+import encoding
 import fs
 
 fn main(): void {
@@ -10,12 +11,12 @@ fn main(): void {
         }
     }
 
-    config := json.parse(fs.read_text(arguments[0], "utf-8"))
+    config := json.parse(fs.read_text(arguments[0], encoding.utf8))
     service := json.get(config, "service")
     service = json.set(service, "enabled", true)
     config = json.set(config, "service", service)
     config = json.remove(config, "obsolete")
-    fs.write_text(arguments[1], json.stringify(config), "utf-8")
+    fs.write_text(arguments[1], json.stringify(config), encoding.utf8)
 }
 
 try {

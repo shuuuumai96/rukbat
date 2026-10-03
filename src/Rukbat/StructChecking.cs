@@ -172,6 +172,10 @@ internal sealed partial class TypeChecker
 
         var parts = type.Name.Split('.');
         var owner = parts.Length == 1 ? module : module.Imports.GetValueOrDefault(parts[0]);
+        if (owner?.StandardName == "encoding" && parts[^1] == "Encoding")
+        {
+            return DeclaredTypes[node] = ValueType.Encoding;
+        }
         if (owner is not null && owner.Structs.TryGetValue(parts[^1], out var structure))
         {
             return DeclaredTypes[node] = structure.BoundType;
@@ -217,6 +221,18 @@ internal sealed partial class TypeChecker
 
     private ValueType MemberType(Member member, Symbols scope)
     {
+        if (member.Receiver is Name name && module.Imports.TryGetValue(name.Token.Text, out var imported) &&
+            imported.StandardName == "encoding")
+        {
+            var value = EncodingValues.All.FirstOrDefault(value => value.Name == member.Name);
+            if (value is null)
+            {
+                Error("RUK2004", $"Unknown encoding value '{member.Name}'.", member);
+                return ValueType.Error;
+            }
+            EncodingConstants[member] = value;
+            return ValueType.Encoding;
+        }
         var type = TypeOf(member.Receiver, scope);
         if (type == ValueType.Error)
         {

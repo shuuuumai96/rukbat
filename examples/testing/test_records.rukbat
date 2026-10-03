@@ -1,6 +1,7 @@
 import test
 import csv
 import json
+import encoding
 import fs
 import path
 import text
@@ -13,7 +14,7 @@ struct ParseCase {
 
 fn test_filter_csv(ctx: test.Context): void {
     input := path.join([ctx.source_dir, "fixtures", "people.csv"])
-    names := records.enabled_names(fs.read_text(input, "utf-8"))
+    names := records.enabled_names(fs.read_text(input, encoding.utf8))
     test.assert(names.length == 2)
     test.assert(names[0] == "Taro")
     test.assert(names[1] == "Suzuki, Ichiro")
@@ -32,8 +33,8 @@ fn test_update_json(): void {
 fn test_write_report(ctx: test.Context): void {
     output := path.join([ctx.temp_dir, "report.csv"])
     table := csv.table(["name", "status"], [["Taro", "ok"]])
-    fs.write_text(output, csv.stringify_table(table), "utf-8")
-    reloaded := csv.parse_table(fs.read_text(output, "utf-8"))
+    fs.write_text(output, csv.stringify_table(table), encoding.utf8)
+    reloaded := csv.parse_table(fs.read_text(output, encoding.utf8))
     test.assert(reloaded.rows.length == 1)
     test.assert(csv.get(reloaded.rows[0], "status") == "ok")
 }

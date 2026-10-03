@@ -104,6 +104,12 @@ public static class RukbatProcessJob
     }
     public static object[] Run(string executable, string arguments, string directory, int? timeout)
     {
+        var result = RunBytes(executable, arguments, directory, timeout);
+        var encoding = new UTF8Encoding(false, true);
+        return new object[] { result[0], encoding.GetString((byte[])result[1]), encoding.GetString((byte[])result[2]) };
+    }
+    public static object[] RunBytes(string executable, string arguments, string directory, int? timeout)
+    {
         IntPtr job = IntPtr.Zero, outRead = IntPtr.Zero, outWrite = IntPtr.Zero;
         IntPtr errRead = IntPtr.Zero, errWrite = IntPtr.Zero, input = IntPtr.Zero;
         IntPtr attributes = IntPtr.Zero, handles = IntPtr.Zero, jobs = IntPtr.Zero;
@@ -167,8 +173,7 @@ public static class RukbatProcessJob
             }
             uint code;
             Check(GetExitCodeProcess(process.Process, out code), "Cannot obtain process exit code.");
-            var encoding = new UTF8Encoding(false, true);
-            return new object[] { unchecked((int)code), encoding.GetString(stdout.Result), encoding.GetString(stderr.Result) };
+            return new object[] { unchecked((int)code), stdout.Result, stderr.Result };
         }
         finally
         {

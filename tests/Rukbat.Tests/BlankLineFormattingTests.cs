@@ -71,12 +71,12 @@ public sealed class BlankLineFormattingTests : TestBase
         Assert.Empty(compiler.CheckFile(input));
         Assert.Equal(0, Cli.Run(["fmt", input], TextWriter.Null, TextWriter.Null));
         var formatted = File.ReadAllText(input);
-        Assert.Contains("import csv\nimport fs\nimport path\nimport text\n\nfn usage()", formatted);
+        Assert.Contains("import csv\nimport encoding\nimport fs\nimport path\nimport text\n\nfn usage()", formatted);
         Assert.Contains("}\n\narguments: string[] = args()\n\ntry {", formatted);
         Assert.Contains("        }\n\n        fs.recover_file_moves", formatted);
         Assert.Contains("        exit(0)\n    }\n\n    if arguments.length", formatted);
         Assert.Contains("    }\n\n    rows := csv.parse", formatted);
-        Assert.Contains("    rows := csv.parse(fs.read_text(arguments[0], \"utf-8\"))\n\n    if rows.length", formatted);
+        Assert.Contains("    rows := csv.parse(fs.read_text(arguments[0], encoding.utf8))\n\n    if rows.length", formatted);
         Assert.Contains("    }\n\n    header := rows[0]\n\n    if header.length", formatted);
         Assert.Contains("    sources: string[] = []\n    destinations: string[] = []\n    record := 1\n\n    while record", formatted);
         Assert.Contains("        row := rows[record]\n\n        if row.length", formatted);

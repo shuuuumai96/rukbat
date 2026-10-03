@@ -3,6 +3,8 @@
 Keep rows whose `enabled` cell parses as `true`, set their `note` to `checked`, and write UTF-8 CSV.
 Column names are case-sensitive. `enabled` and `note` are required; other columns are retained.
 The source may place the columns in any order. Values of `enabled` must be `true` or `false`.
+The input encoding argument is parsed with `encoding.parse`: use `utf-8`, `utf-16le`,
+`utf-16be`, `windows-932`, or `windows-1252`; see the standard library reference for all supported names. Unknown names fail before reading or saving files.
 
 ```powershell
 rukbat run examples/csv-filter/main.rukbat -- input.csv enabled.csv windows-932

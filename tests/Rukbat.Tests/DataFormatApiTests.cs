@@ -53,7 +53,7 @@ public class DataFormatApiTests : TestBase
         project.Write("main.rukbat", """
             import csv
             import json
-            import fs
+            import encoding; import fs
 
             struct Config { name: string; values: int[]; note: string? }
             rows: string[][] = [
@@ -70,8 +70,8 @@ public class DataFormatApiTests : TestBase
             print(json.stringify(encoded))
             print(json.stringify(csv.parse(encoded)))
             print(json.stringify(rows) == original)
-            fs.write_text('records.csv', encoded, 'windows-932')
-            print(json.stringify(csv.parse(fs.read_text('records.csv', 'windows-932'))))
+            fs.write_text('records.csv', encoded, encoding.windows_932)
+            print(json.stringify(csv.parse(fs.read_text('records.csv', encoding.windows_932))))
             print(json.stringify(csv.stringify([])))
             print(csv.parse(csv.stringify([])).length)
 
@@ -79,8 +79,8 @@ public class DataFormatApiTests : TestBase
             try { csv.stringify([['valid'], []]) } catch err { print(err.message) }
 
             config := Config { name: '日本語', values: [1, 2], note: null }
-            fs.write_text('config.json', json.stringify(config), 'utf-8')
-            loaded := json.parse<Config>(fs.read_text('config.json', 'utf-8'))
+            fs.write_text('config.json', json.stringify(config), encoding.utf8)
+            loaded := json.parse<Config>(fs.read_text('config.json', encoding.utf8))
             print(json.stringify(loaded))
             """);
         var compiled = project.Compile();

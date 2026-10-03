@@ -1,3 +1,4 @@
+import encoding
 import fs
 import text
 
@@ -9,7 +10,7 @@ if arguments.length != 2 {
 }
 
 try {
-    content := fs.read_text(arguments[0], "utf-8")
+    content := fs.read_text(arguments[0], encoding.utf8)
     lines := text.split_lines(content)
     errors: string[] = []
 
@@ -22,7 +23,7 @@ try {
     }
 
     report := text.join(errors, "\r\n")
-    fs.write_text(arguments[1], report, "utf-8")
+    fs.write_text(arguments[1], report, encoding.utf8)
 } catch err {
     eprint(err.message)
     exit(1)

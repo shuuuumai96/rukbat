@@ -6,10 +6,10 @@ public class FileSystemApiTests : TestBase
     [Theory]
     [InlineData("list_files('.', '*')", "string[]")]
     [InlineData("list_files_recursive('.', '*')", "string[]")]
-    [InlineData("read_text('x', 'utf-8')", "string")]
+    [InlineData("read_text('x', encoding.utf8)", "string")]
     [InlineData("is_file('x')", "bool")]
     [InlineData("is_dir('x')", "bool")]
-    [InlineData("write_text('x', 'text', 'utf-8')", "void")]
+    [InlineData("write_text('x', 'text', encoding.utf8)", "void")]
     [InlineData("copy_file('x', 'y')", "void")]
     [InlineData("move_file('x', 'y')", "void")]
     [InlineData("remove_file('x')", "void")]
@@ -21,10 +21,10 @@ public class FileSystemApiTests : TestBase
     public void CanonicalFilesystemOperationsHaveCheckedReturnTypes(string operation, string type)
     {
         // Check is intentionally non-executing, even for destructive operations.
-        var source = $"import fs\nfn operation(): {type} {{ return fs.{operation} }}";
-        if (type == "void") source = $"import fs\nfn operation(): void {{ fs.{operation} }}";
+        var source = $"import encoding; import fs\nfn operation(): {type} {{ return fs.{operation} }}";
+        if (type == "void") source = $"import encoding; import fs\nfn operation(): void {{ fs.{operation} }}";
         Assert.Empty(new Rukbat.Compiler().Check(source));
-        Assert.False(Compile($"import fs\nwrong: int = fs.{operation}").Success);
+        Assert.False(Compile($"import encoding; import fs\nwrong: int = fs.{operation}").Success);
     }
 
     [Trait("Category", "Unit")]
@@ -46,8 +46,8 @@ public class FileSystemApiTests : TestBase
 
     [Trait("Category", "Unit")]
     [Theory]
-    [InlineData("fs", "read('x', 'utf-8')")]
-    [InlineData("fs", "write('x', 'text', 'utf-8')")]
+    [InlineData("fs", "read('x', encoding.utf8)")]
+    [InlineData("fs", "write('x', 'text', encoding.utf8)")]
     [InlineData("fs", "list('.', '*')")]
     [InlineData("fs", "list_recursive('.', '*')")]
     [InlineData("fs", "exists('x')")]
@@ -63,7 +63,7 @@ public class FileSystemApiTests : TestBase
     [InlineData("fs", "parent('x')")]
     [InlineData("path", "exists('x')")]
     [InlineData("path", "is_dir('x')")]
-    [InlineData("path", "read_text('x', 'utf-8')")]
+    [InlineData("path", "read_text('x', encoding.utf8)")]
     [InlineData("path", "remove_file('x')")]
     public void AmbiguousOrMisplacedOperationsHaveNoAliases(string module, string call)
     {
@@ -82,7 +82,7 @@ public class FileSystemApiTests : TestBase
     {
         var count = Assert.Single(new Rukbat.Compiler().Check("import fs\nfs.read_text('x')"));
         Assert.Contains("fs.read_text expects 2 positional arguments, got 1", count.Message);
-        var named = Assert.Single(new Rukbat.Compiler().Check("import fs\nfs.read_text(path: 'x', encoding: 'utf-8')"));
+        var named = Assert.Single(new Rukbat.Compiler().Check("import encoding; import fs\nfs.read_text(path: 'x', encoding: encoding.utf8)"));
         Assert.Contains("fs.read_text accepts positional arguments only", named.Message);
     }
 
@@ -110,7 +110,7 @@ public class FileSystemApiTests : TestBase
         using var project = new Project();
         var root = project.PathFor("data").Replace('\\', '/').Replace("'", "\\'");
         var output = Success($$"""
-            import fs
+            import encoding; import fs
             import path
 
             root := '{{root}}'
@@ -120,7 +120,7 @@ public class FileSystemApiTests : TestBase
             source := path.join([root, 'source.txt'])
             copy := path.join([nested, 'copy.txt'])
             moved := path.join([nested, 'moved.txt'])
-            fs.write_text(source, '東京', 'utf-8')
+            fs.write_text(source, '東京', encoding.utf8)
             print(fs.is_file(source))
             print(fs.is_dir(source))
             print(fs.is_dir(root))
@@ -129,7 +129,7 @@ public class FileSystemApiTests : TestBase
             try { fs.copy_file(source, copy) } catch err { print('existing destination') }
             fs.move_file(copy, moved)
             print(fs.is_file(copy))
-            print(fs.read_text(moved, 'utf-8'))
+            print(fs.read_text(moved, encoding.utf8))
             direct := fs.list_files(root, '*.txt')
             recursive := fs.list_files_recursive(root, '*.txt')
             print(direct.length)

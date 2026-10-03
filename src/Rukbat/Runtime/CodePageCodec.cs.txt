@@ -1,0 +1,74 @@
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+
+// Windows conversions are used consistently on both .NET Framework and modern .NET.
+public sealed class RukbatCodePageCodec {
+    private const uint RejectInvalidBytes = 8;
+    private const uint RejectInvalidUnicode = 128;
+    private const uint DisableBestFit = 1024;
+    private const uint Gb18030 = 54936;
+    private readonly uint codePage;
+
+    [DllImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsValidCodePage(uint codePage);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern int MultiByteToWideChar(uint codePage, uint flags,
+        byte[] input, int byteCount, IntPtr output, int charCount);
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern int WideCharToMultiByte(uint codePage, uint flags,
+        string input, int charCount, byte[] output, int byteCount, IntPtr defaultChar, IntPtr usedDefaultChar);
+
+    public RukbatCodePageCodec(int number) {
+        // Stateful codecs and EUC-JP require separate strict validation policies.
+        if (number <= 3 || number == 42 || number == 20932 || number == 51932 ||
+            (number >= 50000 && number != Gb18030) || number == 1200 || number == 1201 ||
+            number == 12000 || number == 12001 || !IsValidCodePage((uint)number))
+            throw new ArgumentException("Unsupported strict Windows code page: " + number);
+        codePage = (uint)number;
+        // Validate both native flag contracts on the actual target before returning a value.
+        GetString(new byte[] { 65 });
+        GetBytes("A");
+    }
+
+    public string GetString(byte[] bytes) { return GetString(bytes, 0, bytes.Length); }
+    public string GetString(byte[] bytes, int offset, int count) {
+        if (offset < 0 || count < 0 || offset > bytes.Length - count) throw new ArgumentOutOfRangeException();
+        if (count == 0) return String.Empty;
+        byte[] input = new byte[count];
+        Buffer.BlockCopy(bytes, offset, input, 0, count);
+        int length = MultiByteToWideChar(codePage, RejectInvalidBytes, input, count, IntPtr.Zero, 0);
+        if (length == 0) throw new Win32Exception(Marshal.GetLastWin32Error(), "Invalid encoded input.");
+        IntPtr buffer = Marshal.AllocHGlobal(checked(length * sizeof(char)));
+        try {
+            if (MultiByteToWideChar(codePage, RejectInvalidBytes, input, count, buffer, length) == 0)
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Invalid encoded input.");
+            return Marshal.PtrToStringUni(buffer, length);
+        } finally { Marshal.FreeHGlobal(buffer); }
+    }
+
+    public byte[] GetBytes(string text) {
+        // Legacy conversion APIs do not reject malformed UTF-16 consistently.
+        for (int i = 0; i < text.Length; i++) {
+            if (Char.IsHighSurrogate(text[i])) {
+                if (++i >= text.Length || !Char.IsLowSurrogate(text[i])) throw new ArgumentException("Invalid Unicode input.");
+            } else if (Char.IsLowSurrogate(text[i])) throw new ArgumentException("Invalid Unicode input.");
+        }
+        if (text.Length == 0) return new byte[0];
+        IntPtr used = codePage == Gb18030 ? IntPtr.Zero : Marshal.AllocHGlobal(sizeof(int));
+        uint flags = codePage == Gb18030 ? RejectInvalidUnicode : DisableBestFit;
+        try {
+            if (used != IntPtr.Zero) Marshal.WriteInt32(used, 0);
+            int length = WideCharToMultiByte(codePage, flags, text, text.Length, null, 0, IntPtr.Zero, used);
+            if (length == 0) throw new Win32Exception(Marshal.GetLastWin32Error(), "Cannot encode Unicode input.");
+            if (used != IntPtr.Zero && Marshal.ReadInt32(used) != 0) throw new ArgumentException("Unencodable Unicode input.");
+            byte[] bytes = new byte[length];
+            if (used != IntPtr.Zero) Marshal.WriteInt32(used, 0);
+            if (WideCharToMultiByte(codePage, flags, text, text.Length, bytes, length, IntPtr.Zero, used) == 0)
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Cannot encode Unicode input.");
+            if (used != IntPtr.Zero && Marshal.ReadInt32(used) != 0) throw new ArgumentException("Unencodable Unicode input.");
+            return bytes;
+        } finally { if (used != IntPtr.Zero) Marshal.FreeHGlobal(used); }
+    }
+}

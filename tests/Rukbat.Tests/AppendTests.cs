@@ -130,7 +130,7 @@ public class AppendTests : TestBase
         File.WriteAllText(project.PathFor("skip.txt"), "text");
         var directory = project.DirectoryPath.Replace("\\", "/", StringComparison.Ordinal);
         project.Write("main.rukbat", $$"""
-            import fs
+            import encoding; import fs
             import path
             import json
             import process
@@ -144,14 +144,14 @@ public class AppendTests : TestBase
 
             attempt := 0
             while attempt < 3 {
-                result: process.Result = process.run('dotnet', ['--version'], null)
+                result: process.Result = process.run('dotnet', ['--version'], null, encoding.utf8)
                 if result.exit_code == 0 {
                     break
                 }
                 attempt = attempt + 1
             }
 
-            fs.write_text(path.join(['{{directory}}', 'result.json']), json.stringify(matches), 'utf-8')
+            fs.write_text(path.join(['{{directory}}', 'result.json']), json.stringify(matches), encoding.utf8)
             """);
 
         var result = await project.Run();

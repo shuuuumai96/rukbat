@@ -4,7 +4,7 @@ internal sealed class ModuleLoader(Func<string, string>? readSource = null, bool
 {
     private static readonly HashSet<string> StandardModules = new(StringComparer.Ordinal)
     {
-        "fs", "path", "json", "csv", "env", "process", "text", "test"
+        "fs", "path", "json", "csv", "env", "process", "text", "test", "encoding"
     };
     private readonly Dictionary<string, Module> modules = new(
         OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);

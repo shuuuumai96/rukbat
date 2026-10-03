@@ -13,6 +13,7 @@ import env
 import process
 import text
 import test
+import encoding
 ```
 
 A local module instead uses an explicit relative `.rukbat` path and an alias. Standard module names are reserved as aliases. Generated scripts contain only the standard-library runtime sections used by their imports and remain standalone on Windows PowerShell 5.1.
@@ -154,6 +155,66 @@ Invalid input, overflow, and nonzero float input that underflows to zero cause E
 Representable subnormal floats are accepted. Float formatting preserves the numeric value on reparse;
 it does not promise to preserve the input spelling or the sign of zero.
 
+## `encoding`
+
+`encoding.Encoding` is a validated type with 26 read-only predefined values:
+
+| Value | External name | Meaning |
+|---|---|---|
+| `encoding.utf8` | `utf-8` | UTF-8 |
+| `encoding.utf16_le` | `utf-16le` | UTF-16 little-endian |
+| `encoding.utf16_be` | `utf-16be` | UTF-16 big-endian |
+| `encoding.windows_932` | `windows-932` | Windows CP932, including NEC/IBM extensions |
+| `encoding.utf32_le` | `utf-32le` | UTF-32 little-endian |
+| `encoding.utf32_be` | `utf-32be` | UTF-32 big-endian |
+| `encoding.ascii` | `ascii` | Strict ASCII |
+| `encoding.iso_8859_1` | `iso-8859-1` | ISO-8859-1 |
+| `encoding.windows_874` | `windows-874` | Windows code page 874 |
+| `encoding.windows_1250` | `windows-1250` | Windows code page 1250 |
+| `encoding.windows_1251` | `windows-1251` | Windows code page 1251 |
+| `encoding.windows_1252` | `windows-1252` | Windows code page 1252 |
+| `encoding.windows_1253` | `windows-1253` | Windows code page 1253 |
+| `encoding.windows_1254` | `windows-1254` | Windows code page 1254 |
+| `encoding.windows_1255` | `windows-1255` | Windows code page 1255 |
+| `encoding.windows_1256` | `windows-1256` | Windows code page 1256 |
+| `encoding.windows_1257` | `windows-1257` | Windows code page 1257 |
+| `encoding.windows_1258` | `windows-1258` | Windows code page 1258 |
+| `encoding.windows_936` | `windows-936` | Windows code page 936 |
+| `encoding.windows_949` | `windows-949` | Windows code page 949 |
+| `encoding.windows_950` | `windows-950` | Windows code page 950 |
+| `encoding.windows_437` | `windows-437` | Windows code page 437 |
+| `encoding.windows_850` | `windows-850` | Windows code page 850 |
+| `encoding.windows_852` | `windows-852` | Windows code page 852 |
+| `encoding.windows_866` | `windows-866` | Windows code page 866 |
+| `encoding.gb18030` | `gb18030` | GB18030 (Windows code page 54936) |
+
+| Signature | Meaning | Failure |
+|---|---|---|
+| `encoding.parse(name: string): encoding.Encoding` | Converts an external encoding name to a typed value. Names are case-sensitive: predefined names above or canonical `windows-N` for supported additional code pages. No aliases, whitespace trimming, or detection. | An unknown, unavailable, or unsupported name causes Error. |
+| `encoding.from_code_page(number: int): encoding.Encoding` | Validates a fixed Windows code page on the target and returns its canonical value; 932 equals `encoding.windows_932`. | An unavailable or unsupported strict converter causes Error. |
+| `encoding.name(value: encoding.Encoding): string` | Returns the canonical external name for configuration or logging. | None. |
+
+Predefined values are not the support ceiling. `from_code_page` supports additional fixed Windows code pages when the target Windows APIs accept strict decoding and encoding flags. Additional values use `windows-N`; predefined special names remain canonical (`65001` is `utf-8`, not `windows-65001`). `parse(name(value))` preserves identity.
+
+Numbers 0, 1, 2, and 3 (environment-dependent defaults), Symbol (42), UTF-7, stateful encodings such as ISO-2022 and ISCII, and EUC-JP (20932 / 51932) are unsupported. EUC-JP and ISO-2022-JP need separate mapping and strict validation policies. Unsupported values cause ordinary Error; no converter silently substitutes characters or applies best-fit transliteration. Availability is checked on the deployment machine.
+
+Use the typed values directly in source. Use `parse` only at an external text boundary:
+
+```rukbat
+import encoding
+import fs
+
+selected := encoding.windows_932
+content := fs.read_text("input.csv", selected)
+print(encoding.name(selected))
+```
+
+Values support ordinary assignment, parameters, returns, arrays, struct fields, nullable wrappers,
+and same-type `==` / `!=`. They have no fields, constructors, numeric conversions, or implicit
+conversion to/from strings. To print or serialize an encoding, call `encoding.name`. To restore
+it, call `encoding.parse`. Direct JSON conversion and direct PowerShell arguments/results,
+including nested containers, are rejected. This module adds no user-declared enum syntax.
+
 ## `fs`
 
 The module contains both file and directory operations. Import `fs` once for either kind.
@@ -164,20 +225,20 @@ The module contains both file and directory operations. Import `fs` once for eit
 |---|---|---|
 | `fs.list_files(directory: string, pattern: string): string[]` | Returns absolute paths of directly contained, non-Hidden files that match the file-system wildcard `pattern`. It excludes directories, does not recurse, and does not guarantee order. | An inaccessible or nonexistent directory, or an invalid pattern, causes Error. |
 | `fs.list_files_recursive(directory: string, pattern: string): string[]` | Returns absolute paths to files matching the filename wildcard `pattern` at every depth beneath `directory`, including direct children. It excludes directories and does not guarantee order. | An inaccessible/nonexistent directory, a file passed as `directory`, an invalid path or pattern, or a traversal failure causes Error. |
-| `fs.read_text(path: string, encoding: string): string` | Reads text with one explicit canonical encoding. | Missing/inaccessible files, an unsupported encoding, an invalid byte sequence, or a conflicting UTF-16 BOM causes Error. |
-| `fs.write_text(path: string, text: string, encoding: string): void` | Replaces a file with one explicit canonical encoding, without a BOM or implicit newline. It does not create parent directories. Complete new contents are written to a temporary file in the destination directory before it is moved or used to replace the destination. | An inaccessible path, missing parent directory, unsupported encoding, or unencodable text causes Error. |
+| `fs.read_text(path: string, encoding: encoding.Encoding): string` | Reads text with one explicit encoding value. | Missing/inaccessible files, an invalid byte sequence, or a conflicting UTF-16 BOM causes Error. |
+| `fs.write_text(path: string, text: string, encoding: encoding.Encoding): void` | Replaces a file with one explicit encoding value, without a BOM or implicit newline. It does not create parent directories. Complete new contents are written to a temporary file in the destination directory before it is moved or used to replace the destination. | An inaccessible path, missing parent directory, or unencodable text causes Error. |
 | `fs.is_file(path: string): bool` | Returns `true` for an existing file. Missing files, directories, invalid paths, and access failures or other cases that File.Exists cannot determine return `false`. | This predicate returns `false` rather than raising Error when path resolution or existence checking fails. |
 | `fs.copy_file(source: string, destination: string): void` | Copies one file without overwriting an existing destination or creating its parent directory. | A missing, inaccessible, or directory source; an existing destination; a missing parent; identical source and destination; or an I/O failure causes Error. |
 | `fs.move_file(source: string, destination: string): void` | Moves one file. Moving within one directory renames it. It does not overwrite an existing destination or create its parent directory. On success the source no longer exists. | A missing or directory source; an existing destination; a missing parent; identical source and destination; or an I/O failure causes Error. Cross-volume moves are allowed but are not atomic; after an error, the destination may remain. |
 | `fs.remove_file(path: string): void` | Deletes one file. Removing a missing file succeeds. | A directory, readonly or in-use file, invalid path, or I/O failure causes Error. A file reparse point removes the entry, not its target. |
 
-`encoding` must be exactly one of these case-sensitive names; aliases are not accepted: `utf-8`, `utf-16le`, `utf-16be`, or `windows-932`. `utf-8` accepts and removes only a leading UTF-8 BOM on read. `utf-16le` and `utf-16be` accept and remove their matching leading BOM, accept no BOM, and reject the opposite-endian BOM. All writes are strict and BOM-free. `windows-932` means Windows code page 932 (CP932 / Windows Shift-JIS), for Shift-JIS-compatible text commonly used by legacy Japanese Windows software. It is deliberately CP932 rather than a claim to implement every Shift_JIS variant, and it has no BOM handling. Every encoding rejects invalid input and unencodable output rather than replacing data.
+The encoding argument has type `encoding.Encoding`; strings are rejected during checking. Import `encoding` and pass a predefined value or a validated `encoding.from_code_page` / `encoding.parse` result. `encoding.utf8` accepts and removes only a leading UTF-8 BOM on read. UTF-16 and UTF-32 values accept and remove their matching leading BOM, accept no BOM, and reject the opposite-endian BOM. All writes are strict and BOM-free. `encoding.windows_932` means Windows code page 932 (CP932 / Windows Shift-JIS), for text commonly used by legacy Japanese Windows software. It is deliberately CP932 rather than a claim to implement every Shift_JIS variant, and it has no BOM handling. Every encoding rejects invalid input and unencodable output rather than replacing data.
 
 Relative paths for `fs` are resolved from the filesystem working directory captured at entry-script startup, not the script directory or a later PowerShell location. `fs.write_text` first validates and encodes its complete contents to bytes, then writes and flushes those bytes to a uniquely named temporary file in the destination directory. It then uses `File.Replace` for an existing destination or `File.Move` for a missing one. Failures before that final filesystem operation leave an existing destination unchanged. A concurrent creator that wins the missing-destination race is replaced through `File.Replace`, not deleted. Rukbat does not guarantee durability against process, system, storage, or filesystem failure during the final operation, nor does it guarantee atomic behavior on every filesystem. `File.Replace` can merge destination metadata such as attributes and ACLs and can fail while doing so; `fs.write_text` makes no metadata or ACL preservation guarantee.
 
 `fs.list_files` and `fs.list_files_recursive` return absolute paths. `list_files` considers only direct children; `list_files_recursive` considers every depth. Both treat `directory` as a literal path. Their nonempty `pattern` applies only to each filename, using the same file-system filter behavior; the supported simple forms include `*` and `?`. It cannot contain `/` or `\\`, so it cannot express directory hierarchy globs. `list_files` excludes Hidden files. `list_files_recursive` excludes Hidden files and directories, including hidden subtrees. System attributes do not exclude entries. A directory reparse point explicitly supplied as the `list_files_recursive` root is a valid traversal root. ReparsePoint entries discovered beneath that root are excluded, so that operation neither returns nor recurses into child symbolic links or junctions. Enumeration returns no partial result when a platform error occurs.
 
-`windows-932` reads use the Windows code-page mapping with strict validation, including NEC-selected IBM and IBM extension byte sequences for the same character (for example, `EE E0` and `FB FC` both decode to U+9AD9). A valid read does not imply that re-encoding reproduces the original bytes. The generated script embeds its decoder and requires no additional installation.
+`encoding.windows_932` reads use the Windows code-page mapping with strict validation, including NEC-selected IBM and IBM extension byte sequences for the same character (for example, `EE E0` and `FB FC` both decode to U+9AD9). A valid read does not imply that re-encoding reproduces the original bytes. The generated script embeds its decoder and requires no additional installation.
 
 ### Directory operations
 
@@ -286,9 +347,10 @@ assigning the returned row:
 
 ```rukbat
 import csv
+import encoding
 import fs
 
-people := csv.parse_table(fs.read_text("people.csv", "windows-932"))
+people := csv.parse_table(fs.read_text("people.csv", encoding.windows_932))
 kept: csv.Row[] = []
 
 for person in people.rows {
@@ -298,7 +360,7 @@ for person in people.rows {
 }
 people.rows = kept
 people.rows.append(csv.row(people.columns, ["Hanako", "true", "new"]))
-fs.write_text("enabled.csv", csv.stringify_table(people), "utf-8")
+fs.write_text("enabled.csv", csv.stringify_table(people), encoding.utf8)
 ```
 
 This example expects columns `name,enabled,note` in that order for the appended row. Named access
@@ -317,7 +379,7 @@ Use raw records when input has no header or intentionally contains different rec
 | `csv.parse(text: string): string[][]` | Parses records as strings without interpreting headers or requiring a rectangular table. | Invalid CSV syntax causes Error. |
 | `csv.stringify(rows: string[][]): string` | Converts rows to CSV, escaping commas, quotes, and newlines. | A row with no fields causes Error and identifies its one-based record number. |
 
-The separator is comma. CRLF and LF separate records; a final separator is optional. Quoted fields preserve commas and newlines, and `""` inside a quoted field becomes `"`. Whitespace and Unicode are preserved. Empty fields, including quoted empty fields, return `""`. An empty input returns `[]`; a blank record returns `[""]` and is not discarded. A bare CR outside a quoted field, an unquoted quote, an unclosed quote, or non-separator content after a closing quote causes Error. `csv.parse` accepts a Rukbat string and does not decode text encodings or treat U+FEFF specially; select the file encoding with `fs.read_text`, for example `csv.parse(fs.read_text("legacy.csv", "windows-932"))`.
+The separator is comma. CRLF and LF separate records; a final separator is optional. Quoted fields preserve commas and newlines, and `""` inside a quoted field becomes `"`. Whitespace and Unicode are preserved. Empty fields, including quoted empty fields, return `""`. An empty input returns `[]`; a blank record returns `[""]` and is not discarded. A bare CR outside a quoted field, an unquoted quote, an unclosed quote, or non-separator content after a closing quote causes Error. `csv.parse` accepts a Rukbat string and does not decode text encodings or treat U+FEFF specially; select the file encoding with `fs.read_text`, for example `csv.parse(fs.read_text("legacy.csv", encoding.windows_932))`.
 
 `stringify` uses commas between fields and CRLF after every record, including the last. Empty fields
 and fields containing a comma, quote, CR, or LF are quoted; a quote inside a quoted field becomes
@@ -332,6 +394,7 @@ named access. Raw records can explicitly include a header when writing a documen
 
 ```rukbat
 import csv
+import encoding
 import fs
 
 rows: string[][] = [
@@ -339,9 +402,9 @@ rows: string[][] = [
     ["Taro", "contains, a comma"],
     ["Hanako", ""]
 ]
-fs.write_text("people.csv", csv.stringify(rows), "utf-8")
+fs.write_text("people.csv", csv.stringify(rows), encoding.utf8)
 
-loaded := csv.parse(fs.read_text("people.csv", "utf-8"))
+loaded := csv.parse(fs.read_text("people.csv", encoding.utf8))
 print(loaded[1][0]) // Taro
 ```
 
@@ -380,9 +443,10 @@ For a response such as `{"data":{"users":[{"name":"Taro","nickname":null,"extra"
 
 ```rukbat
 import json
+import encoding
 import fs
 
-document := json.parse(fs.read_text("response.json", "utf-8"))
+document := json.parse(fs.read_text("response.json", encoding.utf8))
 data := json.get(document, "data")
 users := json.items(json.get(data, "users"))
 
@@ -430,9 +494,10 @@ not change its parent. Replacing an entire child intentionally replaces all its 
 
 ```rukbat
 import json
+import encoding
 import fs
 
-config := json.parse(fs.read_text("config.json", "utf-8"))
+config := json.parse(fs.read_text("config.json", encoding.utf8))
 service := json.get(config, "service")
 service = json.set(service, "enabled", true)
 config = json.set(config, "service", service)
@@ -445,7 +510,7 @@ worker = json.set(worker, "enabled", false)
 workers = json.set_at(workers, 0, worker)
 workers = json.append(workers, json.parse('{"name":"new","enabled":true}'))
 config = json.set(config, "workers", workers)
-fs.write_text("updated.json", json.stringify(config), "utf-8")
+fs.write_text("updated.json", json.stringify(config), encoding.utf8)
 ```
 
 Use schema-free parsing for updates that must retain unknown properties. Converting an object to
@@ -456,7 +521,7 @@ whitespace, key order, and escape spelling are not retained.
 ### Reading a known type
 
 `T` may be `int`, `float`, `string`, `bool`, `json.Value`, a struct, an array of supported values, or
-a nullable form of a supported type. `csv.Row` and containers containing it are not supported.
+a nullable form of a supported type. `csv.Row`, `encoding.Encoding`, and containers containing either are not supported.
 `<T>` on `parse` and `as` is a dedicated result type like `powershell<T>`; it does not introduce
 general-purpose generics.
 
@@ -478,6 +543,7 @@ an empty array or `null` so that the value has a concrete type.
 
 ```rukbat
 import json
+import encoding
 import fs
 
 struct Config {
@@ -489,9 +555,9 @@ config := Config {
     name: "nightly",
     enabled: true
 }
-fs.write_text("config.json", json.stringify(config), "utf-8")
+fs.write_text("config.json", json.stringify(config), encoding.utf8)
 
-loaded := json.parse<Config>(fs.read_text("config.json", "utf-8"))
+loaded := json.parse<Config>(fs.read_text("config.json", encoding.utf8))
 print(loaded.name)
 
 numbers := json.parse<int[]>("[1,2,3]")
@@ -524,13 +590,21 @@ struct Result {
 
 | Signature | Meaning | Failure |
 |---|---|---|
-| `process.run(executable: string, arguments: string[], timeout_ms: int?): process.Result` | Starts an executable directly, waits for it, and captures standard output and standard error separately. `null` waits without a deadline; a positive value is a millisecond deadline. | A nonpositive timeout or failure to launch, capture, decode, wait, or finish before the deadline causes Error. |
+| `process.run(executable: string, arguments: string[], timeout_ms: int?, encoding: encoding.Encoding): process.Result` | Starts an executable directly, waits for it, and captures standard output and standard error separately using the explicit encoding. `null` waits without a deadline; a positive value is a millisecond deadline. | A nonpositive timeout, or failure to launch, capture, decode, wait, or finish before the deadline causes Error. |
 
-The API does not interpret a shell command string. The executable and each argument are separate values. A nonzero exit code is a normal `Result`, not an Rukbat Error. Output is decoded as strict UTF-8 and is returned exactly, including any trailing newline; zero output becomes `""`. Standard output and standard error are drained concurrently to avoid pipe deadlocks.
+The API does not interpret a shell command string. The executable and each argument are separate values. A nonzero exit code is a normal `Result`, not an Rukbat Error. The required `encoding.Encoding` applies to both stdout and stderr and accepts the same values as `fs.read_text`. Strings and unknown members are rejected during checking. Use `encoding.parse` to read a name from external configuration; an unsupported name raises Error before launching the child when parsed in the argument expression. Invalid byte sequences cause Error rather than replacement characters. Decoded output is returned exactly, including any BOM character and trailing newline; zero output becomes `""`. There is no encoding detection or BOM removal. This selects how Rukbat reads the bytes; it does not change the child program's output encoding. Standard output and standard error are drained concurrently to avoid pipe deadlocks.
+
+```rukbat
+import encoding
+import process
+
+result := process.run("legacy-tool.exe", ["--report"], 30000, encoding.windows_932)
+print(result.stdout)
+```
 
 A nonpositive timeout is rejected before the child is launched. The process is assigned atomically at creation to a Windows Job Object with kill-on-close and no breakaway permission. `process.run` waits for the root and its descendants, and both output captures, using one deadline measured from successful process creation. It is a synchronous operation: it cannot launch a persistent background service. On timeout or capture failure the complete job is terminated. Abrupt termination of the PowerShell host also closes the job and terminates its processes. Cleanup waits up to five seconds for job termination and five seconds for capture completion; cleanup failure raises Error. `null` leaves execution without a deadline and should be reserved for deliberately unbounded operations.
 
-Process containment requires Windows 10 / Server 2016 or later. Failure to establish containment rejects launch; there is no uncontained fallback. Only stdin/stdout/stderr handles are inherited. Standard input is closed (`NUL`), so an unexpected prompt cannot consume job-runner input. Capture is limited to 64 MiB per stream; exceeding it terminates the job and raises Error instead of allowing unbounded memory growth. Nonzero root exit codes remain ordinary results. UTF-8 decoding follows successful capture. The job contains ordinary child-process creation, not work delegated to an already-running service or a remote machine. Termination does not undo side effects already performed by the external program.
+Process containment requires Windows 10 / Server 2016 or later. Failure to establish containment rejects launch; there is no uncontained fallback. Only stdin/stdout/stderr handles are inherited. Standard input is closed (`NUL`), so an unexpected prompt cannot consume job-runner input. Capture is limited to 64 MiB per stream; exceeding it terminates the job and raises Error instead of allowing unbounded memory growth. Nonzero root exit codes remain ordinary results. Decoding with the selected encoding follows successful capture. The job contains ordinary child-process creation, not work delegated to an already-running service or a remote machine. Termination does not undo side effects already performed by the external program.
 
 Child processes start in the captured entry working directory. Executable paths containing a separator or drive prefix are resolved against that directory. Bare executable names are searched in the captured directory, then the current process PATH; an extensionless name uses `.exe`. Relative PATH entries use the captured directory as well. Each Rukbat string argument corresponds to exactly one argument as observed by the child process's standard C/C++ `argv` parser. The generated code handles Windows command-line quoting and escaping to preserve this guarantee. Rukbat does not guess which strings represent paths. In v0.1, the executable must be a directly launchable binary such as `.exe`. Batch files (`.cmd`, `.bat`) are not supported because their argument-passing rules cannot preserve the one-argument-per-string contract. Executable or environment changes remain the caller's responsibility.
 

@@ -20,6 +20,7 @@ internal sealed partial class TypeChecker
     public Dictionary<Call, string> StandardCalls { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Expression, ValueType> Types { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Expression, ValueType> Conversions { get; } = new(ReferenceEqualityComparer.Instance);
+    public Dictionary<Member, StandardEncoding> EncodingConstants { get; } = new(ReferenceEqualityComparer.Instance);
     private Dictionary<VariableSymbol, ValueType> refinements = [];
     private int variableId;
     private int loopDepth;
@@ -142,12 +143,16 @@ internal sealed partial class TypeChecker
                     break;
                 case FieldAssignment assignment:
                     var fieldType = TypeOf(assignment.Target, scope);
+                    if (EncodingConstants.ContainsKey(assignment.Target))
+                    {
+                        Error("RUK2010", "Encoding values are read-only.", assignment);
+                    }
                     if (!IsVariablePath(assignment.Target))
                     {
                         Error("RUK2010", "Field assignment requires a variable, not a temporary value.", assignment);
                     }
 
-                    if (assignment.Target.Receiver is { } receiver && Types[receiver].Element is not null)
+                    if (assignment.Target.Receiver is { } receiver && Types.GetValueOrDefault(receiver)?.Element is not null)
                     {
                         Error("RUK2010", "Array length is read-only.", assignment);
                     }
@@ -424,7 +429,7 @@ internal sealed partial class TypeChecker
             powerShellType = BindType(powerShellType, call);
             if (ContainsOpaqueStandardValue(powerShellType))
             {
-                Error("RUK2010", "PowerShell result types cannot contain json.Value or csv.Row. Read text and use the corresponding parser.", call);
+                Error("RUK2010", "PowerShell result types cannot contain json.Value, csv.Row or encoding.Encoding. Read text and use the corresponding parser.", call);
             }
 
             if (arguments.Length == 0 || call.Arguments[0].Name is not null)
@@ -441,6 +446,8 @@ internal sealed partial class TypeChecker
             for (var i = 0; i < call.Arguments.Count; i++)
             {
                 var argument = call.Arguments[i];
+                if (ContainsEncoding(arguments[i]))
+                    Error("RUK2010", "Use encoding.name before passing an encoding to PowerShell.", argument);
                 if (ContainsStruct(arguments[i]))
                 {
                     Error("RUK2010", "Structs cannot be passed directly to PowerShell. Pass primitive fields.", argument);
@@ -471,6 +478,10 @@ internal sealed partial class TypeChecker
             if (arguments.Length != 1 || call.Arguments.Any(a => a.Name is not null))
             {
                 Error("RUK2005", $"{call.Name} requires one positional argument.", call);
+            }
+            else if (arguments[0] == ValueType.Encoding)
+            {
+                Error("RUK2010", "Use encoding.name to print an encoding.", call);
             }
             else if (arguments[0].IsComposite)
             {
@@ -505,9 +516,9 @@ internal sealed partial class TypeChecker
         ValueType[]? parameters = (moduleName, call.Name) switch
         {
             ("fs", "list_files") or ("fs", "list_files_recursive") => [ValueType.String, ValueType.String],
-            ("fs", "read_text") => [ValueType.String, ValueType.String],
+            ("fs", "read_text") => [ValueType.String, ValueType.Encoding],
             ("fs", "is_file") or ("fs", "remove_file") => [ValueType.String],
-            ("fs", "write_text") => [ValueType.String, ValueType.String, ValueType.String],
+            ("fs", "write_text") => [ValueType.String, ValueType.String, ValueType.Encoding],
             ("fs", "copy_file") or ("fs", "move_file") => [ValueType.String, ValueType.String],
             ("fs", "move_files_batch") => [ValueType.ArrayOf(ValueType.String), ValueType.ArrayOf(ValueType.String), ValueType.String],
             ("fs", "recover_file_moves") => [ValueType.String],
@@ -529,7 +540,10 @@ internal sealed partial class TypeChecker
             ("json", "items" or "keys" or "kind") => [standardModule.Structs["Value"].BoundType],
             ("env", "get") or ("env", "remove") => [ValueType.String],
             ("env", "set") => [ValueType.String, ValueType.String],
-            ("process", "run") => [ValueType.String, ValueType.ArrayOf(ValueType.String), ValueType.NullableOf(ValueType.Int)],
+            ("process", "run") => [ValueType.String, ValueType.ArrayOf(ValueType.String), ValueType.NullableOf(ValueType.Int), ValueType.Encoding],
+            ("encoding", "parse") => [ValueType.String],
+            ("encoding", "from_code_page") => [ValueType.Int],
+            ("encoding", "name") => [ValueType.Encoding],
             ("text", "from_int") => [ValueType.Int],
             ("text", "from_float") => [ValueType.Float],
             ("text", "from_bool") => [ValueType.Bool],
@@ -577,6 +591,9 @@ internal sealed partial class TypeChecker
             ("env", "get") => ValueType.NullableOf(ValueType.String),
             ("env", _) => ValueType.Void,
             ("process", "run") => standardModule.Structs["Result"].BoundType,
+            ("encoding", "parse") => ValueType.Encoding,
+            ("encoding", "from_code_page") => ValueType.Encoding,
+            ("encoding", "name") => ValueType.String,
             ("text", "parse_int") => ValueType.Int,
             ("text", "parse_float") => ValueType.Float,
             ("text", "parse_bool") => ValueType.Bool,
@@ -671,7 +688,7 @@ internal sealed partial class TypeChecker
 
     private bool SupportsJson(ValueType type)
     {
-        if (ContainsCsvRow(type)) return false;
+        if (ContainsNonJsonStandardValue(type)) return false;
         if (type.IsNullable)
         {
             return SupportsJson(type.NonNullable);
@@ -684,13 +701,16 @@ internal sealed partial class TypeChecker
             type == ValueType.Bool || type == ValueType.Int || type == ValueType.Float || type == ValueType.String;
     }
 
-    private static bool ContainsCsvRow(ValueType type) => ContainsStandardValue(type, includeJson: false);
-    private static bool ContainsOpaqueStandardValue(ValueType type) => ContainsStandardValue(type, includeJson: true);
+    private static bool ContainsNonJsonStandardValue(ValueType type) =>
+        ContainsType(type, value => value == ValueType.Encoding || value.IsCsvRow);
+    private static bool ContainsOpaqueStandardValue(ValueType type) =>
+        ContainsType(type, value => value == ValueType.Encoding || value.IsCsvRow || value.IsJsonValue);
+    private static bool ContainsEncoding(ValueType type) => ContainsType(type, value => value == ValueType.Encoding);
 
-    private static bool ContainsStandardValue(ValueType type, bool includeJson)
+    private static bool ContainsType(ValueType type, Func<ValueType, bool> matches)
     {
         var visited = new HashSet<StructSymbol>();
-        bool Contains(ValueType value) => value.IsCsvRow || includeJson && value.IsJsonValue ||
+        bool Contains(ValueType value) => matches(value) ||
             value.NullableElement is { } nullable && Contains(nullable) ||
             value.Element is { } element && Contains(element) ||
             value.Struct is { } structure && visited.Add(structure) && structure.Fields.Values.Any(field => Contains(field.Type));
