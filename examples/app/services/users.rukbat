@@ -5,4 +5,3 @@ fn load(): model.User {
         name: "Taro"
     }
 }
-

@@ -101,4 +101,3 @@ fn parse(arguments: string[]): Options {
 
     return options
 }
-

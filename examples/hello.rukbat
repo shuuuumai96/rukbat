@@ -22,4 +22,3 @@ if user.is_adult() {
 
 year: string = powershell<string>("Get-Date", Format: "yyyy")
 print(year)
-

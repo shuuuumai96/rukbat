@@ -6,4 +6,3 @@ struct User {
 user: User = User {
     name: "Taro", age: "30"
 }
-

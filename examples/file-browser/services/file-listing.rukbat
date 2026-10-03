@@ -11,4 +11,3 @@ fn matching_files(directory: string, pattern: string): string[] {
 
     return names
 }
-

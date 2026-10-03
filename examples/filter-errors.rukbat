@@ -27,4 +27,3 @@ try {
     eprint(err.message)
     exit(1)
 }
-

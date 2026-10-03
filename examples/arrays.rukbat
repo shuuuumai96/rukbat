@@ -12,4 +12,3 @@ for number in copied {
 
 print(numbers[1])  // The original remains 20
 print(copied.length)
-

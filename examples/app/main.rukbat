@@ -3,4 +3,3 @@ import "./services/users.rukbat" as users
 
 user: model.User = users.load()
 print(user.name)
-

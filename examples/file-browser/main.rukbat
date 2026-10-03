@@ -17,4 +17,3 @@ if settings.help {
         fs.write_text(settings.output, output, "utf-8")
     }
 }
-

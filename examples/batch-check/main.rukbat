@@ -78,4 +78,3 @@ try {
     eprint(err.message)
     exit(2)
 }
-
