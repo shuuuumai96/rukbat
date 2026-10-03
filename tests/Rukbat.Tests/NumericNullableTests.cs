@@ -15,15 +15,15 @@ public class NumericNullableTests : TestBase
 
     [Trait("Category", "Runtime")]
     [Theory]
-    [InlineData("x: float = 1; print(x + 0.5)", "1.5")]
-    [InlineData("fn widen(x: int?): float? { return x }; y: float? = widen(2); if y != null { print(y + 0.5) }", "2.5")]
-    [InlineData("fn widen(x: int?): float? { return x }; y: float? = widen(null); print(y == null)", "True")]
+    [InlineData("x: float = 1.0; print(x + 0.5)", "1.5")]
+    [InlineData("fn widen(x: float?): float? { return x }; y: float? = widen(2.0); if y != null { print(y + 0.5) }", "2.5")]
+    [InlineData("fn widen(x: float?): float? { return x }; y: float? = widen(null); print(y == null)", "True")]
     [InlineData("fn show(x: string?): void { if x == null { return }; print(x) }; show(null); show('ok')", "ok")]
     [InlineData("name: string? = null; if name == null { name = 'Taro' }; print(name)", "Taro")]
     [InlineData("xs: string?[] = ['one', null]; first: string? = xs[0]; if first != null { print(first) }; print(xs[1] == null); ys: string[]? = ['x']; if ys != null { print(ys.length) }", "one\nTrue\n1")]
-    [InlineData("struct U { name: string?; score: float? }; u: U = U {name: null, score: 1}; print(u.name == null); score: float? = u.score; if score != null { print(score) }", "True\n1")]
+    [InlineData("struct U { name: string?; score: float? }; u: U = U {name: null, score: 1.0}; print(u.name == null); score: float? = u.score; if score != null { print(score) }", "True\n1")]
     [InlineData("fn values(ok: bool): string[]? { if ok { return ['x'] }; return null }; a: string[]? = values(true); if a != null { print(a[0]) }; b: string[]? = values(false); print(b == null)", "x\nTrue")]
-    [InlineData("print(1 == 1.0); print(1 < 1.5)", "True\nTrue")]
+    [InlineData("print(1.0 == 1.0); print(1.0 < 1.5)", "True\nTrue")]
     [InlineData("fn show(x: string?): void { if x != null { try { print('try') } catch err { print(x) } } }; show('ok')", "try")]
     public async Task ExecutesFloatAndNullableValues(string source, string expected)
     {
@@ -100,7 +100,7 @@ public class NumericNullableTests : TestBase
     public async Task FloatAndNullableRunOnWindowsPowerShell51()
     {
         using var project = new Project();
-        project.Write("main.rukbat", "fn value(x: int?): float? { return x }; x: float? = value(2); if x != null { print(x + 0.5) }; y: string? = powershell<string?>('Write-Output', null); print(y == null)");
+        project.Write("main.rukbat", "fn value(x: float?): float? { return x }; x: float? = value(2.0); if x != null { print(x + 0.5) }; y: string? = powershell<string?>('Write-Output', null); print(y == null)");
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
         var result = await project.RunOutputWithWindowsPowerShell(compiled.Output!);

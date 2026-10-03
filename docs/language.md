@@ -60,7 +60,7 @@ Structs and arrays are mutable value types. Their stored values can be updated, 
 
 ## Types, nullable values, and conversions
 
-The primitive types are `int`, `float`, `string`, and `bool`. `int` is a signed 32-bit integer. `float` is a finite IEEE 754 binary64 value. `void` is return-only. Rukbat also has user-defined `struct` types, typed arrays `T[]`, and nullable types `T?`.
+The primitive types are `int`, `float`, `string`, and `bool`. `int` is a signed 64-bit integer. `float` is a finite IEEE 754 binary64 value. `void` is return-only. Rukbat also has user-defined `struct` types, typed arrays `T[]`, and nullable types `T?`.
 
 `import json` provides the opaque, immutable type `json.Value` for JSON documents with an unknown
 structure. It uses ordinary variable, parameter, array, struct-field, and return syntax. It has no
@@ -92,7 +92,7 @@ optional_values: string[]? = null
 
 `T` never contains `null`; `T?` contains either a `T` value or `null`. `T` and `null` convert to `T?`. `T?` does not implicitly convert to `T`, `T??` and `void?` are invalid, and `x := null` is invalid because it has no inferable concrete type. Array element types are invariant: `string[]` converts to `string[]?`, but not to `string?[]`, and `int[]` does not convert to `float[]`.
 
-`int` converts implicitly to `float`, including the explicit nullable combinations `int` to `float?` and `int?` to `float?`. There are no other implicit numeric conversions.
+`int` and `float` have no implicit conversions, including nullable values. Use the explicit `math` conversion operations in STDLIB.md.
 
 A nullable variable or parameter can be narrowed by a direct `== null` or `!= null` check. An early `return` or `throw` from the null branch also narrows the following path. Assignment recalculates the variable's narrowed state. Struct fields, array elements, and other complex expressions are not narrowed in v0.1.
 
@@ -102,11 +102,11 @@ Before narrowing, a `T?` value can only be compared directly with the `null` lit
 
 ## Numbers and equality
 
-Float literals include `1.0`, `1e3`, `1E3`, and `1.5e-2`. The abbreviated forms `.5` and `1.` are invalid. Mixed `int`/`float` arithmetic and ordering convert the integer operand to `float`; `%` is defined only for `int`.
+Float literals include `1.0`, `1e3`, `1E3`, and `1.5e-2`. The abbreviated forms `.5` and `1.` are invalid. Arithmetic and comparison operands must have the same numeric type; `%` is defined only for `int`.
 
-Integer or float division by zero is a runtime Error. A float literal, arithmetic result, or external value that is NaN or positive or negative Infinity is rejected. Other float operations use binary64 behavior.
+Integer or float division by zero is a runtime Error. A float literal, arithmetic result, or external value that is NaN or positive or negative Infinity is rejected. Integer arithmetic is checked: range overflow raises Error without wrapping or promotion. Division truncates toward zero; the remainder has the dividend's sign. The minimum integer divided by -1 raises Error, while its remainder is zero. The supported integer range is -9223372036854775808 through 9223372036854775807. Other float operations use binary64 round-to-nearest, ties-to-even behavior; subnormal values and arithmetic underflow to zero are allowed. Positive and negative float zero compare equal.
 
-Primitive equality requires compatible non-null values and string equality is case-sensitive. Mixed `int`/`float` equality uses the `int` to `float` conversion. Struct and array equality are not defined. A nullable value may be compared directly with `null`.
+Primitive equality requires compatible non-null values and string equality is case-sensitive. Mixed `int`/`float` equality is rejected. Struct and array equality are not defined. A nullable value may be compared directly with `null`.
 
 Two non-null `encoding.Encoding` values support `==` and `!=`; arithmetic and ordering are not defined.
 
@@ -130,7 +130,7 @@ Every index expression in an assignment or `append` receiver is evaluated exactl
 - Equality follows the rules defined in "Numbers and equality" above.
 - Boolean `&&` and `||` short-circuit.
 - Array literals use `[value, ...]`; arrays can grow with the statement `values.append(value)`.
-- An array literal with a contextual type (`name: T[] = [...]` or parameter of type `T[]`) converts each element to `T` using the standard implicit conversions. Without a contextual type, all elements must have the same type after `int`-to-`float` promotion; `[1, 2.0]` infers `float[]`. A literal mixing incompatible types is a compile-time error. An explicitly typed empty array (`items: string[] = []`) is valid.
+- An array literal with a contextual type (`name: T[] = [...]` or parameter of type `T[]`) converts each element to `T` using the standard implicit conversions. Without a contextual type, all elements must have the same type; `[1, 2.0]` is rejected. A literal mixing incompatible types is a compile-time error. An explicitly typed empty array (`items: string[] = []`) is valid.
 - `items[index]` reads or writes an element, and `items.length` is read-only.
 
 ## Control flow
@@ -216,4 +216,4 @@ Rukbat does not provide union types, arbitrary object types, pipelines, closures
 
 ## Not yet specified
 
-The following are not confirmed language specification: function overloads, a named `main` entry point, explicit numeric conversion APIs, and integer-overflow policy beyond current checked runtime behavior.
+The following are not confirmed language specification: function overloads, a named `main` entry point, additional numeric types.

@@ -1,0 +1,28 @@
+using System;
+
+// Keep integer arithmetic out of PowerShell's automatic numeric promotion.
+public static class RukbatNumbers {
+    public static long Integer(string operation, long left, long right) {
+        checked {
+            switch (operation) {
+                case "+": return left + right;
+                case "-": return left - right;
+                case "*": return left * right;
+                case "/": return left / right;
+                // The remainder is zero even where the corresponding quotient overflows.
+                case "%": return right == -1 ? 0 : left % right;
+                case "negate": return -left;
+                default: throw new ArgumentException("Unknown integer operation.");
+            }
+        }
+    }
+    public static double ToFloat(long value) { return (double)value; }
+    public static long ToInt(double value) {
+        // (double)long.MaxValue rounds to 2^63, so the upper bound is exclusive.
+        const double UpperBound = 9223372036854775808.0;
+        if (Double.IsNaN(value) || Double.IsInfinity(value) || value < -UpperBound ||
+            value >= UpperBound || Math.Truncate(value) != value)
+            throw new ArgumentException("Expected a whole float within the int range.");
+        return checked((long)value);
+    }
+}

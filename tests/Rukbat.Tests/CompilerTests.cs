@@ -25,7 +25,7 @@ public class CompilerTests
     [InlineData("flag: bool = true && !false\nif flag { print('ok') } else { print('no') }")]
     [InlineData("fn f(): void { print('ok'); return }")]
     [InlineData("fn f(x: int): int { if x > 0 { return x } else { return -x } }")]
-    [InlineData("x: int = -2147483648\ny: int = 2147483647")]
+    [InlineData("x: int = -9223372036854775808\ny: int = 2147483647")]
     [InlineData("fn f(): string { return 'line\\nquote\\\" apostrophe\\\' slash\\\\' }")]
     [InlineData("// return fake(): int {\n// name: int = 'bad'\ns: string = '$x: int; $(throw); { return }'")]
     [InlineData("year: string = powershell<string>('Get-Date', Format: 'yyyy')")]
@@ -106,7 +106,7 @@ public class CompilerTests
     [InlineData("func value(): int { return 1 }")]
     [InlineData("function value(): int { return 1 }")]
     [InlineData("x: object = 'bad'")]
-    [InlineData("x: int = 2147483648")]
+    [InlineData("x: int = 9223372036854775808")]
     [InlineData("x: string = 'not closed")]
     [InlineData("x: string = 'bad\\q'")]
     [InlineData("x: int = 1 y: int = 2")]
@@ -136,7 +136,7 @@ public class CompilerTests
     public void ImportedErrorsReferToImportedFile()
     {
         using var project = new Project();
-        project.Write("main.rukbat", "import './math.rukbat' as math\nprint(math.add(1, 2))");
+        project.Write("main.rukbat", "import './math.rukbat' as arithmetic\nprint(arithmetic.add(1, 2))");
         project.Write("math.rukbat", "fn add(a: int, b: int): int { return 'bad' }");
         var result = project.Compile();
         var error = Assert.Single(result.Diagnostics);
@@ -149,7 +149,7 @@ public class CompilerTests
     public void ChecksImportedFunctionSignatures()
     {
         using var project = new Project();
-        project.Write("main.rukbat", "import './math.rukbat' as math\nprint(math.add('bad', 2))");
+        project.Write("main.rukbat", "import './math.rukbat' as arithmetic\nprint(arithmetic.add('bad', 2))");
         project.Write("math.rukbat", "fn add(a: int, b: int): int { return a + b }");
         Assert.Contains(project.Compile().Diagnostics, d => d.Code == "RUK2001");
     }
@@ -203,7 +203,7 @@ public class CompilerTests
     [InlineData("print(powershell<int>('Write-Output', 1, 2))", "expected one int result")]
     [InlineData("print(powershell<string>('Write-Output', powershell<void>('Write-Output', 1)))", null)]
     [InlineData("print(powershell<int>('Write-Error', 'failed'))", "failed")]
-    [InlineData("x: int = 2147483647 + 1; print(x)", "")]
+    [InlineData("x: int = 9223372036854775807 + 1; print(x)", "")]
     public async Task RejectsRuntimeBoundaryAndArithmeticErrors(string source, string? expected)
     {
         using var project = new Project(); project.Write("main.rukbat", source);

@@ -110,7 +110,7 @@ public class UserTestTests : TestBase
                 test.assert(true || next() == 99)
                 test.assert(!(false && next() == 99))
                 test.assert(count == 6)
-                test.assert(1 == 1.0)
+                test.assert(1.0 == 1.0)
                 test.assert('a' != 'A')
                 optional: string? = null
                 test.assert(optional == null)
@@ -246,14 +246,14 @@ public class UserTestTests : TestBase
             import encoding; import fs
             import path
             import env
-            import "../math.rukbat" as math
+            import "../math.rukbat" as arithmetic
             count := 0
             fn next(): int { count = count + 1; return count }
             fn helper(): void { test.fail('helper must not run') }
             fn test_a_failure(): void {
                 print('日本語の出力')
                 eprint('diagnostic output')
-                test.assert(math.add(next(), 1) == 9)
+                test.assert(arithmetic.add(next(), 1) == 9)
             }
             fn test_b_isolated(ctx: test.Context): void {
                 test.assert(next() == 1)

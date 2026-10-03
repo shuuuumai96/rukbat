@@ -30,6 +30,7 @@ internal sealed partial class Emitter
         if (modules.Contains("env")) EmitLines(EnvironmentRuntime);
         if (modules.Contains("process")) EmitLines(ProcessRuntime);
         if (modules.Contains("text")) EmitLines(TextRuntime);
+        if (modules.Contains("math")) EmitLines(MathRuntime);
         if (modules.Contains("encoding")) EmitEncodingOperations();
         indentation--;
         Line("}");
@@ -516,8 +517,11 @@ internal sealed partial class Emitter
     'process.run' {
         $selected = & $__rukbat_text_encoding ([string]$values[3]) 'process'
         $timeout = $values[2]
-        if ($null -ne $timeout -and [int]$timeout -le 0) {
+        if ($null -ne $timeout -and [long]$timeout -le 0) {
             throw 'process timeout must be greater than zero.'
+        }
+        if ($null -ne $timeout -and [long]$timeout -gt [int]::MaxValue) {
+            throw 'process timeout must not exceed 2147483647 milliseconds.'
         }
         $quoteArgument = {
             param([string]$argument)

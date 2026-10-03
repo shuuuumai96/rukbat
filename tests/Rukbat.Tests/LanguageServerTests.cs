@@ -288,6 +288,21 @@ public sealed class LanguageServerTests : TestBase
     }
 
     [Fact]
+    public void MathCompletionAndLargeIntegerDiagnosticsUseTheNumericContract()
+    {
+        using var project = new Project();
+        var uri = UriFor(project);
+        var completion = Result(Session(Open(uri, "import math\nmath."), Feature(uri, "completion", 1, 5)));
+        var conversion = completion.EnumerateArray().Single(item => item.GetProperty("label").GetString() == "to_float");
+        Assert.Equal("math.to_float(value: int): float", conversion.GetProperty("detail").GetString());
+        var accepted = Session(Open(uri, "value := 9223372036854775807"));
+        Assert.Empty(LastDiagnostics(accepted, uri).GetProperty("diagnostics").EnumerateArray());
+        var rejected = Session(Open(uri, "value := 1 + 1.0"));
+        Assert.Contains(LastDiagnostics(rejected, uri).GetProperty("diagnostics").EnumerateArray(),
+            diagnostic => diagnostic.GetProperty("code").GetString() == "RUK2001");
+    }
+
+    [Fact]
     public void StandardHoverIncludesSignatureAndDocumentation()
     {
         using var project = new Project();

@@ -30,7 +30,7 @@ fn add(a: int, b: int): int {
 `hello.rukbat`:
 
 ```rukbat
-import "./math.rukbat" as math
+import "./math.rukbat" as arithmetic
 
 struct User {
     name: string
@@ -46,7 +46,7 @@ user: User = User {
     age: 30
 }
 
-result: int = math.add(user.age, 2)
+result: int = arithmetic.add(user.age, 2)
 print(user.name)
 print(result)
 
@@ -137,7 +137,7 @@ Consistent Rukbat syntax and behavior take priority over syntax compatibility wi
 
 Current types are `int`, finite binary64 `float`, `string`, `bool`, return-only `void`, built-in `Error`, user-defined `struct`, typed arrays `T[]`, and nullable types `T?`.
 Only `T?` can hold `null`. After an explicit check such as `if value != null`, a simple variable can be used as `T`.
-The only implicit numeric conversion is safe widening from `int` to `float`. Division by zero and non-finite floats cause Error.
+`int` is signed 64-bit and `float` is finite binary64. Numeric conversions are explicit through `math.to_float` / `math.to_int`; mixed arithmetic and comparisons are rejected. Integer overflow raises Error. Division by zero and non-finite floats cause Error.
 Structs are constructed with named arguments and support fields and internal `fn` methods.
 Assignment, arguments, and return values copy nested fields by value. A method's `self` updates the variable on which it was called.
 See `examples/value-semantics.rukbat` for a demonstration that the original value remains unchanged after copying.

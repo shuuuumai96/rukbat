@@ -19,7 +19,6 @@ internal sealed partial class TypeChecker
     public HashSet<Call> ArrayAppends { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Call, string> StandardCalls { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Expression, ValueType> Types { get; } = new(ReferenceEqualityComparer.Instance);
-    public Dictionary<Expression, ValueType> Conversions { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Member, StandardEncoding> EncodingConstants { get; } = new(ReferenceEqualityComparer.Instance);
     private Dictionary<VariableSymbol, ValueType> refinements = [];
     private int variableId;
@@ -285,7 +284,7 @@ internal sealed partial class TypeChecker
         {
             Literal literal => literal.Value switch
             {
-                int => ValueType.Int,
+                long => ValueType.Int,
                 double => ValueType.Float,
                 string => ValueType.String,
                 bool => ValueType.Bool,
@@ -370,7 +369,7 @@ internal sealed partial class TypeChecker
             };
         }
 
-        if (IsNumber(left) && IsNumber(right))
+        if (left == ValueType.Float && right == ValueType.Float)
         {
             return op switch
             {
@@ -544,6 +543,8 @@ internal sealed partial class TypeChecker
             ("encoding", "parse") => [ValueType.String],
             ("encoding", "from_code_page") => [ValueType.Int],
             ("encoding", "name") => [ValueType.Encoding],
+            ("math", "to_float") => [ValueType.Int],
+            ("math", "to_int" or "trunc" or "floor" or "ceil") => [ValueType.Float],
             ("text", "from_int") => [ValueType.Int],
             ("text", "from_float") => [ValueType.Float],
             ("text", "from_bool") => [ValueType.Bool],
@@ -594,6 +595,8 @@ internal sealed partial class TypeChecker
             ("encoding", "parse") => ValueType.Encoding,
             ("encoding", "from_code_page") => ValueType.Encoding,
             ("encoding", "name") => ValueType.String,
+            ("math", "to_int") => ValueType.Int,
+            ("math", _) => ValueType.Float,
             ("text", "parse_int") => ValueType.Int,
             ("text", "parse_float") => ValueType.Float,
             ("text", "parse_bool") => ValueType.Bool,
@@ -901,18 +904,13 @@ internal sealed partial class TypeChecker
                 ? CanConvert(expected.NonNullable, actual.NonNullable)
                 : CanConvert(expected.NonNullable, actual);
         }
-        return expected == ValueType.Float && actual == ValueType.Int;
+        return false;
     }
 
     private void Match(ValueType expected, ValueType actual, Node node, string? context = null)
     {
         if (CanConvert(expected, actual))
         {
-            if (node is Expression expression && expected != actual &&
-                expected != ValueType.Error && actual != ValueType.Error)
-            {
-                Conversions[expression] = expected;
-            }
             return;
         }
 

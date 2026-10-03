@@ -185,7 +185,7 @@ public class JsonValueTests : TestBase
             try { json.has(json.parse('null'), 'name') } catch err { print('has object required') }
             try { json.keys(json.parse('1')) } catch err { print('keys object required') }
             try { json.items(json.parse('{}')) } catch err { print('array required') }
-            try { json.as<int>(json.parse('2147483648')) } catch err { print('int overflow') }
+            try { json.as<int>(json.parse('9223372036854775808')) } catch err { print('int overflow') }
             try { json.as<int>(json.parse('1.0')) } catch err { print('int grammar') }
             try { json.as<float>(json.parse('1e400')) } catch err { print('finite float') }
             try { json.as<string>(json.parse('null')) } catch err { print('nullable required') }

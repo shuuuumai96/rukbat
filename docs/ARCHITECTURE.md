@@ -26,7 +26,7 @@ Each stage has a separate responsibility:
 - Parser builds the syntax tree without type checking or name resolution.
 - ModuleLoader discovers modules, resolves import paths, determines canonical module identity, builds the dependency graph, and detects cycles.
 - Resolver registers symbols, manages scopes, resolves name references including module-qualified names, and rejects redeclarations.
-- TypeChecker validates type compatibility, implicit numeric widening, nullable flow narrowing, function call signatures, and control-flow return semantics.
+- TypeChecker validates type compatibility, explicit numeric conversion contracts, nullable flow narrowing, function call signatures, and control-flow return semantics.
 - Emitter consumes validated syntax trees and type information to generate standalone Windows PowerShell 5.1-compatible `.ps1` files. It does not infer semantics or resolve names.
 - Compiler invokes these stages in order. It validates the generated PowerShell syntax as a generator sanity check; Windows PowerShell 5.1 compatibility is established by the execution test suite, not by this parser validation alone.
 - `rukbat check` stops after ModuleLoader, Resolver, and TypeChecker. It invokes neither Emitter nor the PowerShell parser.
@@ -79,3 +79,8 @@ Managed strict Unicode codecs handle UTF-8/16/32; native Windows conversion flag
 invalid bytes, unencodable characters, and best-fit substitutions for legacy code pages. JSON and PowerShell boundaries reject this type recursively. An `encoding`
 import alone emits conversion operations without filesystem/process native helpers. No parser
 syntax or deployment runtime is added.
+
+Integer values use signed 64-bit storage. Parser validates literal bounds (including the signed
+minimum), and the checker rejects mixed numeric operations and implicit widening. Checked integer
+arithmetic and explicit math conversions use the embedded Numbers helper, avoiding PowerShell
+automatic promotion and floating-point integer division. It is emitted only when needed.

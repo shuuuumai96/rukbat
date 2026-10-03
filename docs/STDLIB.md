@@ -14,6 +14,7 @@ import process
 import text
 import test
 import encoding
+import math
 ```
 
 A local module instead uses an explicit relative `.rukbat` path and an alias. Standard module names are reserved as aliases. Generated scripts contain only the standard-library runtime sections used by their imports and remain standalone on Windows PowerShell 5.1.
@@ -142,7 +143,7 @@ See [the log-filter example](../examples/filter-errors.rukbat) for a procedural 
 | `text.from_int(value: int): string` | Signed decimal representation. |
 | `text.from_float(value: float): string` | Culture-independent round-trip representation of a finite binary64 value. |
 | `text.from_bool(value: bool): string` | Lowercase `true` or `false`. |
-| `text.parse_int(value: string): int` | Parses a signed decimal integer within the signed 32-bit range. |
+| `text.parse_int(value: string): int` | Parses a signed decimal integer within the signed 64-bit range. |
 | `text.parse_float(value: string): float` | Parses a finite decimal binary64 value. |
 | `text.parse_bool(value: string): bool` | Accepts only case-sensitive `true` and `false`. |
 
@@ -154,6 +155,23 @@ and `.5`, `1.`, grouping separators, NaN and Infinity are rejected.
 Invalid input, overflow, and nonzero float input that underflows to zero cause Error.
 Representable subnormal floats are accepted. Float formatting preserves the numeric value on reparse;
 it does not promise to preserve the input spelling or the sign of zero.
+
+## `math`
+
+| Signature | Meaning | Failure |
+|---|---|---|
+| `math.to_float(value: int): float` | Explicit conversion to binary64, rounded to nearest with ties to even; large integers may lose precision. | None. |
+| `math.to_int(value: float): int` | Converts a whole float to signed 64-bit integer without truncating a fraction. | A fractional or out-of-range value causes Error. |
+| `math.trunc(value: float): float` | Removes the fractional part toward zero. | None. |
+| `math.floor(value: float): float` | Rounds toward negative infinity. | None. |
+| `math.ceil(value: float): float` | Rounds toward positive infinity. | None. |
+
+All parameters are required and positional, with no type arguments. These operations do not
+introduce implicit conversions. `math.to_int(math.trunc(3.9))` returns `3`;
+`math.to_int(3.9)` raises Error. Floats are approximate binary values, not exact decimal money.
+Integer JSON and text boundaries retain all 64-bit digits; `json.parse<float>` and
+`powershell<float>` explicitly request approximate numeric conversion. A JSON receiver using
+binary64 may lose large integer precision; exchange such identifiers as strings when required.
 
 ## `encoding`
 
@@ -470,7 +488,7 @@ for an optional value; this is distinct from a non-null `json.Value` representin
 
 Numbers remain JSON number tokens until converted. For example, `9007199254740993` and `1e400` can
 be parsed, selected, and stringified without precision loss. Conversion to `int` still requires
-an exact 32-bit integer, and conversion to `float` still requires a finite binary64 value.
+an exact 64-bit integer, and conversion to `float` still requires a finite binary64 value.
 `stringify` preserves numeric spelling, emits object properties in ordinal name order, and preserves
 array order. Whitespace and the original spelling of string escapes are not preserved.
 
@@ -590,7 +608,7 @@ struct Result {
 
 | Signature | Meaning | Failure |
 |---|---|---|
-| `process.run(executable: string, arguments: string[], timeout_ms: int?, encoding: encoding.Encoding): process.Result` | Starts an executable directly, waits for it, and captures standard output and standard error separately using the explicit encoding. `null` waits without a deadline; a positive value is a millisecond deadline. | A nonpositive timeout, or failure to launch, capture, decode, wait, or finish before the deadline causes Error. |
+| `process.run(executable: string, arguments: string[], timeout_ms: int?, encoding: encoding.Encoding): process.Result` | Starts an executable directly, waits for it, and captures standard output and standard error separately using the explicit encoding. `null` waits without a deadline; a value from 1 through 2147483647 is a millisecond deadline. | An out-of-range timeout, or failure to launch, capture, decode, wait, or finish before the deadline causes Error. |
 
 The API does not interpret a shell command string. The executable and each argument are separate values. A nonzero exit code is a normal `Result`, not an Rukbat Error. The required `encoding.Encoding` applies to both stdout and stderr and accepts the same values as `fs.read_text`. Strings and unknown members are rejected during checking. Use `encoding.parse` to read a name from external configuration; an unsupported name raises Error before launching the child when parsed in the argument expression. Invalid byte sequences cause Error rather than replacement characters. Decoded output is returned exactly, including any BOM character and trailing newline; zero output becomes `""`. There is no encoding detection or BOM removal. This selects how Rukbat reads the bytes; it does not change the child program's output encoding. Standard output and standard error are drained concurrently to avoid pipe deadlocks.
 

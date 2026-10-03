@@ -29,6 +29,7 @@ internal sealed partial class Emitter(TypeChecker checker)
             return "System.Collections.Generic.List[object]";
         }
 
+        if (type == ValueType.Int) return "long";
         if (type == ValueType.Float)
         {
             return "double";
@@ -60,6 +61,12 @@ internal sealed partial class Emitter(TypeChecker checker)
         Line("$__rukbat_modules = @{}");
         EmitErrorRuntime();
         EmitRuntime();
+        if (checker.Types.Any(pair => pair.Key is Rukbat.Binary or Unary && pair.Value == ValueType.Int) ||
+            modules.Any(current => current.StandardName == "math"))
+        {
+            EmitNativeLoader("Numbers");
+            Line("& $__rukbat_load_Numbers");
+        }
         Line("$__rukbat_arguments = & $__rukbat_array $__rukbat_arguments");
         Line("$__rukbat_json_decode = $null");
         Line("$__rukbat_json_encode = $null");
@@ -69,7 +76,7 @@ internal sealed partial class Emitter(TypeChecker checker)
             EmitJsonRuntime();
         }
         var standardModules = modules
-            .Where(current => current.StandardName is "fs" or "path" or "csv" or "json" or "env" or "process" or "text" or "encoding")
+            .Where(current => current.StandardName is "fs" or "path" or "csv" or "json" or "env" or "process" or "text" or "encoding" or "math")
             .Select(current => current.StandardName!)
             .ToHashSet(StringComparer.Ordinal);
         if (standardModules.Count != 0)
@@ -271,19 +278,6 @@ internal sealed partial class Emitter(TypeChecker checker)
         var value = RawExpr(expression);
         var actual = checker.Types[expression];
         value = Clone(value, actual);
-        return checker.Conversions.TryGetValue(expression, out var expected)
-            ? Convert(value, actual, expected)
-            : value;
-    }
-
-    private static string Convert(string value, ValueType actual, ValueType expected)
-    {
-        if (expected.NonNullable == ValueType.Float && actual.NonNullable == ValueType.Int)
-        {
-            return actual.IsNullable
-                ? $"(& {{ param($v) if ($null -eq $v) {{ return $null }}; return [double]$v }} ({value}))"
-                : $"([double]({value}))";
-        }
         return value;
     }
 
@@ -319,7 +313,7 @@ internal sealed partial class Emitter(TypeChecker checker)
         {
             string value => Quote(value),
             bool value => value ? "$true" : "$false",
-            int value => value.ToString(CultureInfo.InvariantCulture),
+            long value => $"([long]{Quote(value.ToString(CultureInfo.InvariantCulture))})",
             double value => $"([double]{value.ToString("R", CultureInfo.InvariantCulture)})",
             NullValue => "$null",
             _ => throw new InvalidOperationException()
@@ -328,13 +322,13 @@ internal sealed partial class Emitter(TypeChecker checker)
         Index index => $"(& $script:__rukbat_index ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) {Location(index)} $false $script:__rukbat_raise)",
         Name name => checker.Variables[name].PowerShellName,
         Member member when checker.EncodingConstants.TryGetValue(member, out var encoding) => Quote(encoding.Label),
-        Member member when checker.Types[member.Receiver].Element is not null => $"(({RawExpr(member.Receiver)}).Count)",
+        Member member when checker.Types[member.Receiver].Element is not null => $"([long]({RawExpr(member.Receiver)}).Count)",
         Member member => $"(({RawExpr(member.Receiver)})[{Quote(checker.Fields[member].Key)}])",
         Unary unary => unary.Token.Text == "!"
             ? $"(-not {Expr(unary.Value)})"
             : checker.Types[unary] == ValueType.Float
                 ? $"([double]({unary.Token.Text}{Expr(unary.Value)}))"
-                : $"([int]({unary.Token.Text}{Expr(unary.Value)}))",
+                : unary.Token.Text == "+" ? $"({Expr(unary.Value)})" : $"([RukbatNumbers]::Integer('negate', ({Expr(unary.Value)}), 0))",
         Binary binary => Binary(binary),
         Call call => Call(call),
         _ => throw new InvalidOperationException("Unbound expression.")
@@ -356,7 +350,7 @@ internal sealed partial class Emitter(TypeChecker checker)
         var expression = $"({Expr(binary.Left)} {op} {Expr(binary.Right)})";
         if (checker.Types[binary] == ValueType.Int)
         {
-            return op == "/" ? $"([int][Math]::Truncate({expression}))" : $"([int]{expression})";
+            return $"([RukbatNumbers]::Integer({Quote(binary.Token.Text)}, ({Expr(binary.Left)}), ({Expr(binary.Right)})))";
         }
         if (checker.Types[binary] == ValueType.Float)
         {
@@ -476,7 +470,7 @@ internal sealed partial class Emitter(TypeChecker checker)
         if (call.Receiver is null && call.Name == "exit")
         {
             // Process termination crosses module/function boundaries and cannot be caught as Error.
-            return $"(& {{ param([int]$code) if ($code -lt 0) {{ throw 'exit code must be non-negative.' }}; [Console]::Out.Flush(); [Console]::Error.Flush(); [Environment]::Exit($code) }} ({Expr(call.Arguments[0].Value)}))";
+            return $"(& {{ param([long]$code) if ($code -lt 0 -or $code -gt [int]::MaxValue) {{ throw 'exit code must be between 0 and 2147483647.' }}; [Console]::Out.Flush(); [Console]::Error.Flush(); [Environment]::Exit($code) }} ({Expr(call.Arguments[0].Value)}))";
         }
 
         var function = checker.Calls[call];

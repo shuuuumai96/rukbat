@@ -12,7 +12,7 @@ public class CliRunTests : TestBase
     {
         using var project = new Project();
         project.Write("math.rukbat", "fn add(a: int, b: int): int { return a + b }");
-        project.Write("run input.rukbat", "import './math.rukbat' as math\nprint(math.add(2, 3)); print(powershell<string>('Get-Content', 'data.txt', Raw: true))");
+        project.Write("run input.rukbat", "import './math.rukbat' as arithmetic\nprint(arithmetic.add(2, 3)); print(powershell<string>('Get-Content', 'data.txt', Raw: true))");
         project.Write("data.txt", "relative path");
         var result = await RunCliProcess(project, ["run", project.PathFor("run input.rukbat")]);
         Assert.Equal(0, result.ExitCode);

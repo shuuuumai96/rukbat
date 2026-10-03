@@ -216,8 +216,8 @@ internal sealed partial class Emitter
                     }
                     'int' {
                         if ($value -is [RukbatJsonNumber] -and $value.Text -notmatch '[.eE]') {
-                            $result = 0
-                            if ([int]::TryParse($value.Text,
+                            $result = [long]0
+                            if ([long]::TryParse($value.Text,
                                 [System.Globalization.NumberStyles]::AllowLeadingSign,
                                 [System.Globalization.CultureInfo]::InvariantCulture, [ref]$result)) {
                                 return $result
@@ -230,7 +230,8 @@ internal sealed partial class Emitter
                             if ([double]::TryParse($value.Text,
                                 [System.Globalization.NumberStyles]::Float,
                                 [System.Globalization.CultureInfo]::InvariantCulture, [ref]$result) -and
-                                -not [double]::IsNaN($result) -and -not [double]::IsInfinity($result)) {
+                                -not [double]::IsNaN($result) -and -not [double]::IsInfinity($result) -and
+                                ($result -ne 0 -or (($value.Text -split '[eE]')[0] -cnotmatch '[1-9]'))) {
                                 return $result
                             }
                         }
@@ -278,7 +279,7 @@ internal sealed partial class Emitter
                     'json' { return $item.ToJson() }
                     'string' { return (__rukbat_json_quote ([string]$item)) }
                     'bool' { return $(if ($item) { 'true' } else { 'false' }) }
-                    'int' { return ([int]$item).ToString([System.Globalization.CultureInfo]::InvariantCulture) }
+                    'int' { return ([long]$item).ToString([System.Globalization.CultureInfo]::InvariantCulture) }
                     'float' {
                         $number = [double]$item
                         if ([double]::IsNaN($number) -or [double]::IsInfinity($number)) {

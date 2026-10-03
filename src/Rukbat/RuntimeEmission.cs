@@ -38,7 +38,7 @@ internal sealed partial class Emitter
             return ,$values
         }
         $__rukbat_index = {
-            param([System.Collections.Generic.List[object]]$values, [int]$offset, [string]$location, [bool]$address, [scriptblock]$raise)
+            param([System.Collections.Generic.List[object]]$values, [long]$offset, [string]$location, [bool]$address, [scriptblock]$raise)
             if ($offset -lt 0 -or $offset -ge $values.Count) {
                 & $raise @{ message = "Array index $offset is outside length $($values.Count)." } $location
             }
@@ -119,8 +119,8 @@ internal sealed partial class Emitter
                                 $value -is [int16] -or $value -is [uint16] -or
                                 $value -is [int] -or $value -is [uint32] -or
                                 $value -is [long] -or $value -is [ulong]
-                            if ($integral -and [decimal]$value -ge [int]::MinValue -and [decimal]$value -le [int]::MaxValue) {
-                                return [int]$value
+                            if ($integral -and [decimal]$value -ge [long]::MinValue -and [decimal]$value -le [long]::MaxValue) {
+                                return [long]$value
                             }
                         }
                         'string' {

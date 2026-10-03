@@ -20,7 +20,7 @@ public class ErrorTests : TestBase
     [InlineData("try { print(1 / 0) } catch err { print('arithmetic') }; try { xs: int[] = []; print(xs[0]) } catch err { print('bounds') }", "arithmetic\nbounds")]
     [InlineData("try { print(powershell<int>('Write-Output', 'bad')) } catch err { print('type') }", "type")]
     [InlineData("try { powershell<void>('Missing-Rukbat-Command') }\ncatch err { print('missing') }", "missing")]
-    [InlineData("try { print(2147483647 + 1) } catch err { print('overflow') }", "overflow")]
+    [InlineData("try { print(9223372036854775807 + 1) } catch err { print('overflow') }", "overflow")]
     [InlineData("try { powershell<void>('pwsh', '-NoLogo', '-NoProfile', '-Command', 'exit 0'); print('success') } catch err { print('wrong') }", "success")]
     [InlineData("struct S { n: int; fn fail(): void { self.n = 2; throw Error {message: 'failure'} } }; s: S = S {n: 1}; try { s.fail() } catch err { print(s.n) }", "2")]
     [InlineData("fn message(err: Error): string { err.message = 'local'; return err.message }; try { throw Error {message: 'original'} } catch err { print(message(err)); print(err.message) }", "local\noriginal")]

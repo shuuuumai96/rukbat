@@ -10,10 +10,10 @@ Create `test_math.rukbat`:
 
 ```rukbat
 import test
-import "./math.rukbat" as math
+import "./math.rukbat" as arithmetic
 
 fn test_add(): void {
-    test.assert(math.add(2, 3) == 5)
+    test.assert(arithmetic.add(2, 3) == 5)
 }
 ```
 

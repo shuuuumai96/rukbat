@@ -1,4 +1,4 @@
-import "./math.rukbat" as math
+import "./math.rukbat" as arithmetic
 
 struct User {
     name: string
@@ -12,7 +12,7 @@ struct User {
 user := User {
     name: "Taro", age: 30
 }
-result := math.add(user.age, 2)
+result := arithmetic.add(user.age, 2)
 print(user.name)
 print(result)
 

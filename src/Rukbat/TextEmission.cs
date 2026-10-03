@@ -64,7 +64,7 @@ internal sealed partial class Emitter
         return [string]::Join([string]$values[1], [string[]]$values[0])
     }
     'text.from_int' {
-        return ([int]$values[0]).ToString([Globalization.CultureInfo]::InvariantCulture)
+        return ([long]$values[0]).ToString([Globalization.CultureInfo]::InvariantCulture)
     }
     'text.from_float' {
         return ([double]$values[0]).ToString('R', [Globalization.CultureInfo]::InvariantCulture)
@@ -81,9 +81,9 @@ internal sealed partial class Emitter
             if ($text -ceq 'true') { return $true }
             if ($text -ceq 'false') { return $false }
         } elseif ($operation -ceq 'text.parse_int') {
-            $number = 0
+            $number = [long]0
             if ($text -cmatch '\A[+-]?[0-9]+\z' -and
-                [int]::TryParse($text, [Globalization.NumberStyles]::AllowLeadingSign, $culture, [ref]$number)) {
+                [long]::TryParse($text, [Globalization.NumberStyles]::AllowLeadingSign, $culture, [ref]$number)) {
                 return $number
             }
         } else {

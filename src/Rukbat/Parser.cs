@@ -407,11 +407,11 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
         {
             formatting?.UnaryOperators.Add(token.Offset);
             Take();
-            // The magnitude of int.MinValue exceeds the positive range, so consume its sign here.
-            if (token.Text == "-" && Current.Text == "2147483648")
+            // The magnitude of long.MinValue exceeds the positive range, so consume its sign here.
+            if (token.Text == "-" && Current.Text == "9223372036854775808")
             {
                 Take();
-                return new Literal(token, int.MinValue);
+                return new Literal(token, long.MinValue);
             }
             return new Unary(token, Primary(allowStructLiteral));
         }
@@ -463,16 +463,17 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
             if (token.Text.Contains('.') || token.Text.Contains('e', StringComparison.OrdinalIgnoreCase))
             {
                 if (!double.TryParse(token.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var floatValue) ||
-                    !double.IsFinite(floatValue))
+                    !double.IsFinite(floatValue) ||
+                    floatValue == 0 && token.Text.Split('e', 'E')[0].Any(c => c is >= '1' and <= '9'))
                 {
                     source.Error("RUK1001", "Float literal must be a finite IEEE 754 binary64 value.", token);
                 }
 
                 return new Literal(token, floatValue);
             }
-            if (!int.TryParse(token.Text, out var value))
+            if (!long.TryParse(token.Text, NumberStyles.None, CultureInfo.InvariantCulture, out var value))
             {
-                source.Error("RUK1001", "Integer literal is outside Int32 range.", token);
+                source.Error("RUK1001", "Integer literal is outside Int64 range.", token);
             }
 
             return new Literal(token, value);

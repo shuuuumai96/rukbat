@@ -55,7 +55,7 @@ public class JsonTests : TestBase
     [Theory]
     [InlineData("json.parse<int>('1.0')", "incompatible with int")]
     [InlineData("json.parse<int>('1e0')", "incompatible with int")]
-    [InlineData("json.parse<int>('2147483648')", "incompatible with int")]
+    [InlineData("json.parse<int>('9223372036854775808')", "incompatible with int")]
     [InlineData("json.parse<float>('1e400')", "incompatible with float")]
     [InlineData("json.parse<string>('null')", "null is incompatible")]
     [InlineData("struct U { name: string? }; json.parse<U>('{}')", "Missing required property")]

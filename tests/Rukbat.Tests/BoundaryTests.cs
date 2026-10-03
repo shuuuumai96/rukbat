@@ -30,7 +30,7 @@ public class PowerShellBoundaryTests : TestBase
     [InlineData("struct U { age: int }; u: U = powershell<U>('ConvertFrom-Json', '{\"age\":null}')", "Null is incompatible")]
     [InlineData("struct U { age: int }; u: U = powershell<U>('ConvertFrom-Json', '{\"age\":\"30\"}')", "incompatible with int")]
     [InlineData("struct U { age: int }; u: U = powershell<U>('ConvertFrom-Json', '{\"Age\":30}')", "Missing required field")]
-    [InlineData("struct U { age: int }; u: U = powershell<U>('ConvertFrom-Json', '{\"age\":2147483648}')", "incompatible with int")]
+    [InlineData("struct U { age: int }; u: U = powershell<U>('ConvertFrom-Json', '{\"age\":9223372036854775808}')", "incompatible with int")]
     [InlineData("struct U { age: int }; u: U = powershell<U>('ConvertFrom-Json', '{\"age\":1.5}')", "incompatible with int")]
     [InlineData("struct U { age: int }; xs: U[] = powershell<U[]>('ConvertFrom-Json', '[{\"age\":1},{\"age\":\"bad\"}]')", "result[1].age")]
     [InlineData("struct U { xs: int[] }; u: U = powershell<U>('ConvertFrom-Json', '{\"xs\":1}')", "expected an array")]

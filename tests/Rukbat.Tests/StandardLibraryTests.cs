@@ -132,14 +132,15 @@ public class StandardLibraryTests : TestBase
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
-    public async Task ProcessRunRejectsNonpositiveTimeoutBeforeLaunch(int timeout)
+    [InlineData(2147483648L)]
+    public async Task ProcessRunRejectsOutOfRangeTimeoutBeforeLaunch(long timeout)
     {
         using var project = new Project();
         var marker = project.PathFor("started.txt").Replace("\\", "\\\\");
         project.Write("main.rukbat", $"import encoding; import process\ntry {{ process.run('powershell', ['-Command', '[IO.File]::WriteAllText(\"{marker}\", \"started\")'], {timeout}, encoding.utf8) }} catch err {{ print(err.message) }}");
         var result = await project.Run();
         Assert.Equal(0, result.ExitCode);
-        Assert.Contains("timeout must be greater than zero", result.Output);
+        Assert.Contains(timeout <= 0 ? "timeout must be greater than zero" : "timeout must not exceed", result.Output);
         Assert.False(File.Exists(project.PathFor("started.txt")));
     }
 

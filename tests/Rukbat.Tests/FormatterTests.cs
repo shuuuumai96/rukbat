@@ -9,7 +9,7 @@ public sealed class FormatterTests : TestBase
         { "imports", "import text as txt;import './missing.rukbat' as missing", "import text as txt\nimport './missing.rukbat' as missing\n" },
         { "declarations and assignments", "a:=1;b : int=2;a=\n b+1", "a := 1\nb: int = 2\na = b + 1\n" },
         { "nullable and array types", "a : mod.User?[]?=null;b:int[][]=[[1],[]]", "a: mod.User?[]? = null\nb: int[][] = [[1], []]\n" },
-        { "literals", "a:=2147483647;b := -2147483648;c:=1.5e-2;d:=true;e:=false;f:string?=null", "a := 2147483647\nb := -2147483648\nc := 1.5e-2\nd := true\ne := false\nf: string? = null\n" },
+        { "literals", "a:=2147483647;b := -9223372036854775808;c:=1.5e-2;d:=true;e:=false;f:string?=null", "a := 2147483647\nb := -9223372036854775808\nc := 1.5e-2\nd := true\ne := false\nf: string? = null\n" },
         { "strings", "a:=\"# // {} ; < >\";b:='\\n\\r\\t\\\\\\\"\\\''", "a := \"# // {} ; < >\"\nb := '\\n\\r\\t\\\\\\\"\\\''\n" },
         { "multiline string values", "value:=\"first\r\nsecond\nthird\rfinal\"", "value := \"first\\r\\nsecond\\nthird\\rfinal\"\n" },
         { "operators", "a:=1+2-3*4/5%6;b:=a==1||a!=2&&a<3&&a<=4&&a>5&&a>=6", "a := 1 + 2 - 3 * 4 / 5 % 6\nb := a == 1 || a != 2 && a < 3 && a <= 4 && a > 5 && a >= 6\n" },
@@ -70,7 +70,7 @@ public sealed class FormatterTests : TestBase
     [InlineData("value := [1,,2]")]
     [InlineData("value := powershell<int('echo')")]
     [InlineData("value := 1e+")]
-    [InlineData("value := 2147483648")]
+    [InlineData("value := 9223372036854775808")]
     [InlineData("$value = 1")]
     [Trait("Category", "Unit")]
     public void InvalidSyntaxLeavesBytesUnchanged(string source)
