@@ -84,6 +84,13 @@ conversions. Convert external names explicitly with `encoding.parse` / `encoding
 Direct printing, JSON conversion, and PowerShell arguments/results containing this type are
 rejected; convert to/from a string at these boundaries. There is no general enum declaration.
 
+`import datetime` provides the opaque immutable types `datetime.Timestamp`, `datetime.Date`,
+`datetime.Duration`, and `datetime.Zone`. They have no public fields or struct literals and no
+implicit conversions. Timestamp, Date, and Duration support same-type equality and ordering;
+Zone supports equality. They support nullable values and ordinary containers. Date/time
+arithmetic and all external conversions are explicit standard-library functions in STDLIB.md.
+Direct printing, JSON conversion, and PowerShell boundaries reject these types recursively.
+
 ```rukbat
 nickname: string? = null
 values: string?[] = ["one", null]

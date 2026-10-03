@@ -37,6 +37,7 @@ internal sealed partial class Emitter(TypeChecker checker)
         if (type.IsJsonValue) return "RukbatJsonValue";
         if (type.IsCsvRow) return "RukbatCsvRow";
         if (type == ValueType.Encoding) return "string";
+        if (DateTimeValues.Contains(type)) return DateTimeValues.RuntimeName(type);
         return type.Struct is null ? type.Name : "hashtable";
     }
 
@@ -76,7 +77,7 @@ internal sealed partial class Emitter(TypeChecker checker)
             EmitJsonRuntime();
         }
         var standardModules = modules
-            .Where(current => current.StandardName is "fs" or "path" or "csv" or "json" or "env" or "process" or "text" or "encoding" or "math")
+            .Where(current => current.StandardName is "fs" or "path" or "csv" or "json" or "env" or "process" or "text" or "encoding" or "math" or "datetime")
             .Select(current => current.StandardName!)
             .ToHashSet(StringComparer.Ordinal);
         if (standardModules.Count != 0)
@@ -321,6 +322,7 @@ internal sealed partial class Emitter(TypeChecker checker)
         ArrayLiteral array => $"(& $script:__rukbat_array @({string.Join("; ", array.Items.Select(item => ",(" + Expr(item) + ")"))}))",
         Index index => $"(& $script:__rukbat_index ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) {Location(index)} $false $script:__rukbat_raise)",
         Name name => checker.Variables[name].PowerShellName,
+        Member member when checker.UtcZones.Contains(member) => "([RukbatDateTime]::Utc)",
         Member member when checker.EncodingConstants.TryGetValue(member, out var encoding) => Quote(encoding.Label),
         Member member when checker.Types[member.Receiver].Element is not null => $"([long]({RawExpr(member.Receiver)}).Count)",
         Member member => $"(({RawExpr(member.Receiver)})[{Quote(checker.Fields[member].Key)}])",
@@ -347,7 +349,7 @@ internal sealed partial class Emitter(TypeChecker checker)
         }
 
         var op = BinaryOperator(binary.Token.Text);
-        var expression = $"({Expr(binary.Left)} {op} {Expr(binary.Right)})";
+        var expression = Comparison(Expr(binary.Left), Expr(binary.Right), op, checker.Types[binary.Left]);
         if (checker.Types[binary] == ValueType.Int)
         {
             return $"([RukbatNumbers]::Integer({Quote(binary.Token.Text)}, ({Expr(binary.Left)}), ({Expr(binary.Right)})))";

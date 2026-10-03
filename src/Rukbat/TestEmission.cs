@@ -14,15 +14,19 @@ internal sealed partial class Emitter
             var op = BinaryOperator(binary.Token.Text);
             return "(& { " +
                 $"$left = {Expr(binary.Left)}; $right = {Expr(binary.Right)}; " +
-                $"if (-not ($left {op} $right)) {{ " +
-                $"$message = 'Assertion failed: ' + {label} + \"`nleft = \" + (& {{param($value) if ($null -eq $value) {{ '<null>' }} else {{ ConvertTo-Json -InputObject $value -Compress }} }} $left) + " +
-                "\"`nright = \" + (& {param($value) if ($null -eq $value) { '<null>' } else { ConvertTo-Json -InputObject $value -Compress }} $right); " +
+                $"if (-not {Comparison("$left", "$right", op, checker.Types[binary.Left])}) {{ " +
+                $"$message = 'Assertion failed: ' + {label} + \"`nleft = \" + {AssertionValue(checker.Types[binary.Left], "$left")} + " +
+                $"\"`nright = \" + {AssertionValue(checker.Types[binary.Right], "$right")}; " +
                 $"& $script:__rukbat_raise @{{message = $message}} {Location(call)}" + " } })";
         }
 
         return $"(& {{ if (-not ({Expr(condition)})) {{ & $script:__rukbat_raise " +
             $"@{{message = ('Assertion failed: ' + {label})}} {Location(call)}" + " } })";
     }
+
+    private static string AssertionValue(ValueType type, string name) =>
+        "(& {param($value) if ($null -eq $value) { '<null>' } else { " +
+        (DateTimeValues.Contains(type) ? "$value.ToString()" : "ConvertTo-Json -InputObject $value -Compress") + " } } " + name + ")";
 
     private string AssertionSource(Call call)
     {

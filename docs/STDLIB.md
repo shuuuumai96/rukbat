@@ -15,6 +15,7 @@ import text
 import test
 import encoding
 import math
+import datetime
 ```
 
 A local module instead uses an explicit relative `.rukbat` path and an alias. Standard module names are reserved as aliases. Generated scripts contain only the standard-library runtime sections used by their imports and remain standalone on Windows PowerShell 5.1.
@@ -172,6 +173,99 @@ introduce implicit conversions. `math.to_int(math.trunc(3.9))` returns `3`;
 Integer JSON and text boundaries retain all 64-bit digits; `json.parse<float>` and
 `powershell<float>` explicitly request approximate numeric conversion. A JSON receiver using
 binary64 may lose large integer precision; exchange such identifiers as strings when required.
+
+## `datetime`
+
+`datetime.Timestamp`, `datetime.Date`, `datetime.Duration`, and `datetime.Zone` are opaque,
+immutable values. They support ordinary variables, parameters, returns, nullable wrappers,
+arrays, and struct fields, with no public fields or struct literals. `datetime.utc` is a
+read-only `datetime.Zone` constant. Timestamp, Date, and Duration support same-type equality
+and ordering; Zone supports equality by its canonical ID. Arithmetic uses the functions below.
+
+Timestamp identifies one UTC instant, independent of presentation. Input offset spelling is
+not retained. Date is a Gregorian calendar date without a time zone. Years are 1 through 9999;
+timestamp and duration resolution is 100 nanoseconds. Duration stores a signed 64-bit tick count,
+with checked construction. Clock resolution and accuracy are properties of the deployment host;
+`now` is a wall clock, not a monotonic elapsed-time measurement.
+
+| Signature | Meaning |
+|---|---|
+| `datetime.now(): datetime.Timestamp` | Reads the wall clock once and returns a UTC instant. |
+| `datetime.parse(text: string): datetime.Timestamp` | Parses an offset-qualified timestamp, preserving the instant and up to seven fractional digits. |
+| `datetime.stringify(value: datetime.Timestamp): string` | Returns canonical UTC text: yyyy-MM-ddTHH:mm:ss.fffffffZ. |
+| `datetime.format(value: datetime.Timestamp, pattern: string, zone: datetime.Zone): string` | Formats an instant using explicit zone rules and the restricted format language. |
+| `datetime.parse_local(text: string, pattern: string, zone: datetime.Zone): datetime.Timestamp` | Parses a local clock in an explicit zone; invalid or ambiguous local times cause Error. |
+| `datetime.zone(id: string): datetime.Zone` | Looks up a case-sensitive Windows time zone ID, such as Tokyo Standard Time. |
+| `datetime.local_zone(): datetime.Zone` | Explicitly obtains a snapshot of the deployment machine's current local zone. |
+| `datetime.zone_id(value: datetime.Zone): string` | Returns the Windows zone ID for external configuration. |
+| `datetime.create_date(year: int, month: int, day: int): datetime.Date` | Constructs a valid Gregorian date without normalizing invalid components. |
+| `datetime.date(value: datetime.Timestamp, zone: datetime.Zone): datetime.Date` | Extracts the calendar date in the specified zone. |
+| `datetime.parse_date(text: string): datetime.Date` | Parses exactly yyyy-MM-dd. |
+| `datetime.stringify_date(value: datetime.Date): string` | Returns canonical yyyy-MM-dd. |
+| `datetime.format_date(value: datetime.Date, pattern: string): string` | Formats a date using date tokens only. |
+| `datetime.at(date: datetime.Date, hour: int, minute: int, second: int, zone: datetime.Zone): datetime.Timestamp` | Constructs a local clock with zero fractional seconds and resolves it in the explicit zone. |
+| `datetime.add_days(value: datetime.Date, count: int): datetime.Date` | Adds signed calendar days. |
+| `datetime.add_months(value: datetime.Date, count: int): datetime.Date` | Adds signed calendar months; a missing day is clamped to the destination month's last day. |
+| `datetime.milliseconds(count: int): datetime.Duration` | Constructs a signed elapsed time from whole milliseconds. |
+| `datetime.seconds(count: int): datetime.Duration` | Constructs a signed elapsed time from whole seconds. |
+| `datetime.minutes(count: int): datetime.Duration` | Constructs a signed elapsed time from whole minutes. |
+| `datetime.hours(count: int): datetime.Duration` | Constructs a signed elapsed time from whole hours. |
+| `datetime.days(count: int): datetime.Duration` | Constructs a signed elapsed time; each day is exactly 24 hours. |
+| `datetime.add(value: datetime.Timestamp, duration: datetime.Duration): datetime.Timestamp` | Adds elapsed time on the UTC timeline. |
+| `datetime.between(start: datetime.Timestamp, end: datetime.Timestamp): datetime.Duration` | Returns end minus start without losing precision. |
+| `datetime.total_seconds(value: datetime.Duration): float` | Returns approximate binary64 seconds for display or aggregation; use Duration comparison for exact decisions. |
+| `datetime.from_unix_seconds(value: int): datetime.Timestamp` | Constructs an instant from signed whole seconds since 1970-01-01T00:00:00Z. |
+| `datetime.from_unix_milliseconds(value: int): datetime.Timestamp` | Constructs an instant from signed whole milliseconds since the Unix epoch. |
+| `datetime.to_unix_seconds(value: datetime.Timestamp): int` | Returns signed epoch seconds, flooring fractional seconds, including before the epoch. |
+| `datetime.to_unix_milliseconds(value: datetime.Timestamp): int` | Returns signed epoch milliseconds, flooring sub-millisecond fractions, including before the epoch. |
+
+All parameters are required and positional; no type arguments or implicit conversions are
+accepted. Invalid input, unknown zones, range overflow, nonexistent local times, and ambiguous
+local times raise ordinary Error. No values are silently wrapped, date-range-clamped or replaced
+with the current date. The documented month-end correction in `add_months` is intentional;
+adding then subtracting a month need not restore the same day.
+
+`parse` accepts exactly `YYYY-MM-DDTHH:mm:ss[.fraction](Z|+HH:mm|-HH:mm)`, with ASCII digits,
+uppercase T/Z, one through seven fractional digits, and offsets up to plus/minus 14 hours.
+Whitespace, missing offsets, leap seconds (`:60`), `24:00`, excessive precision, and the unknown
+offset `-00:00` are rejected. `stringify` always emits seven fractional digits and Z; parse of
+that output restores the exact instant. `parse_date` accepts neither a time nor whitespace.
+
+Format tokens are `yyyy`, `MM`, `dd`, `HH`, `mm`, `ss`, one through seven `f` characters, and
+`zzz` for a numeric offset. Other letters must be single- or double-quoted literal text.
+Separators are literal, and all numeric output is culture-independent. Unknown tokens,
+unclosed quoted text, and an empty pattern cause Error; .NET standard format names are not
+accepted. `format_date` rejects time/offset tokens. `parse_local` rejects offset tokens and
+requires yyyy, MM, dd, HH, and mm exactly once; omitted seconds are zero and fractions require ss.
+Local parsing rejects repeated fields. A
+chosen display pattern may omit precision; use `stringify` for exact timestamp serialization.
+
+A Zone contains Windows time-zone rules, including daylight-saving transitions. An offset in
+an input timestamp is not a Zone. `zone` does not resolve IANA aliases or infer the machine zone.
+Only `local_zone` explicitly depends on the machine configuration. Local times that occur twice
+or never during a daylight-saving transition raise Error; use offset-qualified `parse` to select
+one occurrence. `days(1)` is 24 elapsed hours; `add_days(date, 1)` is the next calendar date.
+
+Direct print/eprint, JSON conversion, and PowerShell arguments/results containing datetime
+values are rejected, including nested arrays/structs. Use the explicit string, zone ID, Unix int,
+or approximate duration conversion at the boundary. Generated scripts embed the helper and
+run on Windows PowerShell 5.1 without a separate Rukbat installation.
+
+```rukbat
+import datetime
+
+tokyo := datetime.zone("Tokyo Standard Time")
+now := datetime.now()
+print(datetime.stringify(now))
+print(datetime.format(now, "yyyy-MM-dd HH:mm:ss zzz", tokyo))
+deadline := datetime.parse("2026-10-31T18:00:00+09:00")
+if now >= deadline {
+    print("expired")
+}
+today := datetime.date(now, tokyo)
+yesterday := datetime.add_days(today, -1)
+print(datetime.stringify_date(yesterday))
+```
 
 ## `encoding`
 

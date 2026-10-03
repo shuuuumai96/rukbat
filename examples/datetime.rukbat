@@ -1,0 +1,18 @@
+import datetime
+
+// A deadline is a UTC instant; display its local clock with an explicit zone.
+tokyo := datetime.zone("Tokyo Standard Time")
+received := datetime.parse("2026-10-04T09:00:00+09:00")
+deadline := datetime.add(received, datetime.hours(48))
+print(datetime.stringify(deadline))
+print(datetime.format(deadline, "yyyy-MM-dd HH:mm zzz", tokyo))
+
+// Calendar arithmetic is separate from elapsed time.
+invoice_date := datetime.create_date(2024, 1, 31)
+due_date := datetime.add_months(invoice_date, 1)
+print(datetime.stringify_date(due_date))
+due := datetime.at(due_date, 17, 0, 0, tokyo)
+print(datetime.stringify(due))
+
+// Use explicit strings or Unix integers when exporting to other tools.
+print(datetime.to_unix_seconds(deadline))

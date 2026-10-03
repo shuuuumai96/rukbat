@@ -84,3 +84,12 @@ Integer values use signed 64-bit storage. Parser validates literal bounds (inclu
 minimum), and the checker rejects mixed numeric operations and implicit widening. Checked integer
 arithmetic and explicit math conversions use the embedded Numbers helper, avoiding PowerShell
 automatic promotion and floating-point integer division. It is emitted only when needed.
+
+Datetime opaque types bind through existing qualified type syntax. DateTimeValues centralizes
+type identities, standard signatures and emitted calls. The embedded C# 5-compatible DateTime
+helper stores immutable UTC instants, dates, durations and Windows zones. Checked integer ticks
+avoid floating-point date arithmetic. Comparison lowering is shared by expressions and test
+assertions. Format patterns are validated and sanitized before invariant parsing/formatting;
+ambiguous/nonexistent local clocks and range-clamping conversions are rejected explicitly.
+Only a datetime import emits this helper. JSON and PowerShell boundaries reject these values
+recursively, leaving external representations to explicit conversion functions.

@@ -172,6 +172,8 @@ internal sealed partial class TypeChecker
 
         var parts = type.Name.Split('.');
         var owner = parts.Length == 1 ? module : module.Imports.GetValueOrDefault(parts[0]);
+        if (owner?.StandardName == "datetime" && DateTimeValues.All.FirstOrDefault(value => value.Name == "datetime." + parts[^1]) is { } dateTimeType)
+            return DeclaredTypes[node] = dateTimeType;
         if (owner?.StandardName == "encoding" && parts[^1] == "Encoding")
         {
             return DeclaredTypes[node] = ValueType.Encoding;
@@ -232,6 +234,12 @@ internal sealed partial class TypeChecker
             }
             EncodingConstants[member] = value;
             return ValueType.Encoding;
+        }
+        if (member.Receiver is Name dateTimeName && module.Imports.TryGetValue(dateTimeName.Token.Text, out var dateTimeModule) &&
+            dateTimeModule.StandardName == "datetime" && member.Name == "utc")
+        {
+            UtcZones.Add(member);
+            return DateTimeValues.Zone;
         }
         var type = TypeOf(member.Receiver, scope);
         if (type == ValueType.Error)

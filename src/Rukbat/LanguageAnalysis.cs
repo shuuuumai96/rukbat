@@ -54,11 +54,13 @@ internal sealed record EditorSymbol(string Name, string Detail, int Kind, string
 internal static class EditorCatalog
 {
     // Embed the canonical API documentation rather than maintain a second list of signatures.
-    public static readonly List<EditorSymbol> Standard = Load();
     public static readonly EditorSymbol EncodingType = new("Encoding", "encoding.Encoding", 13,
         "A validated encoding type. Use predefined encoding values or encoding.from_code_page for an explicit Windows code page.", Type: ValueType.Encoding);
     public static EditorSymbol EncodingValue(StandardEncoding value) => new(value.Name,
         $"encoding.{value.Name}: encoding.Encoding", 20, value.Documentation + " Read-only.", Type: ValueType.Encoding);
+    public static EditorSymbol DateTimeType(ValueType value) => new(value.Name.Split('.')[1], value.Name, 13, DateTimeValues.Description(value), Type: value);
+    public static readonly EditorSymbol UtcZone = new("utc", "datetime.utc: datetime.Zone", 21, "The UTC time zone. Read-only.", Type: DateTimeValues.Zone);
+    public static readonly List<EditorSymbol> Standard = Load();
     public static readonly string[] Modules = Standard.Select(s => s.Detail.Split('.')[0]).Distinct().Order().ToArray();
     public static readonly string[] Keywords = ["import",
         "fn",
@@ -106,6 +108,7 @@ internal static class EditorCatalog
         }
         // Zero-argument signatures are covered by the same expression (the ')' is nonempty).
         result.AddRange(EncodingValues.All.Select(EncodingValue));
+        result.Add(UtcZone);
         return result;
     }
 }
@@ -313,7 +316,9 @@ internal sealed class LanguageAnalysis
                 break;
             case Member member:
                 Walk(member.Receiver, scope);
-                if (checker!.EncodingConstants.TryGetValue(member, out var encoding))
+                if (checker!.UtcZones.Contains(member))
+                    Add(scope.Module, member.Token, EditorCatalog.UtcZone);
+                else if (checker.EncodingConstants.TryGetValue(member, out var encoding))
                     Add(scope.Module, member.Token, EditorCatalog.EncodingValue(encoding));
                 else if (checker.Fields.TryGetValue(member, out var field))
                     Add(scope.Module, member.Token, symbols[field]);
@@ -383,6 +388,8 @@ internal sealed class LanguageAnalysis
                 bound = bound.NullableElement ?? bound.Element;
             if (bound?.Struct is { } structure)
                 Add(module, token, symbols[structure]);
+            else if (bound is not null && DateTimeValues.Contains(bound))
+                Add(module, token, EditorCatalog.DateTimeType(bound));
             else if (bound == ValueType.Encoding)
                 Add(module, token, EditorCatalog.EncodingType);
         }
@@ -417,6 +424,8 @@ internal sealed class LanguageAnalysis
                     : imported.Functions.Values.Select(f => symbols[checker!.Functions[f]]).Concat(imported.Structs.Values.Select(s => symbols[s]));
                 if (imported.StandardName == "encoding")
                     candidates = candidates.Append(EditorCatalog.EncodingType);
+                if (imported.StandardName == "datetime")
+                    candidates = candidates.Concat(DateTimeValues.All.Select(EditorCatalog.DateTimeType));
             }
             else
             {

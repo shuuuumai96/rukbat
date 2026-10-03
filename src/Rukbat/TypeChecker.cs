@@ -19,6 +19,7 @@ internal sealed partial class TypeChecker
     public HashSet<Call> ArrayAppends { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Call, string> StandardCalls { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Expression, ValueType> Types { get; } = new(ReferenceEqualityComparer.Instance);
+    public HashSet<Member> UtcZones { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Member, StandardEncoding> EncodingConstants { get; } = new(ReferenceEqualityComparer.Instance);
     private Dictionary<VariableSymbol, ValueType> refinements = [];
     private int variableId;
@@ -142,9 +143,9 @@ internal sealed partial class TypeChecker
                     break;
                 case FieldAssignment assignment:
                     var fieldType = TypeOf(assignment.Target, scope);
-                    if (EncodingConstants.ContainsKey(assignment.Target))
+                    if (EncodingConstants.ContainsKey(assignment.Target) || UtcZones.Contains(assignment.Target))
                     {
-                        Error("RUK2010", "Encoding values are read-only.", assignment);
+                        Error("RUK2010", "Standard-library constants are read-only.", assignment);
                     }
                     if (!IsVariablePath(assignment.Target))
                     {
@@ -359,6 +360,9 @@ internal sealed partial class TypeChecker
             return ValueType.Bool;
         }
 
+        if (left == right && DateTimeValues.Ordered(left) && op is "<" or "<=" or ">" or ">=")
+            return ValueType.Bool;
+
         if (left == ValueType.Int && right == ValueType.Int)
         {
             return op switch
@@ -428,7 +432,7 @@ internal sealed partial class TypeChecker
             powerShellType = BindType(powerShellType, call);
             if (ContainsOpaqueStandardValue(powerShellType))
             {
-                Error("RUK2010", "PowerShell result types cannot contain json.Value, csv.Row or encoding.Encoding. Read text and use the corresponding parser.", call);
+                Error("RUK2010", "PowerShell result types cannot contain json.Value, csv.Row, encoding.Encoding or datetime types. Read text and use the corresponding parser.", call);
             }
 
             if (arguments.Length == 0 || call.Arguments[0].Name is not null)
@@ -445,8 +449,8 @@ internal sealed partial class TypeChecker
             for (var i = 0; i < call.Arguments.Count; i++)
             {
                 var argument = call.Arguments[i];
-                if (ContainsEncoding(arguments[i]))
-                    Error("RUK2010", "Use encoding.name before passing an encoding to PowerShell.", argument);
+                if (ContainsEncoding(arguments[i]) || ContainsDateTime(arguments[i]))
+                    Error("RUK2010", "Use explicit standard-library conversions before passing opaque values to PowerShell.", argument);
                 if (ContainsStruct(arguments[i]))
                 {
                     Error("RUK2010", "Structs cannot be passed directly to PowerShell. Pass primitive fields.", argument);
@@ -478,9 +482,9 @@ internal sealed partial class TypeChecker
             {
                 Error("RUK2005", $"{call.Name} requires one positional argument.", call);
             }
-            else if (arguments[0] == ValueType.Encoding)
+            else if (arguments[0] == ValueType.Encoding || DateTimeValues.Contains(arguments[0]))
             {
-                Error("RUK2010", "Use encoding.name to print an encoding.", call);
+                Error("RUK2010", "Use an explicit standard-library conversion before printing this value.", call);
             }
             else if (arguments[0].IsComposite)
             {
@@ -543,6 +547,7 @@ internal sealed partial class TypeChecker
             ("encoding", "parse") => [ValueType.String],
             ("encoding", "from_code_page") => [ValueType.Int],
             ("encoding", "name") => [ValueType.Encoding],
+            ("datetime", _) => DateTimeValues.Operations.FirstOrDefault(value => value.Name == call.Name)?.Parameters,
             ("math", "to_float") => [ValueType.Int],
             ("math", "to_int" or "trunc" or "floor" or "ceil") => [ValueType.Float],
             ("text", "from_int") => [ValueType.Int],
@@ -595,6 +600,7 @@ internal sealed partial class TypeChecker
             ("encoding", "parse") => ValueType.Encoding,
             ("encoding", "from_code_page") => ValueType.Encoding,
             ("encoding", "name") => ValueType.String,
+            ("datetime", _) => DateTimeValues.Operations.First(value => value.Name == call.Name).Result,
             ("math", "to_int") => ValueType.Int,
             ("math", _) => ValueType.Float,
             ("text", "parse_int") => ValueType.Int,
@@ -705,9 +711,10 @@ internal sealed partial class TypeChecker
     }
 
     private static bool ContainsNonJsonStandardValue(ValueType type) =>
-        ContainsType(type, value => value == ValueType.Encoding || value.IsCsvRow);
+        ContainsType(type, value => DateTimeValues.Contains(value) || value == ValueType.Encoding || value.IsCsvRow);
     private static bool ContainsOpaqueStandardValue(ValueType type) =>
-        ContainsType(type, value => value == ValueType.Encoding || value.IsCsvRow || value.IsJsonValue);
+        ContainsType(type, value => DateTimeValues.Contains(value) || value == ValueType.Encoding || value.IsCsvRow || value.IsJsonValue);
+    private static bool ContainsDateTime(ValueType type) => ContainsType(type, DateTimeValues.Contains);
     private static bool ContainsEncoding(ValueType type) => ContainsType(type, value => value == ValueType.Encoding);
 
     private static bool ContainsType(ValueType type, Func<ValueType, bool> matches)

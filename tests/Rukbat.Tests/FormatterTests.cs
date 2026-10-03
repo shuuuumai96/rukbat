@@ -6,6 +6,7 @@ public sealed class FormatterTests : TestBase
 {
     public static TheoryData<string, string, string> SyntaxCases => new()
     {
+        { "datetime types", "import datetime;value:datetime.Timestamp?=null;zones:datetime.Zone[]=[datetime.utc]", "import datetime\n\nvalue: datetime.Timestamp? = null\nzones: datetime.Zone[] = [datetime.utc]\n" },
         { "imports", "import text as txt;import './missing.rukbat' as missing", "import text as txt\nimport './missing.rukbat' as missing\n" },
         { "declarations and assignments", "a:=1;b : int=2;a=\n b+1", "a := 1\nb: int = 2\na = b + 1\n" },
         { "nullable and array types", "a : mod.User?[]?=null;b:int[][]=[[1],[]]", "a: mod.User?[]? = null\nb: int[][] = [[1], []]\n" },

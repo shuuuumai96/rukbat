@@ -303,6 +303,24 @@ public sealed class LanguageServerTests : TestBase
     }
 
     [Fact]
+    public void DateTimeCompletionHoverAndDiagnosticsUseOpaqueTypes()
+    {
+        using var project = new Project();
+        var uri = UriFor(project);
+        var completion = Result(Session(Open(uri, "import datetime\ndatetime."), Feature(uri, "completion", 1, 9)));
+        foreach (var name in new[] { "Timestamp", "Date", "Duration", "Zone", "utc", "now", "parse_local", "add_months", "from_unix_seconds" })
+            Assert.Contains(completion.EnumerateArray(), item => item.GetProperty("label").GetString() == name);
+        var now = completion.EnumerateArray().Single(item => item.GetProperty("label").GetString() == "now");
+        Assert.Equal("datetime.now(): datetime.Timestamp", now.GetProperty("detail").GetString());
+        const string source = "import datetime\ninstant := datetime.now()\nzone: datetime.Zone = datetime.utc";
+        var messages = Session(Open(uri, source), Feature(uri, "hover", 1, 2, "inferred"), Feature(uri, "hover", 2, 16, "type"));
+        Assert.Empty(LastDiagnostics(messages, uri).GetProperty("diagnostics").EnumerateArray());
+        Assert.Contains("instant: datetime.Timestamp", Result(messages, "inferred").GetProperty("contents").GetProperty("value").GetString());
+        Assert.Contains("datetime.Zone", Result(messages, "type").GetProperty("contents").GetProperty("value").GetString());
+        Assert.NotEmpty(LastDiagnostics(Session(Open(uri, "import datetime\ndatetime.utc = datetime.local_zone()")), uri).GetProperty("diagnostics").EnumerateArray());
+    }
+
+    [Fact]
     public void StandardHoverIncludesSignatureAndDocumentation()
     {
         using var project = new Project();

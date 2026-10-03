@@ -10,6 +10,11 @@ internal sealed partial class Emitter
             EmitNativeLoader("CodePageCodec");
             EmitEncodingSelector();
         }
+        if (modules.Contains("datetime"))
+        {
+            EmitNativeLoader("DateTime");
+            Line("& $__rukbat_load_DateTime");
+        }
         if (modules.Contains("fs")) EmitNativeLoader("MoveBatch");
         if (modules.Contains("process")) EmitNativeLoader("ProcessJob");
         if (modules.Contains("csv")) EmitCsvRuntime();
@@ -31,6 +36,7 @@ internal sealed partial class Emitter
         if (modules.Contains("process")) EmitLines(ProcessRuntime);
         if (modules.Contains("text")) EmitLines(TextRuntime);
         if (modules.Contains("math")) EmitLines(MathRuntime);
+        if (modules.Contains("datetime")) EmitDateTimeOperations();
         if (modules.Contains("encoding")) EmitEncodingOperations();
         indentation--;
         Line("}");

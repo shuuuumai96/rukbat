@@ -1,0 +1,179 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Text;
+using System.Text.RegularExpressions;
+
+public sealed class RukbatTimestamp {
+    public readonly long Ticks;
+    internal RukbatTimestamp(long ticks) { new DateTime(ticks, DateTimeKind.Utc); Ticks = ticks; }
+    public override bool Equals(object other) { var value = other as RukbatTimestamp; return value != null && Ticks == value.Ticks; }
+    public override int GetHashCode() { return Ticks.GetHashCode(); }
+    public override string ToString() { return RukbatDateTime.Stringify(this); }
+}
+public sealed class RukbatDate {
+    public readonly long Ticks;
+    internal RukbatDate(DateTime value) { Ticks = value.Date.Ticks; }
+    public override bool Equals(object other) { var value = other as RukbatDate; return value != null && Ticks == value.Ticks; }
+    public override int GetHashCode() { return Ticks.GetHashCode(); }
+    public override string ToString() { return RukbatDateTime.StringifyDate(this); }
+}
+public sealed class RukbatDuration {
+    public readonly long Ticks;
+    internal RukbatDuration(long ticks) { Ticks = ticks; }
+    public override bool Equals(object other) { var value = other as RukbatDuration; return value != null && Ticks == value.Ticks; }
+    public override int GetHashCode() { return Ticks.GetHashCode(); }
+    public override string ToString() { return new TimeSpan(Ticks).ToString("c", CultureInfo.InvariantCulture); }
+}
+public sealed class RukbatZone {
+    internal readonly TimeZoneInfo Info;
+    internal RukbatZone(TimeZoneInfo info) { Info = info; }
+    public override bool Equals(object other) { var value = other as RukbatZone; return value != null && String.Equals(Info.Id, value.Info.Id, StringComparison.Ordinal); }
+    public override int GetHashCode() { return StringComparer.Ordinal.GetHashCode(Info.Id); }
+    public override string ToString() { return Info.Id; }
+}
+
+public static class RukbatDateTime {
+    private static readonly CultureInfo Culture = CultureInfo.InvariantCulture;
+    private static readonly long EpochTicks = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).Ticks;
+    private const string DatePattern = "yyyy-MM-dd";
+    private const string TimestampPattern = "yyyy-MM-dd'T'HH:mm:ss.fffffff'Z'";
+    public static readonly RukbatZone Utc = new RukbatZone(TimeZoneInfo.Utc);
+
+    public static RukbatTimestamp Now() { return new RukbatTimestamp(DateTime.UtcNow.Ticks); }
+    public static RukbatZone Zone(string id) {
+        if (id == "UTC") return Utc;
+        foreach (TimeZoneInfo info in TimeZoneInfo.GetSystemTimeZones())
+            if (String.Equals(info.Id, id, StringComparison.Ordinal)) return new RukbatZone(info);
+        throw new ArgumentException("Unknown Windows time zone: " + id);
+    }
+    public static RukbatZone LocalZone() { return new RukbatZone(TimeZoneInfo.Local); }
+    public static string ZoneId(RukbatZone zone) { return zone.Info.Id; }
+    public static RukbatDate CreateDate(long year, long month, long day) {
+        return new RukbatDate(new DateTime(checked((int)year), checked((int)month), checked((int)day)));
+    }
+    public static RukbatDate ParseDate(string text) {
+        DateTime value;
+        if (!Regex.IsMatch(text, @"\A[0-9]{4}-[0-9]{2}-[0-9]{2}\z") ||
+            !DateTime.TryParseExact(text, DatePattern, Culture, DateTimeStyles.None, out value))
+            throw new ArgumentException("Expected a valid date in yyyy-MM-dd format.");
+        return new RukbatDate(value);
+    }
+    public static string StringifyDate(RukbatDate value) { return new DateTime(value.Ticks).ToString(DatePattern, Culture); }
+    public static RukbatTimestamp Parse(string text) {
+        Match match = Regex.Match(text, @"\A([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]{1,7}))?(Z|([+-])([0-9]{2}):([0-9]{2}))\z");
+        if (!match.Success || text.EndsWith("-00:00", StringComparison.Ordinal))
+            throw new ArgumentException("Expected an offset-qualified timestamp with at most seven fractional digits.");
+        int offset = 0;
+        if (match.Groups[8].Value != "Z") {
+            int hours = Int32.Parse(match.Groups[10].Value, Culture);
+            int minutes = Int32.Parse(match.Groups[11].Value, Culture);
+            if (hours > 14 || minutes > 59 || hours == 14 && minutes != 0)
+                throw new ArgumentException("Invalid timestamp offset.");
+            offset = (hours * 60 + minutes) * (match.Groups[9].Value == "-" ? -1 : 1);
+        }
+        var clock = new DateTimeOffset(Int32.Parse(match.Groups[1].Value, Culture), Int32.Parse(match.Groups[2].Value, Culture),
+            Int32.Parse(match.Groups[3].Value, Culture), Int32.Parse(match.Groups[4].Value, Culture),
+            Int32.Parse(match.Groups[5].Value, Culture), Int32.Parse(match.Groups[6].Value, Culture), TimeSpan.FromMinutes(offset));
+        long fraction = match.Groups[7].Success ? Int64.Parse(match.Groups[7].Value.PadRight(7, '0'), Culture) : 0;
+        return new RukbatTimestamp(clock.UtcDateTime.AddTicks(fraction).Ticks);
+    }
+    public static string Stringify(RukbatTimestamp value) { return new DateTime(value.Ticks, DateTimeKind.Utc).ToString(TimestampPattern, Culture); }
+
+    // Sanitize the public format language so .NET standard formats, culture tokens and
+    // missing-date defaults cannot silently define Rukbat behavior.
+    private static string Pattern(string pattern, bool dateOnly, bool parseLocal) {
+        if (pattern.Length == 0) throw new ArgumentException("Datetime format must not be empty.");
+        var result = new StringBuilder();
+        var fields = new HashSet<string>(StringComparer.Ordinal);
+        bool year = false, month = false, day = false, hour = false, minute = false, second = false, fraction = false;
+        for (int i = 0; i < pattern.Length;) {
+            char c = pattern[i];
+            if (c == '\'' || c == '"') {
+                char quote = c; i++;
+                while (i < pattern.Length && pattern[i] != quote) { result.Append('\\').Append(pattern[i++]); }
+                if (i == pattern.Length) throw new ArgumentException("Unclosed datetime format literal.");
+                i++; continue;
+            }
+            string token = null;
+            if (c == 'f') {
+                int start = i;
+                while (i < pattern.Length && pattern[i] == 'f') i++;
+                if (i - start > 7) throw new ArgumentException("Datetime precision is at most seven fractional digits.");
+                token = pattern.Substring(start, i - start);
+                fraction = true;
+            } else {
+                foreach (string candidate in new[] { "yyyy", "MM", "dd", "HH", "mm", "ss", "zzz" })
+                    if (String.CompareOrdinal(pattern, i, candidate, 0, candidate.Length) == 0) { token = candidate; break; }
+                if (token != null) i += token.Length;
+            }
+            if (token != null) {
+                if (i < pattern.Length && pattern[i] == c)
+                    throw new ArgumentException("Unknown datetime format token; quote literal text.");
+                if (parseLocal && !fields.Add(token[0] == 'f' ? "fraction" : token))
+                    throw new ArgumentException("Local timestamp format must not repeat a field.");
+                bool time = token == "HH" || token == "mm" || token == "ss" || token == "zzz" || token[0] == 'f';
+                if (dateOnly && time || parseLocal && token == "zzz") throw new ArgumentException("Format token is incompatible with this datetime operation: " + token);
+                year |= token == "yyyy"; month |= token == "MM"; day |= token == "dd";
+                hour |= token == "HH"; minute |= token == "mm"; second |= token == "ss";
+                if (token.Length == 1) result.Append('%');
+                result.Append(token);
+            } else {
+                if (Char.IsLetter(c) || c == '%' || c == '\\') throw new ArgumentException("Unknown datetime format token; quote literal text.");
+                result.Append('\\').Append(c); i++;
+            }
+        }
+        if (parseLocal && (!year || !month || !day || !hour || !minute || fraction && !second))
+            throw new ArgumentException("Local timestamp format requires yyyy, MM, dd, HH and mm; fractions require ss.");
+        return result.ToString();
+    }
+    private static DateTime Clock(RukbatTimestamp value, RukbatZone zone) {
+        var utc = new DateTime(value.Ticks, DateTimeKind.Utc);
+        // ConvertTimeFromUtc can clamp at the date bounds; checked ticks reject instead.
+        return new DateTime(checked(value.Ticks + zone.Info.GetUtcOffset(utc).Ticks), DateTimeKind.Unspecified);
+    }
+    private static RukbatTimestamp FromClock(DateTime clock, RukbatZone zone) {
+        clock = DateTime.SpecifyKind(clock, DateTimeKind.Unspecified);
+        if (zone.Info.IsInvalidTime(clock)) throw new ArgumentException("Local time does not exist in this time zone.");
+        if (zone.Info.IsAmbiguousTime(clock)) throw new ArgumentException("Local time is ambiguous; supply an explicit timestamp offset.");
+        return new RukbatTimestamp(checked(clock.Ticks - zone.Info.GetUtcOffset(clock).Ticks));
+    }
+    public static string Format(RukbatTimestamp value, string pattern, RukbatZone zone) {
+        DateTime clock = Clock(value, zone);
+        return new DateTimeOffset(clock, zone.Info.GetUtcOffset(new DateTime(value.Ticks, DateTimeKind.Utc))).ToString(Pattern(pattern, false, false), Culture);
+    }
+    public static string FormatDate(RukbatDate value, string pattern) { return new DateTime(value.Ticks).ToString(Pattern(pattern, true, false), Culture); }
+    public static RukbatTimestamp ParseLocal(string text, string pattern, RukbatZone zone) {
+        DateTime clock;
+        if (!DateTime.TryParseExact(text, Pattern(pattern, false, true), Culture, DateTimeStyles.None, out clock))
+            throw new ArgumentException("Local timestamp does not match the required format or date range.");
+        return FromClock(clock, zone);
+    }
+    public static RukbatDate Date(RukbatTimestamp value, RukbatZone zone) { return new RukbatDate(Clock(value, zone)); }
+    public static RukbatTimestamp At(RukbatDate date, long hour, long minute, long second, RukbatZone zone) {
+        if (hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59)
+            throw new ArgumentException("Invalid hour, minute or second.");
+        return FromClock(new DateTime(date.Ticks).AddTicks(hour * TimeSpan.TicksPerHour + minute * TimeSpan.TicksPerMinute + second * TimeSpan.TicksPerSecond), zone);
+    }
+    public static RukbatDate AddDays(RukbatDate date, long count) { return new RukbatDate(new DateTime(checked(date.Ticks + checked(count * TimeSpan.TicksPerDay)))); }
+    public static RukbatDate AddMonths(RukbatDate date, long count) { return new RukbatDate(new DateTime(date.Ticks).AddMonths(checked((int)count))); }
+    public static RukbatDuration Duration(long count, long scale) { return new RukbatDuration(checked(count * scale)); }
+    public static RukbatTimestamp Add(RukbatTimestamp value, RukbatDuration duration) { return new RukbatTimestamp(checked(value.Ticks + duration.Ticks)); }
+    public static RukbatDuration Between(RukbatTimestamp start, RukbatTimestamp end) { return new RukbatDuration(end.Ticks - start.Ticks); }
+    public static double TotalSeconds(RukbatDuration value) { return (double)value.Ticks / TimeSpan.TicksPerSecond; }
+    public static RukbatTimestamp FromUnixSeconds(long value) { return new RukbatTimestamp(checked(EpochTicks + checked(value * TimeSpan.TicksPerSecond))); }
+    public static RukbatTimestamp FromUnixMilliseconds(long value) { return new RukbatTimestamp(checked(EpochTicks + checked(value * TimeSpan.TicksPerMillisecond))); }
+    private static long UnixUnits(RukbatTimestamp value, long scale) {
+        long ticks = value.Ticks - EpochTicks;
+        long units = ticks / scale;
+        return ticks < 0 && ticks % scale != 0 ? units - 1 : units;
+    }
+    public static long ToUnixSeconds(RukbatTimestamp value) { return UnixUnits(value, TimeSpan.TicksPerSecond); }
+    public static long ToUnixMilliseconds(RukbatTimestamp value) { return UnixUnits(value, TimeSpan.TicksPerMillisecond); }
+    public static int Compare(object left, object right) {
+        if (left is RukbatTimestamp && right is RukbatTimestamp) return ((RukbatTimestamp)left).Ticks.CompareTo(((RukbatTimestamp)right).Ticks);
+        if (left is RukbatDate && right is RukbatDate) return ((RukbatDate)left).Ticks.CompareTo(((RukbatDate)right).Ticks);
+        if (left is RukbatDuration && right is RukbatDuration) return ((RukbatDuration)left).Ticks.CompareTo(((RukbatDuration)right).Ticks);
+        throw new ArgumentException("Datetime comparison requires matching ordered types.");
+    }
+}
