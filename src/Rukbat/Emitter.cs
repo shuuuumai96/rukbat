@@ -443,6 +443,14 @@ internal sealed partial class Emitter(TypeChecker checker)
                     $"{Quote(fields["stdout"].Key)} = [string]$result[1]; " +
                     $"{Quote(fields["stderr"].Key)} = [string]$result[2]" + "}})";
             }
+            if (standardCall == "fs.stat")
+            {
+                var fields = checker.Types[call].Struct!.Fields;
+                return $"(& {{ $result = {invocation}; return @{{" +
+                    $"{Quote(fields["is_dir"].Key)} = $result[0]; " +
+                    $"{Quote(fields["size"].Key)} = $result[1]; " +
+                    $"{Quote(fields["modified"].Key)} = $result[2]" + "}})";
+            }
             if (checker.Types[call].Element is not null)
             {
                 return $"(& $script:__rukbat_array ({invocation}))";

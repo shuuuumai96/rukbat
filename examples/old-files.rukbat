@@ -1,0 +1,14 @@
+import fs
+import datetime
+
+// Report files older than 30 elapsed days without changing them.
+cutoff := datetime.add(datetime.now(), datetime.days(-30))
+
+for filename in fs.list_files(".", "*") {
+    info := fs.stat(filename)
+
+    if info.modified < cutoff {
+        print(filename)
+        print(datetime.stringify(info.modified))
+    }
+}

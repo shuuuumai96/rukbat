@@ -333,8 +333,17 @@ The module contains both file and directory operations. Import `fs` once for eit
 
 ### File operations
 
+`fs.Info` is an ordinary value struct with `is_dir: bool`, `size: int?`, and
+`modified: datetime.Timestamp` (UTC last-write time). `fs.stat` reads a metadata snapshot;
+files have a byte size and directories have `null`. Import `datetime` to compare or format
+the timestamp. Missing/inaccessible entries and final-entry reparse points (including links
+and junctions) raise Error. Parent paths retain normal filesystem resolution. Metadata can
+change during or after the call; this is not an atomic snapshot, file lock, identity check,
+or guarantee about a subsequent operation. Timestamp precision depends on the filesystem.
+
 | Signature | Meaning | Failure |
 |---|---|---|
+| `fs.stat(path: string): fs.Info` | Reads file or directory kind, byte size, and UTC last-write time. | Missing/inaccessible entries, reparse points, and I/O failures cause Error. |
 | `fs.list_files(directory: string, pattern: string): string[]` | Returns absolute paths of directly contained, non-Hidden files that match the file-system wildcard `pattern`. It excludes directories, does not recurse, and does not guarantee order. | An inaccessible or nonexistent directory, or an invalid pattern, causes Error. |
 | `fs.list_files_recursive(directory: string, pattern: string): string[]` | Returns absolute paths to files matching the filename wildcard `pattern` at every depth beneath `directory`, including direct children. It excludes directories and does not guarantee order. | An inaccessible/nonexistent directory, a file passed as `directory`, an invalid path or pattern, or a traversal failure causes Error. |
 | `fs.read_text(path: string, encoding: encoding.Encoding): string` | Reads text with one explicit encoding value. | Missing/inaccessible files, an invalid byte sequence, or a conflicting UTF-16 BOM causes Error. |

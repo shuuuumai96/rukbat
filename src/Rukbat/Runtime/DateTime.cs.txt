@@ -41,6 +41,7 @@ public static class RukbatDateTime {
     public static readonly RukbatZone Utc = new RukbatZone(TimeZoneInfo.Utc);
 
     public static RukbatTimestamp Now() { return new RukbatTimestamp(DateTime.UtcNow.Ticks); }
+    public static RukbatTimestamp FromUtcTicks(long ticks) { return new RukbatTimestamp(ticks); }
     public static RukbatZone Zone(string id) {
         if (id == "UTC") return Utc;
         foreach (TimeZoneInfo info in TimeZoneInfo.GetSystemTimeZones())

@@ -146,6 +146,22 @@ internal sealed partial class Emitter
     }
 
     private const string FilesRuntime = """
+    'fs.stat' {
+        $path = & $__rukbat_resolve_path ([string]$values[0])
+        $attributes = [IO.File]::GetAttributes($path)
+        if (($attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw 'fs.stat does not follow reparse points.'
+        }
+        $isDirectory = ($attributes -band [IO.FileAttributes]::Directory) -ne 0
+        if ($isDirectory) { $info = [IO.DirectoryInfo]::new($path) }
+        else { $info = [IO.FileInfo]::new($path) }
+        $info.Refresh()
+        if (-not $info.Exists) { throw 'fs.stat: entry disappeared while reading metadata.' }
+        if (($info.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'fs.stat does not follow reparse points.' }
+        $size = $null
+        if (-not $isDirectory) { $size = [long]$info.Length }
+        return ,([object[]]@($isDirectory, $size, [RukbatDateTime]::FromUtcTicks($info.LastWriteTimeUtc.Ticks)))
+    }
     'fs.list_files' {
         $directory = & $__rukbat_resolve_path ([string]$values[0])
         $pattern = [string]$values[1]

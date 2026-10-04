@@ -371,7 +371,7 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
             if (Match("."))
             {
                 var member = Identifier();
-                if (Current.Text == "<")
+                if (Current.Text == "<" && HasTypeArgumentCall())
                 {
                     var delimiter = Take();
                     formatting?.GenericDelimiters.Add(delimiter.Offset);
@@ -398,6 +398,29 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
             }
         }
         return expression;
+    }
+
+    private bool HasTypeArgumentCall()
+    {
+        // A member followed by '<' may be a comparison. Only a complete type
+        // argument followed by '(' selects the typed-call syntax.
+        var index = position + 1;
+        bool IdentifierAt(int offset) => offset < tokens.Count && tokens[offset].StringValue is null && tokens[offset].Text.Length != 0 &&
+            (char.IsLetter(tokens[offset].Text[0]) || tokens[offset].Text[0] == '_');
+        if (!IdentifierAt(index)) return false;
+        index++;
+        if (index < tokens.Count && tokens[index].Text == ".")
+        {
+            if (!IdentifierAt(++index)) return false;
+            index++;
+        }
+        while (index < tokens.Count)
+        {
+            if (tokens[index].Text == "?") { index++; continue; }
+            if (tokens[index].Text == "[" && index + 1 < tokens.Count && tokens[index + 1].Text == "]") { index += 2; continue; }
+            break;
+        }
+        return index + 1 < tokens.Count && tokens[index].Text == ">" && tokens[index + 1].Text == "(";
     }
 
     private Expression Atom(bool allowStructLiteral = true)

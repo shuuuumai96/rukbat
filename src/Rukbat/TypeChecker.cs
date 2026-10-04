@@ -518,6 +518,7 @@ internal sealed partial class TypeChecker
 
         ValueType[]? parameters = (moduleName, call.Name) switch
         {
+            ("fs", "stat") => [ValueType.String],
             ("fs", "list_files") or ("fs", "list_files_recursive") => [ValueType.String, ValueType.String],
             ("fs", "read_text") => [ValueType.String, ValueType.Encoding],
             ("fs", "is_file") or ("fs", "remove_file") => [ValueType.String],
@@ -574,6 +575,7 @@ internal sealed partial class TypeChecker
         CheckStandardArguments(call, scope, parameters, $"{moduleName}.{call.Name}");
         var returnType = (moduleName, call.Name) switch
         {
+            ("fs", "stat") => standardModule.Structs["Info"].BoundType,
             ("fs", "list_files") or ("fs", "list_files_recursive") => ValueType.ArrayOf(ValueType.String),
             ("fs", "read_text") => ValueType.String,
             ("fs", "is_file") => ValueType.Bool,

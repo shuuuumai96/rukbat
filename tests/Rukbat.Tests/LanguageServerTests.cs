@@ -181,6 +181,8 @@ public sealed class LanguageServerTests : TestBase
 
     [Theory]
     [InlineData("fs", "read_text")]
+    [InlineData("fs", "stat")]
+    [InlineData("fs", "Info")]
     [InlineData("fs", "move_files_batch")]
     [InlineData("path", "script_dir")]
     [InlineData("csv", "parse_table")]

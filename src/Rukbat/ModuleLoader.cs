@@ -58,6 +58,7 @@ internal sealed class ModuleLoader(Func<string, string>? readSource = null, bool
                         "json" => "struct Value {}",
                         "csv" => "struct Row {}; struct Table { columns: string[]; rows: Row[] }",
                         "test" => "struct Context { temp_dir: string; source_dir: string }",
+                        "fs" => "struct Info { is_dir: bool; size: int?; modified: datetime.Timestamp }",
                         _ => ""
                     };
                     var standardSource = new Source(standardText, standardPath);
@@ -65,6 +66,17 @@ internal sealed class ModuleLoader(Func<string, string>? readSource = null, bool
                     var standardStatements = new Parser(standardSource, standardTokens).Parse();
                     standard = new Module(standardSource, $"m{modules.Count}", standardStatements, import.Path);
                     modules.Add(standardPath, standard);
+                    if (import.Path == "fs")
+                    {
+                        const string dateTimePath = "<stdlib:datetime>";
+                        if (!modules.TryGetValue(dateTimePath, out var dateTimeModule))
+                        {
+                            dateTimeModule = new Module(new Source("", dateTimePath), $"m{modules.Count}", [], "datetime");
+                            modules.Add(dateTimePath, dateTimeModule);
+                            Ordered.Add(dateTimeModule);
+                        }
+                        standard.Imports.Add("datetime", dateTimeModule);
+                    }
                     Ordered.Add(standard);
                 }
                 module.Imports.Add(import.Name, standard);
