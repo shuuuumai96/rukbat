@@ -1,0 +1,19 @@
+import encoding
+import hash
+import zip
+
+arguments := args()
+
+if arguments.length != 2 {
+    eprint("Usage: package <source-directory> <new-archive.zip>")
+    exit(2)
+}
+
+zip.create(arguments[0], arguments[1])
+options := zip.options(encoding.utf8)
+
+for entry in zip.list(arguments[1], options) {
+    print(entry.name)
+}
+
+print(hash.file(arguments[1], hash.sha256))

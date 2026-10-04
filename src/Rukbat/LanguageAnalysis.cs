@@ -54,6 +54,9 @@ internal sealed record EditorSymbol(string Name, string Detail, int Kind, string
 internal static class EditorCatalog
 {
     // Embed the canonical API documentation rather than maintain a second list of signatures.
+    public static readonly EditorSymbol HashType = new("Algorithm", "hash.Algorithm", 13,
+        "A validated checksum algorithm. Use hash.parse/name at external boundaries.", Type: HashValues.Algorithm);
+    public static EditorSymbol HashValue(string name) => new(name, $"hash.{name}: hash.Algorithm", 20, HashValues.Description(name), Type: HashValues.Algorithm);
     public static readonly EditorSymbol EncodingType = new("Encoding", "encoding.Encoding", 13,
         "A validated encoding type. Use predefined encoding values or encoding.from_code_page for an explicit Windows code page.", Type: ValueType.Encoding);
     public static EditorSymbol EncodingValue(StandardEncoding value) => new(value.Name,
@@ -107,6 +110,7 @@ internal static class EditorCatalog
             result.Add(new(match.Groups["name"].Value, match.Groups["signature"].Value, 3, docs));
         }
         // Zero-argument signatures are covered by the same expression (the ')' is nonempty).
+        result.AddRange(HashValues.All.Select(HashValue));
         result.AddRange(EncodingValues.All.Select(EncodingValue));
         result.Add(UtcZone);
         return result;
@@ -320,6 +324,8 @@ internal sealed class LanguageAnalysis
                     Add(scope.Module, member.Token, EditorCatalog.UtcZone);
                 else if (checker.EncodingConstants.TryGetValue(member, out var encoding))
                     Add(scope.Module, member.Token, EditorCatalog.EncodingValue(encoding));
+                else if (checker.HashConstants.TryGetValue(member, out var algorithm))
+                    Add(scope.Module, member.Token, EditorCatalog.HashValue(algorithm));
                 else if (checker.Fields.TryGetValue(member, out var field))
                     Add(scope.Module, member.Token, symbols[field]);
                 else if (member.Name == "length" && checker.Types.GetValueOrDefault(member.Receiver)?.Element is not null)
@@ -390,6 +396,8 @@ internal sealed class LanguageAnalysis
                 Add(module, token, symbols[structure]);
             else if (bound is not null && DateTimeValues.Contains(bound))
                 Add(module, token, EditorCatalog.DateTimeType(bound));
+            else if (bound == HashValues.Algorithm)
+                Add(module, token, EditorCatalog.HashType);
             else if (bound == ValueType.Encoding)
                 Add(module, token, EditorCatalog.EncodingType);
         }
@@ -422,6 +430,8 @@ internal sealed class LanguageAnalysis
                 candidates = imported.StandardName is { } standard
                     ? EditorCatalog.Standard.Where(s => s.Detail.StartsWith(standard + ".", StringComparison.Ordinal)).Concat(imported.Structs.Values.Select(s => symbols[s]))
                     : imported.Functions.Values.Select(f => symbols[checker!.Functions[f]]).Concat(imported.Structs.Values.Select(s => symbols[s]));
+                if (imported.StandardName == "hash")
+                    candidates = candidates.Append(EditorCatalog.HashType);
                 if (imported.StandardName == "encoding")
                     candidates = candidates.Append(EditorCatalog.EncodingType);
                 if (imported.StandardName == "datetime")

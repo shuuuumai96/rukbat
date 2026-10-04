@@ -193,6 +193,18 @@ public sealed class LanguageServerTests : TestBase
     [InlineData("process", "Options")]
     [InlineData("process", "Input")]
     [InlineData("process", "EnvironmentVariable")]
+    [InlineData("zip", "create")]
+    [InlineData("zip", "list")]
+    [InlineData("zip", "extract")]
+    [InlineData("zip", "options")]
+    [InlineData("zip", "Options")]
+    [InlineData("zip", "Entry")]
+    [InlineData("hash", "sha256")]
+    [InlineData("hash", "Algorithm")]
+    [InlineData("hash", "file")]
+    [InlineData("hash", "text")]
+    [InlineData("hash", "parse")]
+    [InlineData("hash", "name")]
     [InlineData("text", "parse_int")]
     [InlineData("text", "length")]
     [InlineData("text", "slice")]
@@ -361,6 +373,19 @@ public sealed class LanguageServerTests : TestBase
         var completion = Result(Session(Open(uri, "import process\nprocess."), Feature(uri, "completion", 1, 8)));
         var run = completion.EnumerateArray().Single(item => item.GetProperty("label").GetString() == "run");
         Assert.Equal(signature, run.GetProperty("detail").GetString());
+    }
+
+    [Fact]
+    public void HashAlgorithmAndZipOptionsHaveTypedHoverAndMemberCompletion()
+    {
+        using var project = new Project();
+        var uri = UriFor(project);
+        var messages = Session(Open(uri, "import hash\nselected := hash.sha256"), Feature(uri, "hover", 1, 18));
+        Assert.Empty(LastDiagnostics(messages, uri).GetProperty("diagnostics").EnumerateArray());
+        Assert.Contains("hash.sha256: hash.Algorithm", Result(messages).GetProperty("contents").GetProperty("value").GetString());
+        var members = Result(Session(Open(uri, "import zip; import encoding\noptions := zip.options(encoding.utf8)\noptions."), Feature(uri, "completion", 2, 8)));
+        foreach (var name in new[] { "name_encoding", "max_entries", "max_total_bytes" })
+            Assert.Contains(members.EnumerateArray(), item => item.GetProperty("label").GetString() == name);
     }
 
     [Fact]

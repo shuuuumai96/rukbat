@@ -84,6 +84,10 @@ conversions. Convert external names explicitly with `encoding.parse` / `encoding
 Direct printing, JSON conversion, and PowerShell arguments/results containing this type are
 rejected; convert to/from a string at these boundaries. There is no general enum declaration.
 
+`import hash` provides the opaque validated `hash.Algorithm` type and read-only algorithm values.
+It follows encoding's container/equality and explicit name/parse boundary rules; no general enum
+syntax is added. ZIP exports ordinary `zip.Options` and `zip.Entry` structs. See STDLIB.md.
+
 `import datetime` provides the opaque immutable types `datetime.Timestamp`, `datetime.Date`,
 `datetime.Duration`, and `datetime.Zone`. They have no public fields or struct literals and no
 implicit conversions. Timestamp, Date, and Duration support same-type equality and ordering;

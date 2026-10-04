@@ -36,7 +36,7 @@ internal sealed partial class Emitter(TypeChecker checker)
         }
         if (type.IsJsonValue) return "RukbatJsonValue";
         if (type.IsCsvRow) return "RukbatCsvRow";
-        if (type == ValueType.Encoding) return "string";
+        if (type == ValueType.Encoding || type == HashValues.Algorithm) return "string";
         if (DateTimeValues.Contains(type)) return DateTimeValues.RuntimeName(type);
         return type.Struct is null ? type.Name : "hashtable";
     }
@@ -77,7 +77,7 @@ internal sealed partial class Emitter(TypeChecker checker)
             EmitJsonRuntime();
         }
         var standardModules = modules
-            .Where(current => current.StandardName is "fs" or "path" or "csv" or "json" or "env" or "process" or "text" or "encoding" or "math" or "datetime" or "array")
+            .Where(current => current.StandardName is "fs" or "path" or "csv" or "json" or "env" or "process" or "text" or "encoding" or "math" or "datetime" or "array" or "zip" or "hash")
             .Select(current => current.StandardName!)
             .ToHashSet(StringComparer.Ordinal);
         if (standardModules.Count != 0)
@@ -323,6 +323,7 @@ internal sealed partial class Emitter(TypeChecker checker)
         Index index => $"(& $script:__rukbat_index ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) {Location(index)} $false $script:__rukbat_raise)",
         Name name => checker.Variables[name].PowerShellName,
         Member member when checker.UtcZones.Contains(member) => "([RukbatDateTime]::Utc)",
+        Member member when checker.HashConstants.TryGetValue(member, out var algorithm) => Quote(algorithm),
         Member member when checker.EncodingConstants.TryGetValue(member, out var encoding) => Quote(encoding.Label),
         Member member when checker.Types[member.Receiver].Element is not null => $"([long]({RawExpr(member.Receiver)}).Count)",
         Member member => $"(({RawExpr(member.Receiver)})[{Quote(checker.Fields[member].Key)}])",
@@ -410,6 +411,14 @@ internal sealed partial class Emitter(TypeChecker checker)
                 return $"(& $script:__rukbat_json_encode ({Expr(call.Arguments[0].Value)}) {Schema(checker.Types[call.Arguments[0].Value])})";
             }
             var argumentExpressions = call.Arguments.Select(argument => Expr(argument.Value)).ToArray();
+            if (standardCall is "zip.list" or "zip.extract")
+            {
+                var index = call.Arguments.Count - 1;
+                var fields = checker.Types[call.Arguments[index].Value].Struct!.Fields;
+                argumentExpressions[index] = "(& { $options = " + argumentExpressions[index] + "; return ,([object[]]@(" +
+                    $"$options[{Quote(fields["name_encoding"].Key)}]; $options[{Quote(fields["max_entries"].Key)}]; " +
+                    $"$options[{Quote(fields["max_total_bytes"].Key)}]" + ")) })";
+            }
             if (standardCall == "process.run")
             {
                 var options = checker.Types[call.Arguments[2].Value].Struct!.Fields;
@@ -443,6 +452,21 @@ internal sealed partial class Emitter(TypeChecker checker)
             }
             var standardArguments = string.Join("; ", argumentExpressions.Select(expression => ",(" + expression + ")"));
             var invocation = $"(& $script:__rukbat_standard {Quote(standardCall)} @({standardArguments}))";
+            if (standardCall == "zip.options")
+            {
+                var fields = checker.Types[call].Struct!.Fields;
+                return $"(& {{ $result = {invocation}; return @{{" +
+                    $"{Quote(fields["name_encoding"].Key)} = $result[0]; {Quote(fields["max_entries"].Key)} = $result[1]; " +
+                    $"{Quote(fields["max_total_bytes"].Key)} = $result[2]" + "}})";
+            }
+            if (standardCall == "zip.list")
+            {
+                var fields = checker.Types[call].Element!.Struct!.Fields;
+                return $"(& {{ $items = {invocation}; $entries = [System.Collections.Generic.List[object]]::new(); " +
+                    $"foreach ($entry in $items) {{ $entries.Add(@{{{Quote(fields["name"].Key)} = $entry[0]; " +
+                    $"{Quote(fields["is_directory"].Key)} = $entry[1]; {Quote(fields["size"].Key)} = $entry[2]; " +
+                    $"{Quote(fields["compressed_size"].Key)} = $entry[3]" + "}) }; return ,$entries })";
+            }
             if (standardCall == "process.options")
             {
                 var fields = checker.Types[call].Struct!.Fields;

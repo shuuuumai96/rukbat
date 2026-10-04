@@ -174,6 +174,8 @@ internal sealed partial class TypeChecker
         var owner = parts.Length == 1 ? module : module.Imports.GetValueOrDefault(parts[0]);
         if (owner?.StandardName == "datetime" && DateTimeValues.All.FirstOrDefault(value => value.Name == "datetime." + parts[^1]) is { } dateTimeType)
             return DeclaredTypes[node] = dateTimeType;
+        if (owner?.StandardName == "hash" && parts[^1] == "Algorithm")
+            return DeclaredTypes[node] = HashValues.Algorithm;
         if (owner?.StandardName == "encoding" && parts[^1] == "Encoding")
         {
             return DeclaredTypes[node] = ValueType.Encoding;
@@ -234,6 +236,16 @@ internal sealed partial class TypeChecker
             }
             EncodingConstants[member] = value;
             return ValueType.Encoding;
+        }
+        if (member.Receiver is Name hashName && module.Imports.TryGetValue(hashName.Token.Text, out var hashModule) &&
+            hashModule.StandardName == "hash")
+        {
+            if (!HashValues.All.Contains(member.Name)) {
+                Error("RUK2004", $"Unknown hash algorithm '{member.Name}'.", member);
+                return ValueType.Error;
+            }
+            HashConstants[member] = member.Name;
+            return HashValues.Algorithm;
         }
         if (member.Receiver is Name dateTimeName && module.Imports.TryGetValue(dateTimeName.Token.Text, out var dateTimeModule) &&
             dateTimeModule.StandardName == "datetime" && member.Name == "utc")

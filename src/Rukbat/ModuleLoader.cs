@@ -4,7 +4,7 @@ internal sealed class ModuleLoader(Func<string, string>? readSource = null, bool
 {
     private static readonly HashSet<string> StandardModules = new(StringComparer.Ordinal)
     {
-        "fs", "path", "json", "csv", "env", "process", "text", "test", "encoding", "math", "datetime", "array"
+        "fs", "path", "json", "csv", "env", "process", "text", "test", "encoding", "math", "datetime", "array", "zip", "hash"
     };
     private readonly Dictionary<string, Module> modules = new(
         OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
@@ -58,6 +58,8 @@ internal sealed class ModuleLoader(Func<string, string>? readSource = null, bool
                             "struct EnvironmentVariable { name: string; value: string? }; " +
                             "struct Input { text: string; encoding: encoding.Encoding }; " +
                             "struct Options { timeout_ms: int?; output_encoding: encoding.Encoding; working_dir: string?; environment: EnvironmentVariable[]; stdin: Input? }",
+                        "zip" => "struct Options { name_encoding: encoding.Encoding; max_entries: int; max_total_bytes: int }; " +
+                            "struct Entry { name: string; is_directory: bool; size: int; compressed_size: int }",
                         "json" => "struct Value {}",
                         "csv" => "struct Row {}; struct Table { columns: string[]; rows: Row[] }",
                         "test" => "struct Context { temp_dir: string; source_dir: string }",
@@ -69,7 +71,7 @@ internal sealed class ModuleLoader(Func<string, string>? readSource = null, bool
                     var standardStatements = new Parser(standardSource, standardTokens).Parse();
                     standard = new Module(standardSource, $"m{modules.Count}", standardStatements, import.Path);
                     modules.Add(standardPath, standard);
-                    if (import.Path is "fs" or "process")
+                    if (import.Path is "fs" or "process" or "zip")
                     {
                         var dependency = import.Path == "fs" ? "datetime" : "encoding";
                         var dependencyPath = $"<stdlib:{dependency}>";

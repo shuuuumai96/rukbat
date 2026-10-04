@@ -17,6 +17,8 @@ import encoding
 import math
 import datetime
 import array
+import zip
+import hash
 ```
 
 A local module instead uses an explicit relative `.rukbat` path and an alias. Standard module names are reserved as aliases. Generated scripts contain only the standard-library runtime sections used by their imports and remain standalone on Windows PowerShell 5.1.
@@ -756,6 +758,97 @@ print(numbers[0])
 Ordinary environment-variable operations in Windows PowerShell 5.1 / .NET Framework treat setting an empty string as removal. Because the Windows PowerShell 5.1-compatible runtime cannot safely represent setting an empty value, `env.set(name, "")` causes Rukbat Error. Use `env.remove(name)` for removal. If an empty environment value is inherited from a parent process, `env.get` reads it as `""`. No Win32 API calls are added solely to support setting empty values.
 
 Changes affect the current process and are inherited by subsequently started child processes. They do not modify persistent user or machine environment settings.
+
+## `hash`
+
+`hash.Algorithm` is an opaque validated value type. Its read-only members are `hash.sha256`,
+`hash.sha384`, `hash.sha512`, `hash.sha1`, and `hash.md5`. Use SHA-256 for ordinary artifact
+checksums. SHA-1 and MD5 are provided for matching legacy checksums, not new tamper detection.
+Algorithm values support assignment, ordinary containers, parameters, returns, and same-type
+`==` / `!=`. They have no constructors, fields, ordering, implicit conversions, or direct
+printing/JSON/PowerShell boundaries. These restrictions apply recursively to containers.
+
+| Signature | Meaning | Failure |
+|---|---|---|
+| `hash.file(path: string, algorithm: hash.Algorithm): string` | Hashes the file's exact bytes by streaming, returning lowercase hexadecimal. Names and metadata are excluded. | Missing/unreadable files, sharing conflicts, or unavailable algorithms cause Error. |
+| `hash.text(value: string, algorithm: hash.Algorithm, encoding: encoding.Encoding): string` | Strictly encodes text without BOM or added newline and returns its lowercase hexadecimal digest. | Invalid UTF-16, unencodable text or unavailable algorithms cause Error. |
+| `hash.parse(name: string): hash.Algorithm` | Restores one exact lowercase external name: sha256, sha384, sha512, sha1, or md5. | Unknown names, aliases, case changes and surrounding whitespace cause Error. |
+| `hash.name(algorithm: hash.Algorithm): string` | Returns the canonical external name. | None. |
+
+The file handle allows concurrent readers but denies concurrent writes/deletion while hashing.
+A digest comparison does not authenticate the origin of the expected digest.
+
+## `zip`
+
+The module exports ordinary value structs:
+
+```rukbat
+struct Options {
+    name_encoding: encoding.Encoding
+    max_entries: int
+    max_total_bytes: int
+}
+
+struct Entry {
+    name: string
+    is_directory: bool
+    size: int
+    compressed_size: int
+}
+```
+
+| Signature | Meaning | Failure |
+|---|---|---|
+| `zip.create(source_dir: string, archive_path: string): void` | Creates a UTF-8 Deflate ZIP containing the source directory's contents, including hidden files and empty directories. The source directory itself is not included as an extra root. | Invalid paths, an existing output, missing parent, links, unreadable files, or an output inside the source cause Error. |
+| `zip.options(name_encoding: encoding.Encoding): zip.Options` | Creates reading/extraction options with max_entries 100000 and max_total_bytes 10737418240 (10 GiB). The encoding applies only to names without the ZIP UTF-8 flag. | UTF-16/32 name encodings or an unsupported strict converter cause Error. |
+| `zip.list(archive_path: string, options: zip.Options): zip.Entry[]` | Lists validated central metadata in archive order. Entry names use /, directory names end in /, sizes are bytes, and directory size is zero. | Malformed/unsafe/unsupported metadata, name collisions or declared limits cause Error. This does not read and verify every payload's CRC. |
+| `zip.extract(archive_path: string, destination_dir: string, options: zip.Options): void` | Extracts into a new directory after validating every entry name and verifies actual size and CRC while streaming. | An existing destination (including an empty directory), missing parent, invalid metadata, damaged data, limits, links or I/O failure cause Error. |
+
+All arguments are required and positional. Relative filesystem paths resolve against the captured
+entry working directory. Reading supports Store, Deflate, and ZIP64; encrypted, split and other
+compression formats are rejected. New archives use UTF-8 names; reads strictly respect each entry's
+UTF-8 flag, otherwise the explicit name_encoding is used, with no automatic detection or replacement.
+The Unicode Path extra field is not interpreted; names follow this explicit flag/encoding rule.
+File contents are never transcoded. UTF-16 and UTF-32 are not ZIP name encodings.
+
+Both list and extract revalidate edited options. max_entries is 1 through 2147483647; max_total_bytes
+is a positive signed 64-bit byte count. Total declared uncompressed size is checked before creating
+an extraction directory, and actual sizes are checked while reading. Central metadata is capped at
+64 MiB before a library parses/allocates its entry collection; directory nesting is capped at 256
+components. The decoded path index also has a 64 MiB budget, accounting for UTF-16 key bytes plus
+64 bytes per indexed key. These are runtime resource policies, not ZIP format limits. Compressed file bytes are
+read from a locked stream, not loaded as a whole archive. ZIP comments and Unicode name extensions
+are not exported or preserved.
+
+Names cannot be absolute, contain empty/dot/dot-dot components, drive prefixes, NUL, Windows invalid
+characters, alternate data streams, reserved device names, or trailing dots/whitespace. Legacy
+backslash separators normalize to /. Duplicate names compare ordinally without case, including
+file/directory and implicit-parent collisions; unsafe names are rejected rather than rewritten.
+Archive links and special files are rejected. Filesystem input/archive paths and output parents
+must not traverse reparse points (including symbolic links/junctions).
+
+Create and extract stage their output beside the destination and publish it only after completion,
+without replacing an existing destination even if it appears during processing. Normal failures
+remove the staging object; cleanup failure is itself Error. Forced host termination may leave a
+`.rukbat-zip-<id>.tmp` object. These APIs do not maintain a crash-recovery journal or promise an
+atomic snapshot of a changing source tree. A source file is locked against writes/deletion while
+it is being read; directory enumeration and other files can change. Source and destination parents
+must be under the caller's control; concurrent adversarial filesystem changes are outside the
+contract. ACLs, owners, alternate data streams, source attributes and modification times are not
+restored by extraction. Select files beforehand with fs operations in a staging source directory.
+ZIP is a packaging format, not a complete Windows backup format. Entry traversal when creating
+is ordinally sorted; identical ZIP byte output across runtimes is not promised.
+
+```rukbat
+import zip
+import hash
+import encoding
+
+zip.create("./release", "./release.zip")
+print(hash.file("./release.zip", hash.sha256))
+options := zip.options(encoding.windows_932)
+zip.extract("./legacy.zip", "./installed", options)
+```
 
 ## `process`
 

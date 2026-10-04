@@ -107,3 +107,14 @@ than language callbacks or general generics. The emitter uses ordinary value cop
 private runtime operations for bounds and key-length checks. The C# 5-compatible Array helper
 sorts source indexes with ordinal/typed key comparisons and the original index as a stable
 tie breaker. No input storage is mutated.
+
+Hash algorithm identities use a central HashValues catalog and the existing qualified opaque-type
+binding, equality, read-only-member and recursive external-boundary checks. The embedded C# 5 Hash
+helper uses standard cryptographic streaming; text bytes come from the canonical strict selector.
+ZIP Options/Entry use ordinary bound structs and emitter field-key adaptation. The C# 5 Zip helper
+bounds and validates central/local metadata (including ZIP64) before ZipArchive materializes its
+collection. It decodes raw names with the shared strict codecs, independent of runtime name-encoding
+precedence, and uses ZipArchive only for compression/decompression. Extraction independently checks
+stream sizes and CRC and publishes a sibling stage with a non-replacing rename. Windows PowerShell
+loads its installed System.IO.Compression assembly; no deployment dependency is added. Only an
+import of zip/hash emits the respective helper; neither imports the process or move runtimes.
