@@ -18,6 +18,11 @@ internal sealed partial class Emitter
         if (modules.Contains("fs")) EmitNativeLoader("MoveBatch");
         if (modules.Contains("process")) EmitNativeLoader("ProcessJob");
         if (modules.Contains("csv")) EmitCsvRuntime();
+        if (modules.Contains("text"))
+        {
+            EmitNativeLoader("Text");
+            Line("& $__rukbat_load_Text");
+        }
         Line("$__rukbat_standard = {");
         indentation++;
         Line("param([string]$operation, [object[]]$values)");

@@ -1,0 +1,11 @@
+import text
+
+line := "user=Hanako"
+separator := text.index_of(line, "=")
+
+if separator != null {
+    key := text.slice(line, 0, separator)
+    value := text.slice(line, separator + 1, text.length(line) - separator - 1)
+    print(text.upper(key))
+    print(value)
+}

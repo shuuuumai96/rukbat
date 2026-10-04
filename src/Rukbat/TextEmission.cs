@@ -3,6 +3,11 @@ namespace Rukbat;
 internal sealed partial class Emitter
 {
     private const string TextRuntime = """
+    'text.length' { return [RukbatText]::Length([string]$values[0]) }
+    'text.slice' { return [RukbatText]::Slice([string]$values[0], [long]$values[1], [long]$values[2]) }
+    'text.index_of' { return [RukbatText]::IndexOf([string]$values[0], [string]$values[1]) }
+    'text.upper' { return [RukbatText]::Upper([string]$values[0]) }
+    'text.lower' { return [RukbatText]::Lower([string]$values[0]) }
     'text.trim' {
         # Fixed Unicode White_Space set; independent of the host's Unicode tables.
         $value = [string]$values[0]

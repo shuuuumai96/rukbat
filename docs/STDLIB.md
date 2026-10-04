@@ -91,6 +91,11 @@ Nullable strings must be narrowed before use; `null` is not an empty string.
 | Signature | Example | Result |
 |---|---|---|
 | `text.trim(value: string): string` | `text.trim("  東京  ")` | `"東京"` |
+| `text.length(value: string): int` | `text.length("A😀B")` | `3` |
+| `text.slice(value: string, start: int, count: int): string` | `text.slice("A😀B", 1, 1)` | `"😀"` |
+| `text.index_of(value: string, search: string): int?` | `text.index_of("A😀B", "B")` | `2` |
+| `text.upper(value: string): string` | `text.upper("report.csv")` | `"REPORT.CSV"` |
+| `text.lower(value: string): string` | `text.lower("REPORT.CSV")` | `"report.csv"` |
 | `text.contains(value: string, search: string): bool` | `text.contains("接続エラー", "エラー")` | `true` |
 | `text.starts_with(value: string, prefix: string): bool` | `text.starts_with("report.csv", "report")` | `true` |
 | `text.ends_with(value: string, suffix: string): bool` | `text.ends_with("report.csv", ".csv")` | `true` |
@@ -133,7 +138,17 @@ reconstructs the original input exactly.
 These operations intentionally cover reading, filtering, and rewriting ordinary logs and delimited text.
 `replace_all` states the replacement scope in its name; `split_lines` gives mixed Windows/Unix line endings
 one canonical operation. No new language syntax, overloads, boolean mode flags, string methods, or regex
-API are introduced. Character indexing, length, slicing, and case conversion are outside this addition.
+API are introduced.
+
+`length`, `slice`, and `index_of` count Unicode code points, starting at zero, rather than
+UTF-16 code units or user-perceived grapheme clusters. A supplementary character such as an
+emoji counts once; a combining mark counts separately. `slice` takes a start and a count,
+not an ending index. Start may equal length only when count is zero. Negative values and
+ranges outside the string raise Error without clamping. `index_of` returns the first literal
+ordinal match or `null`; an empty search returns `0`. These three operations and `upper`/`lower`
+reject unpaired UTF-16 surrogates. Case conversion uses the host .NET invariant Unicode casing
+tables, without normalization or full case folding; mappings for newly assigned Unicode
+characters can depend on the runtime version. Other text operations retain their existing contracts.
 
 See [the log-filter example](../examples/filter-errors.rukbat) for a procedural file-processing workflow.
 
