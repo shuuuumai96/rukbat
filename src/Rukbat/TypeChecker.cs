@@ -506,6 +506,7 @@ internal sealed partial class TypeChecker
 
     private ValueType StandardCallType(Call call, Symbols scope, Module standardModule, string moduleName)
     {
+        if (moduleName == "array") return ArrayCallType(call, scope);
         if (moduleName == "json" && call.Name is "stringify" or "parse" or "as")
         {
             return JsonCallType(call, scope, standardModule.Structs["Value"].BoundType);

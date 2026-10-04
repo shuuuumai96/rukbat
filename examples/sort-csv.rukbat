@@ -1,0 +1,14 @@
+import array
+import csv
+import text
+
+table := csv.parse_table("name,amount\nHanako,20\nTaro,10\nJiro,20\n")
+amounts: int[] = []
+
+for row in table.rows {
+    amounts.append(text.parse_int(csv.get(row, "amount")))
+}
+
+// Equal amounts retain their original row order.
+table.rows = array.sort_by_descending(table.rows, amounts)
+print(csv.stringify_table(table))

@@ -1,0 +1,19 @@
+using System;
+
+public static class RukbatArray {
+    public static object[] Sort(object[] items, object[] keys, bool descending) {
+        if (items.Length != keys.Length) throw new ArgumentException("Sort keys must have the same length as the values.");
+        var indexes = new int[items.Length];
+        for (int i = 0; i < indexes.Length; i++) indexes[i] = i;
+        Array.Sort(indexes, delegate(int left, int right) {
+            object first = keys[descending ? right : left];
+            object second = keys[descending ? left : right];
+            int order = first is string ? StringComparer.Ordinal.Compare((string)first, (string)second)
+                : ((IComparable)first).CompareTo(second);
+            return order == 0 ? left.CompareTo(right) : order;
+        });
+        var result = new object[items.Length];
+        for (int i = 0; i < result.Length; i++) result[i] = items[indexes[i]];
+        return result;
+    }
+}

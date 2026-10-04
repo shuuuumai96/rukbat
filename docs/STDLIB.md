@@ -16,6 +16,7 @@ import test
 import encoding
 import math
 import datetime
+import array
 ```
 
 A local module instead uses an explicit relative `.rukbat` path and an alias. Standard module names are reserved as aliases. Generated scripts contain only the standard-library runtime sections used by their imports and remain standalone on Windows PowerShell 5.1.
@@ -171,6 +172,50 @@ and `.5`, `1.`, grouping separators, NaN and Infinity are rejected.
 Invalid input, overflow, and nonzero float input that underflows to zero cause Error.
 Representable subnormal floats are accepted. Float formatting preserves the numeric value on reparse;
 it does not promise to preserve the input spelling or the sign of zero.
+
+## `array`
+
+All operations return a new array with the input element type, preserving ordinary deep
+value-copy semantics. Assign the result to keep the change. Arguments are required and
+positional; no explicit type arguments are accepted. `T` and `K` below describe inferred
+element types, not user-defined generics. An empty input needs a declared array type.
+
+| Signature | Meaning |
+|---|---|
+| `array.slice(values: T[], start: int, count: int): T[]` | Copies count elements from the zero-based start index. |
+| `array.remove_at(values: T[], index: int): T[]` | Returns a copy without the element at the zero-based index. |
+| `array.sort(values: T[]): T[]` | Returns a stable ascending sort of orderable elements. |
+| `array.sort_descending(values: T[]): T[]` | Returns a stable descending sort of orderable elements. |
+| `array.sort_by(values: T[], keys: K[]): T[]` | Returns values in stable ascending key order. |
+| `array.sort_by_descending(values: T[], keys: K[]): T[]` | Returns values in stable descending key order. |
+
+`slice` uses a start and count, not an ending index; it preserves order. Start may equal
+length only with count zero. Negative or out-of-range values raise Error without clamping;
+`remove_at` rejects all indexes on an empty array. Both work with any supported element type,
+including nullable values, nested arrays, structs and opaque standard values.
+
+Orderable elements/keys are non-null `int`, `float`, `string`, `datetime.Timestamp`,
+`datetime.Date` and `datetime.Duration`. Other types, including bool, nullable keys, structs
+and arrays, are rejected during checking. Strings use ordinal case-sensitive comparison
+of UTF-16 code units, independent of culture, without normalization or natural-number sorting.
+Integers remain exact, and datetime keys compare their exact tick counts. Equal keys preserve
+the original order, including descending sorts. `sort_by` variants require one key per value;
+unequal lengths raise Error. Inputs and keys are evaluated once, in written order. Build a
+separate key array to order CSV rows or structs without callbacks or new language syntax.
+
+```rukbat
+import array
+import csv
+import text
+
+table := csv.parse_table("name,amount\nHanako,20\nTaro,10\n")
+amounts: int[] = []
+for row in table.rows {
+    amounts.append(text.parse_int(csv.get(row, "amount")))
+}
+table.rows = array.sort_by_descending(table.rows, amounts)
+print(csv.stringify_table(table))
+```
 
 ## `math`
 

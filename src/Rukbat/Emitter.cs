@@ -77,7 +77,7 @@ internal sealed partial class Emitter(TypeChecker checker)
             EmitJsonRuntime();
         }
         var standardModules = modules
-            .Where(current => current.StandardName is "fs" or "path" or "csv" or "json" or "env" or "process" or "text" or "encoding" or "math" or "datetime")
+            .Where(current => current.StandardName is "fs" or "path" or "csv" or "json" or "env" or "process" or "text" or "encoding" or "math" or "datetime" or "array")
             .Select(current => current.StandardName!)
             .ToHashSet(StringComparer.Ordinal);
         if (standardModules.Count != 0)

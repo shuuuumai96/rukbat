@@ -128,6 +128,10 @@ Runtime errors report source names relative to the entry source directory, norma
 
 ## Types and expressions
 
+`import array` provides slice, removal, and stable sort operations that return new arrays.
+Element types are inferred from typed array arguments; this adds no general generic syntax.
+See STDLIB.md for range checks, supported key types and ordering rules.
+
 Arrays have mutable lengths. `values.append(value)` adds one value to the end of an array and returns `void`. `append` exists only on an array value that is assignable as the left side of `=`: a variable, or a chain of struct fields and array indexes rooted at a variable. It cannot mutate a temporary value such as a function result. The appended value must be compatible with the array element type.
 
 Every index expression in an assignment or `append` receiver is evaluated exactly once, from left to right. A nested update writes the result back to the addressed storage location rather than mutating a temporary copy.

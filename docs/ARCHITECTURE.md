@@ -91,5 +91,12 @@ helper stores immutable UTC instants, dates, durations and Windows zones. Checke
 avoid floating-point date arithmetic. Comparison lowering is shared by expressions and test
 assertions. Format patterns are validated and sanitized before invariant parsing/formatting;
 ambiguous/nonexistent local clocks and range-clamping conversions are rejected explicitly.
-Only a datetime import emits this helper. JSON and PowerShell boundaries reject these values
+A datetime import, including the fs metadata dependency, emits this helper. JSON and PowerShell boundaries reject these values
 recursively, leaving external representations to explicit conversion functions.
+
+The array standard module infers result element types from its checked input array. Sort keys
+have a small fixed set of orderable types; keyed sorting accepts a separate key array rather
+than language callbacks or general generics. The emitter uses ordinary value copies and
+private runtime operations for bounds and key-length checks. The C# 5-compatible Array helper
+sorts source indexes with ordinal/typed key comparisons and the original index as a stable
+tie breaker. No input storage is mutated.

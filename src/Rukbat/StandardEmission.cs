@@ -23,6 +23,11 @@ internal sealed partial class Emitter
             EmitNativeLoader("Text");
             Line("& $__rukbat_load_Text");
         }
+        if (modules.Contains("array"))
+        {
+            EmitNativeLoader("Array");
+            Line("& $__rukbat_load_Array");
+        }
         Line("$__rukbat_standard = {");
         indentation++;
         Line("param([string]$operation, [object[]]$values)");
@@ -40,6 +45,7 @@ internal sealed partial class Emitter
         if (modules.Contains("env")) EmitLines(EnvironmentRuntime);
         if (modules.Contains("process")) EmitLines(ProcessRuntime);
         if (modules.Contains("text")) EmitLines(TextRuntime);
+        if (modules.Contains("array")) EmitLines(ArrayRuntime);
         if (modules.Contains("math")) EmitLines(MathRuntime);
         if (modules.Contains("datetime")) EmitDateTimeOperations();
         if (modules.Contains("encoding")) EmitEncodingOperations();

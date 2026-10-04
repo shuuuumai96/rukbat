@@ -121,7 +121,7 @@ dotnet publish src/Rukbat -c Release -o artifacts/rukbat
 - Prefer consistent syntax that is easy to read and write.
 - Line comments use `//`. Comment markers inside strings are literal text.
 - Named imports such as `import fs` load standard modules bundled with the compiler.
-- Standard modules are `fs`, `path`, `json`, `csv`, `env`, `process`, `text`, `math`, `datetime`, `encoding`, and `test`. Their APIs and external-data contracts are defined in the [standard library specification](docs/STDLIB.md).
+- Standard modules are `fs`, `path`, `json`, `csv`, `env`, `process`, `text`, `array`, `math`, `datetime`, `encoding`, and `test`. Their APIs and external-data contracts are defined in the [standard library specification](docs/STDLIB.md).
 - Use `fs` for actual file and directory operations, and `path` for constructing, decomposing, and comparing path values. For example, `fs.list_files` lists files, `fs.create_dir_all` creates directories and their parents, and `path.parent` computes a parent path without checking existence. See the [task guide](docs/STDLIB.md#choosing-filesystem-and-path-operations).
 - `exit(code)` terminates the process with a nonnegative `int` exit code. `eprint(text)` writes a line to standard error.
 - `text.from_int/from_float/from_bool` and `text.parse_int/parse_float/parse_bool` provide explicit, culture-independent string conversion and parsing.
@@ -241,7 +241,8 @@ for user in users {
 
 Missing fields, nulls, and type mismatches produce import errors identifying the location and field.
 Arrays are mutable values. `items.append(value)` adds an element, while assignment, arguments, and returns still copy nested values.
-Element removal and sending structs to PowerShell are not supported.
+Use `array.remove_at` and `array.slice` to produce new arrays; `array.sort` and `array.sort_by`
+provide stable ordering without changing the input. Sending structs to PowerShell is not supported.
 
 ## Recovering from errors
 
