@@ -19,7 +19,7 @@ internal sealed partial class TypeChecker
     public HashSet<Call> ArrayAppends { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Call, string> StandardCalls { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Expression, ValueType> Types { get; } = new(ReferenceEqualityComparer.Instance);
-    public HashSet<Member> UtcZones { get; } = new(ReferenceEqualityComparer.Instance);
+    public Dictionary<Member, DateTimeValues.ZoneConstant> ZoneConstants { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Member, string> HashConstants { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Member, HttpConstant> HttpConstants { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Member, StandardEncoding> EncodingConstants { get; } = new(ReferenceEqualityComparer.Instance);
@@ -145,7 +145,7 @@ internal sealed partial class TypeChecker
                     break;
                 case FieldAssignment assignment:
                     var fieldType = TypeOf(assignment.Target, scope);
-                    if (EncodingConstants.ContainsKey(assignment.Target) || HashConstants.ContainsKey(assignment.Target) || HttpConstants.ContainsKey(assignment.Target) || UtcZones.Contains(assignment.Target))
+                    if (EncodingConstants.ContainsKey(assignment.Target) || HashConstants.ContainsKey(assignment.Target) || HttpConstants.ContainsKey(assignment.Target) || ZoneConstants.ContainsKey(assignment.Target))
                     {
                         Error("RUK2010", "Standard-library constants are read-only.", assignment);
                     }

@@ -105,6 +105,8 @@ HTTP requests/options/results are ordinary value structs. Numeric status constan
 implicit conversions. Timestamp, Date, and Duration support same-type equality and ordering;
 Zone supports equality. They support nullable values and ordinary containers. Date/time
 arithmetic and all external conversions are explicit standard-library functions in STDLIB.md.
+Named zones such as `datetime.utc`, `datetime.tokyo`, and `datetime.eastern` are read-only
+`datetime.Zone` constants. STDLIB.md links the complete fixed name-to-Windows-ID catalog.
 Direct printing, JSON conversion, and PowerShell boundaries reject these types recursively.
 
 ```rukbat

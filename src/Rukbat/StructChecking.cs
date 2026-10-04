@@ -261,9 +261,15 @@ internal sealed partial class TypeChecker
             return HashValues.Algorithm;
         }
         if (member.Receiver is Name dateTimeName && module.Imports.TryGetValue(dateTimeName.Token.Text, out var dateTimeModule) &&
-            dateTimeModule.StandardName == "datetime" && member.Name == "utc")
+            dateTimeModule.StandardName == "datetime")
         {
-            UtcZones.Add(member);
+            var value = DateTimeValues.Zones.FirstOrDefault(value => value.Name == member.Name);
+            if (value is null)
+            {
+                Error("RUK2004", $"Unknown datetime constant '{member.Name}'.", member);
+                return ValueType.Error;
+            }
+            ZoneConstants[member] = value;
             return DateTimeValues.Zone;
         }
         var type = TypeOf(member.Receiver, scope);

@@ -1,7 +1,7 @@
 import datetime
 
 // A deadline is a UTC instant; display its local clock with an explicit zone.
-tokyo := datetime.zone("Tokyo Standard Time")
+tokyo := datetime.tokyo
 received := datetime.parse("2026-10-04T09:00:00+09:00")
 deadline := datetime.add(received, datetime.hours(48))
 print(datetime.stringify(deadline))

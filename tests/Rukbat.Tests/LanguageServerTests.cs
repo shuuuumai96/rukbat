@@ -221,6 +221,10 @@ public sealed class LanguageServerTests : TestBase
     [InlineData("encoding", "utf8")]
     [InlineData("encoding", "Encoding")]
     [InlineData("encoding", "parse")]
+    [InlineData("datetime", "tokyo")]
+    [InlineData("datetime", "eastern")]
+    [InlineData("datetime", "pacific_mexico")]
+    [InlineData("datetime", "utc_plus_12")]
     public void IncompleteMemberCompletionShowsCanonicalStandardApi(string module, string expected)
     {
         using var project = new Project();
@@ -337,7 +341,7 @@ public sealed class LanguageServerTests : TestBase
         using var project = new Project();
         var uri = UriFor(project);
         var completion = Result(Session(Open(uri, "import datetime\ndatetime."), Feature(uri, "completion", 1, 9)));
-        foreach (var name in new[] { "Timestamp", "Date", "Duration", "Zone", "utc", "now", "parse_local", "add_months", "from_unix_seconds" })
+        foreach (var name in new[] { "Timestamp", "Date", "Duration", "Zone", "utc", "tokyo", "eastern", "now", "parse_local", "add_months", "from_unix_seconds" })
             Assert.Contains(completion.EnumerateArray(), item => item.GetProperty("label").GetString() == name);
         var now = completion.EnumerateArray().Single(item => item.GetProperty("label").GetString() == "now");
         Assert.Equal("datetime.now(): datetime.Timestamp", now.GetProperty("detail").GetString());
@@ -347,6 +351,31 @@ public sealed class LanguageServerTests : TestBase
         Assert.Contains("instant: datetime.Timestamp", Result(messages, "inferred").GetProperty("contents").GetProperty("value").GetString());
         Assert.Contains("datetime.Zone", Result(messages, "type").GetProperty("contents").GetProperty("value").GetString());
         Assert.NotEmpty(LastDiagnostics(Session(Open(uri, "import datetime\ndatetime.utc = datetime.local_zone()")), uri).GetProperty("diagnostics").EnumerateArray());
+    }
+
+    [Theory]
+    [InlineData("tokyo", "Tokyo Standard Time")]
+    [InlineData("eastern", "Eastern Standard Time")]
+    [InlineData("pacific_mexico", "Pacific Standard Time (Mexico)")]
+    [InlineData("utc_minus_02", "UTC-02")]
+    [InlineData("utc_plus_12", "UTC+12")]
+    public void NamedZoneCompletionHoverAndDiagnosticsUseTheSameCatalog(string name, string id)
+    {
+        using var project = new Project();
+        var uri = UriFor(project);
+        var completion = Result(Session(Open(uri, "import datetime\ndatetime."), Feature(uri, "completion", 1, 9)));
+        var constant = completion.EnumerateArray().Single(item => item.GetProperty("label").GetString() == name);
+        Assert.Equal($"datetime.{name}: datetime.Zone", constant.GetProperty("detail").GetString());
+        Assert.Contains(id, constant.GetProperty("documentation").GetProperty("value").GetString());
+        var messages = Session(Open(uri, $"import datetime\nzone := datetime.{name}"), Feature(uri, "hover", 1, 18));
+        Assert.Empty(LastDiagnostics(messages, uri).GetProperty("diagnostics").EnumerateArray());
+        var hover = Result(messages).GetProperty("contents").GetProperty("value").GetString();
+        Assert.Contains($"datetime.{name}: datetime.Zone", hover);
+        Assert.Contains(id, hover);
+        Assert.Contains("Read-only", hover);
+        var invalid = Session(Open(uri, $"import datetime\ndatetime.{name} = datetime.utc"));
+        Assert.Contains(LastDiagnostics(invalid, uri).GetProperty("diagnostics").EnumerateArray(),
+            diagnostic => diagnostic.GetProperty("code").GetString() == "RUK2010");
     }
 
     [Fact]

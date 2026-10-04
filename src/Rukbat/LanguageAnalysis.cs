@@ -66,7 +66,8 @@ internal static class EditorCatalog
     public static EditorSymbol EncodingValue(StandardEncoding value) => new(value.Name,
         $"encoding.{value.Name}: encoding.Encoding", 20, value.Documentation + " Read-only.", Type: ValueType.Encoding);
     public static EditorSymbol DateTimeType(ValueType value) => new(value.Name.Split('.')[1], value.Name, 13, DateTimeValues.Description(value), Type: value);
-    public static readonly EditorSymbol UtcZone = new("utc", "datetime.utc: datetime.Zone", 21, "The UTC time zone. Read-only.", Type: DateTimeValues.Zone);
+    public static EditorSymbol ZoneConstant(DateTimeValues.ZoneConstant value) => new(value.Name,
+        $"datetime.{value.Name}: datetime.Zone", 21, value.Documentation, Type: DateTimeValues.Zone);
     public static readonly List<EditorSymbol> Standard = Load();
     public static readonly string[] Modules = Standard.Select(s => s.Detail.Split('.')[0]).Distinct().Order().ToArray();
     public static readonly string[] Keywords = ["import",
@@ -117,7 +118,7 @@ internal static class EditorCatalog
         result.AddRange(HashValues.All.Select(HashValue));
         result.AddRange(HttpValues.Constants.Select(HttpConstant));
         result.AddRange(EncodingValues.All.Select(EncodingValue));
-        result.Add(UtcZone);
+        result.AddRange(DateTimeValues.Zones.Select(ZoneConstant));
         return result;
     }
 }
@@ -325,8 +326,8 @@ internal sealed class LanguageAnalysis
                 break;
             case Member member:
                 Walk(member.Receiver, scope);
-                if (checker!.UtcZones.Contains(member))
-                    Add(scope.Module, member.Token, EditorCatalog.UtcZone);
+                if (checker!.ZoneConstants.TryGetValue(member, out var zone))
+                    Add(scope.Module, member.Token, EditorCatalog.ZoneConstant(zone));
                 else if (checker.EncodingConstants.TryGetValue(member, out var encoding))
                     Add(scope.Module, member.Token, EditorCatalog.EncodingValue(encoding));
                 else if (checker.HashConstants.TryGetValue(member, out var algorithm))

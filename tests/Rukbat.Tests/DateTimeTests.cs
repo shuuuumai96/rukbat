@@ -5,6 +5,12 @@ public class DateTimeTests : TestBase
     [Trait("Category", "Unit")]
     [Theory]
     [InlineData("datetime.utc = datetime.local_zone()")]
+    [InlineData("datetime.tokyo = datetime.utc")]
+    [InlineData("datetime.eastern = datetime.tokyo")]
+    [InlineData("value := datetime.Tokyo")]
+    [InlineData("value := datetime.tokoy")]
+    [InlineData("value: string = datetime.tokyo")]
+    [InlineData("datetime.format(datetime.now(), 'HH:mm', 'Tokyo Standard Time')")]
     [InlineData("print(datetime.now())")]
     [InlineData("json.stringify([datetime.now()])")]
     [InlineData("powershell('Write-Output', datetime.now())")]
@@ -32,6 +38,75 @@ public class DateTimeTests : TestBase
         test.assert(s.deadline == t)
         test.assert(identity(datetime.days(1)) >= datetime.hours(24))
         """);
+
+    [Trait("Category", "Unit")]
+    [Theory]
+    [InlineData("datetime.tokyo = datetime.utc", "RUK2010")]
+    [InlineData("datetime.pacific_mexico = datetime.pacific", "RUK2010")]
+    [InlineData("zone := datetime.tokoy", "RUK2004")]
+    [InlineData("zone := datetime.Tokyo", "RUK2004")]
+    [InlineData("zone: datetime.Zone = 'Tokyo Standard Time'", "RUK2001")]
+    public void NamedZonesPreserveConstantAndTypeDiagnostics(string expression, string code)
+    {
+        var diagnostics = new Compiler().Check("import datetime\n" + expression);
+        Assert.Contains(diagnostics, diagnostic => diagnostic.Code == code);
+    }
+
+    [Trait("Category", "Unit")]
+    [Fact]
+    public void NamedZonesSupportCanonicalFormattingWithoutResolvingUnusedZones()
+    {
+        using var project = new Project();
+        project.Write("main.rukbat", "import datetime\nzone:datetime.Zone=datetime.tokyo\n");
+        var path = project.PathFor("main.rukbat");
+        Assert.Equal(0, Cli.Run(["fmt", path], TextWriter.Null, TextWriter.Null));
+        var formatted = File.ReadAllText(path);
+        Assert.Contains("zone: datetime.Zone = datetime.tokyo", formatted);
+        Assert.Empty(new Compiler().CheckFile(path));
+        var compiled = project.Compile();
+        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+        Assert.Contains("[RukbatDateTime]::Zone('Tokyo Standard Time')", compiled.Output!);
+        Assert.DoesNotContain("British Columbia Standard Time", compiled.Output!);
+        Assert.Equal(0, Cli.Run(["fmt", path], TextWriter.Null, TextWriter.Null));
+        Assert.Equal(formatted, File.ReadAllText(path));
+    }
+
+    [Trait("Category", "Runtime")]
+    [Trait("Category", "CrossVersion")]
+    [Theory]
+    [InlineData("powershell")]
+    [InlineData("pwsh")]
+    public async Task NamedZonesCoverInstalledWindowsIdsAndPreserveTimeRules(string shell)
+    {
+        // Derive expected names from Windows data to catch missing catalog entries and wrong mappings.
+        var source = "import datetime; import test\n";
+        foreach (var zone in TimeZoneInfo.GetSystemTimeZones())
+        {
+            var name = zone.Id.Replace(" Standard Time", "");
+            name = zone.Id.StartsWith("UTC", StringComparison.Ordinal)
+                ? name.Replace("+", " plus ").Replace("-", " minus ") : name.Replace("-", " ");
+            name = System.Text.RegularExpressions.Regex.Replace(name.ToLowerInvariant(), "[^a-z0-9]+", "_").Trim('_');
+            source += $"test.assert(datetime.zone_id(datetime.{name}) == '{zone.Id}')\n";
+            source += $"test.assert(datetime.{name} == datetime.zone('{zone.Id}'))\n";
+        }
+        source += """
+            t := datetime.parse('2024-02-29T18:30:00Z')
+            test.assert(datetime.format(t, 'yyyy-MM-dd HH:mm zzz', datetime.tokyo) == '2024-03-01 03:30 +09:00')
+            test.assert(datetime.date(t, datetime.tokyo) == datetime.parse_date('2024-03-01'))
+            test.assert(datetime.parse_local('2024-03-01 03:30', 'yyyy-MM-dd HH:mm', datetime.tokyo) == t)
+            test.assert(datetime.at(datetime.parse_date('2024-03-01'), 3, 30, 0, datetime.tokyo) == t)
+            test.assert(datetime.zone_id(datetime.pacific_mexico) == 'Pacific Standard Time (Mexico)')
+            test.assert(datetime.zone_id(datetime.e_south_america) == 'E. South America Standard Time')
+            test.assert(datetime.zone_id(datetime.utc_minus_02) == 'UTC-02')
+            test.assert(datetime.zone_id(datetime.utc_plus_12) == 'UTC+12')
+            selected: datetime.Zone? = datetime.tokyo
+            if selected != null { test.assert(selected == datetime.tokyo) }
+            values: datetime.Zone[] = [datetime.tokyo, datetime.eastern]
+            test.assert(values[0] == datetime.tokyo)
+            print('passed')
+            """;
+        await RunVerified(shell, source);
+    }
 
     [Trait("Category", "Runtime")]
     [Trait("Category", "CrossVersion")]
@@ -111,7 +186,7 @@ public class DateTimeTests : TestBase
     {
         await RunVerified(shell, """
             import datetime; import test
-            eastern := datetime.zone('Eastern Standard Time')
+            eastern := datetime.eastern
             first := datetime.parse('2024-11-03T01:30:00-04:00')
             second := datetime.parse('2024-11-03T01:30:00-05:00')
             test.assert(first < second)
@@ -174,11 +249,13 @@ public class DateTimeTests : TestBase
             initial := datetime.parse('2000-01-01T00:00:00Z')
             fn echo(value: datetime.Timestamp): datetime.Timestamp { return value }
             fn delta(): datetime.Duration { return datetime.between(initial, datetime.parse('2000-01-01T00:00:00.0000001Z')) }
+            fn zone(): datetime.Zone { return datetime.tokyo }
             """);
         project.Write("main.rukbat", """
             import datetime; import test; import './clock.rukbat' as clock
             t := datetime.parse('2000-01-01T00:00:00Z')
             test.assert(clock.echo(t) == t)
+            test.assert(clock.zone() == datetime.tokyo)
             test.assert(datetime.stringify(datetime.add(t, clock.delta())) == '2000-01-01T00:00:00.0000001Z')
             test.assert(clock.delta() > datetime.milliseconds(0))
             test.assert(clock.delta() < datetime.milliseconds(1))

@@ -324,7 +324,7 @@ internal sealed partial class Emitter(TypeChecker checker)
         ArrayLiteral array => $"(& $script:__rukbat_array @({string.Join("; ", array.Items.Select(item => ",(" + Expr(item) + ")"))}))",
         Index index => $"(& $script:__rukbat_index ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) {Location(index)} $false $script:__rukbat_raise)",
         Name name => checker.Variables[name].PowerShellName,
-        Member member when checker.UtcZones.Contains(member) => "([RukbatDateTime]::Utc)",
+        Member member when checker.ZoneConstants.TryGetValue(member, out var zone) => "(" + zone.Expression + ")",
         Member member when checker.HashConstants.TryGetValue(member, out var algorithm) => Quote(algorithm),
         Member member when checker.EncodingConstants.TryGetValue(member, out var encoding) => Quote(encoding.Label),
         Member member when checker.HttpConstants.TryGetValue(member, out var constant) => constant.Value is string method ? Quote(method) : "[long]" + constant.Value,

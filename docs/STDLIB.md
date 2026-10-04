@@ -241,8 +241,12 @@ binary64 may lose large integer precision; exchange such identifiers as strings 
 
 `datetime.Timestamp`, `datetime.Date`, `datetime.Duration`, and `datetime.Zone` are opaque,
 immutable values. They support ordinary variables, parameters, returns, nullable wrappers,
-arrays, and struct fields, with no public fields or struct literals. `datetime.utc` is a
-read-only `datetime.Zone` constant. Timestamp, Date, and Duration support same-type equality
+arrays, and struct fields, with no public fields or struct literals.
+Named zones such as `datetime.utc`, `datetime.tokyo`, `datetime.eastern`, and
+`datetime.pacific_mexico` are read-only `datetime.Zone` constants.
+The [time-zone constant catalog](TIME_ZONES.md) defines every supported name and Windows ID.
+These constants are independent of the machine's local-zone setting.
+Timestamp, Date, and Duration support same-type equality
 and ordering; Zone supports equality by its canonical ID. Arithmetic uses the functions below.
 
 Timestamp identifies one UTC instant, independent of presentation. Input offset spelling is
@@ -305,7 +309,13 @@ chosen display pattern may omit precision; use `stringify` for exact timestamp s
 
 A Zone contains Windows time-zone rules, including daylight-saving transitions. An offset in
 an input timestamp is not a Zone. `zone` does not resolve IANA aliases or infer the machine zone.
-Only `local_zone` explicitly depends on the machine configuration. Local times that occur twice
+Only `local_zone` selects a zone from the machine's local-zone setting. Named constants and
+`zone(id)` use the deployment host's installed Windows rules, including daylight saving.
+Constants are resolved only when accessed; if the selected ID is absent on that host,
+access raises ordinary Error. Unused constants do not require their IDs to be installed.
+The constant catalog is fixed by Rukbat, not generated from the compiler host's zones.
+Use `zone(id)` for external configuration or IDs introduced after the catalog.
+Local times that occur twice
 or never during a daylight-saving transition raise Error; use offset-qualified `parse` to select
 one occurrence. `days(1)` is 24 elapsed hours; `add_days(date, 1)` is the next calendar date.
 
@@ -317,7 +327,7 @@ run on Windows PowerShell 5.1 without a separate Rukbat installation.
 ```rukbat
 import datetime
 
-tokyo := datetime.zone("Tokyo Standard Time")
+tokyo := datetime.tokyo
 now := datetime.now()
 print(datetime.stringify(now))
 print(datetime.format(now, "yyyy-MM-dd HH:mm:ss zzz", tokyo))

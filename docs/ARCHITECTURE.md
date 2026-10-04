@@ -102,7 +102,10 @@ arithmetic and explicit math conversions use the embedded Numbers helper, avoidi
 automatic promotion and floating-point integer division. It is emitted only when needed.
 
 Datetime opaque types bind through existing qualified type syntax. DateTimeValues centralizes
-type identities, standard signatures and emitted calls. The embedded C# 5-compatible DateTime
+type identities, standard signatures, a fixed named-zone catalog, and emitted calls.
+The checker and editor share that catalog; the emitter resolves a validated zone constant
+through the existing runtime lookup only at its point of use. Compilation does not inspect
+the compiler host's time-zone database. The embedded C# 5-compatible DateTime
 helper stores immutable UTC instants, dates, durations and Windows zones. Checked integer ticks
 avoid floating-point date arithmetic. Comparison lowering is shared by expressions and test
 assertions. Format patterns are validated and sanitized before invariant parsing/formatting;
