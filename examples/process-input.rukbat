@@ -1,0 +1,12 @@
+import encoding
+import process
+
+options := process.options(10000, encoding.utf8)
+options.environment = [process.EnvironmentVariable {
+    name: "APP_MODE", value: "batch"
+}]
+options.stdin = process.Input {
+    text: "request", encoding: encoding.utf8
+}
+result := process.run("powershell", ["-NoProfile", "-Command", "[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); [Console]::Write($env:APP_MODE + ':' + [Console]::In.ReadToEnd())"], options)
+print(result.stdout)

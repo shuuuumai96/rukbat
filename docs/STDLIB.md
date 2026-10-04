@@ -759,7 +759,7 @@ Changes affect the current process and are inherited by subsequently started chi
 
 ## `process`
 
-The module exports this result struct:
+The module exports ordinary value structs:
 
 ```rukbat
 struct Result {
@@ -767,27 +767,91 @@ struct Result {
     stdout: string
     stderr: string
 }
+
+struct EnvironmentVariable {
+    name: string
+    value: string?
+}
+
+struct Input {
+    text: string
+    encoding: encoding.Encoding
+}
+
+struct Options {
+    timeout_ms: int?
+    output_encoding: encoding.Encoding
+    working_dir: string?
+    environment: EnvironmentVariable[]
+    stdin: Input?
+}
 ```
 
 | Signature | Meaning | Failure |
 |---|---|---|
-| `process.run(executable: string, arguments: string[], timeout_ms: int?, encoding: encoding.Encoding): process.Result` | Starts an executable directly, waits for it, and captures standard output and standard error separately using the explicit encoding. `null` waits without a deadline; a value from 1 through 2147483647 is a millisecond deadline. | An out-of-range timeout, or failure to launch, capture, decode, wait, or finish before the deadline causes Error. |
+| `process.options(timeout_ms: int?, output_encoding: encoding.Encoding): process.Options` | Creates explicit execution options. working_dir and stdin are null; environment is empty. Null timeout is deliberately unbounded; a deadline is 1 through 2147483647 milliseconds. | Invalid timeout or unsupported encoding causes Error. |
+| `process.run(executable: string, arguments: string[], options: process.Options): process.Result` | Starts a contained executable with the supplied execution conditions and captures stdout/stderr. | Invalid conditions or failure to launch, send input, capture, decode, or finish before the deadline causes Error. |
 
-The API does not interpret a shell command string. The executable and each argument are separate values. A nonzero exit code is a normal `Result`, not an Rukbat Error. The required `encoding.Encoding` applies to both stdout and stderr and accepts the same values as `fs.read_text`. Strings and unknown members are rejected during checking. Use `encoding.parse` to read a name from external configuration; an unsupported name raises Error before launching the child when parsed in the argument expression. Invalid byte sequences cause Error rather than replacement characters. Decoded output is returned exactly, including any BOM character and trailing newline; zero output becomes `""`. There is no encoding detection or BOM removal. This selects how Rukbat reads the bytes; it does not change the child program's output encoding. Standard output and standard error are drained concurrently to avoid pipe deadlocks.
+The API accepts required positional arguments only. It does not interpret a shell command string.
+The executable and each argument are separate strings; embedded NUL is rejected before launch.
+Nonzero exit codes are normal Results. `output_encoding` applies to stdout and stderr and accepts
+the same strict encoding values as file text APIs. It controls decoding, not the child's encoding.
+Output preserves BOM characters and trailing newlines; empty output is an empty string. Invalid
+bytes cause Error. There is no encoding detection or BOM removal. Output streams are drained concurrently.
 
 ```rukbat
 import encoding
 import process
 
-result := process.run("legacy-tool.exe", ["--report"], 30000, encoding.windows_932)
+options := process.options(30000, encoding.windows_932)
+options.working_dir = "./work"
+options.environment = [process.EnvironmentVariable { name: "APP_MODE", value: "batch" }]
+options.stdin = process.Input { text: "request\n", encoding: encoding.utf8 }
+result := process.run("legacy-tool.exe", ["--report"], options)
 print(result.stdout)
 ```
 
-A nonpositive timeout is rejected before the child is launched. The process is assigned atomically at creation to a Windows Job Object with kill-on-close and no breakaway permission. `process.run` waits for the root and its descendants, and both output captures, using one deadline measured from successful process creation. It is a synchronous operation: it cannot launch a persistent background service. On timeout or capture failure the complete job is terminated. Abrupt termination of the PowerShell host also closes the job and terminates its processes. Cleanup waits up to five seconds for job termination and five seconds for capture completion; cleanup failure raises Error. `null` leaves execution without a deadline and should be reserved for deliberately unbounded operations.
+A nonpositive or oversized timeout is rejected by both options and run (after any field edits),
+before launching a child. The process is assigned atomically at creation to a Windows Job Object
+with kill-on-close and no breakaway permission. Run waits for the root and descendants, input
+transmission and both captures, using one deadline measured from successful creation. Validation,
+environment capture and input encoding happen before creation; output decoding follows capture.
+This synchronous operation cannot launch a persistent background service. Timeout, input or
+capture failure terminates the job. Host termination closes the job and terminates its processes.
+Cleanup waits up to five seconds for job termination and five seconds for I/O completion; cleanup
+failure raises Error. Null timeout should be reserved for deliberately unbounded operations.
 
-Process containment requires Windows 10 / Server 2016 or later. Failure to establish containment rejects launch; there is no uncontained fallback. Only stdin/stdout/stderr handles are inherited. Standard input is closed (`NUL`), so an unexpected prompt cannot consume job-runner input. Capture is limited to 64 MiB per stream; exceeding it terminates the job and raises Error instead of allowing unbounded memory growth. Nonzero root exit codes remain ordinary results. Decoding with the selected encoding follows successful capture. The job contains ordinary child-process creation, not work delegated to an already-running service or a remote machine. Termination does not undo side effects already performed by the external program.
+Process containment requires Windows 10 / Server 2016 or later; there is no uncontained fallback.
+Only stdin/stdout/stderr handles are inherited. Capture is limited to 64 MiB per stream; exceeding
+it terminates the job and raises Error. The job contains ordinary child-process creation, not work
+delegated to an existing service or remote machine. Termination does not undo external side effects.
 
-Child processes start in the captured entry working directory. Executable paths containing a separator or drive prefix are resolved against that directory. Bare executable names are searched in the captured directory, then the current process PATH; an extensionless name uses `.exe`. Relative PATH entries use the captured directory as well. Each Rukbat string argument corresponds to exactly one argument as observed by the child process's standard C/C++ `argv` parser. The generated code handles Windows command-line quoting and escaping to preserve this guarantee. Rukbat does not guess which strings represent paths. In v0.1, the executable must be a directly launchable binary such as `.exe`. Batch files (`.cmd`, `.bat`) are not supported because their argument-passing rules cannot preserve the one-argument-per-string contract. Executable or environment changes remain the caller's responsibility.
+`working_dir: null` uses the captured entry working directory. A specified path resolves against
+that directory and must already be an accessible directory. It never changes the parent's location.
+
+`environment` overlays a snapshot of the parent's Windows environment at each run call. Missing
+names inherit, a non-null value sets or replaces, an empty string sets an empty value, and null
+removes the name from the child. The parent environment and persistent settings are unchanged.
+Names compare ordinally without case; duplicate names (including PATH/Path), empty names, names
+containing '=' or NUL, values containing NUL and invalid UTF-16 cause Error before launch. Windows
+internal inherited drive-state entries are preserved; callers cannot supply such names. Child-only
+empty values use a native environment block and do not change env.set's existing empty-value rule.
+
+`stdin: null` supplies immediate EOF without inheriting job-runner input. An Input is encoded
+strictly before launch, without BOM or added newline, limited to 64 MiB after encoding, and sent
+while stdout/stderr are drained concurrently. The writer closes after transmission to signal EOF.
+Empty input also produces immediate EOF. Unencodable text, oversized input and incomplete writes
+(including a child closing its input early) cause Error. A completed write proves transmission to
+the pipe, not that the child consumed or processed the text. Input encoding is independent of output
+encoding. This is bounded text input, not interactive or streaming input.
+
+Executable paths containing a separator or drive prefix resolve against the captured entry directory,
+independent of working_dir. Bare names search that entry directory then the effective child PATH;
+relative PATH entries also use the entry directory. An extensionless name uses .exe. Arguments are
+passed unchanged with Windows C/C++ argv quoting: each Rukbat string is one argv argument. Paths
+inside arguments are interpreted by the child, normally against its working_dir. Executables must
+be directly launchable binaries; .cmd/.bat are rejected. No shell interpretation is added.
+
 
 ## Runtime path resolution
 

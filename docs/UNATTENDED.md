@@ -29,7 +29,7 @@ The API locks file handles against concurrent writes/deletes and uses non-replac
 
 ## External commands
 
-Use a positive `process.run` deadline. A Windows Job Object contains the root and ordinary descendants from creation. Timeout, capture failure, or termination of the PowerShell host terminates that job. The call waits for descendants as well as the root, so it is unsuitable for launching a persistent service. Standard input is closed and each output stream is limited to 64 MiB. A nonzero executable exit code is a returned result that the Rukbat program must check.
+Use a positive `process.run` deadline. A Windows Job Object contains the root and ordinary descendants from creation. Timeout, capture failure, or termination of the PowerShell host terminates that job. The call waits for descendants as well as the root, so it is unsuitable for launching a persistent service. Options default to closed standard input. Explicit process.Input is transmitted concurrently with both output reads under the same deadline. Input and each output stream are limited to 64 MiB. A nonzero executable exit code is a returned result that the Rukbat program must check.
 
 Containment is established before child code runs, using the Windows [job-list process attribute](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute) and [kill-on-close job semantics](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects). Failure to establish it rejects launch. This does not undo external side effects or contain work delegated to an existing service or a remote host. For a modifying external command, retries need that command's own idempotency or recovery contract.
 

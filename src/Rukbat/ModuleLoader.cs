@@ -54,7 +54,10 @@ internal sealed class ModuleLoader(Func<string, string>? readSource = null, bool
                 {
                     var standardText = import.Path switch
                     {
-                        "process" => "struct Result { exit_code: int; stdout: string; stderr: string }",
+                        "process" => "struct Result { exit_code: int; stdout: string; stderr: string }; " +
+                            "struct EnvironmentVariable { name: string; value: string? }; " +
+                            "struct Input { text: string; encoding: encoding.Encoding }; " +
+                            "struct Options { timeout_ms: int?; output_encoding: encoding.Encoding; working_dir: string?; environment: EnvironmentVariable[]; stdin: Input? }",
                         "json" => "struct Value {}",
                         "csv" => "struct Row {}; struct Table { columns: string[]; rows: Row[] }",
                         "test" => "struct Context { temp_dir: string; source_dir: string }",
@@ -66,16 +69,17 @@ internal sealed class ModuleLoader(Func<string, string>? readSource = null, bool
                     var standardStatements = new Parser(standardSource, standardTokens).Parse();
                     standard = new Module(standardSource, $"m{modules.Count}", standardStatements, import.Path);
                     modules.Add(standardPath, standard);
-                    if (import.Path == "fs")
+                    if (import.Path is "fs" or "process")
                     {
-                        const string dateTimePath = "<stdlib:datetime>";
-                        if (!modules.TryGetValue(dateTimePath, out var dateTimeModule))
+                        var dependency = import.Path == "fs" ? "datetime" : "encoding";
+                        var dependencyPath = $"<stdlib:{dependency}>";
+                        if (!modules.TryGetValue(dependencyPath, out var dependencyModule))
                         {
-                            dateTimeModule = new Module(new Source("", dateTimePath), $"m{modules.Count}", [], "datetime");
-                            modules.Add(dateTimePath, dateTimeModule);
-                            Ordered.Add(dateTimeModule);
+                            dependencyModule = new Module(new Source("", dependencyPath), $"m{modules.Count}", [], dependency);
+                            modules.Add(dependencyPath, dependencyModule);
+                            Ordered.Add(dependencyModule);
                         }
-                        standard.Imports.Add("datetime", dateTimeModule);
+                        standard.Imports.Add(dependency, dependencyModule);
                     }
                     Ordered.Add(standard);
                 }

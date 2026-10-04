@@ -403,6 +403,8 @@ internal sealed partial class TypeChecker
             module.Imports.TryGetValue(standardAlias.Token.Text, out var standardModule) &&
             standardModule.StandardName is { } standardName)
         {
+            if (call.IsStructLiteral && standardName == "process" && standardModule.Structs.TryGetValue(call.Name, out var structure))
+                return Construct(call, structure, scope);
             return StandardCallType(call, scope, standardModule, standardName);
         }
         if (call.PowerShellType is null && (call.Receiver is not null || call.Name is not ("print" or "eprint" or "args" or "exit")))
@@ -545,7 +547,8 @@ internal sealed partial class TypeChecker
             ("json", "items" or "keys" or "kind") => [standardModule.Structs["Value"].BoundType],
             ("env", "get") or ("env", "remove") => [ValueType.String],
             ("env", "set") => [ValueType.String, ValueType.String],
-            ("process", "run") => [ValueType.String, ValueType.ArrayOf(ValueType.String), ValueType.NullableOf(ValueType.Int), ValueType.Encoding],
+            ("process", "run") => [ValueType.String, ValueType.ArrayOf(ValueType.String), standardModule.Structs["Options"].BoundType],
+            ("process", "options") => [ValueType.NullableOf(ValueType.Int), ValueType.Encoding],
             ("encoding", "parse") => [ValueType.String],
             ("encoding", "from_code_page") => [ValueType.Int],
             ("encoding", "name") => [ValueType.Encoding],
@@ -603,6 +606,7 @@ internal sealed partial class TypeChecker
             ("env", "get") => ValueType.NullableOf(ValueType.String),
             ("env", _) => ValueType.Void,
             ("process", "run") => standardModule.Structs["Result"].BoundType,
+            ("process", "options") => standardModule.Structs["Options"].BoundType,
             ("encoding", "parse") => ValueType.Encoding,
             ("encoding", "from_code_page") => ValueType.Encoding,
             ("encoding", "name") => ValueType.String,

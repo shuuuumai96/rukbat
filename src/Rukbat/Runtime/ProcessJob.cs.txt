@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -10,7 +11,7 @@ using Microsoft.Win32.SafeHandles;
 
 #if NET8_0_OR_GREATER
 // The same C# 5 source is also compiled into the CLI for test-process containment.
-#pragma warning disable CS8600, CS8625
+#pragma warning disable CS8600, CS8602, CS8603, CS8625
 #endif
 
 public static class RukbatProcessJob
@@ -19,6 +20,7 @@ public static class RukbatProcessJob
     private const uint ExtendedStartupInfoPresent = 0x80000;
     private const uint CreateNoWindow = 0x8000000;
     private const uint CreateSuspended = 4;
+    private const uint CreateUnicodeEnvironment = 0x400;
     private const uint StartUseStdHandles = 0x100;
     private const uint HandleFlagInherit = 1;
     private const int JobExtendedLimitInformation = 9;
@@ -68,6 +70,64 @@ public static class RukbatProcessJob
     [DllImport("kernel32.dll", SetLastError=true)] private static extern uint ResumeThread(IntPtr thread);
     [DllImport("kernel32.dll", SetLastError=true)] private static extern bool GetExitCodeProcess(IntPtr process, out uint code);
     [DllImport("kernel32.dll")] private static extern bool CloseHandle(IntPtr handle);
+    [DllImport("kernel32.dll", EntryPoint="GetEnvironmentStringsW", SetLastError=true)] private static extern IntPtr GetEnvironmentStrings();
+    [DllImport("kernel32.dll", EntryPoint="FreeEnvironmentStringsW")] private static extern bool FreeEnvironmentStrings(IntPtr environment);
+
+    public static string EnvironmentBlock(string[] names, object[] values)
+    {
+        if (names.Length != values.Length) throw new ArgumentException("Environment names and values must have equal lengths.");
+        var changes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var unicode = new UnicodeEncoding(false, false, true);
+        for (int i = 0; i < names.Length; i++) {
+            string name = names[i], value = (string)values[i];
+            if (String.IsNullOrEmpty(name) || name.IndexOf('=') >= 0 || name.IndexOf('\0') >= 0)
+                throw new ArgumentException("Invalid child environment variable name.");
+            if (!changes.Add(name)) throw new ArgumentException("Duplicate child environment variable: " + name);
+            unicode.GetByteCount(name);
+            if (value != null) {
+                if (value.IndexOf('\0') >= 0) throw new ArgumentException("Child environment values must not contain NUL.");
+                unicode.GetByteCount(value);
+            }
+        }
+        var entries = new SortedDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        IntPtr inherited = GetEnvironmentStrings();
+        Check(inherited != IntPtr.Zero, "Cannot read parent environment.");
+        try {
+            IntPtr cursor = inherited;
+            while (Marshal.ReadInt16(cursor) != 0) {
+                string entry = Marshal.PtrToStringUni(cursor);
+                int separator = entry.IndexOf('=', entry[0] == '=' ? 1 : 0);
+                if (separator > 0) entries[entry.Substring(0, separator)] = entry.Substring(separator + 1);
+                cursor = IntPtr.Add(cursor, checked((entry.Length + 1) * sizeof(char)));
+            }
+        } finally { FreeEnvironmentStrings(inherited); }
+        for (int i = 0; i < names.Length; i++) {
+            if (values[i] == null) entries.Remove(names[i]);
+            else entries[names[i]] = (string)values[i];
+        }
+        var block = new StringBuilder();
+        foreach (var entry in entries) block.Append(entry.Key).Append('=').Append(entry.Value).Append('\0');
+        block.Append('\0');
+        if (entries.Count == 0) block.Append('\0');
+        unicode.GetByteCount(block.ToString());
+        return block.ToString();
+    }
+    public static string EnvironmentValue(string block, string name)
+    {
+        foreach (string entry in block.Split('\0')) {
+            int separator = entry.IndexOf('=', entry.StartsWith("=", StringComparison.Ordinal) ? 1 : 0);
+            if (separator > 0 && String.Equals(entry.Substring(0, separator), name, StringComparison.OrdinalIgnoreCase))
+                return entry.Substring(separator + 1);
+        }
+        return null;
+    }
+
+    private static void SendInput(IntPtr handle, byte[] bytes)
+    {
+        using (var stream = new FileStream(new SafeFileHandle(handle, true), FileAccess.Write)) {
+            stream.Write(bytes, 0, bytes.Length);
+        }
+    }
 
     private static void Check(bool success, string operation)
     {
@@ -110,12 +170,19 @@ public static class RukbatProcessJob
     }
     public static object[] RunBytes(string executable, string arguments, string directory, int? timeout)
     {
+        return RunBytes(executable, arguments, directory, timeout, null, null);
+    }
+    public static object[] RunBytes(string executable, string arguments, string directory, int? timeout, string environment, byte[] standardInput)
+    {
+        if (standardInput != null && standardInput.Length > CaptureLimit) throw new ArgumentException("process input exceeded 64 MiB.");
         IntPtr job = IntPtr.Zero, outRead = IntPtr.Zero, outWrite = IntPtr.Zero;
         IntPtr errRead = IntPtr.Zero, errWrite = IntPtr.Zero, input = IntPtr.Zero;
+        IntPtr inputWrite = IntPtr.Zero, environmentPointer = IntPtr.Zero;
         IntPtr attributes = IntPtr.Zero, handles = IntPtr.Zero, jobs = IntPtr.Zero;
         ProcessInformation process = new ProcessInformation();
         bool initialized = false;
         Task<byte[]> stdout = null, stderr = null;
+        Task writer = null;
         try
         {
             job = CreateJobObject(IntPtr.Zero, null);
@@ -129,8 +196,13 @@ public static class RukbatProcessJob
             Check(SetHandleInformation(outRead, HandleFlagInherit, 0), "Cannot protect stdout capture handle.");
             Check(SetHandleInformation(errRead, HandleFlagInherit, 0), "Cannot protect stderr capture handle.");
             const uint GenericRead = 0x80000000, ShareReadWrite = 3, OpenExisting = 3;
-            input = CreateFile("NUL", GenericRead, ShareReadWrite, ref security, OpenExisting, 0, IntPtr.Zero);
-            Check(input != InvalidHandle, "Cannot open closed process input.");
+            if (standardInput == null) {
+                input = CreateFile("NUL", GenericRead, ShareReadWrite, ref security, OpenExisting, 0, IntPtr.Zero);
+                Check(input != InvalidHandle, "Cannot open closed process input.");
+            } else {
+                Check(CreatePipe(out input, out inputWrite, ref security, 0), "Cannot create stdin pipe.");
+                Check(SetHandleInformation(inputWrite, HandleFlagInherit, 0), "Cannot protect stdin writer handle.");
+            }
             IntPtr size = IntPtr.Zero;
             InitializeProcThreadAttributeList(IntPtr.Zero, 2, 0, ref size);
             attributes = Marshal.AllocHGlobal(size);
@@ -151,9 +223,10 @@ public static class RukbatProcessJob
             startup.Info.Input = input; startup.Info.Output = outWrite; startup.Info.Error = errWrite;
             startup.Attributes = attributes;
             var command = new StringBuilder("\"" + executable + "\" " + arguments);
+            if (environment != null) environmentPointer = Marshal.StringToHGlobalUni(environment);
             Check(CreateProcess(executable, command, IntPtr.Zero, IntPtr.Zero, true,
-                ExtendedStartupInfoPresent | CreateNoWindow | CreateSuspended,
-                IntPtr.Zero, directory, ref startup, out process), "Could not start contained process: " + executable);
+                ExtendedStartupInfoPresent | CreateNoWindow | CreateSuspended | (environment == null ? 0 : CreateUnicodeEnvironment),
+                environmentPointer, directory, ref startup, out process), "Could not start contained process: " + executable);
             var timer = Stopwatch.StartNew();
             Close(ref outWrite); Close(ref errWrite); Close(ref input);
             IntPtr capturedOut = outRead, capturedErr = errRead;
@@ -161,12 +234,18 @@ public static class RukbatProcessJob
             outRead = IntPtr.Zero;
             stderr = Task.Factory.StartNew(() => Capture(capturedErr), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
             errRead = IntPtr.Zero;
+            if (standardInput != null) {
+                IntPtr capturedInput = inputWrite;
+                writer = Task.Factory.StartNew(() => SendInput(capturedInput, standardInput), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+                inputWrite = IntPtr.Zero;
+            }
             Check(ResumeThread(process.Thread) != UInt32.MaxValue, "Cannot resume contained process.");
             while (true)
             {
                 if (stdout.IsFaulted) stdout.GetAwaiter().GetResult();
                 if (stderr.IsFaulted) stderr.GetAwaiter().GetResult();
-                if (Active(job) == 0 && stdout.IsCompleted && stderr.IsCompleted) break;
+                if (writer != null && writer.IsFaulted) writer.GetAwaiter().GetResult();
+                if (Active(job) == 0 && stdout.IsCompleted && stderr.IsCompleted && (writer == null || writer.IsCompleted)) break;
                 if (timeout.HasValue && timer.ElapsedMilliseconds >= timeout.Value)
                     throw new TimeoutException("process timed out after " + timeout.Value + " ms.");
                 Thread.Sleep(10);
@@ -187,11 +266,16 @@ public static class RukbatProcessJob
                     if (Active(job) != 0) throw new IOException("Process job cleanup did not finish within five seconds.");
                 }
                 Close(ref outWrite); Close(ref errWrite); Close(ref input);
-                if (stdout != null && stderr != null)
+                Close(ref inputWrite);
+                var tasks = new List<Task>();
+                if (stdout != null) tasks.Add(stdout);
+                if (stderr != null) tasks.Add(stderr);
+                if (writer != null) tasks.Add(writer);
+                if (tasks.Count != 0)
                 {
                     try
                     {
-                        if (!Task.WaitAll(new Task[] { stdout, stderr }, CleanupMilliseconds))
+                        if (!Task.WaitAll(tasks.ToArray(), CleanupMilliseconds))
                             throw new IOException("Process capture cleanup did not finish within five seconds.");
                     }
                     catch (AggregateException) { }
@@ -201,11 +285,13 @@ public static class RukbatProcessJob
             {
                 Close(ref outWrite); Close(ref errWrite); Close(ref input);
                 Close(ref outRead); Close(ref errRead);
+                Close(ref inputWrite);
                 Close(ref process.Thread); Close(ref process.Process); Close(ref job);
                 if (initialized) DeleteProcThreadAttributeList(attributes);
                 if (attributes != IntPtr.Zero) Marshal.FreeHGlobal(attributes);
                 if (handles != IntPtr.Zero) Marshal.FreeHGlobal(handles);
                 if (jobs != IntPtr.Zero) Marshal.FreeHGlobal(jobs);
+                if (environmentPointer != IntPtr.Zero) Marshal.FreeHGlobal(environmentPointer);
             }
         }
     }

@@ -175,7 +175,7 @@ Filesystem operations use `import fs`; path-value operations use `import path`.
 
 ## PowerShell boundary
 
-The generated script captures its initial filesystem working directory from PowerShell's location and its script directory from `$PSScriptRoot` before initializing modules. Relative standard-library file paths and child process working directories always use the captured working directory, even if escape-hatch code changes PowerShell's location or .NET's current directory. Escape-hatch commands themselves retain PowerShell semantics.
+The generated script captures its initial filesystem working directory from PowerShell's location and its script directory from `$PSScriptRoot` before initializing modules. Relative standard-library file paths use that captured directory, even if escape-hatch code changes PowerShell's location or .NET's current directory. process.Options.working_dir explicitly chooses the child's working directory; a relative setting and executable path still resolve against the captured directory. Child-only environment overrides and text input are described in STDLIB.md. Escape-hatch commands retain PowerShell semantics.
 
 Local imports remain compile-time paths relative to the importing source file. They are unrelated to runtime working and script directories. `path.script_dir()` explicitly locates data beside the deployed `.ps1`. Execute the generated artifact as a file in a separate PowerShell process; source mapping is error reporting, not a `rukbat debug` command.
 

@@ -60,7 +60,7 @@ public class ExpandedEncodingTests : TestBase
             test.assert(encoding.parse(encoding.name(selected)) == selected)
             test.assert(fs.read_text('{{PathLiteral("input.bin")}}', selected) == expected)
             fs.write_text('{{PathLiteral("output.bin")}}', expected, selected)
-            result := process.run('powershell', ['-NoProfile', '-NonInteractive', '-File', '{{PathLiteral("child.ps1")}}', '{{Convert.ToBase64String(bytes)}}'], 10000, selected)
+            result := process.run('powershell', ['-NoProfile', '-NonInteractive', '-File', '{{PathLiteral("child.ps1")}}', '{{Convert.ToBase64String(bytes)}}'], process.options(10000, selected))
             test.assert(result.stdout == expected)
             test.assert(result.stderr == expected)
             test.assert(result.exit_code == 7)

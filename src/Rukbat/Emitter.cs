@@ -410,6 +410,21 @@ internal sealed partial class Emitter(TypeChecker checker)
                 return $"(& $script:__rukbat_json_encode ({Expr(call.Arguments[0].Value)}) {Schema(checker.Types[call.Arguments[0].Value])})";
             }
             var argumentExpressions = call.Arguments.Select(argument => Expr(argument.Value)).ToArray();
+            if (standardCall == "process.run")
+            {
+                var options = checker.Types[call.Arguments[2].Value].Struct!.Fields;
+                var environment = options["environment"].Type.Element!.Struct!.Fields;
+                var input = options["stdin"].Type.NonNullable.Struct!.Fields;
+                argumentExpressions[2] = "(& { $options = " + argumentExpressions[2] + "; " +
+                    "$changes = [System.Collections.Generic.List[object]]::new(); " +
+                    $"foreach ($entry in $options[{Quote(options["environment"].Key)}]) {{ " +
+                    $"$changes.Add([object[]]@($entry[{Quote(environment["name"].Key)}], $entry[{Quote(environment["value"].Key)}])) }}; " +
+                    $"$inputValue = $options[{Quote(options["stdin"].Key)}]; $inputData = $null; " +
+                    $"if ($null -ne $inputValue) {{ $inputData = [object[]]@($inputValue[{Quote(input["text"].Key)}], $inputValue[{Quote(input["encoding"].Key)}]) }}; " +
+                    "return ,([object[]]@(" +
+                    $"$options[{Quote(options["timeout_ms"].Key)}]; $options[{Quote(options["output_encoding"].Key)}]; " +
+                    $"$options[{Quote(options["working_dir"].Key)}]; (,$changes); (,$inputData)))" + " })";
+            }
             if (standardCall is "json.set" or "json.set_at" or "json.append")
             {
                 var replacement = call.Arguments[^1].Value;
@@ -428,6 +443,14 @@ internal sealed partial class Emitter(TypeChecker checker)
             }
             var standardArguments = string.Join("; ", argumentExpressions.Select(expression => ",(" + expression + ")"));
             var invocation = $"(& $script:__rukbat_standard {Quote(standardCall)} @({standardArguments}))";
+            if (standardCall == "process.options")
+            {
+                var fields = checker.Types[call].Struct!.Fields;
+                return $"(& {{ $result = {invocation}; return @{{" +
+                    $"{Quote(fields["timeout_ms"].Key)} = $result[0]; {Quote(fields["output_encoding"].Key)} = $result[1]; " +
+                    $"{Quote(fields["working_dir"].Key)} = $null; {Quote(fields["environment"].Key)} = (& $script:__rukbat_array @()); " +
+                    $"{Quote(fields["stdin"].Key)} = $null" + "}})";
+            }
             if (standardCall is "csv.parse_table" or "csv.table")
             {
                 var fields = checker.Types[call].Struct!.Fields;

@@ -23,7 +23,7 @@ public class EncodingValueTests : TestBase
     [InlineData("eprint(encoding.utf8)", "RUK2010")]
     [InlineData("import fs; fs.read_text('x', 'utf-8')", "RUK2001")]
     [InlineData("import fs; fs.write_text('x', 'data', 'utf-8')", "RUK2001")]
-    [InlineData("import process; process.run('tool.exe', [], null, 'utf-8')", "RUK2001")]
+    [InlineData("import process; process.run('tool.exe', [], process.options(null, 'utf-8'))", "RUK2001")]
     [InlineData("import fs; x: encoding.Encoding? = null; fs.read_text('x', x)", "RUK2001")]
     [InlineData("struct Encoding {}; x: encoding.Encoding = Encoding {}", "RUK2001")]
     public void InvalidValuesAndConversionsAreRejected(string body, string code)

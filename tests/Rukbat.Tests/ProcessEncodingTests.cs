@@ -34,14 +34,14 @@ public class ProcessEncodingTests : TestBase
     [Fact]
     public void EncodingIsRequiredAndStaticallyTyped()
     {
-        Assert.Contains(Compile("import process\nprocess.run('tool.exe', [], null)").Diagnostics,
+        Assert.Contains(Compile("import process\nprocess.run('tool.exe', [])").Diagnostics,
             d => d.Code == "RUK2005");
-        Assert.Contains(Compile("import process\nprocess.run('tool.exe', [], null, 932)").Diagnostics,
+        Assert.Contains(Compile("import process\nprocess.run('tool.exe', [], process.options(null, 932))").Diagnostics,
             d => d.Code == "RUK2001");
-        Assert.False(Compile("import process\nprocess.run('tool.exe', [], null, 'utf-8')").Success);
-        Assert.False(Compile("import encoding; import process\nprocess.run('tool.exe', [], null, encoding: encoding.utf8)").Success);
+        Assert.False(Compile("import process\nprocess.run('tool.exe', [], process.options(null, 'utf-8'))").Success);
+        Assert.False(Compile("import encoding; import process\nprocess.run('tool.exe', [], process.options(null, encoding: encoding.utf8))").Success);
         Assert.False(Compile("import encoding; import process\nprocess.run('tool.exe', [], null, encoding.utf8, encoding.utf8)").Success);
-        var output = Success("import encoding; import process\nselected := encoding.windows_932\nresult := process.run('tool.exe', [], null, selected)\nprint(result.stdout)");
+        var output = Success("import encoding; import process\nselected := encoding.windows_932\nresult := process.run('tool.exe', [], process.options(null, selected))\nprint(result.stdout)");
         Assert.Contains("RukbatCodePageCodec", output);
         Assert.DoesNotContain("'fs.read_text'", output);
         Assert.DoesNotContain("RukbatMoveBatch", output);
@@ -79,7 +79,7 @@ public class ProcessEncodingTests : TestBase
             import json
             import encoding
             selected := encoding.parse('{{encoding}}')
-            result := process.run('powershell', {{arguments}}, {{TimeoutMilliseconds}}, selected)
+            result := process.run('powershell', {{arguments}}, process.options({{TimeoutMilliseconds}}, selected))
             print(result.stdout == {{Expected(stdout)}})
             print(result.stderr == {{Expected(stderr)}})
             print(result.exit_code)
@@ -112,7 +112,7 @@ public class ProcessEncodingTests : TestBase
             {
                 var arguments = Child(project, index + "-" + stream + ".ps1",
                     stream == "stdout" ? invalid[index].Bytes : [], stream == "stderr" ? invalid[index].Bytes : []);
-                source.AppendLine($"try {{ process.run('powershell', {arguments}, {TimeoutMilliseconds}, encoding.parse('{invalid[index].Encoding}')) }} catch err {{ print('invalid') }}");
+                source.AppendLine($"try {{ process.run('powershell', {arguments}, process.options({TimeoutMilliseconds}, encoding.parse('{invalid[index].Encoding}'))) }} catch err {{ print('invalid') }}");
             }
         }
         project.Write("main.rukbat", source.ToString());
@@ -139,7 +139,7 @@ public class ProcessEncodingTests : TestBase
             import process
             import encoding
             for name in ['UTF-8', 'shift-jis', '', 'windows-99999'] {
-                try { process.run('powershell', {{arguments}}, {{TimeoutMilliseconds}}, encoding.parse(name)) }
+                try { process.run('powershell', {{arguments}}, process.options({{TimeoutMilliseconds}}, encoding.parse(name))) }
                 catch err { print(err.message) }
             }
             """);
@@ -162,7 +162,7 @@ public class ProcessEncodingTests : TestBase
         using var project = new Project();
         var empty = Child(project, "empty.ps1", [], []);
         var source = new StringBuilder("import process\nimport json\nimport encoding\n");
-        source.AppendLine($"for selected in [encoding.utf8, encoding.utf16_le, encoding.utf16_be, encoding.windows_932] {{ result := process.run('powershell', {empty}, {TimeoutMilliseconds}, selected); print(result.stdout == ''); print(result.stderr == '') }}");
+        source.AppendLine($"for selected in [encoding.utf8, encoding.utf16_le, encoding.utf16_be, encoding.windows_932] {{ result := process.run('powershell', {empty}, process.options({TimeoutMilliseconds}, selected)); print(result.stdout == ''); print(result.stderr == '') }}");
         foreach (var pair in new (string Name, Encoding Codec)[]
         {
             ("utf-8", new UTF8Encoding(false, true)),
@@ -173,7 +173,7 @@ public class ProcessEncodingTests : TestBase
             const string value = "\ufeff日本\n";
             var bytes = pair.Codec.GetBytes(value);
             var arguments = Child(project, pair.Name + ".ps1", bytes, bytes);
-            source.AppendLine($"if true {{ result := process.run('powershell', {arguments}, {TimeoutMilliseconds}, encoding.parse('{pair.Name}')); print(result.stdout == {Expected(value)}); print(result.stderr == {Expected(value)}) }}");
+            source.AppendLine($"if true {{ result := process.run('powershell', {arguments}, process.options({TimeoutMilliseconds}, encoding.parse('{pair.Name}'))); print(result.stdout == {Expected(value)}); print(result.stderr == {Expected(value)}) }}");
         }
         project.Write("main.rukbat", source.ToString());
         var compiled = project.Compile();

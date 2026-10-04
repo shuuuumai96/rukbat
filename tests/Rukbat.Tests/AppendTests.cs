@@ -144,7 +144,7 @@ public class AppendTests : TestBase
 
             attempt := 0
             while attempt < 3 {
-                result: process.Result = process.run('dotnet', ['--version'], null, encoding.utf8)
+                result: process.Result = process.run('dotnet', ['--version'], process.options(null, encoding.utf8))
                 if result.exit_code == 0 {
                     break
                 }

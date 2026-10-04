@@ -71,6 +71,13 @@ The entry wrapper captures working and script directories before module initiali
 
 File and process output decoding share the canonical encoding selector and strict native Windows code-page codec. The native process helper captures bounded byte streams; `process.run` decodes them using its explicit encoding. The CLI test runner and operations toolkit use the helper's UTF-8 wrapper for their own controlled hosts.
 
+Process Options, Input and EnvironmentVariable are ordinary bound standard structs. The emitter
+normalizes their private field keys once into the backend call shape. Child environment changes
+overlay a native Windows environment snapshot, preserving inherited internal drive entries,
+without modifying the parent. Native stdin writing and both output readers run concurrently
+under one process-job deadline. Preparation encodes bounded input before creating the child.
+The CLI's existing internal Run/RunBytes wrappers retain closed input and inherited environments.
+
 `encoding.Encoding` is a validated standard-library type bound through existing qualified type
 syntax. `EncodingValues` supplies its member names, external labels, editor descriptions, and
 runtime codec constructors. The checker records bound read-only members; the emitter lowers

@@ -4,7 +4,7 @@ public class InferenceTests : TestBase
 {
     [Trait("Category", "Unit")]
     [Theory]
-    [InlineData("process.Result", "process.run('powershell', ['-NoLogo', '-NoProfile', '-Command', '[Console]::Write(42); exit 7'], null, encoding.utf8)", "print(value.exit_code); print(value.stdout)")]
+    [InlineData("process.Result", "process.run('powershell', ['-NoLogo', '-NoProfile', '-Command', '[Console]::Write(42); exit 7'], process.options(null, encoding.utf8))", "print(value.exit_code); print(value.stdout)")]
     [InlineData("Local", "make()", "print(value.number)")]
     [InlineData("remote.Item", "remote.make()", "print(value.number)")]
     [InlineData("remote.Item", "remote.Item {number: 42}", "print(value.number)")]
@@ -26,7 +26,7 @@ public class InferenceTests : TestBase
     [Trait("Category", "Runtime")]
     [Trait("Category", "PowerShell51")]
     [Theory]
-    [InlineData("process.Result", "process.run('powershell', ['-NoLogo', '-NoProfile', '-Command', '[Console]::Write(42); exit 7'], null, encoding.utf8)", "print(value.exit_code); print(value.stdout)", "7\n42\n")]
+    [InlineData("process.Result", "process.run('powershell', ['-NoLogo', '-NoProfile', '-Command', '[Console]::Write(42); exit 7'], process.options(null, encoding.utf8))", "print(value.exit_code); print(value.stdout)", "7\n42\n")]
     [InlineData("remote.Item", "remote.make()", "print(value.number)", "42\n")]
     [InlineData("remote.Item?", "remote.maybe()", "if value != null { print(value.number) }", "42\n")]
     [InlineData("int", "integer()", "print(value)", "42\n")]

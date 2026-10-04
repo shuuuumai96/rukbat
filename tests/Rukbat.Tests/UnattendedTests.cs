@@ -236,7 +236,7 @@ public class UnattendedTests : TestBase
         project.Write("parent.ps1", "Start-Process powershell -ArgumentList '-NoProfile -NonInteractive -File child.ps1' -NoNewWindow | Out-Null; exit 0");
         Build(project, $$"""
             import encoding; import process
-            try { process.run('powershell', ['-NoProfile', '-NonInteractive', '-File', 'parent.ps1'], {{(killHost ? "null" : "4000")}}, encoding.utf8) }
+            try { process.run('powershell', ['-NoProfile', '-NonInteractive', '-File', 'parent.ps1'], process.options({{(killHost ? "null" : "4000")}}, encoding.utf8)) }
             catch err { print(err.message) }
             """);
         using var runner = Start(project, shell);
@@ -278,9 +278,9 @@ public class UnattendedTests : TestBase
         project.Write("output.ps1", "$buffer = New-Object byte[] 1048576; $out = [Console]::OpenStandardOutput(); for ($i=0; $i -lt 80; $i++) { $out.Write($buffer,0,$buffer.Length) }; Start-Sleep 60");
         Build(project, """
             import encoding; import process
-            input := process.run('powershell', ['-NoProfile', '-Command', '[Console]::Write([Console]::In.ReadToEnd().Length)'], 5000, encoding.utf8)
+            input := process.run('powershell', ['-NoProfile', '-Command', '[Console]::Write([Console]::In.ReadToEnd().Length)'], process.options(5000, encoding.utf8))
             print(input.stdout)
-            try { process.run('powershell', ['-NoProfile', '-File', 'output.ps1'], 10000, encoding.utf8) }
+            try { process.run('powershell', ['-NoProfile', '-File', 'output.ps1'], process.options(10000, encoding.utf8)) }
             catch err { print(err.message) }
             """);
         var result = await RunDeployed(shell, project.PathFor("job.ps1"), project.DirectoryPath, project.DirectoryPath);

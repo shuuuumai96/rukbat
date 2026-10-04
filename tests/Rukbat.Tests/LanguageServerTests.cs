@@ -189,6 +189,10 @@ public sealed class LanguageServerTests : TestBase
     [InlineData("json", "as")]
     [InlineData("env", "get")]
     [InlineData("process", "run")]
+    [InlineData("process", "options")]
+    [InlineData("process", "Options")]
+    [InlineData("process", "Input")]
+    [InlineData("process", "EnvironmentVariable")]
     [InlineData("text", "parse_int")]
     [InlineData("text", "length")]
     [InlineData("text", "slice")]
@@ -349,10 +353,10 @@ public sealed class LanguageServerTests : TestBase
     {
         using var project = new Project();
         var uri = UriFor(project);
-        var messages = Session(Open(uri, "import encoding; import process\nresult := process.run('tool.exe', [], null, encoding.windows_932)"),
+        var messages = Session(Open(uri, "import encoding; import process\nresult := process.run('tool.exe', [], process.options(null, encoding.windows_932))"),
             Feature(uri, "hover", 1, 19));
         Assert.Empty(LastDiagnostics(messages, uri).GetProperty("diagnostics").EnumerateArray());
-        var signature = "process.run(executable: string, arguments: string[], timeout_ms: int?, encoding: encoding.Encoding): process.Result";
+        var signature = "process.run(executable: string, arguments: string[], options: process.Options): process.Result";
         Assert.Contains(signature, Result(messages).GetProperty("contents").GetProperty("value").GetString());
         var completion = Result(Session(Open(uri, "import process\nprocess."), Feature(uri, "completion", 1, 8)));
         var run = completion.EnumerateArray().Single(item => item.GetProperty("label").GetString() == "run");
