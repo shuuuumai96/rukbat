@@ -21,6 +21,7 @@ internal sealed partial class TypeChecker
     public Dictionary<Expression, ValueType> Types { get; } = new(ReferenceEqualityComparer.Instance);
     public HashSet<Member> UtcZones { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Member, string> HashConstants { get; } = new(ReferenceEqualityComparer.Instance);
+    public Dictionary<Member, HttpConstant> HttpConstants { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Member, StandardEncoding> EncodingConstants { get; } = new(ReferenceEqualityComparer.Instance);
     private Dictionary<VariableSymbol, ValueType> refinements = [];
     private int variableId;
@@ -144,7 +145,7 @@ internal sealed partial class TypeChecker
                     break;
                 case FieldAssignment assignment:
                     var fieldType = TypeOf(assignment.Target, scope);
-                    if (EncodingConstants.ContainsKey(assignment.Target) || HashConstants.ContainsKey(assignment.Target) || UtcZones.Contains(assignment.Target))
+                    if (EncodingConstants.ContainsKey(assignment.Target) || HashConstants.ContainsKey(assignment.Target) || HttpConstants.ContainsKey(assignment.Target) || UtcZones.Contains(assignment.Target))
                     {
                         Error("RUK2010", "Standard-library constants are read-only.", assignment);
                     }
@@ -351,7 +352,7 @@ internal sealed partial class TypeChecker
         {
             return ValueType.Bool;
         }
-        if (left == right && !left.IsNullable && !left.IsComposite && left != ValueType.Void && op is "==" or "!=")
+        if (left == right && !left.IsNullable && !left.IsComposite && left != ValueType.Void && left != HttpValues.Body && op is "==" or "!=")
         {
             return ValueType.Bool;
         }
@@ -404,7 +405,7 @@ internal sealed partial class TypeChecker
             module.Imports.TryGetValue(standardAlias.Token.Text, out var standardModule) &&
             standardModule.StandardName is { } standardName)
         {
-            if (call.IsStructLiteral && (standardName is "process" or "zip") && standardModule.Structs.TryGetValue(call.Name, out var structure))
+            if (call.IsStructLiteral && (standardName is "process" or "zip" or "http") && standardModule.Structs.TryGetValue(call.Name, out var structure))
                 return Construct(call, structure, scope);
             return StandardCallType(call, scope, standardModule, standardName);
         }
@@ -435,7 +436,7 @@ internal sealed partial class TypeChecker
             powerShellType = BindType(powerShellType, call);
             if (ContainsOpaqueStandardValue(powerShellType))
             {
-                Error("RUK2010", "PowerShell result types cannot contain json.Value, csv.Row, encoding.Encoding, hash.Algorithm or datetime types. Read text and use the corresponding parser.", call);
+                Error("RUK2010", "PowerShell result types cannot contain json.Value, csv.Row, encoding.Encoding, hash.Algorithm, datetime types, http.Method or http.Body. Read text and use the corresponding parser.", call);
             }
 
             if (arguments.Length == 0 || call.Arguments[0].Name is not null)
@@ -452,7 +453,7 @@ internal sealed partial class TypeChecker
             for (var i = 0; i < call.Arguments.Count; i++)
             {
                 var argument = call.Arguments[i];
-                if (ContainsTaggedStandardValue(arguments[i]) || ContainsDateTime(arguments[i]))
+                if (ContainsTaggedStandardValue(arguments[i]) || ContainsDateTime(arguments[i]) || ContainsType(arguments[i], HttpValues.Contains))
                     Error("RUK2010", "Use explicit standard-library conversions before passing opaque values to PowerShell.", argument);
                 if (ContainsStruct(arguments[i]))
                 {
@@ -485,7 +486,7 @@ internal sealed partial class TypeChecker
             {
                 Error("RUK2005", $"{call.Name} requires one positional argument.", call);
             }
-            else if (arguments[0] == ValueType.Encoding || arguments[0] == HashValues.Algorithm || DateTimeValues.Contains(arguments[0]))
+            else if (arguments[0] == ValueType.Encoding || arguments[0] == HashValues.Algorithm || DateTimeValues.Contains(arguments[0]) || HttpValues.Contains(arguments[0]))
             {
                 Error("RUK2010", "Use an explicit standard-library conversion before printing this value.", call);
             }
@@ -557,6 +558,13 @@ internal sealed partial class TypeChecker
             ("hash", "text") => [ValueType.String, HashValues.Algorithm, ValueType.Encoding],
             ("hash", "parse") => [ValueType.String],
             ("hash", "name") => [HashValues.Algorithm],
+            ("http", "request") => [HttpValues.Method, ValueType.String],
+            ("http", "options") => [ValueType.Int],
+            ("http", "send") => [standardModule.Structs["Request"].BoundType, standardModule.Structs["Options"].BoundType],
+            ("http", "download") => [standardModule.Structs["Request"].BoundType, ValueType.String, ValueType.Int, standardModule.Structs["Options"].BoundType],
+            ("http", "text") => [HttpValues.Body, ValueType.Encoding],
+            ("http", "header_values") => [ValueType.ArrayOf(standardModule.Structs["Header"].BoundType), ValueType.String],
+            ("http", "with_query") => [ValueType.String, ValueType.ArrayOf(standardModule.Structs["QueryParameter"].BoundType)],
             ("zip", "create") => [ValueType.String, ValueType.String],
             ("zip", "options") => [ValueType.Encoding],
             ("zip", "list") => [ValueType.String, standardModule.Structs["Options"].BoundType],
@@ -618,6 +626,12 @@ internal sealed partial class TypeChecker
             ("process", "options") => standardModule.Structs["Options"].BoundType,
             ("hash", "parse") => HashValues.Algorithm,
             ("hash", _) => ValueType.String,
+            ("http", "request") => standardModule.Structs["Request"].BoundType,
+            ("http", "options") => standardModule.Structs["Options"].BoundType,
+            ("http", "send") => standardModule.Structs["Response"].BoundType,
+            ("http", "download") => standardModule.Structs["DownloadResult"].BoundType,
+            ("http", "header_values") => ValueType.ArrayOf(ValueType.String),
+            ("http", _) => ValueType.String,
             ("zip", "options") => standardModule.Structs["Options"].BoundType,
             ("zip", "list") => ValueType.ArrayOf(standardModule.Structs["Entry"].BoundType),
             ("zip", _) => ValueType.Void,
@@ -737,9 +751,9 @@ internal sealed partial class TypeChecker
     }
 
     private static bool ContainsNonJsonStandardValue(ValueType type) =>
-        ContainsType(type, value => DateTimeValues.Contains(value) || (value == ValueType.Encoding || value == HashValues.Algorithm) || value.IsCsvRow);
+        ContainsType(type, value => DateTimeValues.Contains(value) || HttpValues.Contains(value) || (value == ValueType.Encoding || value == HashValues.Algorithm) || value.IsCsvRow);
     private static bool ContainsOpaqueStandardValue(ValueType type) =>
-        ContainsType(type, value => DateTimeValues.Contains(value) || (value == ValueType.Encoding || value == HashValues.Algorithm) || value.IsCsvRow || value.IsJsonValue);
+        ContainsType(type, value => DateTimeValues.Contains(value) || HttpValues.Contains(value) || (value == ValueType.Encoding || value == HashValues.Algorithm) || value.IsCsvRow || value.IsJsonValue);
     private static bool ContainsDateTime(ValueType type) => ContainsType(type, DateTimeValues.Contains);
     private static bool ContainsTaggedStandardValue(ValueType type) => ContainsType(type, value => (value == ValueType.Encoding || value == HashValues.Algorithm));
 

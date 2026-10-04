@@ -1,0 +1,281 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Net;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Text;
+
+// Immutable, detached bytes: no stream, network operation or lifetime escapes Send.
+public sealed class RukbatHttpBody {
+    private readonly byte[] bytes;
+    internal RukbatHttpBody(byte[] bytes) { this.bytes = bytes; }
+    public byte[] CopyBytes() { return (byte[])bytes.Clone(); }
+}
+
+public static class RukbatHttp {
+    public const int MemoryLimit = 64 * 1024 * 1024;
+    private const int HeaderLimit = 64 * 1024;
+    private const int ClientLimit = 16;
+    private const int Ok = (int)HttpStatusCode.OK;
+    private const int SwitchingProtocols = (int)HttpStatusCode.SwitchingProtocols;
+    private const int MovedPermanently = 301, Found = 302, SeeOther = 303, TemporaryRedirect = 307, PermanentRedirect = 308;
+    private static readonly UTF8Encoding StrictUtf8 = new UTF8Encoding(false, true);
+    private sealed class ClientEntry {
+        public string Key; public HttpClient Client; public int Users; public long Stamp;
+    }
+    private static readonly List<ClientEntry> Clients = new List<ClientEntry>();
+    private static long clientStamp;
+
+    public static object[] Options(long timeout) {
+        if (timeout <= 0 || timeout > Int32.MaxValue) throw new ArgumentException("HTTP timeout must be 1 through 2147483647 milliseconds.");
+        return new object[] { timeout, (long)MemoryLimit, null, false, false, (long)0 };
+    }
+    public static object[] Request(string method, string url) {
+        Method(method); Url(url);
+        return new object[] { method, url, new object[0], null };
+    }
+    private static void Method(string method) {
+        if (method != "GET" && method != "HEAD" && method != "POST" && method != "PUT" && method != "PATCH" && method != "DELETE" && method != "OPTIONS")
+            throw new ArgumentException("Unsupported HTTP method.");
+    }
+    private static Uri Url(string value) {
+        StrictUtf8.GetByteCount(value);
+        foreach (char c in value) if (Char.IsWhiteSpace(c) || Char.IsControl(c) || c == '\\') throw new ArgumentException("Invalid HTTP URL.");
+        for (int i = 0; i < value.Length; i++) if (value[i] == '%') {
+            if (i + 2 >= value.Length || !Uri.IsHexDigit(value[i + 1]) || !Uri.IsHexDigit(value[i + 2])) throw new ArgumentException("Invalid URL percent escape.");
+            i += 2;
+        }
+        Uri uri;
+        if (!Uri.TryCreate(value, UriKind.Absolute, out uri) || (uri.Scheme != "http" && uri.Scheme != "https") ||
+            uri.Host.Length == 0 || uri.UserInfo.Length != 0 || uri.Fragment.Length != 0)
+            throw new ArgumentException("An absolute HTTP/HTTPS URL without credentials or fragment is required.");
+        return uri;
+    }
+    private static void HeaderName(string name) {
+        if (String.IsNullOrEmpty(name)) throw new ArgumentException("HTTP header name must not be empty.");
+        foreach (char c in name) if (!(c >= 'a' && c <= 'z') && !(c >= 'A' && c <= 'Z') && !(c >= '0' && c <= '9') &&
+            "!#$%&'*+-.^_`|~".IndexOf(c) < 0) throw new ArgumentException("Invalid HTTP header name.");
+    }
+    private static bool Managed(string name) {
+        foreach (string owned in new string[] { "Host", "Content-Length", "Transfer-Encoding", "Connection", "Expect", "Accept-Encoding", "Proxy-Authorization", "Trailer", "TE", "Upgrade" })
+            if (String.Equals(name, owned, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+    private static string[][] Pairs(object[] entries, bool headers) {
+        var pairs = new List<string[]>(); long budget = 0;
+        foreach (object item in entries) {
+            object[] entry = (object[])item;
+            string name = (string)entry[0], value = (string)entry[1];
+            StrictUtf8.GetByteCount(name); StrictUtf8.GetByteCount(value);
+            if (headers) {
+                HeaderName(name);
+                if (Managed(name)) throw new ArgumentException("This HTTP header is managed by the runtime: " + name);
+                foreach (char c in value) if ((c < 32 && c != '\t') || c > 126) throw new ArgumentException("HTTP header values must be ASCII without control characters.");
+                budget += name.Length + value.Length + 4;
+                if (budget > HeaderLimit) throw new ArgumentException("HTTP request headers exceeded 64 KiB.");
+            }
+            pairs.Add(new string[] { name, value });
+        }
+        return pairs.ToArray();
+    }
+    public static void Validate(object[] request, object[] options, bool download) {
+        string method = (string)request[0]; Method(method); Url((string)request[1]);
+        long timeout = (long)options[0], maximum = (long)options[1], redirects = (long)options[5];
+        Options(timeout);
+        if (maximum <= 0 || maximum > MemoryLimit) throw new ArgumentException("HTTP max_response_bytes must be 1 through 67108864.");
+        if (redirects < 0 || redirects > 20) throw new ArgumentException("HTTP max_redirects must be 0 through 20.");
+        if (redirects > 0 && method != "GET" && method != "HEAD") throw new ArgumentException("HTTP redirects can only be enabled for GET or HEAD.");
+        if ((method == "GET" || method == "HEAD") && request[3] != null) throw new ArgumentException("GET and HEAD cannot have a request body.");
+        if (download && (method != "GET" || request[3] != null)) throw new ArgumentException("HTTP download requires GET without a body.");
+        if (options[2] != null) {
+            Uri proxy = Url((string)options[2]);
+            if (proxy.Scheme != "http" || proxy.AbsolutePath != "/" || proxy.Query.Length != 0) throw new ArgumentException("An explicit HTTP proxy origin is required.");
+        } else if ((bool)options[4]) throw new ArgumentException("Proxy credentials require an explicit proxy.");
+        var singles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (string[] header in Pairs((object[])request[2], true)) {
+            if (String.Equals(header[0], "Authorization", StringComparison.OrdinalIgnoreCase) && (bool)options[3])
+                throw new ArgumentException("Authorization and Windows credentials cannot be combined.");
+            if (String.Equals(header[0], "Content-Type", StringComparison.OrdinalIgnoreCase)) {
+                if (request[3] == null) throw new ArgumentException("Content-Type requires a request body.");
+                if (!singles.Add(header[0])) throw new ArgumentException("Duplicate Content-Type header.");
+                System.Net.Http.Headers.MediaTypeHeaderValue.Parse(header[1]);
+            }
+            if (String.Equals(header[0], "Authorization", StringComparison.OrdinalIgnoreCase) && !singles.Add(header[0]))
+                throw new ArgumentException("Duplicate Authorization header.");
+        }
+    }
+    public static string[] HeaderValues(object[] headers, string name) {
+        HeaderName(name);
+        var values = new List<string>();
+        foreach (object item in headers) {
+            object[] pair = (object[])item;
+            if (String.Equals((string)pair[0], name, StringComparison.OrdinalIgnoreCase)) values.Add((string)pair[1]);
+        }
+        return values.ToArray();
+    }
+    public static string WithQuery(string url, object[] parameters) {
+        Url(url);
+        var result = new StringBuilder(url);
+        bool hasQuery = url.IndexOf('?') >= 0;
+        foreach (string[] pair in Pairs(parameters, false)) {
+            if (!hasQuery) result.Append('?');
+            else if (result[result.Length - 1] != '?' && result[result.Length - 1] != '&') result.Append('&');
+            hasQuery = true;
+            result.Append(Escape(pair[0])); result.Append('='); result.Append(Escape(pair[1]));
+        }
+        return result.ToString();
+    }
+    private static string Escape(string value) {
+        var result = new StringBuilder();
+        foreach (byte b in StrictUtf8.GetBytes(value)) {
+            if ((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9') || b == '-' || b == '_' || b == '.' || b == '~') result.Append((char)b);
+            else { result.Append('%'); result.Append(b.ToString("X2", System.Globalization.CultureInfo.InvariantCulture)); }
+        }
+        return result.ToString();
+    }
+    private static ClientEntry Acquire(object[] options) {
+        string key = (options[2] == null ? "" : Url((string)options[2]).AbsoluteUri) + "|" + options[3] + "|" + options[4];
+        lock (Clients) {
+            foreach (var entry in Clients) if (entry.Key == key) { entry.Users++; entry.Stamp = ++clientStamp; return entry; }
+            if (Clients.Count == ClientLimit) {
+                ClientEntry oldest = null;
+                foreach (var entry in Clients) if (entry.Users == 0 && (oldest == null || entry.Stamp < oldest.Stamp)) oldest = entry;
+                if (oldest == null) throw new IOException("Too many concurrent HTTP client configurations.");
+                Clients.Remove(oldest); oldest.Client.Dispose();
+            }
+            var handler = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false, UseProxy = options[2] != null, UseDefaultCredentials = (bool)options[3], MaxResponseHeadersLength = HeaderLimit / 1024 };
+            // A per-handler OS TLS policy, independent of mutable PowerShell globals.
+            var tls = handler.GetType().GetProperty("SslProtocols");
+            if (tls == null) { handler.Dispose(); throw new NotSupportedException("HTTP requires an installed handler supporting OS TLS defaults (.NET Framework 4.7.1 or later)."); }
+            tls.SetValue(handler, Enum.ToObject(tls.PropertyType, 0), null);
+            if (options[2] != null) {
+                var proxy = new WebProxy(Url((string)options[2]));
+                if ((bool)options[4]) proxy.Credentials = CredentialCache.DefaultCredentials;
+                handler.Proxy = proxy;
+            }
+            var created = new ClientEntry { Key = key, Client = new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan }, Users = 1, Stamp = ++clientStamp };
+            Clients.Add(created); return created;
+        }
+    }
+    private static T Await<T>(Task<T> task, Stopwatch clock, long timeout, CancellationTokenSource cancel) {
+        long remaining = timeout - clock.ElapsedMilliseconds;
+        if (remaining <= 0) { cancel.Cancel(); throw new TimeoutException("HTTP request timed out."); }
+        try {
+            if (!task.Wait((int)Math.Min(remaining, Int32.MaxValue))) { cancel.Cancel(); throw new TimeoutException("HTTP request timed out."); }
+        } catch (AggregateException) { return task.GetAwaiter().GetResult(); }
+        return task.GetAwaiter().GetResult();
+    }
+    private static bool SameOrigin(Uri left, Uri right) {
+        return left.Scheme == right.Scheme && String.Equals(left.IdnHost, right.IdnHost, StringComparison.OrdinalIgnoreCase) && left.Port == right.Port;
+    }
+    private static object[] ResponseHeaders(HttpResponseMessage response) {
+        var result = new List<object>(); long budget = 0;
+        foreach (var group in new[] { response.Headers, (System.Net.Http.Headers.HttpHeaders)response.Content.Headers })
+            foreach (var header in group) foreach (string value in header.Value) {
+                budget += header.Key.Length + value.Length + 4;
+                if (budget > HeaderLimit) throw new IOException("HTTP response headers exceeded 64 KiB.");
+                result.Add(new object[] { header.Key, value });
+            }
+        return result.ToArray();
+    }
+    private static void Observe(Task task) {
+        task.ContinueWith(t => { var ignored = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
+    }
+    private static void Destination(string path) {
+        if (File.Exists(path) || Directory.Exists(path)) throw new IOException("HTTP download destination already exists.");
+        string parent = Path.GetDirectoryName(path);
+        if (!Directory.Exists(parent)) throw new DirectoryNotFoundException("HTTP download parent directory does not exist.");
+        // Refuse links in the destination ancestry, including a dangling target link.
+        for (string current = path; !String.IsNullOrEmpty(current); current = Path.GetDirectoryName(current)) {
+            try { if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0) throw new IOException("HTTP download paths cannot traverse reparse points."); }
+            catch (FileNotFoundException) { } catch (DirectoryNotFoundException) { }
+        }
+    }
+    public static object[] Send(object[] request, object[] options, byte[] body, string destination, long maxBytes) {
+        // PowerShell binds $null to String.Empty for a string parameter.
+        bool download = !String.IsNullOrEmpty(destination);
+        Validate(request, options, download);
+        if (body != null && body.Length > MemoryLimit) throw new ArgumentException("HTTP request body exceeded 64 MiB.");
+        if (download) { if (maxBytes <= 0) throw new ArgumentException("HTTP download max_bytes must be positive."); Destination(destination); }
+        string method = (string)request[0]; Uri uri = Url((string)request[1]);
+        string[][] headers = Pairs((object[])request[2], true);
+        long timeout = (long)options[0]; int redirectCount = 0;
+        ClientEntry client = Acquire(options); string stage = null;
+        using (var cancel = new CancellationTokenSource()) {
+            var clock = Stopwatch.StartNew(); cancel.CancelAfter((int)timeout);
+            try {
+                while (true) {
+                    using (var message = new HttpRequestMessage(new HttpMethod(method), uri)) {
+                        message.Version = new Version(1, 1);
+                        if (body != null) message.Content = new ByteArrayContent(body);
+                        message.Headers.TryAddWithoutValidation("Accept-Encoding", "identity");
+                        foreach (string[] header in headers) {
+                            if (!message.Headers.TryAddWithoutValidation(header[0], header[1]) && (message.Content == null || !message.Content.Headers.TryAddWithoutValidation(header[0], header[1])))
+                                throw new ArgumentException("Invalid HTTP header for this request: " + header[0]);
+                        }
+                        var pending = client.Client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancel.Token);
+                        HttpResponseMessage received;
+                        try { received = Await(pending, clock, timeout, cancel); }
+                        catch {
+                            // DNS/OS completion may arrive after cancellation. Close a late response.
+                            pending.ContinueWith(t => { if (t.Status == TaskStatus.RanToCompletion) t.Result.Dispose(); else if (t.IsFaulted) { var ignored = t.Exception; } }, TaskContinuationOptions.ExecuteSynchronously);
+                            throw;
+                        }
+                        using (var response = received) {
+                            int status = (int)response.StatusCode;
+                            if (status == SwitchingProtocols) throw new IOException("HTTP protocol upgrades are unsupported.");
+                            object[] responseHeaders = ResponseHeaders(response);
+                            if ((status == MovedPermanently || status == Found || status == SeeOther || status == TemporaryRedirect || status == PermanentRedirect) && (long)options[5] > 0 && response.Headers.Location != null) {
+                                Uri next = Url(new Uri(uri, response.Headers.Location).AbsoluteUri);
+                                if (SameOrigin(uri, next)) {
+                                    if (redirectCount++ >= (long)options[5]) throw new IOException("HTTP redirect limit exceeded.");
+                                    uri = next; continue;
+                                }
+                            }
+                            bool saved = download && status == Ok;
+                            long limit = saved ? maxBytes : (long)options[1];
+                            if (method != "HEAD" && response.Content.Headers.ContentLength.HasValue && response.Content.Headers.ContentLength.Value > limit)
+                                throw new IOException("HTTP response body exceeded its byte limit.");
+                            if (method != "HEAD") foreach (string coding in response.Content.Headers.ContentEncoding) if (!String.Equals(coding, "identity", StringComparison.OrdinalIgnoreCase))
+                                throw new IOException("Unsupported HTTP Content-Encoding; this client requests identity.");
+                            using (var memory = new MemoryStream()) {
+                                FileStream file = null; long size = 0;
+                                try {
+                                    if (saved) {
+                                        stage = Path.Combine(Path.GetDirectoryName(destination), ".rukbat-http-" + Guid.NewGuid().ToString("N") + ".tmp");
+                                        file = new FileStream(stage, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+                                    }
+                                    if (method != "HEAD") using (var input = Await(response.Content.ReadAsStreamAsync(), clock, timeout, cancel)) {
+                                        byte[] buffer = new byte[65536];
+                                        while (true) {
+                                            var reading = input.ReadAsync(buffer, 0, buffer.Length, cancel.Token); Observe(reading);
+                                            int count = Await(reading, clock, timeout, cancel);
+                                            if (count == 0) break;
+                                            if (size > limit - count) throw new IOException("HTTP response body exceeded its byte limit.");
+                                            size += count;
+                                            if (file != null) file.Write(buffer, 0, count); else memory.Write(buffer, 0, count);
+                                        }
+                                        if (response.Content.Headers.ContentLength.HasValue && response.Content.Headers.ContentLength.Value != size)
+                                            throw new IOException("HTTP response body was incomplete.");
+                                    }
+                                    if (clock.ElapsedMilliseconds >= timeout) throw new TimeoutException("HTTP request timed out.");
+                                    if (file != null) { file.Flush(true); file.Dispose(); file = null; File.Move(stage, destination); stage = null; }
+                                    if (download) return new object[] { (long)status, uri.AbsoluteUri, responseHeaders, saved, saved ? size : (long)0, saved ? null : new RukbatHttpBody(memory.ToArray()) };
+                                    return new object[] { (long)status, uri.AbsoluteUri, responseHeaders, new RukbatHttpBody(memory.ToArray()) };
+                                } finally { if (file != null) file.Dispose(); }
+                            }
+                        }
+                    }
+                }
+            } catch (OperationCanceledException) { throw new TimeoutException("HTTP request timed out."); }
+            finally {
+                cancel.Cancel();
+                lock (Clients) { client.Users--; }
+                if (stage != null) File.Delete(stage);
+            }
+        }
+    }
+}

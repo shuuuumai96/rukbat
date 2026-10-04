@@ -1,0 +1,36 @@
+import http
+import encoding
+import json
+import text
+
+fn main(): void {
+    arguments := args()
+
+    if arguments.length != 1 {
+        throw Error {
+            message: "Usage: http-json URL"
+        }
+    }
+
+    request := http.request(http.method_get, arguments[0])
+    request.headers = [http.Header {
+        name: "Accept", value: "application/json"
+    }]
+    response := http.send(request, http.options(30000))
+
+    if response.status != http.status_200_ok {
+        throw Error {
+            message: "Request failed: HTTP " + text.from_int(response.status)
+        }
+    }
+
+    document := json.parse(http.text(response.body, encoding.utf8))
+    print(json.stringify(document))
+}
+
+try {
+    main()
+} catch err {
+    eprint(err.message)
+    exit(1)
+}

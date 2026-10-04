@@ -121,7 +121,7 @@ dotnet publish src/Rukbat -c Release -o artifacts/rukbat
 - Prefer consistent syntax that is easy to read and write.
 - Line comments use `//`. Comment markers inside strings are literal text.
 - Named imports such as `import fs` load standard modules bundled with the compiler.
-- Standard modules are `fs`, `path`, `json`, `csv`, `env`, `process`, `text`, `array`, `math`, `datetime`, `encoding`, and `test`. Their APIs and external-data contracts are defined in the [standard library specification](docs/STDLIB.md).
+- Standard modules are `fs`, `path`, `json`, `csv`, `env`, `process`, `http`, `text`, `array`, `math`, `datetime`, `encoding`, `zip`, `hash`, and `test`. Their APIs and external-data contracts are defined in the [standard library specification](docs/STDLIB.md).
 - Use `fs` for actual file and directory operations, and `path` for constructing, decomposing, and comparing path values. For example, `fs.list_files` lists files, `fs.create_dir_all` creates directories and their parents, and `path.parent` computes a parent path without checking existence. See the [task guide](docs/STDLIB.md#choosing-filesystem-and-path-operations).
 - `exit(code)` terminates the process with a nonnegative `int` exit code. `eprint(text)` writes a line to standard error.
 - `text.from_int/from_float/from_bool` and `text.parse_int/parse_float/parse_bool` provide explicit, culture-independent string conversion and parsing.
@@ -397,3 +397,11 @@ ZIP packaging and checksums use `zip.create`, `zip.list`, `zip.extract`, `hash.f
 ZIP reads have explicit name encodings and extraction limits; output publication rejects existing
 files/directories. Hash algorithms are typed values such as `hash.sha256`, with explicit external
 name conversion. See [the packaging example](examples/package.rukbat) and [the contracts](docs/STDLIB.md#zip).
+
+HTTP requests use `http.request(http.method_get, url)` and `http.send(request, http.options(30000))`.
+Status constants include their numbers (`http.status_200_ok`, `http.status_404_not_found`). Non-2xx
+responses retain their headers/body; communication failures use ordinary Error. Decode captured
+bytes with `http.text(response.body, encoding.utf8)` and use existing `json.parse` for JSON.
+`http.download` streams a bounded status-200 response to a new file without overwriting an existing
+destination. See [the runnable JSON example](examples/http-json.rukbat) and [the HTTP contract](docs/STDLIB.md#http)
+for explicit deadlines, redirects, proxy/credentials, content coding and download limits.

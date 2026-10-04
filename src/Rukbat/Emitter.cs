@@ -37,6 +37,8 @@ internal sealed partial class Emitter(TypeChecker checker)
         if (type.IsJsonValue) return "RukbatJsonValue";
         if (type.IsCsvRow) return "RukbatCsvRow";
         if (type == ValueType.Encoding || type == HashValues.Algorithm) return "string";
+        if (type == HttpValues.Method) return "string";
+        if (type == HttpValues.Body) return "RukbatHttpBody";
         if (DateTimeValues.Contains(type)) return DateTimeValues.RuntimeName(type);
         return type.Struct is null ? type.Name : "hashtable";
     }
@@ -77,7 +79,7 @@ internal sealed partial class Emitter(TypeChecker checker)
             EmitJsonRuntime();
         }
         var standardModules = modules
-            .Where(current => current.StandardName is "fs" or "path" or "csv" or "json" or "env" or "process" or "text" or "encoding" or "math" or "datetime" or "array" or "zip" or "hash")
+            .Where(current => current.StandardName is "fs" or "path" or "csv" or "json" or "env" or "process" or "text" or "encoding" or "math" or "datetime" or "array" or "zip" or "hash" or "http")
             .Select(current => current.StandardName!)
             .ToHashSet(StringComparer.Ordinal);
         if (standardModules.Count != 0)
@@ -325,6 +327,7 @@ internal sealed partial class Emitter(TypeChecker checker)
         Member member when checker.UtcZones.Contains(member) => "([RukbatDateTime]::Utc)",
         Member member when checker.HashConstants.TryGetValue(member, out var algorithm) => Quote(algorithm),
         Member member when checker.EncodingConstants.TryGetValue(member, out var encoding) => Quote(encoding.Label),
+        Member member when checker.HttpConstants.TryGetValue(member, out var constant) => constant.Value is string method ? Quote(method) : "[long]" + constant.Value,
         Member member when checker.Types[member.Receiver].Element is not null => $"([long]({RawExpr(member.Receiver)}).Count)",
         Member member => $"(({RawExpr(member.Receiver)})[{Quote(checker.Fields[member].Key)}])",
         Unary unary => unary.Token.Text == "!"
@@ -390,6 +393,7 @@ internal sealed partial class Emitter(TypeChecker checker)
         }
         if (checker.StandardCalls.TryGetValue(call, out var standardCall))
         {
+            if (standardCall.StartsWith("http.", StringComparison.Ordinal)) return HttpCall(call, standardCall);
             if (standardCall == "test.assert")
             {
                 return TestAssertion(call);

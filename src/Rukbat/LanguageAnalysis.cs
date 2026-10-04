@@ -53,6 +53,10 @@ internal sealed record EditorSymbol(string Name, string Detail, int Kind, string
 
 internal static class EditorCatalog
 {
+    public static EditorSymbol HttpConstant(HttpConstant value) => new(value.Name, $"http.{value.Name}: {value.Type} = {value.Value}", 21,
+        "Read-only HTTP constant.", Type: value.Type);
+    public static EditorSymbol HttpType(ValueType value) => new(value.Name.Split('.')[1], value.Name, 13,
+        value == HttpValues.Body ? "Immutable HTTP response bytes. Decode with http.text and an explicit encoding." : "A validated HTTP method. Use http.method_* constants.", Type: value);
     // Embed the canonical API documentation rather than maintain a second list of signatures.
     public static readonly EditorSymbol HashType = new("Algorithm", "hash.Algorithm", 13,
         "A validated checksum algorithm. Use hash.parse/name at external boundaries.", Type: HashValues.Algorithm);
@@ -111,6 +115,7 @@ internal static class EditorCatalog
         }
         // Zero-argument signatures are covered by the same expression (the ')' is nonempty).
         result.AddRange(HashValues.All.Select(HashValue));
+        result.AddRange(HttpValues.Constants.Select(HttpConstant));
         result.AddRange(EncodingValues.All.Select(EncodingValue));
         result.Add(UtcZone);
         return result;
@@ -326,6 +331,8 @@ internal sealed class LanguageAnalysis
                     Add(scope.Module, member.Token, EditorCatalog.EncodingValue(encoding));
                 else if (checker.HashConstants.TryGetValue(member, out var algorithm))
                     Add(scope.Module, member.Token, EditorCatalog.HashValue(algorithm));
+                else if (checker.HttpConstants.TryGetValue(member, out var httpConstant))
+                    Add(scope.Module, member.Token, EditorCatalog.HttpConstant(httpConstant));
                 else if (checker.Fields.TryGetValue(member, out var field))
                     Add(scope.Module, member.Token, symbols[field]);
                 else if (member.Name == "length" && checker.Types.GetValueOrDefault(member.Receiver)?.Element is not null)
@@ -398,6 +405,8 @@ internal sealed class LanguageAnalysis
                 Add(module, token, EditorCatalog.DateTimeType(bound));
             else if (bound == HashValues.Algorithm)
                 Add(module, token, EditorCatalog.HashType);
+            else if (bound is not null && HttpValues.Contains(bound))
+                Add(module, token, EditorCatalog.HttpType(bound));
             else if (bound == ValueType.Encoding)
                 Add(module, token, EditorCatalog.EncodingType);
         }
@@ -432,6 +441,8 @@ internal sealed class LanguageAnalysis
                     : imported.Functions.Values.Select(f => symbols[checker!.Functions[f]]).Concat(imported.Structs.Values.Select(s => symbols[s]));
                 if (imported.StandardName == "hash")
                     candidates = candidates.Append(EditorCatalog.HashType);
+                if (imported.StandardName == "http")
+                    candidates = candidates.Append(EditorCatalog.HttpType(HttpValues.Method)).Append(EditorCatalog.HttpType(HttpValues.Body));
                 if (imported.StandardName == "encoding")
                     candidates = candidates.Append(EditorCatalog.EncodingType);
                 if (imported.StandardName == "datetime")

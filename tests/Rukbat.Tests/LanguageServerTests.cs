@@ -389,6 +389,24 @@ public sealed class LanguageServerTests : TestBase
     }
 
     [Fact]
+    public void HttpConstantsTypesAndOptionsHaveHoverAndCompletion()
+    {
+        using var project = new Project();
+        var uri = UriFor(project);
+        var messages = Session(Open(uri, "import http\nvalue := http.status_200_ok"), Feature(uri, "hover", 1, 20));
+        Assert.Empty(LastDiagnostics(messages, uri).GetProperty("diagnostics").EnumerateArray());
+        Assert.Contains("http.status_200_ok: int = 200", Result(messages).GetProperty("contents").GetProperty("value").GetString());
+        var constants = Result(Session(Open(uri, "import http\nhttp.status_"), Feature(uri, "completion", 1, 12)));
+        Assert.Contains(constants.EnumerateArray(), item => item.GetProperty("label").GetString() == "status_404_not_found");
+        var options = Result(Session(Open(uri, "import http\noptions := http.options(1000)\noptions."), Feature(uri, "completion", 2, 8)));
+        foreach (var name in new[] { "timeout_ms", "max_response_bytes", "proxy_url", "use_windows_credentials", "max_redirects" })
+            Assert.Contains(options.EnumerateArray(), item => item.GetProperty("label").GetString() == name);
+        var functions = Result(Session(Open(uri, "import http\nhttp."), Feature(uri, "completion", 1, 5)));
+        foreach (var name in new[] { "request", "send", "text", "download", "Body", "Method" })
+            Assert.Contains(functions.EnumerateArray(), item => item.GetProperty("label").GetString() == name);
+    }
+
+    [Fact]
     public void EncodingCompletionAndHoverDescribeValidatedValuesAndTheirType()
     {
         using var project = new Project();

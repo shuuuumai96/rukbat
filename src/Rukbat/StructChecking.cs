@@ -172,6 +172,8 @@ internal sealed partial class TypeChecker
 
         var parts = type.Name.Split('.');
         var owner = parts.Length == 1 ? module : module.Imports.GetValueOrDefault(parts[0]);
+        if (owner?.StandardName == "http" && HttpValues.OpaqueType(parts[^1]) is { } httpType)
+            return DeclaredTypes[node] = httpType;
         if (owner?.StandardName == "datetime" && DateTimeValues.All.FirstOrDefault(value => value.Name == "datetime." + parts[^1]) is { } dateTimeType)
             return DeclaredTypes[node] = dateTimeType;
         if (owner?.StandardName == "hash" && parts[^1] == "Algorithm")
@@ -225,6 +227,17 @@ internal sealed partial class TypeChecker
 
     private ValueType MemberType(Member member, Symbols scope)
     {
+        if (member.Receiver is Name httpName && module.Imports.TryGetValue(httpName.Token.Text, out var httpModule) && httpModule.StandardName == "http")
+        {
+            var value = HttpValues.Constants.FirstOrDefault(value => value.Name == member.Name);
+            if (value is null)
+            {
+                Error("RUK2004", $"Unknown HTTP constant '{member.Name}'.", member);
+                return ValueType.Error;
+            }
+            HttpConstants[member] = value;
+            return value.Type;
+        }
         if (member.Receiver is Name name && module.Imports.TryGetValue(name.Token.Text, out var imported) &&
             imported.StandardName == "encoding")
         {

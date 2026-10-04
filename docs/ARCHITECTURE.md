@@ -118,3 +118,14 @@ precedence, and uses ZipArchive only for compression/decompression. Extraction i
 stream sizes and CRC and publishes a sibling stage with a non-replacing rename. Windows PowerShell
 loads its installed System.IO.Compression assembly; no deployment dependency is added. Only an
 import of zip/hash emits the respective helper; neither imports the process or move runtimes.
+
+HTTP constants and opaque type identities use HttpValues as a shared binder/editor catalog.
+Request, options, headers, query parameters and results are ordinary bound value structs.
+HttpEmission recursively adapts their private field keys to ordered backend data and back;
+it evaluates expressions once and keeps PowerShell enumeration at the boundary. The C# 5
+Http helper uses installed System.Net.Http, bounded detached immutable Body bytes, reusable
+clients, explicit proxy/credentials, a shared transfer deadline and response disposal.
+Redirect policy is implemented independently of handler defaults. Successful downloads stream
+to a sibling stage and publish without replacement; non-200 bodies use the bounded memory path.
+The canonical strict encoding selector handles request encoding and response decoding. Only
+an http import emits this helper; it does not load process containment or file-move runtimes.

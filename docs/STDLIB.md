@@ -19,6 +19,7 @@ import datetime
 import array
 import zip
 import hash
+import http
 ```
 
 A local module instead uses an explicit relative `.rukbat` path and an alias. Standard module names are reserved as aliases. Generated scripts contain only the standard-library runtime sections used by their imports and remain standalone on Windows PowerShell 5.1.
@@ -945,6 +946,229 @@ passed unchanged with Windows C/C++ argv quoting: each Rukbat string is one argv
 inside arguments are interpreted by the child, normally against its working_dir. Executables must
 be directly launchable binaries; .cmd/.bat are rejected. No shell interpretation is added.
 
+
+## `http`
+
+HTTP is synchronous, procedural, and independent of PowerShell web cmdlet behavior. It supports
+HTTP/HTTPS API requests, text/JSON submission, and bounded file downloads. All arguments are
+required and positional. No language syntax, package, or deployment service is added.
+
+`http.Method` is an opaque validated type with read-only values `http.method_get`,
+`http.method_head`, `http.method_post`, `http.method_put`, `http.method_patch`,
+`http.method_delete`, and `http.method_options`. Methods support same-type equality and ordinary
+containers. `http.Body` is opaque immutable response bytes, detached from the connection. It
+has no constructor, fields, indexing, equality, or open-stream lifetime. Both types are excluded
+recursively from printing, JSON conversion, and PowerShell arguments/results. Use `http.text`
+to decode a Body. Ordinary assignment and containers can safely share its immutable storage.
+
+HTTP status constants are read-only `int` values, named `http.status_<number>_<name>`;
+for example `http.status_200_ok`, `http.status_404_not_found`, and
+`http.status_503_service_unavailable`. `response.status` remains an int and can represent
+unassigned/custom codes. There are no aliases omitting the number. Names follow the
+[IANA registry](https://www.iana.org/assignments/http-status-codes), including RFC 9110's
+`413_content_too_large`, `414_uri_too_long`, `416_range_not_satisfiable`, and
+`422_unprocessable_content`. `306_reserved` and the legacy `418_im_a_teapot` explicitly name
+reserved codes; `510_not_extended` is obsolete. `104_upload_resumption_supported` is a
+temporary registry assignment, not a promise of resumable-upload support.
+
+| Constant | Value |
+|---|---|
+| `http.status_100_continue` | 100 |
+| `http.status_101_switching_protocols` | 101 |
+| `http.status_102_processing` | 102 |
+| `http.status_103_early_hints` | 103 |
+| `http.status_104_upload_resumption_supported` | 104 |
+| `http.status_200_ok` | 200 |
+| `http.status_201_created` | 201 |
+| `http.status_202_accepted` | 202 |
+| `http.status_203_non_authoritative_information` | 203 |
+| `http.status_204_no_content` | 204 |
+| `http.status_205_reset_content` | 205 |
+| `http.status_206_partial_content` | 206 |
+| `http.status_207_multi_status` | 207 |
+| `http.status_208_already_reported` | 208 |
+| `http.status_226_im_used` | 226 |
+| `http.status_300_multiple_choices` | 300 |
+| `http.status_301_moved_permanently` | 301 |
+| `http.status_302_found` | 302 |
+| `http.status_303_see_other` | 303 |
+| `http.status_304_not_modified` | 304 |
+| `http.status_305_use_proxy` | 305 |
+| `http.status_306_reserved` | 306 |
+| `http.status_307_temporary_redirect` | 307 |
+| `http.status_308_permanent_redirect` | 308 |
+| `http.status_400_bad_request` | 400 |
+| `http.status_401_unauthorized` | 401 |
+| `http.status_402_payment_required` | 402 |
+| `http.status_403_forbidden` | 403 |
+| `http.status_404_not_found` | 404 |
+| `http.status_405_method_not_allowed` | 405 |
+| `http.status_406_not_acceptable` | 406 |
+| `http.status_407_proxy_authentication_required` | 407 |
+| `http.status_408_request_timeout` | 408 |
+| `http.status_409_conflict` | 409 |
+| `http.status_410_gone` | 410 |
+| `http.status_411_length_required` | 411 |
+| `http.status_412_precondition_failed` | 412 |
+| `http.status_413_content_too_large` | 413 |
+| `http.status_414_uri_too_long` | 414 |
+| `http.status_415_unsupported_media_type` | 415 |
+| `http.status_416_range_not_satisfiable` | 416 |
+| `http.status_417_expectation_failed` | 417 |
+| `http.status_418_im_a_teapot` | 418 |
+| `http.status_421_misdirected_request` | 421 |
+| `http.status_422_unprocessable_content` | 422 |
+| `http.status_423_locked` | 423 |
+| `http.status_424_failed_dependency` | 424 |
+| `http.status_425_too_early` | 425 |
+| `http.status_426_upgrade_required` | 426 |
+| `http.status_428_precondition_required` | 428 |
+| `http.status_429_too_many_requests` | 429 |
+| `http.status_431_request_header_fields_too_large` | 431 |
+| `http.status_451_unavailable_for_legal_reasons` | 451 |
+| `http.status_500_internal_server_error` | 500 |
+| `http.status_501_not_implemented` | 501 |
+| `http.status_502_bad_gateway` | 502 |
+| `http.status_503_service_unavailable` | 503 |
+| `http.status_504_gateway_timeout` | 504 |
+| `http.status_505_http_version_not_supported` | 505 |
+| `http.status_506_variant_also_negotiates` | 506 |
+| `http.status_507_insufficient_storage` | 507 |
+| `http.status_508_loop_detected` | 508 |
+| `http.status_510_not_extended` | 510 |
+| `http.status_511_network_authentication_required` | 511 |
+
+
+The module exports ordinary mutable value structs (names below are qualified by `http`):
+
+```rukbat
+struct Header { name: string; value: string }
+struct QueryParameter { name: string; value: string }
+struct TextBody { text: string; encoding: encoding.Encoding }
+struct Request {
+    method: http.Method
+    url: string
+    headers: http.Header[]
+    body: http.TextBody?
+}
+struct Options {
+    timeout_ms: int
+    max_response_bytes: int
+    proxy_url: string?
+    use_windows_credentials: bool
+    proxy_use_windows_credentials: bool
+    max_redirects: int
+}
+struct Response {
+    status: int
+    url: string
+    headers: http.Header[]
+    body: http.Body
+}
+struct DownloadResult {
+    status: int
+    url: string
+    headers: http.Header[]
+    saved: bool
+    size: int
+    error_body: http.Body?
+}
+```
+
+| Signature | Meaning | Failure |
+|---|---|---|
+| `http.request(method: http.Method, url: string): http.Request` | Creates a request with empty headers and null body. | Invalid URL causes Error. |
+| `http.options(timeout_ms: int): http.Options` | Creates options with max_response_bytes 67108864, proxy_url null, both credential flags false, and max_redirects zero. | Timeout outside 1 through 2147483647 milliseconds causes Error. |
+| `http.send(request: http.Request, options: http.Options): http.Response` | Sends and fully captures a bounded response, including non-2xx responses. | Invalid conditions, connection/TLS failure, timeout, incomplete response, unsupported content coding or limits cause Error. |
+| `http.text(body: http.Body, encoding: encoding.Encoding): string` | Strictly decodes captured bytes using the explicit encoding. Preserves BOM and newlines. | Invalid bytes or unsupported encoding causes Error. |
+| `http.header_values(headers: http.Header[], name: string): string[]` | Collects all values for a case-insensitive header name; absent names return an empty array. | Invalid header name causes Error. |
+| `http.with_query(url: string, parameters: http.QueryParameter[]): string` | Appends UTF-8 percent-escaped query names/values in input order; preserves duplicate names and existing query text. Spaces become %20, not +. | Invalid URL or invalid Unicode causes Error. |
+| `http.download(request: http.Request, destination: string, max_bytes: int, options: http.Options): http.DownloadResult` | Streams a GET's status-200 body to a new file and publishes it after completion. Other statuses return saved false with captured error_body and no output file. | Invalid conditions/destination, timeout, transfer failure, limits or publication/cleanup failure cause Error. |
+
+`send` separates an HTTP response from a communication failure. 404, 429, 500 and other final
+statuses are ordinary Responses; no implicit success check occurs. Failed text decoding does
+not prevent inspecting a previously received status or headers. JSON conversion remains explicit:
+`json.parse(http.text(response.body, encoding.utf8))`; known types can use existing `json.parse<T>`.
+No Content-Type/charset guessing, BOM stripping or replacement decoding occurs.
+
+URLs must be absolute http/https URLs with a host and no user information, fragment, whitespace,
+control characters, backslashes or malformed percent escapes. Request headers use ASCII token
+names and ASCII values without controls (horizontal tab is accepted). Host, Content-Length,
+Transfer-Encoding, Connection, Expect, Accept-Encoding, Proxy-Authorization, Trailer, TE and
+Upgrade are runtime-owned and cannot be supplied. Duplicate Authorization/Content-Type is
+rejected. Content-Type requires a body; Content-Type and TextBody.encoding remain separate
+explicit choices. All validation, including edited options and strict body encoding, precedes
+communication. GET/HEAD reject a body. TextBody encodes without BOM or added newline, up to
+64 MiB. Null body and empty text are distinct; empty text creates a zero-length request body.
+
+Options are revalidated on each send/download. max_response_bytes is 1 through 67108864,
+and applies to all buffered response bodies, including unsuccessful download responses.
+Request and decoded response header collections have a separate 64 KiB budget. Headers retain
+separate returned values, including Set-Cookie; original wire ordering/casing/whitespace is not
+guaranteed by the underlying HTTP parser. HEAD returns an empty Body regardless of advertised
+Content-Length. Protocol upgrades are unsupported. HTTP/1.1 is the common target.
+
+The client requests `Accept-Encoding: identity`. Received application bytes are not transformed;
+non-identity Content-Encoding is rejected (except HEAD, where it describes an untransferred body).
+Gzip/Deflate/Brotli HTTP content coding is not implemented in this version. Chunked transfer framing
+is handled by the HTTP transport and is not part of Body. The byte limit applies while reading,
+not only to the declared Content-Length; mismatched/incomplete lengths are errors.
+
+timeout_ms is a shared elapsed deadline from starting transport through response reading,
+including followed redirects. Preparation/encoding happens before it. The helper also requests
+transport cancellation at the deadline, closes responses, and observes late asynchronous failures.
+OS DNS/cancellation and filesystem flush/cleanup can delay returning; this is not a hard real-time
+or whole-process deadline. The operations supervisor provides a separate whole-job deadline.
+There is no application retry, Cookie jar, cached response, or default Windows credential use.
+An Error after sending does not prove the server performed no side effects.
+
+max_redirects zero returns redirects normally. Values 1 through 20 opt GET/HEAD into bounded
+301/302/303/307/308 following within the same origin (scheme, host and effective port).
+Cross-origin changes, including HTTPS-to-HTTP, return their redirect response. A followed chain
+exceeding its bound raises Error. POST and other methods cannot enable redirects; a submitted
+body is never replayed by redirect policy. TLS certificate validation stays enabled, OS TLS
+defaults are selected per handler, and PowerShell's global TLS settings are not changed.
+
+proxy_url null means direct connection, ignoring ambient proxy/PAC/environment configuration.
+A non-null value must be an http proxy origin without credentials, path beyond /, query or
+fragment. use_windows_credentials enables the current account's origin challenge authentication;
+it cannot be combined with an Authorization header. proxy_use_windows_credentials enables
+current-account proxy challenge credentials and requires proxy_url. An explicit Authorization
+header can carry a Bearer/Basic value. There is no OAuth flow, explicit password store, automatic
+PAC discovery, multipart upload, streaming upload, WebSocket or resumable download API.
+Internal clients reuse connections by proxy/credential configuration with a bounded cache;
+no client/session object or dispose operation is exposed to Rukbat.
+
+Downloads require GET without a body and a positive signed-64-bit max_bytes. Only status 200
+publishes a complete file; 204, 206, 3xx and non-2xx return saved false, size zero and a non-null
+error_body (which may be empty). A saved result has its actual byte size and null error_body.
+The successful file uses max_bytes rather than the memory response limit. A destination must
+not exist, its parent must exist, and its ancestry must contain no reparse points. Relative
+paths use the captured entry working directory. Content-Disposition never chooses the path.
+Output is staged beside the destination, flushed, and published by a non-replacing move.
+Ordinary failures delete the stage; a cleanup failure is Error. A concurrent destination creator
+is preserved. Forced host termination can leave `.rukbat-http-<id>.tmp`; there is no crash journal
+or filesystem durability/hostile-parent guarantee. No existing destination is replaced.
+
+HTTP uses the target's installed System.Net.Http facilities with a C# 5 helper. Desktop hosts
+require an installed .NET Framework handler supporting OS TLS defaults (4.7.1 or later).
+No dependency is bundled into deployment scripts. As with other native helpers, FullLanguage
+and permission to use Add-Type are required. Actual proxy/Windows-auth access depends on the
+deployment account and network configuration.
+
+```rukbat
+import http
+import encoding
+import json
+
+options := http.options(30000)
+request := http.request(http.method_get, "https://example.com/api/jobs")
+response := http.send(request, options)
+if response.status == http.status_200_ok {
+    document := json.parse(http.text(response.body, encoding.utf8))
+    print(json.kind(document))
+}
+```
 
 ## Runtime path resolution
 

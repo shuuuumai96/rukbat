@@ -5,7 +5,7 @@ internal sealed partial class Emitter
     private void EmitStandardRuntime(IReadOnlySet<string> modules)
     {
         EmitLines(PathContextRuntime);
-        if (modules.Contains("encoding") || modules.Contains("fs") || modules.Contains("process") || modules.Contains("zip") || modules.Contains("hash"))
+        if (modules.Contains("encoding") || modules.Contains("fs") || modules.Contains("process") || modules.Contains("zip") || modules.Contains("hash") || modules.Contains("http"))
         {
             EmitNativeLoader("CodePageCodec");
             EmitEncodingSelector();
@@ -19,6 +19,7 @@ internal sealed partial class Emitter
         if (modules.Contains("process")) EmitNativeLoader("ProcessJob");
         if (modules.Contains("hash")) EmitNativeLoader("Hash");
         if (modules.Contains("zip")) EmitZipLoader();
+        if (modules.Contains("http")) EmitHttpLoader();
         if (modules.Contains("csv")) EmitCsvRuntime();
         if (modules.Contains("text"))
         {
@@ -48,6 +49,7 @@ internal sealed partial class Emitter
         if (modules.Contains("process")) EmitLines(ProcessRuntime);
         if (modules.Contains("hash")) EmitLines(HashRuntime);
         if (modules.Contains("zip")) EmitLines(ZipRuntime);
+        if (modules.Contains("http")) EmitLines(HttpRuntime);
         if (modules.Contains("text")) EmitLines(TextRuntime);
         if (modules.Contains("array")) EmitLines(ArrayRuntime);
         if (modules.Contains("math")) EmitLines(MathRuntime);

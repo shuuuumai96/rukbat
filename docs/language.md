@@ -88,6 +88,13 @@ rejected; convert to/from a string at these boundaries. There is no general enum
 It follows encoding's container/equality and explicit name/parse boundary rules; no general enum
 syntax is added. ZIP exports ordinary `zip.Options` and `zip.Entry` structs. See STDLIB.md.
 
+`import http` provides immutable `http.Body` response bytes and validated `http.Method` values
+(`http.method_get`, etc.). Body has no public fields, constructor or equality; text decoding is
+explicit through `http.text`. Methods allow same-type equality. Both support ordinary containers,
+parameters and returns, but are rejected recursively at printing, JSON and PowerShell boundaries.
+HTTP requests/options/results are ordinary value structs. Numeric status constants such as
+`http.status_200_ok` are read-only int values; unknown response status numbers remain representable.
+
 `import datetime` provides the opaque immutable types `datetime.Timestamp`, `datetime.Date`,
 `datetime.Duration`, and `datetime.Zone`. They have no public fields or struct literals and no
 implicit conversions. Timestamp, Date, and Duration support same-type equality and ordering;
@@ -185,7 +192,8 @@ Local imports remain compile-time paths relative to the importing source file. T
 
 `powershell<T>(command, ...)` is the explicit escape hatch for a PowerShell operation not covered by Rukbat. It checks the returned value against `T`; a scalar result requires exactly one value and `T[]` collects values into an array. PowerShell failures and incompatible results are runtime errors.
 
-PowerShell arguments and result types cannot contain `json.Value`, `csv.Row`, or `encoding.Encoding`.
+PowerShell arguments and result types cannot contain opaque standard-library values such as
+`json.Value`, `csv.Row`, `encoding.Encoding`, `hash.Algorithm`, datetime types or HTTP Body/Method.
 Request a string and use `json.parse` to read a JSON document from an external command.
 For encodings, pass `encoding.name(value)` and parse returned text with `encoding.parse`.
 
