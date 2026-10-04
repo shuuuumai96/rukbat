@@ -8,10 +8,11 @@ Source files use `.rukbat`; the output is a single `.ps1` containing all Rukbat 
 
 The [VS Code extension](editors/vscode/README.md) provides syntax highlighting,
 diagnostics, completion, hover, go to definition, and canonical formatting.
-Build the compiler with `dotnet build Rukbat.sln`, package the extension with
-`npm ci` and `npm run package` in `editors/vscode`, then install its VSIX.
-The extension defaults to `rukbat lsp`; its guide explains using a locally built
-compiler DLL when Rukbat is not installed on PATH.
+Install the Windows x64 VSIX to use its bundled compiler and LSP without installing
+.NET or configuring PATH. Editor actions check, test, build and run saved sources.
+The [distribution guide](docs/DISTRIBUTION.md) covers the portable CLI ZIP, offline
+installation and controlled updates. Maintainers build both packages with
+`tools/package.ps1`; a local compiler override remains available for development.
 
 Other LSP clients can launch `rukbat lsp` over stdio. The initial server supports
 file-backed documents and uses UTF-16 positions. It checks unsaved source and
@@ -112,8 +113,11 @@ Compilation never executes Rukbat or PowerShell user code.
 To publish the CLI:
 
 ```powershell
-dotnet publish src/Rukbat -c Release -o artifacts/rukbat
-.\artifacts\rukbat\rukbat.exe build examples/hello.rukbat
+.\tools\package.ps1
+# Extract the generated CLI ZIP, then:
+.\rukbat.exe --version
+.\rukbat.exe doctor
+.\rukbat.exe build .\example\hello.rukbat
 ```
 
 ## Principles and current scope

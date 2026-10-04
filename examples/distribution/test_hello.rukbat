@@ -1,0 +1,6 @@
+import "./hello.rukbat" as hello
+import test
+
+fn test_greeting(): void {
+    test.assert(hello.greeting("Windows") == "Hello, Windows")
+}

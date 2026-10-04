@@ -6,6 +6,11 @@ Rukbat is a typed, procedural language for Windows system scripting. It is not P
 
 ## Commands and arguments
 
+`rukbat --version` prints the compiler version without starting PowerShell.
+`rukbat doctor` checks local Windows PowerShell/native-helper capabilities without
+changing policy, and returns 0 on success or 2 on a missing capability/probe failure.
+Both reject extra arguments. Packaging and probe scope are defined in DISTRIBUTION.md.
+
 `rukbat build input.rukbat` writes `input.ps1`. `rukbat run input.rukbat -- arguments...` builds and executes it with Windows PowerShell. `rukbat check input.rukbat` runs module loading, name resolution, and type checking without generating PowerShell. `rukbat fmt input.rukbat` rewrites one syntactically valid source file into the canonical layout without resolving its imports or type-checking it. `rukbat fmt directory` recursively formats `.rukbat` files under that directory; `rukbat fmt .` selects the current directory. Directory traversal excludes `.git`, `bin`, `obj`, and symbolic links/junctions, and recognizes the `.rukbat` extension case-insensitively. An empty directory succeeds. Source syntax errors leave the affected file unchanged; syntax and per-file I/O errors are reported while processing continues with other files. Successfully formatted files remain changed even when another file fails. `build`, `check`, and `fmt` do not accept program arguments. Compilation and formatting syntax errors exit with code 1; command-line and I/O failures exit with code 2, taking priority when directory formatting encounters both kinds of error. Compilation failure leaves an existing output unchanged. If compilation succeeds and the generated program starts, `rukbat run` exits with the program's exit code. If the PowerShell process fails to launch, `rukbat run` exits with code 2.
 
 `args(): string[]` returns the arguments supplied to the entry program. The compiler command, source path, and `--` separator are excluded.

@@ -1,0 +1,5 @@
+fn greeting(name: string): string {
+    return "Hello, " + name
+}
+
+print(greeting("Rukbat"))

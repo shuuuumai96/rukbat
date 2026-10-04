@@ -78,6 +78,24 @@ async function run() {
     }, 'restart with unsaved documents');
     assert.equal(document.getText().split('\n')[2], 'print(value)');
 
+    // Execute the actual editor tasks, including the bundled compiler and ProcessExecution.
+    const commandUri = vscode.Uri.file(path.join(root, 'task.rukbat'));
+    fs.writeFileSync(commandUri.fsPath, 'print("task")\n');
+    fs.writeFileSync(path.join(root, 'test_task.rukbat'), 'import test\nfn test_task(): void { test.assert(true) }\n');
+    await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(commandUri));
+    for (const action of ['check', 'build', 'test', 'doctor']) {
+        const finished = new Promise((resolve, reject) => {
+            const timer = setTimeout(() => { listener.dispose(); reject(new Error(`Task timed out: ${action}`)); }, 30000);
+            const listener = vscode.tasks.onDidEndTaskProcess(event => {
+                if (event.execution.task.definition.action !== action) return;
+                clearTimeout(timer); listener.dispose(); resolve(event.exitCode);
+            });
+        });
+        await vscode.commands.executeCommand(`rukbat.${action}`);
+        assert.equal(await finished, 0, `Editor task ${action}`);
+    }
+    assert.ok(fs.existsSync(path.join(root, 'task.ps1')));
+
     console.log('Passed VS Code diagnostics, unsaved edits, hover, imported definitions, file watching, completion, formatting, and restart.');
 }
 

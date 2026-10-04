@@ -3,8 +3,19 @@
 Provides `.rukbat` highlighting, `//` commenting, brackets, snippets, compiler
 diagnostics, completion, hover, go to definition, and canonical formatting.
 
-The compiler must be installed separately. The extension launches `rukbat lsp`
-by default. For a local checkout, build it with `dotnet build Rukbat.sln`, then
+The Windows x64 VSIX includes its matching self-contained compiler and LSP.
+Install it using **Extensions: Install from VSIX**, then open a saved `.rukbat`
+file in a trusted workspace. No separate compiler, .NET installation, PATH
+configuration or download is needed. See `docs/DISTRIBUTION.md` in the repository or CLI ZIP
+for offline installation, CLI packages and controlled updates.
+
+Editor title actions and the Command Palette provide **Check File**, **Test Project**,
+**Build PowerShell**, **Run File** and **Check Environment**. Tasks save files first
+and display results in the task terminal. Run accepts literal arguments as a JSON
+string array. Tests run under the active file's workspace folder or directory.
+
+Leave `rukbat.server.command` empty for the bundled compiler. For a local checkout,
+build it with `dotnet build Rukbat.sln`, then
 configure these VS Code settings with the actual absolute DLL path:
 
 ```json
@@ -14,8 +25,9 @@ configure these VS Code settings with the actual absolute DLL path:
 }
 ```
 
-Run `npm ci`, then `npm run package` in this directory. Install
-`artifacts/rukbat.vsix` through **Extensions: Install from VSIX**. Alternatively,
+Run `tools/package.ps1` from the repository root to produce the complete VSIX and
+CLI ZIP from the same compiler build. `npm run package` requires the generated
+runtime and rejects a missing/mismatched bundle. Alternatively,
 open this directory in VS Code and run the **Rukbat Extension** launch configuration.
 
 Open a `.rukbat` file in a trusted workspace. If launching fails, use the
@@ -30,7 +42,10 @@ options. It returns edits to the editor; it does not write files or run scripts.
 Run `npm test` for TextMate grammar tests and `npm run test:editor` for tests in
 a downloaded VS Code extension host. The latter needs a built compiler and
 downloads VS Code into the ignored `.vscode-test` directory. To use another
-build, set `RUKBAT_TEST_DLL` to its absolute path.
+build, set `RUKBAT_TEST_DLL` to its absolute path. To test a generated/extracted
+VSIX using the bundled compiler, set `RUKBAT_TEST_BUNDLED=1` and optionally
+`RUKBAT_TEST_EXTENSION` to its extracted `extension` directory.
+`RUKBAT_TEST_VSCODE` can select an existing VS Code executable without downloading it.
 
 References, rename, signature help, and inferred-type hints are not implemented
 in this initial version. The server currently supports file-backed documents;

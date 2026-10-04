@@ -42,6 +42,15 @@ public static class Cli
 
     public static int Run(string[] args, TextWriter stdout, TextWriter stderr)
     {
+        if (args is ["--version"])
+        {
+            stdout.WriteLine($"rukbat {Distribution.Version}");
+            return Success;
+        }
+        if (args is ["doctor"])
+        {
+            return Distribution.Doctor(stdout, stderr);
+        }
         if (args.Length != 0 && args[0] == "test")
         {
             return TestRunner.Run(args[1..], stdout, stderr);
@@ -55,6 +64,7 @@ public static class Cli
             stderr.WriteLine("       rukbat fmt directory");
             stderr.WriteLine("       rukbat test [path] [--filter text] [--timeout seconds] [--shell powershell|pwsh]");
             stderr.WriteLine("       rukbat lsp");
+            stderr.WriteLine("       rukbat --version | doctor");
             return UsageOrIoFailure;
         }
         try

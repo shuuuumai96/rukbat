@@ -37,6 +37,15 @@ Each stage has a separate responsibility:
 
 Generated scripts include small PowerShell helpers implementing Rukbat value copies, array bounds, error propagation, and PowerShell boundaries. Only imported standard-library runtime sections are included. Deployment requires neither the Rukbat compiler nor a separate Rukbat runtime.
 
+The authoring distribution uses an untrimmed self-contained Windows x64 publish.
+tools/package.ps1 builds the CLI ZIP and VSIX from the same version-checked output.
+The extension launches its bundled executable by absolute path; an explicit external
+override applies equally to LSP and editor tasks. Tasks use ProcessExecution with
+literal argument arrays, workspace trust, and save-before-execution behavior.
+Distribution owns CLI version reporting and a bounded local PowerShell capability
+probe; it makes no deployment or policy changes. This bundled authoring runtime is
+not copied into generated scripts.
+
 The `fs` standard module owns both file and directory operations; `path` owns path-value operations.
 An `fs` import emits both file and directory implementations. A `path` import alone emits neither
 filesystem operations nor the native move helper. Selection is by imported module, not by individual
