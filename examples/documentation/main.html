@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>main.rukbat — Rukbat documentation</title><style>body{font:16px/1.6 system-ui,sans-serif;max-width:960px;margin:auto;padding:24px;color:#243047;background:#fff}a{color:#245ac0}pre{overflow:auto;padding:16px;background:#f3f5f8;border-radius:6px}code{font-family:Consolas,monospace}section{border-top:1px solid #ddd;margin-top:32px}article{margin:24px 0}.source{font-size:.85em;color:#58657a}nav ul{columns:2}h1,h2,h3{line-height:1.3}</style></head><body><h1>main.rukbat</h1><h1>List CSV files</h1>
+<p>Prints the number of CSV files directly inside the supplied directory.
+No files are created, changed, or removed.</p>
+<pre><code class="language-powershell">rukbat run main.rukbat -- C:/Data
+</code></pre>
+<p>Supply exactly one directory argument. Invalid arguments or listing failures
+produce a diagnostic on stderr and exit code 1. Success exits with code 0.
+The reusable function is <a href="#module-66696c65732e72756b626174-function-6c6973745f637376"><code>files.list_csv</code>.</a></p>
+<nav aria-label="Documentation index"><h2>Index</h2><ul><li><a href="#module-66696c65732e72756b626174">files.rukbat</a></li><li><a href="#module-6d61696e2e72756b626174">main.rukbat</a></li><li><a href="#module-66696c65732e72756b626174-struct-4c697374696e67">Listing</a> <small>files.rukbat</small></li><li><a href="#module-66696c65732e72756b626174-field-4c697374696e672e7061746873">Listing.paths</a> <small>files.rukbat</small></li><li><a href="#module-66696c65732e72756b626174-function-6c6973745f637376">list_csv</a> <small>files.rukbat</small></li></ul></nav><section id="module-6d61696e2e72756b626174"><h2>main.rukbat</h2></section><section id="module-66696c65732e72756b626174"><h2>files.rukbat</h2><h1>CSV file listing</h1>
+<p>Lists CSV files directly inside a directory. It does not change any files.
+Relative paths use the program's initial working directory.</p>
+<article id="module-66696c65732e72756b626174-struct-4c697374696e67"><h3>Listing</h3><pre><code>struct Listing</code></pre><p class="source">files.rukbat:9</p><p>A CSV file listing.</p>
+</article><article id="module-66696c65732e72756b626174-field-4c697374696e672e7061746873"><h3>Listing.paths</h3><pre><code>paths: string[]</code></pre><p class="source">files.rukbat:11</p><p>File paths in enumeration order.</p>
+</article><article id="module-66696c65732e72756b626174-function-6c6973745f637376"><h3>list_csv</h3><pre><code>fn list_csv(directory: string): <a href="#module-66696c65732e72756b626174-struct-4c697374696e67">Listing</a></code></pre><p class="source">files.rukbat:27</p><p>Lists CSV files directly inside <code>directory</code>.</p>
+<p>Enumeration order is not guaranteed. An inaccessible directory raises Error.
+See <a href="#module-66696c65732e72756b626174-struct-4c697374696e67"><code>Listing</code> for the returned data.</a></p>
+<h2>Example</h2>
+<pre><code class="language-rukbat">import &quot;./files.rukbat&quot; as files
+
+listing := files.list_csv(&quot;.&quot;)
+print(listing.paths.length)
+</code></pre>
+<p>Statically checked; not executed.</p>
+</article></section></body></html>
