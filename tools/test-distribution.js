@@ -36,6 +36,12 @@ assert.match(fs.readFileSync(path.join(work, 'documentation.html'), 'utf8'), /St
 assert.match(fs.readFileSync(path.join(work, 'documentation.html'), 'utf8'), /const limit: int/);
 fs.unlinkSync(documentationSource);
 run(['build', source]);
+const debugScript = path.join(work, 'debug-session.ps1');
+run(['build', source, '--debug', '--output', debugScript]);
+const debugMap = JSON.parse(fs.readFileSync(debugScript + '.rukbat-map.json', 'utf8'));
+assert.equal(debugMap.version, 1);
+assert.ok(debugMap.points.some(point => point.file === source && point.variables.some(variable => variable.name === 'argument')));
+fs.unlinkSync(debugScript + '.rukbat-map.json');
 const args = ['a b', '日本', '$(literal)', '"quoted"'];
 const output = run(['run', source, '--', ...args]);
 assert.match(output, /standalone/);
@@ -55,10 +61,13 @@ fs.unlinkSync(path.join(work, 'test_main.rukbat'));
 for (const shell of [path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe'),
     path.join(process.env.ProgramFiles, 'PowerShell/7/pwsh.exe')]) {
     if (!fs.existsSync(shell)) continue;
-    const result = spawnSync(shell, ['-NoLogo', '-NoProfile', '-File', path.join(work, 'main.ps1'), ...args],
-        { cwd: work, env, encoding: 'utf8', timeout: 30000, windowsHide: true });
-    assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stdout, /standalone/);
-    console.log(`Passed source-free script: ${shell}`);
+    for (const script of [path.join(work, 'main.ps1'), debugScript]) {
+        const result = spawnSync(shell, ['-NoLogo', '-NoProfile', '-File', script, ...args],
+            { cwd: work, env, encoding: 'utf8', timeout: 30000, windowsHide: true });
+        assert.equal(result.status, 0, result.stderr);
+        assert.match(result.stdout, /standalone/);
+        for (const arg of args) assert.ok(result.stdout.includes(arg), result.stdout);
+        console.log(`Passed source/map-free script: ${shell}, ${path.basename(script)}`);
+    }
 }
-console.log(`Passed self-contained --version/doctor/check/fmt/doc/build/run/test/LSP: ${directory}`);
+console.log(`Passed self-contained --version/doctor/check/fmt/doc/build/debug metadata/run/test/LSP: ${directory}`);

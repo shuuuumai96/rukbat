@@ -134,7 +134,107 @@ async function run() {
     assert.ok(fs.readFileSync(path.join(root, 'task.html'), 'utf8').includes('Editor task documentation.'));
     assert.ok(fs.readFileSync(path.join(root, 'task.html'), 'utf8').includes('const message: string'));
 
-    console.log('Passed VS Code diagnostics, unsaved edits, declaration/call/import documentation hover, imported definitions, file watching, completion, formatting, and restart.');
+    // Exercise the real inline debug adapter through VS Code's Debug API.
+    const debugUri = vscode.Uri.file(path.join(root, 'debug.rukbat'));
+    fs.writeFileSync(debugUri.fsPath, 'value := 1\nfn number(n: int): int {\n    result := n + 1\n    return result\n}\nconst result := number(value)\nprint(result)\n');
+    const debugDocument = await vscode.workspace.openTextDocument(debugUri);
+    await vscode.window.showTextDocument(debugDocument);
+    const unsavedDebug = new vscode.WorkspaceEdit();
+    unsavedDebug.replace(debugUri, new vscode.Range(0, 9, 0, 10), '2');
+    assert.ok(await vscode.workspace.applyEdit(unsavedDebug));
+    const breakpoint = new vscode.SourceBreakpoint(new vscode.Location(debugUri, new vscode.Position(5, 0)));
+    vscode.debug.addBreakpoints([breakpoint]);
+    const debugMessages = [];
+    const tracker = vscode.debug.registerDebugAdapterTrackerFactory('rukbat', {
+        createDebugAdapterTracker() { return { onDidSendMessage(message) { debugMessages.push(message); } }; }
+    });
+    try {
+        assert.ok(await vscode.debug.startDebugging(vscode.workspace.workspaceFolders[0], {
+            type: 'rukbat', request: 'launch', name: 'Editor debug acceptance', program: debugUri.fsPath, stopOnEntry: false
+        }));
+        await until(() => debugMessages.some(message => message.event === 'stopped'), 'Rukbat breakpoint in VS Code');
+        const verifiedBreakpoint = debugMessages.find(message => message.type === 'response' && message.command === 'setBreakpoints')
+            .body.breakpoints.find(value => value.line === 6);
+        assert.equal(verifiedBreakpoint.verified, true);
+        assert.equal(Object.hasOwn(verifiedBreakpoint, 'column'), false, 'A const line breakpoint must not become an inline breakpoint.');
+        const session = vscode.debug.activeDebugSession;
+        assert.equal(session.type, 'rukbat');
+        const stack = await session.customRequest('stackTrace', { threadId: 1 });
+        assert.equal(stack.stackFrames[0].source.path, debugUri.fsPath);
+        assert.equal(stack.stackFrames[0].line, 6);
+        assert.equal((await session.customRequest('evaluate', { expression: 'value', frameId: stack.stackFrames[0].id })).result, '2');
+        assert.ok(fs.readFileSync(debugUri.fsPath, 'utf8').startsWith('value := 2'));
+        await session.customRequest('next', { threadId: 1 });
+        await until(() => debugMessages.filter(message => message.event === 'stopped').length === 2, 'Rukbat step over in VS Code');
+        const stepped = await session.customRequest('stackTrace', { threadId: 1 });
+        assert.equal(stepped.stackFrames[0].line, 7);
+        assert.equal((await session.customRequest('evaluate', { expression: 'result', frameId: stepped.stackFrames[0].id })).result, '3');
+        await session.customRequest('continue', { threadId: 1 });
+        await until(() => debugMessages.some(message => message.event === 'terminated'), 'Rukbat debug completion in VS Code');
+        assert.ok(debugMessages.some(message => message.event === 'output' && message.body.output.includes('3')));
+        assert.ok(!fs.readdirSync(root).some(file => file.startsWith('.rukbat-debug-')));
+    } finally {
+        vscode.debug.removeBreakpoints([breakpoint]);
+        tracker.dispose();
+        if (vscode.debug.activeDebugSession?.type === 'rukbat') await vscode.debug.stopDebugging();
+    }
+
+    // Inspect the actual Variables/Watch responses while stepping with the
+    // editor command, including native Int32 fields and copied composite values.
+    const inspectionUri = vscode.Uri.file(path.join(root, 'inspection.rukbat'));
+    const processCall = code => `process.run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "[Environment]::Exit(${code})"], options)`;
+    fs.writeFileSync(inspectionUri.fsPath, [
+        'import encoding',
+        'import process',
+        'options := process.options(5000, encoding.utf8)',
+        'result := ' + processCall(7),
+        'fraction := 1.0000000000000002',
+        'copies := [result]',
+        'print(result.exit_code)',
+        'result = ' + processCall(9),
+        'print(result.exit_code)'
+    ].join('\n'));
+    await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(inspectionUri));
+    const inspectionBreakpoint = new vscode.SourceBreakpoint(new vscode.Location(inspectionUri, new vscode.Position(6, 0)));
+    vscode.debug.addBreakpoints([inspectionBreakpoint]);
+    const inspectionMessages = [];
+    const inspectionTracker = vscode.debug.registerDebugAdapterTrackerFactory('rukbat', {
+        createDebugAdapterTracker() { return { onDidSendMessage(message) { inspectionMessages.push(message); } }; }
+    });
+    try {
+        assert.ok(await vscode.debug.startDebugging(vscode.workspace.workspaceFolders[0], {
+            type: 'rukbat', request: 'launch', name: 'Editor inspection acceptance', program: inspectionUri.fsPath, stopOnEntry: false
+        }));
+        await until(() => inspectionMessages.some(message => message.event === 'stopped'), 'inspection breakpoint');
+        const session = vscode.debug.activeDebugSession;
+        async function inspect(expectedLine, expectedCode) {
+            const stack = await session.customRequest('stackTrace', { threadId: 1 });
+            const frameId = stack.stackFrames[0].id;
+            assert.equal(stack.stackFrames[0].line, expectedLine);
+            const { scopes } = await session.customRequest('scopes', { frameId });
+            const { variables } = await session.customRequest('variables', { variablesReference: scopes.find(scope => scope.name === 'Module').variablesReference });
+            assert.equal(variables.find(value => value.name === 'fraction').value, '1.0000000000000002');
+            const { variables: fields } = await session.customRequest('variables', { variablesReference: variables.find(value => value.name === 'result').variablesReference });
+            assert.equal(fields.find(value => value.name === 'exit_code').value, expectedCode);
+            for (const [expression, expected] of [['result.exit_code', expectedCode], ['copies[0].exit_code', '7'], ['fraction', '1.0000000000000002']])
+                assert.equal((await session.customRequest('evaluate', { expression, frameId })).result, expected);
+            assert.match((await session.customRequest('evaluate', { expression: 'options.output_encoding', frameId })).result, /^<[^>]+>$/);
+        }
+        await inspect(7, '7');
+        for (const [stops, line, code] of [[2, 8, '7'], [3, 9, '9']]) {
+            await vscode.commands.executeCommand('workbench.action.debug.stepOver');
+            await until(() => inspectionMessages.filter(message => message.event === 'stopped').length === stops, 'inspection step over');
+            await inspect(line, code);
+        }
+        await session.customRequest('continue', { threadId: 1 });
+        await until(() => inspectionMessages.some(message => message.event === 'terminated'), 'inspection completion');
+    } finally {
+        vscode.debug.removeBreakpoints([inspectionBreakpoint]);
+        inspectionTracker.dispose();
+        if (vscode.debug.activeDebugSession?.type === 'rukbat') await vscode.debug.stopDebugging();
+    }
+
+    console.log('Passed VS Code language features, tasks, saved debug launch, source breakpoints, variables, editor stepping, numeric/opaque inspection, and debug completion.');
 }
 
 module.exports = { run };

@@ -5,10 +5,11 @@ namespace Rukbat;
 public sealed class Compiler
 {
     public CompilationResult Compile(string source) => CompileCore(source, "<input>", false);
-    public CompilationResult CompileFile(string path)
+    public CompilationResult CompileFile(string path) => CompileFile(path, debug: false);
+    public CompilationResult CompileFile(string path, bool debug)
     {
         var fullPath = Path.GetFullPath(path);
-        return CompileCore(File.ReadAllText(fullPath), fullPath, true);
+        return CompileCore(File.ReadAllText(fullPath), fullPath, true, debug);
     }
 
     public IReadOnlyList<Diagnostic> Check(string source) => CheckCore(source, "<input>", false).Diagnostics;
@@ -18,7 +19,7 @@ public sealed class Compiler
         return CheckCore(File.ReadAllText(fullPath), fullPath, true).Diagnostics;
     }
 
-    private static CompilationResult CompileCore(string source, string path, bool resolveImports)
+    private static CompilationResult CompileCore(string source, string path, bool resolveImports, bool debug = false)
     {
         var checkedProgram = CheckCore(source, path, resolveImports);
         var diagnostics = checkedProgram.Diagnostics.ToList();
@@ -27,8 +28,9 @@ public sealed class Compiler
             return new(null, diagnostics);
         }
 
-        var output = new Emitter(checkedProgram.Checker!).Emit(checkedProgram.Modules!);
-        return ValidateOutput(output, path);
+        var map = debug ? new DebugMap() : null;
+        var output = new Emitter(checkedProgram.Checker!, map).Emit(checkedProgram.Modules!);
+        return ValidateOutput(output, path) with { DebugMap = map };
     }
 
     private static CompilationResult ValidateOutput(string output, string path)

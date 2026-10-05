@@ -10,6 +10,7 @@ public sealed record Diagnostic(
 public sealed record CompilationResult(string? Output, IReadOnlyList<Diagnostic> Diagnostics)
 {
     public bool Success => Output is not null && Diagnostics.Count == 0;
+    public DebugMap? DebugMap { get; init; }
 }
 
 // The AST retains type names until the checker binds them to their defining StructSymbol.

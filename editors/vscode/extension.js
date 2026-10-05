@@ -3,11 +3,30 @@
 const vscode = require('vscode');
 const path = require('node:path');
 const { LanguageClient } = require('vscode-languageclient/node');
+const { RukbatDebugAdapter } = require('./debug-adapter');
 
 let client;
 let watcher;
 let restarting = Promise.resolve();
 let extensionPath;
+
+async function debugConfiguration(folder, config) {
+    if (!vscode.workspace.isTrusted) {
+        void vscode.window.showErrorMessage('Trust this workspace before debugging Rukbat.');
+        return undefined;
+    }
+    const document = vscode.window.activeTextEditor?.document;
+    if (!config.type) config = { ...config, type: 'rukbat', request: 'launch', name: 'Debug Rukbat' };
+    if (!config.program && document?.languageId === 'rukbat' && document.uri.scheme === 'file')
+        config.program = document.uri.fsPath;
+    if (!config.program) {
+        void vscode.window.showErrorMessage('Open a saved .rukbat file or set program in launch.json.');
+        return undefined;
+    }
+    if (!await vscode.workspace.saveAll(false)) return undefined;
+    return { stopOnEntry: true, args: [], ...config,
+        cwd: config.cwd || folder?.uri.fsPath || (config.program.includes('${') ? '${fileDirname}' : path.dirname(config.program)) };
+}
 
 function compiler() {
     const config = vscode.workspace.getConfiguration('rukbat.server');
@@ -92,6 +111,17 @@ async function activate(context) {
     context.subscriptions.push(
         watcher,
         vscode.commands.registerCommand('rukbat.restartServer', queueRestart),
+        vscode.commands.registerCommand('rukbat.debug', () => vscode.debug.startDebugging(undefined,
+            { type: 'rukbat', request: 'launch', name: 'Debug Rukbat' })),
+        vscode.debug.registerDebugConfigurationProvider('rukbat', {
+            resolveDebugConfiguration: debugConfiguration
+        }),
+        vscode.debug.registerDebugAdapterDescriptorFactory('rukbat', {
+            createDebugAdapterDescriptor() {
+                if (!vscode.workspace.isTrusted) throw new Error('Trust this workspace before debugging Rukbat.');
+                return new vscode.DebugAdapterInlineImplementation(new RukbatDebugAdapter(compiler()));
+            }
+        }),
         vscode.workspace.onDidGrantWorkspaceTrust(queueRestart),
         vscode.workspace.onDidChangeConfiguration(event => {
             if (event.affectsConfiguration('rukbat.server')) void queueRestart();

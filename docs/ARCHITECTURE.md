@@ -48,6 +48,19 @@ Distribution owns CLI version reporting and a bounded local PowerShell capabilit
 probe; it makes no deployment or policy changes. This bundled authoring runtime is
 not copied into generated scripts.
 
+Optional debug emission reuses checked variable, function, and field symbols to
+produce executable source/generated-line points and type metadata. Debug builds
+retain scoped PSVariable references in an active frame stack; this avoids the
+PowerShell 5.1 GetFrameVariables omission during breakpoint actions. Function and
+module frames unwind with generated try/finally, including returns and errors.
+While checkpoints precede each condition evaluation. Ordinary emission remains
+free of debugger state and absolute source paths. The VS Code inline DAP adapter
+compiles a session-owned artifact, starts the installed Windows PowerShell 5.1
+host, and controls native line breakpoint actions over a local named pipe.
+Statement/depth filtering skips backend helpers during stepping. Inspection uses
+bound field keys, preserves exact integer text, and evaluates only read-only
+name/field/index paths without executing user code. See DEBUGGING.md for limits.
+
 The `fs` standard module owns both file and directory operations; `path` owns path-value operations.
 An `fs` import emits both file and directory implementations. A `path` import alone emits neither
 filesystem operations nor the native move helper. Selection is by imported module, not by individual

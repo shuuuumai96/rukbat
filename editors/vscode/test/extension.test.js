@@ -43,10 +43,17 @@ function harness(trusted = true, failStart = false, bundled = false) {
         TaskScope: { Global: 1 }, TaskRevealKind: { Always: 1 }, TaskPanelKind: { Dedicated: 1 },
         tasks: { async executeTask(task) { return task; } }
     };
+    vscode.debug = {
+        registerDebugConfigurationProvider(type, provider) { handlers.debugProvider = provider; return disposable(); },
+        registerDebugAdapterDescriptorFactory(type, factory) { handlers.debugFactory = factory; return disposable(); },
+        async startDebugging(folder, config) { return handlers.debugProvider.resolveDebugConfiguration(folder, config); }
+    };
+    vscode.DebugAdapterInlineImplementation = class { constructor(adapter) { this.adapter = adapter; } };
     const context = { subscriptions: [], extensionPath: 'C:/extension' };
     const module = { exports: {} };
     vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../extension.js'), 'utf8'), {
-        module, process: { platform: 'win32' }, require: name => name === 'vscode' ? vscode : name === 'node:path' ? path : { LanguageClient: Client }
+        module, process: { platform: 'win32' }, require: name => name === 'vscode' ? vscode : name === 'node:path' ? path :
+            name === './debug-adapter' ? require('../debug-adapter') : { LanguageClient: Client }
     });
     return { extension: module.exports, context, vscode, handlers, instances, watcher, watchers: () => watchers, failures: () => failures, allowStart: () => { failStart = false; } };
 }
@@ -126,4 +133,22 @@ test('a missing compiler reports the configuration problem without blocking rest
     assert.equal(h.instances.length, 2);
     await h.extension.deactivate();
     assert.ok(h.instances[1].disposed);
+});
+
+test('debug launch uses the active source, saves files, and enforces workspace trust', async () => {
+    const h = harness();
+    await h.extension.activate(h.context);
+    const config = await h.handlers['rukbat.debug']();
+    assert.equal(config.program, 'C:/work space/main.rukbat');
+    assert.equal(config.type, 'rukbat');
+    assert.equal(config.stopOnEntry, true);
+    const descriptor = h.handlers.debugFactory.createDebugAdapterDescriptor();
+    assert.equal(descriptor.adapter.compiler.command, 'dotnet');
+    descriptor.adapter.dispose();
+    h.vscode.workspace.saveAll = async () => false;
+    assert.equal(await h.handlers['rukbat.debug'](), undefined);
+    h.vscode.workspace.isTrusted = false;
+    assert.equal(await h.handlers['rukbat.debug'](), undefined);
+    assert.throws(() => h.handlers.debugFactory.createDebugAdapterDescriptor(), /Trust/);
+    await h.extension.deactivate();
 });

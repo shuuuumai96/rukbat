@@ -2,7 +2,7 @@
   "name": "rukbat",
   "displayName": "Rukbat",
   "description": "Language support for Rukbat Windows system scripts.",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "publisher": "rukbat",
   "private": true,
   "license": "UNLICENSED",
@@ -13,6 +13,7 @@
     "Programming Languages"
   ],
   "main": "./extension.js",
+  "activationEvents": ["onDebugResolve:rukbat"],
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
@@ -48,6 +49,11 @@
     ],
     "commands": [
       {
+        "command": "rukbat.debug",
+        "title": "Rukbat: Debug File",
+        "icon": "$(debug-alt)"
+      },
+      {
         "command": "rukbat.restartServer",
         "title": "Rukbat: Restart Language Server"
       },
@@ -76,6 +82,29 @@
         "title": "Rukbat: Generate Documentation"
       }
     ],
+    "breakpoints": [{ "language": "rukbat" }],
+    "debuggers": [{
+      "type": "rukbat",
+      "label": "Rukbat",
+      "languages": ["rukbat"],
+      "configurationAttributes": {
+        "launch": {
+          "required": ["program"],
+          "properties": {
+            "program": { "type": "string", "description": "Saved Rukbat entry source.", "default": "${file}" },
+            "args": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Literal program arguments." },
+            "cwd": { "type": "string", "description": "Initial working directory.", "default": "${workspaceFolder}" },
+            "stopOnEntry": { "type": "boolean", "default": true, "description": "Stop before the first executable Rukbat statement." }
+          }
+        }
+      },
+      "initialConfigurations": [{ "type": "rukbat", "request": "launch", "name": "Debug Rukbat", "program": "${file}", "args": [], "stopOnEntry": true }],
+      "configurationSnippets": [{
+        "label": "Rukbat: Debug File",
+        "description": "Debug a Rukbat entry source on Windows PowerShell 5.1.",
+        "body": { "type": "rukbat", "request": "launch", "name": "Debug Rukbat", "program": "^\"\\${file}\"", "args": [], "stopOnEntry": true }
+      }]
+    }],
     "configuration": {
       "title": "Rukbat",
       "properties": {
@@ -120,6 +149,11 @@
     ],
     "menus": {
       "editor/title": [
+        {
+          "command": "rukbat.debug",
+          "when": "resourceLangId == rukbat && isWorkspaceTrusted",
+          "group": "navigation"
+        },
         {
           "command": "rukbat.run",
           "when": "resourceLangId == rukbat && isWorkspaceTrusted",

@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Text.Json;
 using Rukbat;
 
 if (args.Length != 0 && args[0] == "test")
@@ -42,6 +43,7 @@ public static class Cli
 
     public static int Run(string[] args, TextWriter stdout, TextWriter stderr)
     {
+        var debugBuild = args is ["build", _, "--debug"] or ["build", _, "--debug", "--output", _];
         if (args is ["--version"])
         {
             stdout.WriteLine($"rukbat {Distribution.Version}");
@@ -62,10 +64,11 @@ public static class Cli
         if (args.Length < CompilerArgumentCount ||
             args[0] is not ("build" or "run" or "check" or "fmt") ||
             (args[0] != "fmt" && !Path.GetExtension(args[1]).Equals(".rukbat", StringComparison.OrdinalIgnoreCase)) ||
-            args.Length > CompilerArgumentCount && (args[0] != "run" || args[CompilerArgumentCount] != "--"))
+            args.Length > CompilerArgumentCount && !debugBuild && (args[0] != "run" || args[CompilerArgumentCount] != "--"))
         {
             stderr.WriteLine("Usage: rukbat <build|run|check|fmt> input.rukbat [-- arguments... (run only)]");
             stderr.WriteLine("       rukbat fmt directory");
+            stderr.WriteLine("       rukbat build input.rukbat --debug [--output debug.ps1]");
             stderr.WriteLine("       rukbat doc input.rukbat [--output reference.html | --check]");
             stderr.WriteLine("       rukbat test [path] [--filter text] [--timeout seconds] [--shell powershell|pwsh]");
             stderr.WriteLine("       rukbat lsp");
@@ -85,7 +88,13 @@ public static class Cli
             {
                 return FormatPath(input, stderr);
             }
-            var result = new Compiler().CompileFile(input);
+            var output = debugBuild && args.Length == 5 ? Path.GetFullPath(args[4]) : Path.ChangeExtension(input, ".ps1");
+            if (debugBuild && !Path.GetExtension(output).Equals(".ps1", StringComparison.OrdinalIgnoreCase))
+            {
+                stderr.WriteLine("error: Debug output must have a .ps1 extension.");
+                return UsageOrIoFailure;
+            }
+            var result = new Compiler().CompileFile(input, debugBuild);
             WriteDiagnostics(result.Diagnostics, stderr);
 
             if (!result.Success)
@@ -93,9 +102,11 @@ public static class Cli
                 return CompilationFailure;
             }
 
-            var output = Path.ChangeExtension(input, ".ps1");
             // Windows PowerShell 5.1 identifies UTF-8 source reliably only when it has a BOM.
             File.WriteAllText(output, result.Output, new System.Text.UTF8Encoding(true));
+            if (result.DebugMap is { } map)
+                File.WriteAllText(output + ".rukbat-map.json", JsonSerializer.Serialize(map,
+                    new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }), new System.Text.UTF8Encoding(false));
             if (args[0] == "run")
             {
                 return Execute(output, args.Skip(ApplicationArgumentsOffset));

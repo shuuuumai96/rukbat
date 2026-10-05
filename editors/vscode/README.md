@@ -14,6 +14,16 @@ Editor title actions and the Command Palette provide **Check File**, **Test Proj
 and display results in the task terminal. Run accepts literal arguments as a JSON
 string array. Tests run under the active file's workspace folder or directory.
 
+**Rukbat: Debug File** and F5 start source-level debugging on Windows PowerShell
+5.1. Set executable `.rukbat` breakpoints with F9; use F10/F11/Shift+F11 to step,
+and inspect local/module variables, structs, arrays, and imported call stacks.
+Files are saved before compiling. Each session builds a separate temporary
+script, preserving ordinary `.ps1` output. No PowerShell extension or extra
+runtime installation is required. Watches accept variable/field/index paths;
+general expressions and conditional breakpoints are not supported. See
+`docs/DEBUGGING.md` in the repository or CLI ZIP for launch.json arguments,
+supported operations, and limits.
+
 The Command Palette also provides **Rukbat: Generate Documentation**. It saves
 files and creates an offline `.html` beside the active source, including reachable
 user imports. `//!` module comments and `///` declaration comments appear in hover;

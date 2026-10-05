@@ -229,7 +229,7 @@ Filesystem operations use `import fs`; path-value operations use `import path`.
 
 The generated script captures its initial filesystem working directory from PowerShell's location and its script directory from `$PSScriptRoot` before initializing modules. Relative standard-library file paths use that captured directory, even if escape-hatch code changes PowerShell's location or .NET's current directory. process.Options.working_dir explicitly chooses the child's working directory; a relative setting and executable path still resolve against the captured directory. Child-only environment overrides and text input are described in STDLIB.md. Escape-hatch commands retain PowerShell semantics.
 
-Local imports remain compile-time paths relative to the importing source file. They are unrelated to runtime working and script directories. `path.script_dir()` explicitly locates data beside the deployed `.ps1`. Execute the generated artifact as a file in a separate PowerShell process; source mapping is error reporting, not a `rukbat debug` command.
+Local imports remain compile-time paths relative to the importing source file. They are unrelated to runtime working and script directories. `path.script_dir()` explicitly locates data beside the deployed `.ps1`. Execute the generated artifact as a file in a separate PowerShell process. Ordinary source locations support error reporting; the VS Code debugger uses separate development metadata described in [DEBUGGING.md](DEBUGGING.md).
 
 `powershell<T>(command, ...)` is the explicit escape hatch for a PowerShell operation not covered by Rukbat. It checks the returned value against `T`; a scalar result requires exactly one value and `T[]` collects values into an array. PowerShell failures and incompatible results are runtime errors.
 
@@ -273,6 +273,14 @@ member and unclosed delimiters in a temporary analysis copy; diagnostics always
 come from the real document. Syntax errors can limit available semantic features.
 Tree-sitter, references, rename, signature help, and inferred-type hints remain
 unimplemented.
+
+The VS Code extension also provides source-level debugging through Debug Adapter
+Protocol. `rukbat build input.rukbat --debug [--output session.ps1]` emits an
+instrumented standalone script and a `.ps1.rukbat-map.json` sidecar for executable
+source locations, bound variables, and types. The sidecar contains absolute
+development source paths. Ordinary builds emit no debug instrumentation or map.
+The [debugging guide](DEBUGGING.md) specifies supported operations and limits;
+debugging adds no Rukbat syntax or standard-library APIs.
 
 ## Current exclusions
 
