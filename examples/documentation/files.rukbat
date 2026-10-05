@@ -1,0 +1,31 @@
+//! # CSV file listing
+//!
+//! Lists CSV files directly inside a directory. It does not change any files.
+//! Relative paths use the program's initial working directory.
+
+import fs
+
+/// A CSV file listing.
+struct Listing {
+    /// File paths in enumeration order.
+    paths: string[]
+}
+
+/// Lists CSV files directly inside `directory`.
+///
+/// Enumeration order is not guaranteed. An inaccessible directory raises Error.
+/// See [`Listing`] for the returned data.
+///
+/// ## Example
+///
+/// ```rukbat check
+/// import "./files.rukbat" as files
+///
+/// listing := files.list_csv(".")
+/// print(listing.paths.length)
+/// ```
+fn list_csv(directory: string): Listing {
+    return Listing {
+        paths: fs.list_files(directory, "*.csv")
+    }
+}

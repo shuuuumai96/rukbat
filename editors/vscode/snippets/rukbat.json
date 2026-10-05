@@ -1,4 +1,6 @@
 {
+  "Documentation": { "prefix": "doc", "description": "Declaration documentation; write immediately before a declaration.", "body": ["/// ${1:Summary.}", "$0"] },
+  "Module documentation": { "prefix": "module_doc", "description": "Module usage documentation; write before the first code statement.", "body": ["//! ${1:Purpose and usage.}", "$0"] },
   "Function": { "prefix": "fn", "body": ["fn ${1:name}(${2}): ${3:void} {", "    $0", "}"] },
   "Test": { "prefix": "test", "description": "Test function; requires import test at module level.", "body": ["fn test_${1:name}(): void {", "    test.assert(${2:condition})", "}"] },
   "Test expected error": {

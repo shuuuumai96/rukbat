@@ -14,6 +14,31 @@ Editor title actions and the Command Palette provide **Check File**, **Test Proj
 and display results in the task terminal. Run accepts literal arguments as a JSON
 string array. Tests run under the active file's workspace folder or directory.
 
+The Command Palette also provides **Rukbat: Generate Documentation**. It saves
+files and creates an offline `.html` beside the active source, including reachable
+user imports. `//!` module comments and `///` declaration comments appear in hover;
+completion shows the first paragraph. Documentation problems are warnings and do
+not prevent ordinary compilation. Explicitly checked code examples are validated
+by the documentation command only. Use the `doc` and `module_doc` snippets to start
+comments; see `docs/DOCUMENTATION.md` for syntax and link rules.
+
+Place `///` immediately above a function, then hover its name at either the
+declaration or a call to see its signature and complete Markdown explanation:
+
+```rukbat
+/// Adds two integers.
+/// Overflow raises Error.
+fn add(a: int, b: int): int {
+    return a + b
+}
+
+print(add(1, 2))
+```
+
+Hover also works for imported functions and unsaved comment edits. There is no
+need to generate HTML first. After updating a VSIX, reload the VS Code window to
+restart the bundled language server with the new compiler.
+
 Leave `rukbat.server.command` empty for the bundled compiler. For a local checkout,
 build it with `dotnet build Rukbat.sln`, then
 configure these VS Code settings with the actual absolute DLL path:

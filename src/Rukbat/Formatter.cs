@@ -9,7 +9,7 @@ internal sealed record FormatResult(string? Output, IReadOnlyList<Diagnostic> Di
 
 internal static class Formatter
 {
-    private sealed record Item(string Text, int Offset, bool IsComment = false, bool IsNewLine = false);
+    private sealed record Item(string Text, int Offset, bool IsComment = false, bool IsNewLine = false, bool IsDocumentation = false);
 
     public static FormatResult Format(string text, string path)
     {
@@ -36,10 +36,10 @@ internal static class Formatter
         {
             if (token.Offset > end)
             {
-                var gap = source[end..token.Offset].Trim();
+                var gap = CommentText(source[end..token.Offset]);
                 if (gap.StartsWith("//", StringComparison.Ordinal))
                 {
-                    items.Add(new(gap, end, IsComment: true));
+                    items.Add(new(gap, end, IsComment: true, IsDocumentation: new SourceComment(0, 0, gap).IsDocumentation));
                 }
             }
             // Escape physical line breaks without altering the string's value.
@@ -50,13 +50,19 @@ internal static class Formatter
         }
         if (end < source.Length)
         {
-            var gap = source[end..].Trim();
+            var gap = CommentText(source[end..]);
             if (gap.StartsWith("//", StringComparison.Ordinal))
             {
-                items.Add(new(gap, end, IsComment: true));
+                items.Add(new(gap, end, IsComment: true, IsDocumentation: new SourceComment(0, 0, gap).IsDocumentation));
             }
         }
         return items;
+    }
+
+    private static string CommentText(string gap)
+    {
+        var text = gap.TrimStart();
+        return new SourceComment(0, 0, text).IsDocumentation ? text.TrimEnd('\r', '\n') : text.TrimEnd();
     }
 
     private static string Write(List<Item> items, FormattingSyntax syntax)
@@ -104,9 +110,9 @@ internal static class Formatter
             }
         }
 
-        void NewLine()
+        void NewLine(bool preserveTrailingSpace = false)
         {
-            while (line.Length != 0 && line[^1] == ' ')
+            while (!preserveTrailingSpace && line.Length != 0 && line[^1] == ' ')
             {
                 line.Length--;
             }
@@ -135,7 +141,7 @@ internal static class Formatter
                 }
                 Append(item.Text);
                 lastContent = item.Text;
-                NewLine();
+                NewLine(item.IsDocumentation);
                 if (index + 1 < items.Count && syntax.ContinuationNewlines.Contains(items[index + 1].Offset) &&
                     previous is not (null or "{" or "}"))
                 {

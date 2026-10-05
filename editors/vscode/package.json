@@ -70,6 +70,10 @@
       {
         "command": "rukbat.doctor",
         "title": "Rukbat: Check Environment"
+      },
+      {
+        "command": "rukbat.doc",
+        "title": "Rukbat: Generate Documentation"
       }
     ],
     "configuration": {

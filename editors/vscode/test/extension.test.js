@@ -83,6 +83,9 @@ test('actions preserve literal arguments and use the same compiler as LSP', asyn
     assert.equal(task.execution.args.join('|'), 'C:/compiler/rukbat.dll|run|C:/work space/main.rukbat|--|a b|$(danger)|"quote"');
     assert.equal(task.execution.options.cwd, 'C:/work space');
     const tests = await h.handlers['rukbat.test']();
+    const docs = await h.handlers['rukbat.doc']();
+    assert.equal(docs.execution.command, 'dotnet');
+    assert.equal(docs.execution.args.join('|'), 'C:/compiler/rukbat.dll|doc|C:/work space/main.rukbat');
     assert.equal(tests.execution.args.join('|'), 'C:/compiler/rukbat.dll|test|C:/work space');
     await h.extension.deactivate();
 });

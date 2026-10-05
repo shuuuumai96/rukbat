@@ -17,7 +17,7 @@ async function until(check, label) {
 
 async function run() {
     const root = vscode.workspace.workspaceFolders[0].uri.fsPath;
-    fs.writeFileSync(path.join(root, 'helper.rukbat'), 'fn number(): int { return 1 }\n');
+    fs.writeFileSync(path.join(root, 'helper.rukbat'), '/// インポートした関数の説明。\nfn number(): int { return 1 }\n');
     fs.writeFileSync(path.join(root, 'main.rukbat'), 'import "./helper.rukbat" as helper\nvalue: int = helper.number()\nprint(missing)\n');
     const uri = vscode.Uri.file(path.join(root, 'main.rukbat'));
     const document = await vscode.workspace.openTextDocument(uri);
@@ -40,8 +40,30 @@ async function run() {
         return result && result.length ? result : null;
     }, 'hover');
     assert.ok(hovers[0].contents.some(c => (c.value || c).includes('value: int')));
+    const importedHover = await vscode.commands.executeCommand('vscode.executeHoverProvider', uri, new vscode.Position(1, 23));
+    assert.ok(importedHover.some(h => h.contents.some(c => (c.value || c).includes('インポートした関数の説明。'))));
     const definitions = await vscode.commands.executeCommand('vscode.executeDefinitionProvider', uri, new vscode.Position(1, 23));
     assert.equal((definitions[0].uri || definitions[0].targetUri).fsPath, path.join(root, 'helper.rukbat'));
+
+    const docUri = vscode.Uri.file(path.join(root, 'hover.rukbat'));
+    fs.writeFileSync(docUri.fsPath, '/// 二つの整数を加算します。\n///\n/// **注意:** 整数の範囲を超えるとErrorになります。\nfn add(a: int, b: int): int { return a + b }\nprint(add(1, 2))\n');
+    const docDocument = await vscode.workspace.openTextDocument(docUri);
+    await vscode.window.showTextDocument(docDocument);
+    async function functionHover(line, character, expected) {
+        return until(async () => {
+            const result = await vscode.commands.executeCommand('vscode.executeHoverProvider', docUri, new vscode.Position(line, character));
+            return result?.some(h => h.contents.some(c => (c.value || c).includes(expected))) ? result : null;
+        }, `function documentation at ${line}:${character}`);
+    }
+    for (const position of [[3, 4], [4, 7]]) {
+        const result = await functionHover(...position, '二つの整数を加算します。');
+        assert.ok(result.some(h => h.contents.some(c => (c.value || c).includes('**注意:**'))));
+    }
+    const docEdit = new vscode.WorkspaceEdit();
+    docEdit.replace(docUri, new vscode.Range(0, 4, 0, 16), '未保存の説明も反映します。');
+    assert.ok(await vscode.workspace.applyEdit(docEdit));
+    await functionHover(4, 7, '未保存の説明も反映します。');
+    assert.ok(fs.readFileSync(docUri.fsPath, 'utf8').includes('二つの整数を加算します。'));
 
     fs.writeFileSync(path.join(root, 'helper.rukbat'), 'fn number(): string { return "changed" }\n');
     await until(() => vscode.languages.getDiagnostics(uri).some(d => d.code === 'RUK2001'), 'watched imported-file change');
@@ -80,10 +102,10 @@ async function run() {
 
     // Execute the actual editor tasks, including the bundled compiler and ProcessExecution.
     const commandUri = vscode.Uri.file(path.join(root, 'task.rukbat'));
-    fs.writeFileSync(commandUri.fsPath, 'print("task")\n');
+    fs.writeFileSync(commandUri.fsPath, '//! Editor task documentation.\n//! ```rukbat check\n//! print("example")\n//! ```\nprint("task")\n');
     fs.writeFileSync(path.join(root, 'test_task.rukbat'), 'import test\nfn test_task(): void { test.assert(true) }\n');
     await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(commandUri));
-    for (const action of ['check', 'build', 'test', 'doctor']) {
+    for (const action of ['check', 'build', 'test', 'doc', 'doctor']) {
         const finished = new Promise((resolve, reject) => {
             const timer = setTimeout(() => { listener.dispose(); reject(new Error(`Task timed out: ${action}`)); }, 30000);
             const listener = vscode.tasks.onDidEndTaskProcess(event => {
@@ -95,8 +117,9 @@ async function run() {
         assert.equal(await finished, 0, `Editor task ${action}`);
     }
     assert.ok(fs.existsSync(path.join(root, 'task.ps1')));
+    assert.ok(fs.readFileSync(path.join(root, 'task.html'), 'utf8').includes('Editor task documentation.'));
 
-    console.log('Passed VS Code diagnostics, unsaved edits, hover, imported definitions, file watching, completion, formatting, and restart.');
+    console.log('Passed VS Code diagnostics, unsaved edits, declaration/call/import documentation hover, imported definitions, file watching, completion, formatting, and restart.');
 }
 
 module.exports = { run };

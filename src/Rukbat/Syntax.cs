@@ -124,6 +124,9 @@ internal sealed class Source(string text, string path)
     public string Text { get; } = text;
     public string Path { get; } = path;
     public List<Diagnostic> Diagnostics { get; } = [];
+    public List<SourceComment> Comments { get; } = [];
+    public int FirstCodeOffset { get; set; } = text.Length;
+    public Dictionary<Node, int> DeclarationStarts { get; } = new(ReferenceEqualityComparer.Instance);
     public void Error(string code, string message, Token token)
     {
         var prefix = Text[..Math.Clamp(token.Offset, 0, Text.Length)];
@@ -135,6 +138,8 @@ internal sealed class Source(string text, string path)
 
 internal sealed class Module(Source source, string id, List<Statement> statements, string? standardName = null)
 {
+    private ModuleDocumentation? documentation;
+    public ModuleDocumentation Documentation => documentation ??= new(this);
     public Source Source { get; } = source;
     public string Id { get; } = id;
     public string? StandardName { get; } = standardName;

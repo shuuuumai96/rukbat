@@ -28,7 +28,7 @@ internal sealed class Lexer(Source source)
                 {
                     position++;
                 }
-
+                source.Comments.Add(new(start, position, source.Text[start..position].TrimEnd('\r')));
                 continue;
             }
             if (char.IsLetter(c) || c == '_')
@@ -139,6 +139,7 @@ internal sealed class Lexer(Source source)
             }
         }
         tokens.Add(new("<eof>", source.Text.Length));
+        source.FirstCodeOffset = tokens.FirstOrDefault(token => token.Text is not ("\n" or "<eof>"))?.Offset ?? source.Text.Length;
         return tokens;
     }
 

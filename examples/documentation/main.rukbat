@@ -1,0 +1,29 @@
+//! # List CSV files
+//!
+//! Prints the number of CSV files directly inside the supplied directory.
+//! No files are created, changed, or removed.
+//!
+//! ```powershell
+//! rukbat run main.rukbat -- C:/Data
+//! ```
+//!
+//! Supply exactly one directory argument. Invalid arguments or listing failures
+//! produce a diagnostic on stderr and exit code 1. Success exits with code 0.
+//! The reusable function is [`files.list_csv`].
+
+import "./files.rukbat" as files
+
+arguments := args()
+
+if arguments.length != 1 {
+    eprint("Expected one directory argument.")
+    exit(1)
+}
+
+try {
+    listing := files.list_csv(arguments[0])
+    print(listing.paths.length)
+} catch err {
+    eprint(err.message)
+    exit(1)
+}

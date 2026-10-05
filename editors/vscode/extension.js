@@ -97,7 +97,7 @@ async function activate(context) {
             if (event.affectsConfiguration('rukbat.server')) void queueRestart();
         })
     );
-    for (const action of ['check', 'test', 'build', 'run', 'doctor']) {
+    for (const action of ['check', 'test', 'build', 'run', 'doctor', 'doc']) {
         context.subscriptions.push(vscode.commands.registerCommand(`rukbat.${action}`, () => execute(action)));
     }
     await queueRestart();

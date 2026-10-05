@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Markdig.Syntax;
 
 namespace Rukbat;
 
@@ -43,7 +44,7 @@ internal sealed record EditorSymbol(string Name, string Detail, int Kind, string
         documentation = new
         {
             kind = "markdown",
-            value = Markdown
+            value = $"```rukbat\n{Detail}\n```" + (Documentation.Length == 0 ? "" : "\n\n" + Documentation.Split("\n\n")[0])
         }
     };
     public string Markdown => $"```rukbat\n{Detail}\n```" + (Documentation.Length == 0 ? "" : "\n\n" + Documentation);
@@ -145,6 +146,8 @@ internal sealed class LanguageAnalysis
     private readonly List<Occurrence> occurrences = [];
     private readonly List<Scope> scopes = [];
     private readonly TypeChecker? checker;
+    private readonly DocumentationCatalog documentation;
+    public IReadOnlyList<Diagnostic> DocumentationDiagnostics { get; }
     public List<Module> Modules
     {
         get;
@@ -160,6 +163,24 @@ internal sealed class LanguageAnalysis
         var program = Compiler.CheckCore(text, path, true, readSource, collectSyntax: true);
         Modules = program.Modules!;
         checker = program.Checker;
+        documentation = new DocumentationCatalog(Modules, Path.GetDirectoryName(path)!);
+        var documentationDiagnostics = new List<Diagnostic>();
+        foreach (var module in Modules.Where(m => m.StandardName is null))
+        {
+            if (!module.Source.Diagnostics.Any(d => d.Code == "RUK1000"))
+                documentationDiagnostics.AddRange(module.Documentation.Diagnostics);
+            if (program.Diagnostics.Count == 0)
+            {
+                var texts = module.Documentation.Comments.Values.AsEnumerable();
+                if (module.Documentation.Overview is { } overview)
+                    texts = texts.Prepend(overview);
+                foreach (var docText in texts)
+                    foreach (var reference in DocumentationMarkdown.Parse(docText).Descendants<DocumentationReference>())
+                        if (documentation.Resolve(module, reference.Name) is null)
+                            documentationDiagnostics.Add(docText.Error("RUK6001", $"Unknown documentation reference '{reference.Name}'.", reference.Span.Start));
+            }
+        }
+        DocumentationDiagnostics = documentationDiagnostics;
         if (checker is not null)
         {
             RegisterDefinitions();
@@ -173,7 +194,8 @@ internal sealed class LanguageAnalysis
                     root.Symbols.Add(symbols[structure]);
                 foreach (var import in module.Statements.OfType<Import>())
                 {
-                    var symbol = new EditorSymbol(import.Name, $"import {import.Path}", 9, Module: module, Declaration: import.Token);
+                    var symbol = new EditorSymbol(import.Name, $"import {import.Path}", 9,
+                        module.Imports[import.Name].Documentation.Overview?.Markdown ?? "", Module: module, Declaration: import.Token);
                     root.Symbols.Add(symbol);
                     Add(module, import.Token, symbol);
                 }
@@ -191,14 +213,17 @@ internal sealed class LanguageAnalysis
         {
             var parameters = string.Join(", ", function.Function.Parameters.Select(p => $"{p.Token.Text}: {checker.DeclaredTypes[p]}"));
             symbols[function] = new(function.Function.Name, $"fn {function.Function.Name}({parameters}): {function.ReturnType}", 3,
+                Description(function.Module, function.Function),
                 Module: function.Module, Declaration: function.Function.Token);
         }
         foreach (var structure in Modules.SelectMany(m => m.Structs.Values).Append(checker.ErrorStructure))
         {
             symbols[structure] = new(structure.Declaration.Token.Text, $"struct {structure.Type}", 22,
+                Description(structure.Module, structure.Declaration),
                 Module: structure.Module, Declaration: structure.Declaration.Token, Type: structure.BoundType);
             foreach (var field in structure.Fields.Values)
                 symbols[field] = new(field.Field.Token.Text, $"{field.Field.Token.Text}: {field.Type}", 5,
+                    Description(structure.Module, field.Field),
                     Module: structure.Module, Declaration: field.Field.Token, Type: field.Type);
         }
         foreach (var (node, variable) in checker.Variables.Where(p => p.Key is Variable or Parameter or For or Catch))
@@ -207,6 +232,23 @@ internal sealed class LanguageAnalysis
             symbols[variable] = new(variable.Name, $"{variable.Name}: {variable.Type}", 6,
                 Declaration: node.Token, Type: variable.Type);
         }
+    }
+
+    private string Description(Module module, Node node)
+    {
+        if (!module.Documentation.Comments.TryGetValue(node, out var text))
+            return "";
+        var markdown = text.Markdown;
+        foreach (var reference in DocumentationMarkdown.Parse(text).Descendants<DocumentationReference>().OrderByDescending(r => r.Span.Start))
+        {
+            var target = documentation.Resolve(module, reference.Name);
+            if (target is null)
+                continue;
+            var line = new EditorText(target.Module.Source.Text).Position(target.Declaration.Node.Token.Offset).Line + 1;
+            var link = $"[`{reference.Name}`]({new Uri(target.Module.Source.Path).AbsoluteUri}#L{line})";
+            markdown = markdown[..reference.Span.Start] + link + markdown[(reference.Span.End + 1)..];
+        }
+        return markdown;
     }
 
     private Scope Block(List<Statement> body, Scope parent, bool function = false)
@@ -222,7 +264,8 @@ internal sealed class LanguageAnalysis
             return;
         var symbol = symbols[variable] with
         {
-            Module = scope.Module
+            Module = scope.Module,
+            Documentation = Description(scope.Module, node)
         };
         symbols[variable] = symbol;
         scope.Symbols.Add(symbol);
@@ -417,6 +460,16 @@ internal sealed class LanguageAnalysis
     public object? Hover(int offset)
     {
         var found = At(offset);
+        if (found is null)
+        {
+            // Keep documentation at parsed declarations when imports cannot bind.
+            // Do not guess the identities of unresolved references.
+            var declaration = Entry.Documentation.Declarations.FirstOrDefault(d =>
+                offset >= d.Node.Token.Offset && offset < d.Node.Token.Offset + d.Node.Token.Text.Length);
+            if (declaration is not null && Entry.Documentation.Comments.ContainsKey(declaration.Node))
+                found = new(Entry, declaration.Node.Token, new(declaration.Name, declaration.Name, 3,
+                    Description(Entry, declaration.Node), Module: Entry, Declaration: declaration.Node.Token));
+        }
         return found is null ? null : new
         {
             contents = new

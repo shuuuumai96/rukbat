@@ -244,7 +244,7 @@ public sealed class LanguageServer
                 diagnostics.TryAdd(module.Source.Path, []);
                 sources[module.Source.Path] = module.Source.Text;
             }
-            foreach (var diagnostic in analysis.Diagnostics)
+            foreach (var diagnostic in analysis.Diagnostics.Concat(analysis.DocumentationDiagnostics))
             {
                 if (diagnostic.FilePath.StartsWith('<'))
                     continue;
@@ -270,7 +270,7 @@ public sealed class LanguageServer
                 return new
                 {
                     range = map.Range(offset, length),
-                    severity = 1,
+                    severity = d.Code.StartsWith("RUK6", StringComparison.Ordinal) ? 2 : 1,
                     code = d.Code,
                     source = "rukbat",
                     message = d.Message

@@ -55,6 +55,16 @@ Names are case-sensitive. Statements are separated by a newline or `;`. Blocks u
 Line comments begin with `//` and continue to the end of the line. Block comments are not supported.
 Comment markers inside strings are literal text. Outside strings and `//` comments, `#` is an invalid character.
 
+`//!` is a module documentation comment before the first code token. `///` attaches
+documentation to the immediately following top-level function, struct, variable,
+struct field, or method; a blank line or ordinary comment breaks attachment.
+`////` remains an ordinary comment. These conventions do not affect compilation
+semantics. `rukbat doc input.rukbat [--output reference.html | --check]` checks
+documentation and opt-in examples separately, then generates offline HTML unless
+`--check` is selected. Placement/link errors do not make `rukbat check` fail.
+The formatter preserves indentation within comment bodies and their trailing spaces.
+See [documentation](DOCUMENTATION.md) for Markdown and validation rules.
+
 ## Scope and execution
 
 Each module executes its top-level statements once, after its dependencies have initialized. Functions are available regardless of declaration order and capture the variables of their defining module. A block creates a child scope: it may shadow an outer variable, but a name cannot be redeclared in the same scope.

@@ -2,6 +2,7 @@
   "name": "Rukbat",
   "scopeName": "source.rukbat",
   "patterns": [
+    { "name": "comment.line.documentation.rukbat", "match": "(?:///(?!/)|//!).*$" },
     { "name": "comment.line.double-slash.rukbat", "match": "//.*$" },
     { "begin": "\"", "end": "\"", "name": "string.quoted.double.rukbat", "patterns": [{ "include": "#escape" }] },
     { "begin": "'", "end": "'", "name": "string.quoted.single.rukbat", "patterns": [{ "include": "#escape" }] },

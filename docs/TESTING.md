@@ -196,6 +196,13 @@ errors. From the repository root:
 
 ## Compiler contributor tests
 
+Documentation tests cover attachment, shared imports, bound signatures, stable
+offline HTML, CommonMark links, invalid comments, checked examples and diagnostic
+locations, output preservation, unsaved LSP comments, and formatter preservation.
+Run `dotnet test --filter FullyQualifiedName~Documentation` for the focused suite,
+including a standalone-script test on both PowerShell hosts. CI for Rukbat source
+documentation can use `rukbat doc entry.rukbat --check`; examples are never executed.
+
 LSP protocol, unsaved-import, scope, diagnostic, hover, definition, and formatting
 tests are part of `Unit`. Run them separately with
 `dotnet test --filter FullyQualifiedName~LanguageServerTests`.

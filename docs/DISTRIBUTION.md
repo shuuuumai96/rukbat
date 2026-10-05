@@ -85,7 +85,11 @@ unless caches are complete. Existing destination directories are refused. A fail
 build may leave incomplete output; only a successful run produces a complete release.
 The extension runtime directory is generated and ignored by Git.
 
-Before approving a release, exercise check/build/run/test/fmt/LSP from the ZIP and
+`rukbat doc input.rukbat` generates offline HTML; `--check` validates comments and
+opt-in examples without writing output. The CLI and VSIX bundle the Markdown
+parser and its license notice. No extra tool installation is required.
+
+Before approving a release, exercise check/build/run/test/fmt/doc/LSP from the ZIP and
 VSIX with no system .NET dependency. A clean Windows machine with no SDK/runtime
 and no network must also be used for final acceptance. Verify the generated `.ps1`
 on a separate target without the compiler and retain previous approved packages.

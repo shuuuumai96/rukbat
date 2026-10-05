@@ -69,6 +69,66 @@ public sealed class LanguageServerTests : TestBase
     private static string UriFor(Project project, string file = "main.rukbat") => new Uri(project.PathFor(file)).AbsoluteUri;
 
     [Fact]
+    public void DocumentationTracksUnsavedImportsAndCompletionUsesOnlyTheSummary()
+    {
+        using var project = new Project();
+        project.Write("helper.rukbat", "/// Disk description.\nfn number(): int { return 1 }");
+        var main = UriFor(project);
+        var helper = UriFor(project, "helper.rukbat");
+        var messages = Session(Open(main, "import './helper.rukbat' as helper\nhelper.number()\nhelper.num"),
+            Open(helper, "/// 日本語の概要。\n///\n/// Detailed explanation.\nfn number(): int { return 1 }"),
+            Feature(main, "hover", 1, 9, "hover"), Feature(main, "completion", 2, 10, "completion"));
+        var hover = Result(messages, "hover").GetProperty("contents").GetProperty("value").GetString();
+        Assert.Contains("日本語の概要。", hover);
+        Assert.Contains("Detailed explanation.", hover);
+        Assert.DoesNotContain("Disk description.", hover);
+        var completion = Result(messages, "completion").EnumerateArray().Single(item => item.GetProperty("label").GetString() == "number");
+        var description = completion.GetProperty("documentation").GetProperty("value").GetString();
+        Assert.Contains("日本語の概要。", description);
+        Assert.DoesNotContain("Detailed explanation.", description);
+    }
+
+    [Fact]
+    public void DocumentationIsAvailableOnStructFieldsMethodsVariablesAndImports()
+    {
+        using var project = new Project();
+        project.Write("helper.rukbat", "//! Helper overview.\nfn f(): void {}");
+        var uri = UriFor(project);
+        var source = "import './helper.rukbat' as helper\n/// Record description.\nstruct Record {\n/// Name description.\nname: string\n/// Method description.\nfn f(): void {}\n}\n/// Variable description.\nvalue := Record { name: 'one' }\nvalue.f()\nprint(value.name)\n";
+        var messages = Session(Open(uri, source), Feature(uri, "hover", 0, 0, "import"),
+            Feature(uri, "hover", 9, 10, "struct"), Feature(uri, "hover", 9, 1, "variable"),
+            Feature(uri, "hover", 10, 6, "method"), Feature(uri, "hover", 11, 13, "field"));
+        foreach (var (id, description) in new[] { ("import", "Helper overview."), ("struct", "Record description."),
+            ("variable", "Variable description."), ("method", "Method description."), ("field", "Name description.") })
+            Assert.Contains(description, Result(messages, id).GetProperty("contents").GetProperty("value").GetString());
+    }
+
+    [Fact]
+    public void DocumentationWarningsAreSeparateAndDeclarationHoverSurvivesBrokenImports()
+    {
+        using var project = new Project();
+        var uri = UriFor(project);
+        var source = "import './missing.rukbat' as missing\n/// Explains this function.\nfn f(): void {}\n/// orphan\n";
+        var messages = Session(Open(uri, source), Feature(uri, "hover", 2, 3));
+        Assert.Contains("Explains this function.", Result(messages).GetProperty("contents").GetProperty("value").GetString());
+        var diagnostics = LastDiagnostics(messages, uri).GetProperty("diagnostics").EnumerateArray().ToArray();
+        Assert.Contains(diagnostics, d => d.GetProperty("code").GetString() == "RUK6000" && d.GetProperty("severity").GetInt32() == 2);
+        Assert.Contains(diagnostics, d => d.GetProperty("code").GetString() == "RUK3002" && d.GetProperty("severity").GetInt32() == 1);
+    }
+
+    [Fact]
+    public void DocumentationReferencesBecomeDefinitionLinksAndExamplesDoNotRunInTheEditor()
+    {
+        using var project = new Project();
+        var uri = UriFor(project);
+        var source = "/// See [`f`].\n///\n/// ```rukbat check\n/// missing()\n/// ```\nfn f(): void {}\nf()";
+        var messages = Session(Open(uri, source), Feature(uri, "hover", 6, 0));
+        Assert.Contains(uri + "#L6", Result(messages).GetProperty("contents").GetProperty("value").GetString());
+        Assert.Empty(LastDiagnostics(messages, uri).GetProperty("diagnostics").EnumerateArray());
+        Assert.False(File.Exists(project.PathFor("main.ps1")));
+    }
+
+    [Fact]
     public void InitializationAdvertisesImplementedFeatures()
     {
         var capabilities = Result(Session(), "1").GetProperty("capabilities");

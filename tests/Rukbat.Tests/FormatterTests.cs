@@ -4,6 +4,30 @@ namespace Rukbat.Tests;
 
 public sealed class FormatterTests : TestBase
 {
+    [Fact]
+    [Trait("Category", "Unit")]
+    public void DocumentationFormattingPreservesMarkdownAndDeclarationAttachment()
+    {
+        using var project = new Project();
+        var source = "//! Module overview.  \r\n//! Second line.\r\nimport fs\r\n/// Function overview.  \r\n/// Second line.\r\n///\r\n/// ```rukbat check\r\n///     x := 1\r\n///     print(x)\r\n/// ```\r\nfn f():void{}\r\nstruct S{\r\n/// Field overview.\r\nvalue:int\r\n/// Method overview.\r\nfn method():void{}\r\n}\r\n";
+        project.Write("main.rukbat", source);
+        Assert.Equal(0, Cli.Run(["doc", project.PathFor("main.rukbat")], TextWriter.Null, TextWriter.Null));
+        var before = File.ReadAllText(project.PathFor("main.html"));
+        Assert.Contains("overview.<br />", before);
+        Assert.Equal(0, Cli.Run(["fmt", project.PathFor("main.rukbat")], TextWriter.Null, TextWriter.Null));
+        var formatted = File.ReadAllText(project.PathFor("main.rukbat"));
+        Assert.Contains("/// Function overview.  \n", formatted);
+        Assert.Contains("///     x := 1\n", formatted);
+        Assert.Contains("/// ```\nfn f()", formatted);
+        Assert.Contains("    /// Method overview.\n    fn method()", formatted);
+        Assert.Equal(0, Cli.Run(["doc", project.PathFor("main.rukbat")], TextWriter.Null, TextWriter.Null));
+        var after = File.ReadAllText(project.PathFor("main.html"));
+        foreach (var text in new[] { "Module overview.<br />", "Function overview.<br />", "Field overview.", "Method overview.", "    x := 1" })
+            Assert.Contains(text, after);
+        Assert.Equal(0, Cli.Run(["fmt", project.PathFor("main.rukbat")], TextWriter.Null, TextWriter.Null));
+        Assert.Equal(formatted, File.ReadAllText(project.PathFor("main.rukbat")));
+    }
+
     public static TheoryData<string, string, string> SyntaxCases => new()
     {
         { "datetime types", "import datetime;value:datetime.Timestamp?=null;zones:datetime.Zone[]=[datetime.utc]", "import datetime\n\nvalue: datetime.Timestamp? = null\nzones: datetime.Zone[] = [datetime.utc]\n" },

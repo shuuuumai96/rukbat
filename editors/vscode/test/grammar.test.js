@@ -27,6 +27,14 @@ test('only // starts a comment', () => {
     assert.deepEqual(require('../language-configuration.json').comments, { lineComment: '//' });
 });
 
+test('documentation has its own scope without changing ordinary comments or strings', () => {
+    for (const source of ['/// Documentation', '//! Overview']) {
+        assert.ok(scopesAt(source, 4).includes('comment.line.documentation.rukbat'));
+    }
+    assert.ok(scopesAt('//// Divider', 4).includes('comment.line.double-slash.rukbat'));
+    assert.ok(scopesAt('"/// literal"', 4).includes('string.quoted.double.rukbat'));
+});
+
 test('comment markers in strings remain strings', () => {
     assert.ok(scopesAt('print("https://host/#name")', 15).includes('string.quoted.double.rukbat'));
     assert.ok(scopesAt("print('// literal')", 9).includes('string.quoted.single.rukbat'));

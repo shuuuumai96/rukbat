@@ -9,7 +9,7 @@ Source files use `.rukbat`; the output is a single `.ps1` containing all Rukbat 
 The [VS Code extension](editors/vscode/README.md) provides syntax highlighting,
 diagnostics, completion, hover, go to definition, and canonical formatting.
 Install the Windows x64 VSIX to use its bundled compiler and LSP without installing
-.NET or configuring PATH. Editor actions check, test, build and run saved sources.
+.NET or configuring PATH. Editor actions check, test, build, run, and document saved sources.
 The [distribution guide](docs/DISTRIBUTION.md) covers the portable CLI ZIP, offline
 installation and controlled updates. Maintainers build both packages with
 `tools/package.ps1`; a local compiler override remains available for development.
@@ -88,6 +88,10 @@ rukbat run examples/import-data.rukbat
 .\rukbat fmt .
 # Run the current project's test_*.rukbat tests:
 .\rukbat test
+# Generate offline documentation from source comments and checked signatures:
+.\rukbat doc examples/documentation/main.rukbat
+# Validate documentation and opt-in examples without generating HTML:
+.\rukbat doc examples/documentation/main.rukbat --check
 # A build-only shortcut is also available:
 .\build examples/hello.rukbat
 ```
@@ -121,6 +125,12 @@ To publish the CLI:
 ```
 
 ## Principles and current scope
+
+Use `//!` for module usage and `///` immediately before declarations for Markdown
+documentation. Hover shows these comments; completion shows the first paragraph.
+`rukbat doc` generates one offline HTML file for the entrypoint and its reachable
+user imports. Explicit `rukbat check` fences inside comments are statically checked
+without execution. See the [documentation guide](docs/DOCUMENTATION.md).
 
 - Prefer consistent syntax that is easy to read and write.
 - Line comments use `//`. Comment markers inside strings are literal text.

@@ -28,6 +28,12 @@ const source = path.join(work, 'main.rukbat');
 fs.writeFileSync(source, 'import encoding\nimport process\nimport http\nprint("standalone")\nprint(http.status_200_ok)\nfor argument in args() { print(argument) }\n');
 run(['check', source]);
 run(['fmt', source]);
+const documentationSource = path.join(work, 'documentation.rukbat');
+fs.writeFileSync(documentationSource, '//! Offline documentation.\n//! ```rukbat check\n//! print(1)\n//! ```\n/// A helper.\nfn helper(): void {}\n');
+run(['doc', documentationSource, '--check']);
+run(['doc', documentationSource]);
+assert.match(fs.readFileSync(path.join(work, 'documentation.html'), 'utf8'), /Statically checked; not executed/);
+fs.unlinkSync(documentationSource);
 run(['build', source]);
 const args = ['a b', '日本', '$(literal)', '"quoted"'];
 const output = run(['run', source, '--', ...args]);
@@ -54,4 +60,4 @@ for (const shell of [path.join(process.env.SystemRoot, 'System32/WindowsPowerShe
     assert.match(result.stdout, /standalone/);
     console.log(`Passed source-free script: ${shell}`);
 }
-console.log(`Passed self-contained --version/doctor/check/fmt/build/run/test/LSP: ${directory}`);
+console.log(`Passed self-contained --version/doctor/check/fmt/doc/build/run/test/LSP: ${directory}`);

@@ -55,6 +55,10 @@ public static class Cli
         {
             return TestRunner.Run(args[1..], stdout, stderr);
         }
+        if (args.Length != 0 && args[0] == "doc")
+        {
+            return Documentation.Run(args[1..], stdout, stderr);
+        }
         if (args.Length < CompilerArgumentCount ||
             args[0] is not ("build" or "run" or "check" or "fmt") ||
             (args[0] != "fmt" && !Path.GetExtension(args[1]).Equals(".rukbat", StringComparison.OrdinalIgnoreCase)) ||
@@ -62,6 +66,7 @@ public static class Cli
         {
             stderr.WriteLine("Usage: rukbat <build|run|check|fmt> input.rukbat [-- arguments... (run only)]");
             stderr.WriteLine("       rukbat fmt directory");
+            stderr.WriteLine("       rukbat doc input.rukbat [--output reference.html | --check]");
             stderr.WriteLine("       rukbat test [path] [--filter text] [--timeout seconds] [--shell powershell|pwsh]");
             stderr.WriteLine("       rukbat lsp");
             stderr.WriteLine("       rukbat --version | doctor");

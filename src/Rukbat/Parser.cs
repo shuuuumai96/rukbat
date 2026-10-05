@@ -83,6 +83,8 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
             {
                 var start = Current.Offset;
                 var statement = Statement();
+                if (statement is Function or Rukbat.StructDeclaration or Variable)
+                    source.DeclarationStarts[statement] = start;
                 formatting?.SeparateStatements(statements.LastOrDefault(), statement, start);
                 statements.Add(statement);
                 EndStatement();
@@ -193,7 +195,9 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
                 {
                     formatting?.RequiredBlankLines.Add(start);
                 }
-                methods.Add(FunctionDeclaration());
+                var method = FunctionDeclaration();
+                methods.Add(method);
+                source.DeclarationStarts[method] = start;
             }
             else
             {
@@ -203,7 +207,9 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
                 }
                 var field = Identifier();
                 Expect(":");
-                fields.Add(new(field, Type()));
+                var declaration = new Field(field, Type());
+                fields.Add(declaration);
+                source.DeclarationStarts[declaration] = start;
             }
             EndStatement();
         }
