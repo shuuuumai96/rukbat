@@ -39,6 +39,10 @@ Hover also works for imported functions and unsaved comment edits. There is no
 need to generate HTML first. After updating a VSIX, reload the VS Code window to
 restart the bundled language server with the new compiler.
 
+`const` declarations have keyword highlighting and a `const` snippet. Hover and
+completion retain the modifier; attempted reassignment or receiver mutation is
+reported as a compiler error (`RUK2011`).
+
 Leave `rukbat.server.command` empty for the bundled compiler. For a local checkout,
 build it with `dotnet build Rukbat.sln`, then
 configure these VS Code settings with the actual absolute DLL path:

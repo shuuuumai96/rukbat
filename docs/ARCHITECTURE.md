@@ -27,6 +27,7 @@ Each stage has a separate responsibility:
 - ModuleLoader discovers modules, resolves import paths, determines canonical module identity, builds the dependency graph, and detects cycles.
 - Resolver registers symbols, manages scopes, resolves name references including module-qualified names, and rejects redeclarations.
 - TypeChecker validates type compatibility, explicit numeric conversion contracts, nullable flow narrowing, function call signatures, and control-flow return semantics.
+- Const is stored on variable declarations and bound symbols. TypeChecker checks writes through bound variable paths and propagates receiver mutations through bound method calls after checking all bodies. This fixed-point analysis covers indirect calls and recursion; ordinary copied arguments and locals do not forward receiver mutation. Emitter uses the existing initialization and copy operations unchanged. LSP and documentation signatures retain the const modifier.
 - Emitter consumes validated syntax trees and type information to generate standalone Windows PowerShell 5.1-compatible `.ps1` files. It does not infer semantics or resolve names.
 - Compiler invokes these stages in order. It validates the generated PowerShell syntax as a generator sanity check; Windows PowerShell 5.1 compatibility is established by the execution test suite, not by this parser validation alone.
 - `rukbat check` stops after ModuleLoader, Resolver, and TypeChecker. It invokes neither Emitter nor the PowerShell parser.

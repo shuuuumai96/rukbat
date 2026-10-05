@@ -196,6 +196,11 @@ errors. From the repository root:
 
 ## Compiler contributor tests
 
+`dotnet test --filter FullyQualifiedName~Constant` covers const declarations,
+direct/nested writes, method mutation propagation, copied values, diagnostics,
+output preservation, and standalone execution on both PowerShell hosts. Const
+Hover/completion, formatting, and HTML signatures also have focused tooling tests.
+
 Documentation tests cover attachment, shared imports, bound signatures, stable
 offline HTML, CommonMark links, invalid comments, checked examples and diagnostic
 locations, output preservation, unsaved LSP comments, and formatter preservation.

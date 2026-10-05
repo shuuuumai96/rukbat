@@ -9,6 +9,7 @@
     { "name": "keyword.control.rukbat", "match": "\\b(import|as|fn|struct|return|if|else|for|in|while|break|continue|try|catch|throw)\\b" },
     { "name": "constant.language.rukbat", "match": "\\b(true|false|null)\\b" },
     { "name": "variable.language.rukbat", "match": "\\bself\\b" },
+    { "name": "storage.modifier.rukbat", "match": "\\bconst\\b" },
     { "name": "storage.type.rukbat", "match": "\\b(int|float|string|bool|void|Error)\\b" },
     { "name": "support.function.rukbat", "match": "\\b(print|eprint|args|exit|powershell)\\b" },
     { "name": "constant.numeric.rukbat", "match": "\\b[0-9]+(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?\\b" },

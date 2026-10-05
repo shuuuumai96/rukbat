@@ -47,6 +47,9 @@ them does not make them accessible through imports. Write constraints, errors,
 side effects, and examples as ordinary prose; parameter and return types come
 from the compiler and need no duplicate tags.
 
+Documented `const` declarations retain their modifier and are labelled module-local
+constants. They follow the same attachment rules as ordinary variables.
+
 All these markers remain comments for `build`, `run`, `check`, and `test`.
 `////` is an ordinary comment. Markers inside strings are literal text.
 `fmt` preserves documentation indentation and trailing spaces, including Markdown

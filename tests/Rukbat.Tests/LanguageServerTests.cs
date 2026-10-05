@@ -69,6 +69,28 @@ public sealed class LanguageServerTests : TestBase
     private static string UriFor(Project project, string file = "main.rukbat") => new Uri(project.PathFor(file)).AbsoluteUri;
 
     [Fact]
+    public void ConstHoverCompletionAndDiagnosticsUseTheBoundDeclaration()
+    {
+        using var project = new Project();
+        var uri = UriFor(project);
+        var source = "/// 再試行回数。\nconst count := 3\nprint(count)\ncount = 4\n";
+        var messages = Session(Open(uri, source), Feature(uri, "hover", 1, 7, "declaration"),
+            Feature(uri, "hover", 2, 7, "reference"), Feature(uri, "completion", 4, 0, "completion"));
+        foreach (var id in new[] { "declaration", "reference" })
+        {
+            var markdown = Result(messages, id).GetProperty("contents").GetProperty("value").GetString();
+            Assert.Contains("const count: int", markdown);
+            Assert.Contains("再試行回数。", markdown);
+        }
+        var completion = Result(messages, "completion").EnumerateArray().Single(item => item.GetProperty("label").GetString() == "count");
+        Assert.Equal(21, completion.GetProperty("kind").GetInt32());
+        Assert.Equal("const count: int", completion.GetProperty("detail").GetString());
+        var diagnostic = Assert.Single(LastDiagnostics(messages, uri).GetProperty("diagnostics").EnumerateArray());
+        Assert.Equal("RUK2011", diagnostic.GetProperty("code").GetString());
+        Assert.Equal(1, diagnostic.GetProperty("severity").GetInt32());
+    }
+
+    [Fact]
     public void DocumentationTracksUnsavedImportsAndCompletionUsesOnlyTheSummary()
     {
         using var project = new Project();

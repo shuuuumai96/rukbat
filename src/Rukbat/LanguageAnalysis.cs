@@ -229,7 +229,7 @@ internal sealed class LanguageAnalysis
         foreach (var (node, variable) in checker.Variables.Where(p => p.Key is Variable or Parameter or For or Catch))
         {
             // The module is attached when its declaration is visited below.
-            symbols[variable] = new(variable.Name, $"{variable.Name}: {variable.Type}", 6,
+            symbols[variable] = new(variable.Name, $"{(variable.IsConst ? "const " : "")}{variable.Name}: {variable.Type}", variable.IsConst ? 21 : 6,
                 Declaration: node.Token, Type: variable.Type);
         }
     }
@@ -357,7 +357,7 @@ internal sealed class LanguageAnalysis
                         var type = checker.Types.GetValueOrDefault(name, variable.Type);
                         Add(scope.Module, name.Token, symbol with
                         {
-                            Detail = $"{name.Token.Text}: {type}",
+                            Detail = $"{(variable.IsConst ? "const " : "")}{name.Token.Text}: {type}",
                             Type = type
                         });
                     }

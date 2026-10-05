@@ -1,6 +1,6 @@
 namespace Rukbat;
 
-internal sealed record VariableSymbol(string Name, ValueType Type, string PowerShellName, bool IsGlobal = false);
+internal sealed record VariableSymbol(string Name, ValueType Type, string PowerShellName, bool IsGlobal = false, bool IsConst = false);
 internal sealed record FunctionSymbol(Module Module, Function Function, string PowerShellName, StructSymbol? Owner = null)
 {
     public ValueType ReturnType { get; set; } = ValueType.Error;
@@ -67,6 +67,7 @@ internal sealed partial class TypeChecker
                 }
             }
         }
+        CheckConstMethodCalls(modules);
     }
     // A loop may execute zero times. Both paths of a try/catch must return or throw.
     private static bool AlwaysExits(List<Statement> body) => body.Any(statement =>
@@ -93,7 +94,8 @@ internal sealed partial class TypeChecker
             Error("RUK2002", $"Name '{name}' is already a function, struct or import.", node);
         }
 
-        var symbol = new VariableSymbol(name, type, $"${(global ? "script:" : "")}__rukbat_v{variableId++}", global);
+        var symbol = new VariableSymbol(name, type, $"${(global ? "script:" : "")}__rukbat_v{variableId++}", global,
+            node is Variable { IsConst: true });
         if (!scope.Variables.TryAdd(name, symbol))
         {
             Error("RUK2002", $"Duplicate declaration '{name}'.", node);
@@ -138,6 +140,7 @@ internal sealed partial class TypeChecker
                     else
                     {
                         Variables[assignment] = target;
+                        RequireWritable(target, assignment);
                         var assignedType = TypeOf(assignment.Value, scope, target.Type);
                         Match(target.Type, assignedType, assignment.Value);
                         UpdateRefinement(target, assignedType);
@@ -145,6 +148,7 @@ internal sealed partial class TypeChecker
                     break;
                 case FieldAssignment assignment:
                     var fieldType = TypeOf(assignment.Target, scope);
+                    RequireWritable(RootVariable(assignment.Target), assignment);
                     if (EncodingConstants.ContainsKey(assignment.Target) || HashConstants.ContainsKey(assignment.Target) || HttpConstants.ContainsKey(assignment.Target) || ZoneConstants.ContainsKey(assignment.Target))
                     {
                         Error("RUK2010", "Standard-library constants are read-only.", assignment);
@@ -163,6 +167,7 @@ internal sealed partial class TypeChecker
                     break;
                 case IndexAssignment assignment:
                     var elementType = TypeOf(assignment.Target, scope);
+                    RequireWritable(RootVariable(assignment.Target), assignment);
                     if (!IsVariablePath(assignment.Target))
                     {
                         Error("RUK2010", "Array assignment requires a variable, not a temporary value.", assignment);
@@ -929,7 +934,7 @@ internal sealed partial class TypeChecker
 
     private void InvalidateGlobalRefinements()
     {
-        foreach (var symbol in refinements.Keys.Where(symbol => symbol.IsGlobal).ToArray())
+        foreach (var symbol in refinements.Keys.Where(symbol => symbol.IsGlobal && !symbol.IsConst).ToArray())
         {
             refinements.Remove(symbol);
         }

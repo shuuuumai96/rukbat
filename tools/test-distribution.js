@@ -29,10 +29,11 @@ fs.writeFileSync(source, 'import encoding\nimport process\nimport http\nprint("s
 run(['check', source]);
 run(['fmt', source]);
 const documentationSource = path.join(work, 'documentation.rukbat');
-fs.writeFileSync(documentationSource, '//! Offline documentation.\n//! ```rukbat check\n//! print(1)\n//! ```\n/// A helper.\nfn helper(): void {}\n');
+fs.writeFileSync(documentationSource, '//! Offline documentation.\n//! ```rukbat check\n//! const value := 1\n//! print(value)\n//! ```\n/// A helper.\nfn helper(): void {}\n/// Retry limit.\nconst limit := 3\n');
 run(['doc', documentationSource, '--check']);
 run(['doc', documentationSource]);
 assert.match(fs.readFileSync(path.join(work, 'documentation.html'), 'utf8'), /Statically checked; not executed/);
+assert.match(fs.readFileSync(path.join(work, 'documentation.html'), 'utf8'), /const limit: int/);
 fs.unlinkSync(documentationSource);
 run(['build', source]);
 const args = ['a b', '日本', '$(literal)', '"quoted"'];

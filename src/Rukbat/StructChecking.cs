@@ -332,6 +332,7 @@ internal sealed partial class TypeChecker
 
             if (receiverType.Element is { } element && call.Name == "append")
             {
+                RequireWritable(RootVariable(call.Receiver), call);
                 if (!IsVariablePath(call.Receiver))
                 {
                     Error("RUK2010", "Array append requires a variable, not a temporary value.", call.Receiver);

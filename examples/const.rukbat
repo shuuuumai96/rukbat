@@ -1,0 +1,31 @@
+//! # Read-only values and mutable copies
+//!
+//! Run with `rukbat run const.rukbat`. The output is `1`, `2`, `2`, `1`.
+//! Initializers run normally; writes through const names are rejected by checking.
+
+struct Settings {
+    paths: string[]
+
+    fn count(): int {
+        return self.paths.length
+    }
+
+    fn add(path: string): void {
+        self.paths.append(path)
+    }
+}
+
+/// Original settings stay unchanged when a copied value is updated.
+const original := Settings {
+    paths: ["input.csv"]
+}
+copy := original
+copy.add("output.csv")
+print(original.count())
+print(copy.count())
+
+/// Numeric options may use explicit types or inference.
+const max_retries := 2
+const timeout_ms: int = 1000
+print(max_retries)
+print(timeout_ms / 1000)

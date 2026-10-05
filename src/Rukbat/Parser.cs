@@ -72,7 +72,7 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
         "fn" or "function" or "func" or "struct" or "self" or "class" or
         "return" or "if" or "else" or "import" or "true" or "false" or
         "powershell" or "print" or "eprint" or "args" or "exit" or "for" or "in" or "break" or "continue" or
-        "try" or "catch" or "throw" or "null";
+        "try" or "catch" or "throw" or "null" or "const";
     public List<Statement> Parse()
     {
         var statements = new List<Statement>();
@@ -273,6 +273,7 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
         {
             return ConditionalStatement(token);
         }
+        var isConst = Match("const");
         if (Next.Text == ":")
         {
             var name = Identifier();
@@ -280,15 +281,17 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
             var type = Type();
             Expect("=");
             NewLines();
-            return new Variable(name, type, Expression());
+            return new Variable(name, type, Expression(), IsConst: isConst);
         }
         if (Next.Text == ":=")
         {
             var name = Identifier();
             Expect(":=");
             NewLines();
-            return new Variable(name, ValueType.Error, Expression(), true);
+            return new Variable(name, ValueType.Error, Expression(), true, isConst);
         }
+        if (isConst)
+            Fail("A const declaration requires 'name := value' or 'name: Type = value'.");
         if (Next.Text == "=")
         {
             var name = Identifier();

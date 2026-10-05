@@ -49,6 +49,30 @@ fn greet(person: string): void {
 - `name = value` assigns to an existing variable.
 - A declaration requires an initial value. `:=` requires an inferable type; `items := []` is invalid.
 - Redeclaring a name in the same scope is invalid. `:=` never means assignment.
+- Prefix a variable declaration with `const` to prohibit writes through that name:
+  `const max_retries := 3` or `const timeout_ms: int = 5000`. Initialization is
+  required and follows ordinary runtime evaluation, source order, and type rules.
+  Initializers may call functions, including `args()`. Each declaration evaluates
+  its initializer once when execution reaches it, including on each loop iteration
+  or function invocation. `const` does not add compile-time expression evaluation.
+- Const declarations are allowed at module level and in ordinary statement blocks.
+  They cannot qualify parameters, struct fields, or function declarations. `const`
+  is a reserved word. Existing variable declaration and assignment syntax keeps
+  its meaning; a same-scope redeclaration remains invalid.
+- Assignment to a const name, any field/index path rooted at that name, array
+  `append`, and a method that modifies that receiver produce `RUK2011`.
+  This includes nested arrays/structs and narrowed nullable values. Reading and
+  non-mutating method calls are allowed. Method mutation is determined after
+  binding: writes to `self` or its fields/indexes, array append through `self`, and
+  indirect calls to mutating methods through `self` paths are propagated, including
+  recursion and imported methods. All possible body paths count, including writes
+  in unreachable branches; runtime reachability is not inferred.
+- Ordinary assignment, arguments, returns, and loop bindings still copy values.
+  A copy of a const value held by an ordinary variable or parameter is mutable.
+  `const` is a restriction on a declared name, not a new type. Const module values
+  remain module-local, like ordinary variables. These rules are checked by the
+  Rukbat front end; generated PowerShell uses ordinary initialization and value
+  copies, without an additional runtime or PowerShell constant-variable mechanism.
 - `fn` is the only function declaration syntax. Free functions are defined at module scope. Methods are defined inside a struct declaration.
 
 Names are case-sensitive. Statements are separated by a newline or `;`. Blocks use braces.

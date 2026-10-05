@@ -126,6 +126,19 @@ To publish the CLI:
 
 ## Principles and current scope
 
+Use `const` to declare a value that cannot be changed through that name:
+
+```rukbat
+const max_retries := 3
+const timeout_ms: int = 5000
+const arguments := args()
+```
+
+Reassignment, nested field/array updates, `append`, and mutating methods are
+compile-time errors. Read-only methods are allowed. Copying into an ordinary
+variable produces a mutable value, following existing value semantics. Initializers
+run normally when their declaration executes. See [examples/const.rukbat](examples/const.rukbat).
+
 Use `//!` for module usage and `///` immediately before declarations for Markdown
 documentation. Hover shows these comments; completion shows the first paragraph.
 `rukbat doc` generates one offline HTML file for the entrypoint and its reachable

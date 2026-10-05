@@ -65,6 +65,20 @@ async function run() {
     await functionHover(4, 7, '未保存の説明も反映します。');
     assert.ok(fs.readFileSync(docUri.fsPath, 'utf8').includes('二つの整数を加算します。'));
 
+    const constUri = vscode.Uri.file(path.join(root, 'const.rukbat'));
+    fs.writeFileSync(constUri.fsPath, '/// 再試行回数。\nconst retries := 3\nprint(retries)\nretries = 4\n');
+    const constDocument = await vscode.workspace.openTextDocument(constUri);
+    await vscode.window.showTextDocument(constDocument);
+    await until(() => vscode.languages.getDiagnostics(constUri).some(d => d.code === 'RUK2011'), 'const write diagnostic');
+    for (const position of [[1, 7], [2, 8]]) {
+        const constHover = await vscode.commands.executeCommand('vscode.executeHoverProvider', constUri, new vscode.Position(...position));
+        assert.ok(constHover.some(h => h.contents.some(c => (c.value || c).includes('const retries: int'))));
+    }
+    const repairConst = new vscode.WorkspaceEdit();
+    repairConst.delete(constUri, new vscode.Range(3, 0, 4, 0));
+    assert.ok(await vscode.workspace.applyEdit(repairConst));
+    await until(() => vscode.languages.getDiagnostics(constUri).length === 0, 'const write repair');
+
     fs.writeFileSync(path.join(root, 'helper.rukbat'), 'fn number(): string { return "changed" }\n');
     await until(() => vscode.languages.getDiagnostics(uri).some(d => d.code === 'RUK2001'), 'watched imported-file change');
     fs.writeFileSync(path.join(root, 'helper.rukbat'), 'fn number(): int { return 1 }\n');
@@ -102,7 +116,7 @@ async function run() {
 
     // Execute the actual editor tasks, including the bundled compiler and ProcessExecution.
     const commandUri = vscode.Uri.file(path.join(root, 'task.rukbat'));
-    fs.writeFileSync(commandUri.fsPath, '//! Editor task documentation.\n//! ```rukbat check\n//! print("example")\n//! ```\nprint("task")\n');
+    fs.writeFileSync(commandUri.fsPath, '//! Editor task documentation.\n//! ```rukbat check\n//! const example := "example"\n//! print(example)\n//! ```\n/// Task output.\nconst message := "task"\nprint(message)\n');
     fs.writeFileSync(path.join(root, 'test_task.rukbat'), 'import test\nfn test_task(): void { test.assert(true) }\n');
     await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(commandUri));
     for (const action of ['check', 'build', 'test', 'doc', 'doctor']) {
@@ -118,6 +132,7 @@ async function run() {
     }
     assert.ok(fs.existsSync(path.join(root, 'task.ps1')));
     assert.ok(fs.readFileSync(path.join(root, 'task.html'), 'utf8').includes('Editor task documentation.'));
+    assert.ok(fs.readFileSync(path.join(root, 'task.html'), 'utf8').includes('const message: string'));
 
     console.log('Passed VS Code diagnostics, unsaved edits, declaration/call/import documentation hover, imported definitions, file watching, completion, formatting, and restart.');
 }

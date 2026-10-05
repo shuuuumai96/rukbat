@@ -177,7 +177,7 @@ internal static class Documentation
                     .Append(Signature(entry)).Append("</code></pre><p class=\"source\">")
                     .Append(Escape(Relative(module))).Append(':').Append(new EditorText(module.Source.Text).Position(entry.Declaration.Node.Token.Offset).Line + 1);
                 if (entry.Declaration.Node is Variable)
-                    html.Append(" · Module-local variable");
+                    html.Append(entry.Declaration.Node is Variable { IsConst: true } ? " · Module-local constant" : " · Module-local variable");
                 html.Append("</p>");
                 if (entry.Comment is { } comment)
                     html.Append(Body(module, comment));
@@ -206,7 +206,7 @@ internal static class Documentation
                 Escape(parameter.Token.Text) + ": " + Type(checker.DeclaredTypes[parameter]))) + "): " + Type(checker.Functions[function].ReturnType),
             StructDeclaration structure => "struct " + Escape(structure.Token.Text),
             Field field => Escape(field.Token.Text) + ": " + Type(checker.DeclaredTypes[field]),
-            Variable variable => Escape(variable.Token.Text) + ": " + Type(checker.Variables[variable].Type),
+            Variable variable => (variable.IsConst ? "const " : "") + Escape(variable.Token.Text) + ": " + Type(checker.Variables[variable].Type),
             _ => throw new InvalidOperationException("Unsupported documentation declaration.")
         };
     }

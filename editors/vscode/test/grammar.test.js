@@ -41,6 +41,7 @@ test('comment markers in strings remain strings', () => {
 });
 
 test('keywords, types, scientific numbers and escapes receive correct scopes', () => {
+    assert.ok(scopesAt('const value := 1', 0).includes('storage.modifier.rukbat'));
     assert.ok(scopesAt('while ready {', 0).includes('keyword.control.rukbat'));
     assert.ok(scopesAt('value: int = 1e-3', 7).includes('storage.type.rukbat'));
     assert.ok(scopesAt('value: float = 1.2e-3', 16).includes('constant.numeric.rukbat'));

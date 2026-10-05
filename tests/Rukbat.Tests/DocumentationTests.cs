@@ -5,6 +5,19 @@ namespace Rukbat.Tests;
 [Trait("Category", "Unit")]
 public sealed class DocumentationTests : TestBase
 {
+    [Fact]
+    public void DocumentedConstantsKeepConstInTheirSignatureAndExamplesAreChecked()
+    {
+        using var project = new Project();
+        project.Write("main.rukbat", "/// Maximum retries.\nconst max_retries := 3\nconst hidden := 2\n");
+        Assert.Equal(0, Doc(project).Code);
+        var html = File.ReadAllText(project.PathFor("main.html"));
+        Assert.Contains("const max_retries: int", html);
+        Assert.Contains("Module-local constant", html);
+        Assert.DoesNotContain("hidden", html);
+        project.Write("main.rukbat", "//! ```rukbat check\n//! const value := 1\n//! value = 2\n//! ```\n");
+        Assert.Contains("RUK2011", Doc(project, "--check").Errors);
+    }
     private static (int Code, string Output, string Errors) Doc(Project project, params string[] arguments)
     {
         using var output = new StringWriter();

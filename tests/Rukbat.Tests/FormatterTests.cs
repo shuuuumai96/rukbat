@@ -30,6 +30,7 @@ public sealed class FormatterTests : TestBase
 
     public static TheoryData<string, string, string> SyntaxCases => new()
     {
+        { "const declarations", "const a:=1;const b:int=2;fn f():void{const items:int[]=[];print(items.length)}", "const a := 1\nconst b: int = 2\n\nfn f(): void {\n    const items: int[] = []\n    print(items.length)\n}\n" },
         { "datetime types", "import datetime;value:datetime.Timestamp?=null;zones:datetime.Zone[]=[datetime.utc]", "import datetime\n\nvalue: datetime.Timestamp? = null\nzones: datetime.Zone[] = [datetime.utc]\n" },
         { "imports", "import text as txt;import './missing.rukbat' as missing", "import text as txt\nimport './missing.rukbat' as missing\n" },
         { "declarations and assignments", "a:=1;b : int=2;a=\n b+1", "a := 1\nb: int = 2\na = b + 1\n" },
