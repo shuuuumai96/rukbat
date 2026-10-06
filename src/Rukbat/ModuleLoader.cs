@@ -23,10 +23,14 @@ internal sealed class ModuleLoader(Func<string, string>? readSource = null, bool
         var tokens = new Lexer(source).Scan();
         var blocks = collectSyntax ? new Dictionary<List<Statement>, (int Start, int End)>(ReferenceEqualityComparer.Instance) : null;
         var typeTokens = collectSyntax ? new Dictionary<ValueType, Token>(ReferenceEqualityComparer.Instance) : null;
-        var statements = source.Diagnostics.Count == 0 ? new Parser(source, tokens, blocks: blocks, typeTokens: typeTokens).Parse() : [];
+        var typeQualifiers = collectSyntax ? new Dictionary<ValueType, Token>(ReferenceEqualityComparer.Instance) : null;
+        var callSites = collectSyntax ? new Dictionary<List<Argument>, CallSyntax>(ReferenceEqualityComparer.Instance) : null;
+        var statements = source.Diagnostics.Count == 0 ? new Parser(source, tokens, blocks: blocks, typeTokens: typeTokens, typeQualifiers: typeQualifiers, callSites: callSites).Parse() : [];
         var module = new Module(source, $"m{modules.Count}", statements);
         module.Blocks = blocks;
         module.TypeTokens = typeTokens;
+        module.TypeQualifiers = typeQualifiers;
+        module.CallSites = callSites;
         modules.Add(path, module);
         // Distinguish an already loaded shared dependency from a cycle on the active traversal path.
         visiting.Add(module);

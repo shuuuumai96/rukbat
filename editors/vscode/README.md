@@ -1,7 +1,8 @@
 # Rukbat for VS Code
 
 Provides `.rukbat` highlighting, `//` commenting, brackets, snippets, compiler
-diagnostics, completion, hover, go to definition, and canonical formatting.
+diagnostics, completion, hover, go to definition, references, rename, signature
+help, and canonical formatting.
 
 The Windows x64 VSIX includes its matching self-contained compiler and LSP.
 Install it using **Extensions: Install from VSIX**, then open a saved `.rukbat`
@@ -29,7 +30,8 @@ files and creates an offline `.html` beside the active source, including reachab
 user imports. `//!` module comments and `///` declaration comments appear in hover;
 completion shows the first paragraph. Documentation problems are warnings and do
 not prevent ordinary compilation. Explicitly checked code examples are validated
-by the documentation command only. Use the `doc` and `module_doc` snippets to start
+by the documentation command and during reference/rename requests. Use the `doc`
+and `module_doc` snippets to start
 comments; see `docs/DOCUMENTATION.md` for syntax and link rules.
 
 Place `///` immediately above a function, then hover its name at either the
@@ -86,6 +88,19 @@ VSIX using the bundled compiler, set `RUKBAT_TEST_BUNDLED=1` and optionally
 `RUKBAT_TEST_EXTENSION` to its extracted `extension` directory.
 `RUKBAT_TEST_VSCODE` can select an existing VS Code executable without downloading it.
 
-References, rename, signature help, and inferred-type hints are not implemented
-in this initial version. The server currently supports file-backed documents;
-save a new untitled document before using language-server features.
+Use **Find All References** to locate uses in open and closed workspace files.
+Use **Rename Symbol** (F2) to update a user-defined name. Changes are checked in
+memory before VS Code applies them; files are not saved automatically. Rename
+includes bound documentation links and explicitly checked code examples, and
+refuses name capture, new compiler errors and required edits outside the workspace.
+Open the project folder before renaming exported functions, structs or fields.
+Standard APIs and import names, built-ins and `self` cannot be renamed. Ordinary
+strings/comments, unchecked examples and PowerShell text are left to the author.
+
+Typing `(` or `,` in a function call displays its signature and the current
+parameter, including incomplete calls. Closing an inner call returns help to the
+outer call. Functions, methods, standard APIs, built-ins and array `append` are
+supported. Struct-literal field hints and inferred-type hints are not implemented.
+See `docs/EDITOR.md` for workspace scope and rename's external-data limits.
+The server supports file-backed documents; save a new untitled document before
+using language-server features.

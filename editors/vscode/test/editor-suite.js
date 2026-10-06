@@ -45,6 +45,35 @@ async function run() {
     const definitions = await vscode.commands.executeCommand('vscode.executeDefinitionProvider', uri, new vscode.Position(1, 23));
     assert.equal((definitions[0].uri || definitions[0].targetUri).fsPath, path.join(root, 'helper.rukbat'));
 
+    // LSP references and rename use the unsaved buffer and standard editor Undo.
+    const references = await vscode.commands.executeCommand('vscode.executeReferenceProvider', uri, new vscode.Position(2, 7));
+    assert.equal(references.filter(location => location.uri.fsPath === uri.fsPath).length, 2);
+    const rename = await vscode.commands.executeCommand('vscode.executeDocumentRenameProvider', uri, new vscode.Position(1, 2), 'count');
+    assert.ok(rename && rename.size > 0, 'The client must negotiate versioned transactional rename.');
+    assert.ok(await vscode.workspace.applyEdit(rename));
+    assert.equal(document.getText().split('\n')[1], 'count: int = helper.number()');
+    assert.equal(document.getText().split('\n')[2], 'print(count)');
+    assert.ok(fs.readFileSync(uri.fsPath, 'utf8').includes('value: int'));
+    await vscode.commands.executeCommand('undo');
+    assert.equal(document.getText().split('\n')[1], 'value: int = helper.number()');
+    assert.equal(document.getText().split('\n')[2], 'print(value)');
+
+    const signatureUri = vscode.Uri.file(path.join(root, 'signature.rukbat'));
+    fs.writeFileSync(signatureUri.fsPath, 'fn add(a: int, b: int): int { return a + b }\nprint(add(1, \n');
+    const signatureDocument = await vscode.workspace.openTextDocument(signatureUri);
+    await vscode.window.showTextDocument(signatureDocument);
+    const signature = await until(async () => {
+        const result = await vscode.commands.executeCommand('vscode.executeSignatureHelpProvider', signatureUri, new vscode.Position(1, 13), ',');
+        return result?.signatures?.length ? result : null;
+    }, 'incomplete call signature help');
+    assert.equal(signature.signatures[0].label, 'fn add(a: int, b: int): int');
+    assert.equal(signature.activeParameter, 1);
+    // Leave the fixture valid so later project commands can check every source.
+    const finishSignature = new vscode.WorkspaceEdit();
+    finishSignature.replace(signatureUri, new vscode.Range(1, 0, 2, 0), 'print(add(1, 2))\n');
+    assert.ok(await vscode.workspace.applyEdit(finishSignature));
+    await vscode.window.showTextDocument(document);
+
     const docUri = vscode.Uri.file(path.join(root, 'hover.rukbat'));
     fs.writeFileSync(docUri.fsPath, '/// 二つの整数を加算します。\n///\n/// **注意:** 整数の範囲を超えるとErrorになります。\nfn add(a: int, b: int): int { return a + b }\nprint(add(1, 2))\n');
     const docDocument = await vscode.workspace.openTextDocument(docUri);
@@ -234,7 +263,7 @@ async function run() {
         if (vscode.debug.activeDebugSession?.type === 'rukbat') await vscode.debug.stopDebugging();
     }
 
-    console.log('Passed VS Code language features, tasks, saved debug launch, source breakpoints, variables, editor stepping, numeric/opaque inspection, and debug completion.');
+    console.log('Passed VS Code references, rename/Undo, incomplete-call signature help, language features, tasks, saved debug launch, source breakpoints, variables, editor stepping, numeric/opaque inspection, and debug completion.');
 }
 
 module.exports = { run };

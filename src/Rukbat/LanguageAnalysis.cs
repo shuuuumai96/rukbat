@@ -34,8 +34,12 @@ internal sealed class EditorText(string text)
 }
 
 internal sealed record EditorSymbol(string Name, string Detail, int Kind, string Documentation = "",
-    Module? Module = null, Token? Declaration = null, ValueType? Type = null)
+    Module? Module = null, Token? Declaration = null, ValueType? Type = null, bool IsFixed = false, bool IsModuleVariable = false)
 {
+    public EditorSymbolId Identity => Module is not null && Declaration is not null
+        ? new(EditorPaths.Key(Module.Source.Path), Declaration.Offset, Kind)
+        : new("<builtin:" + Detail.Split('(', '<', ':')[0].Trim() + ">", 0, Kind);
+    public bool CanRename => !IsFixed && Module is not null && Declaration is not null && !Module.Source.Path.StartsWith('<') && Name != "self";
     public object Completion => new
     {
         label = Name,
@@ -102,6 +106,8 @@ internal static class EditorCatalog
         new("powershell", "powershell<T>(command: string, ...): T", 3, "Explicit PowerShell escape hatch; validates the returned value against T."),
         new("Error", "struct Error { message: string }", 22, "The ordinary runtime error value.")
     ];
+    public static readonly IReadOnlyDictionary<string, EditorCallable> Signatures = Standard.Concat(Builtins)
+        .Select(EditorCallable.From).OfType<EditorCallable>().DistinctBy(s => s.Label).ToDictionary(s => s.Label, StringComparer.Ordinal);
     private static List<EditorSymbol> Load()
     {
         using var stream = typeof(EditorCatalog).Assembly.GetManifestResourceStream("Rukbat.StandardLibrary.md")!;
@@ -124,9 +130,8 @@ internal static class EditorCatalog
     }
 }
 
-internal sealed class LanguageAnalysis
+internal sealed partial class LanguageAnalysis
 {
-    private sealed record Occurrence(Module Module, Token Token, EditorSymbol Symbol);
     private sealed class Scope(Module module, int start, int end, Scope? parent = null, bool function = false)
     {
         public Module Module { get; } = module;
@@ -143,11 +148,14 @@ internal sealed class LanguageAnalysis
         }
     }
     private readonly Dictionary<object, EditorSymbol> symbols = new(ReferenceEqualityComparer.Instance);
-    private readonly List<Occurrence> occurrences = [];
+    private readonly List<EditorOccurrence> occurrences = [];
+    public IReadOnlyList<EditorOccurrence> Occurrences => occurrences;
     private readonly List<Scope> scopes = [];
     private readonly TypeChecker? checker;
     private readonly DocumentationCatalog documentation;
     public IReadOnlyList<Diagnostic> DocumentationDiagnostics { get; }
+    public List<Diagnostic> ExampleDiagnostics { get; } = [];
+    public HashSet<string> ReferencedPaths { get; } = new(EditorPaths.Comparer);
     public List<Module> Modules
     {
         get;
@@ -158,10 +166,11 @@ internal sealed class LanguageAnalysis
     }
     public Module Entry => Modules[^1];
 
-    public LanguageAnalysis(string text, string path, Func<string, string> readSource)
+    public LanguageAnalysis(string text, string path, Func<string, string> readSource, bool includeExamples = false)
     {
         var program = Compiler.CheckCore(text, path, true, readSource, collectSyntax: true);
         Modules = program.Modules!;
+        ReferencedPaths.UnionWith(Modules.Where(m => m.StandardName is null).Select(m => m.Source.Path));
         checker = program.Checker;
         documentation = new DocumentationCatalog(Modules, Path.GetDirectoryName(path)!);
         var documentationDiagnostics = new List<Diagnostic>();
@@ -195,13 +204,21 @@ internal sealed class LanguageAnalysis
                 foreach (var import in module.Statements.OfType<Import>())
                 {
                     var symbol = new EditorSymbol(import.Name, $"import {import.Path}", 9,
-                        module.Imports[import.Name].Documentation.Overview?.Markdown ?? "", Module: module, Declaration: import.Token);
+                        module.Imports[import.Name].Documentation.Overview?.Markdown ?? "", Module: module, Declaration: import.NameToken, IsFixed: import.IsStandard);
                     root.Symbols.Add(symbol);
-                    Add(module, import.Token, symbol);
+                    Add(module, import.NameToken, symbol);
+                    // Preserve the existing module hover on the import keyword, but never edit it.
+                    occurrences.Add(new(module, import.Token, symbol, Searchable: false));
                 }
                 WalkStatements(module.Statements.Where(s => s is not Function and not StructDeclaration).ToList(), root);
                 WalkStatements(module.Statements.Where(s => s is Function or StructDeclaration).ToList(), root);
                 AddTypeReferences(module);
+            }
+            if (program.Diagnostics.Count == 0)
+            {
+                AddDocumentationReferences();
+                if (includeExamples)
+                    AddCheckedExamples(readSource);
             }
         }
         Diagnostics = program.Diagnostics;
@@ -230,7 +247,7 @@ internal sealed class LanguageAnalysis
         {
             // The module is attached when its declaration is visited below.
             symbols[variable] = new(variable.Name, $"{(variable.IsConst ? "const " : "")}{variable.Name}: {variable.Type}", variable.IsConst ? 21 : 6,
-                Declaration: node.Token, Type: variable.Type);
+                Declaration: node.Token, Type: variable.Type, IsModuleVariable: variable.IsGlobal);
         }
     }
 
@@ -431,6 +448,12 @@ internal sealed class LanguageAnalysis
             return;
         foreach (var (syntaxType, token) in module.TypeTokens)
         {
+            if (module.TypeQualifiers?.TryGetValue(syntaxType, out var qualifier) == true)
+            {
+                var import = scopes.First(s => s.Module == module && s.Parent is null).Symbols.FirstOrDefault(s => s.Kind == 9 && s.Name == qualifier.Text);
+                if (import is not null)
+                    Add(module, qualifier, import);
+            }
             // Match the actual parsed type node to its checked type, preserving module identity.
             var bound = checker!.DeclaredTypes.FirstOrDefault(p => ReferenceEquals(syntaxType, p.Key switch
             {
@@ -456,7 +479,7 @@ internal sealed class LanguageAnalysis
         }
     }
 
-    private Occurrence? At(int offset) => occurrences.FirstOrDefault(o => o.Module == Entry && offset >= o.Token.Offset && offset < o.Token.Offset + o.Token.Text.Length);
+    internal EditorOccurrence? At(int offset) => occurrences.FirstOrDefault(o => o.Module == Entry && offset >= o.Token.Offset && offset < o.Token.Offset + o.Token.Text.Length);
     public object? Hover(int offset)
     {
         var found = At(offset);

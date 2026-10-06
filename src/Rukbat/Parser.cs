@@ -5,7 +5,9 @@ namespace Rukbat;
 // Parse statements by recursive descent and binary expressions by precedence climbing.
 internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax? formatting = null,
     Dictionary<List<Statement>, (int Start, int End)>? blocks = null,
-    Dictionary<ValueType, Token>? typeTokens = null)
+    Dictionary<ValueType, Token>? typeTokens = null,
+    Dictionary<ValueType, Token>? typeQualifiers = null,
+    Dictionary<List<Argument>, CallSyntax>? callSites = null)
 {
     private sealed class ParseFailure : Exception;
     private int position;
@@ -68,7 +70,7 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
         return Take();
     }
 
-    private static bool IsReservedWord(string text) => text is
+    internal static bool IsReservedWord(string text) => text is
         "fn" or "function" or "func" or "struct" or "self" or "class" or
         "return" or "if" or "else" or "import" or "true" or "false" or
         "powershell" or "print" or "eprint" or "args" or "exit" or "for" or "in" or "break" or "continue" or
@@ -130,8 +132,10 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
     {
         var token = Identifier();
         var name = token.Text;
+        Token? qualifier = null;
         if (Match("."))
         {
+            qualifier = token;
             token = Identifier();
             name += "." + token.Text;
         }
@@ -151,6 +155,8 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
             }
         }
         typeTokens?.Add(type, token);
+        if (qualifier is not null)
+            typeQualifiers?.Add(type, qualifier);
         return type;
     }
 
@@ -341,11 +347,12 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
         {
             Take();
             Expect("as");
-            return new Import(token, Identifier().Text, path);
+            var aliasToken = Identifier();
+            return new Import(token, aliasToken.Text, path) { NameToken = aliasToken };
         }
-        var name = Identifier().Text;
-        var alias = Match("as") ? Identifier().Text : name;
-        return new Import(token, alias, name, true);
+        var nameToken = Identifier();
+        var alias = Match("as") ? Identifier() : nameToken;
+        return new Import(token, alias.Text, nameToken.Text, true) { NameToken = alias };
     }
 
     private static int Precedence(string op) => op switch
@@ -543,31 +550,41 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
 
     private List<Argument> Arguments(string open, string close)
     {
-        Expect(open);
-        NewLines();
+        var opening = Expect(open);
         var arguments = new List<Argument>();
-        if (Current.Text != close)
+        var separators = callSites is null ? null : new List<Token>();
+        Token? closing = null;
+        try
         {
-            do
+            NewLines();
+            if (Current.Text != close)
             {
-                NewLines();
-                var token = Current;
-                string? name = null;
-                if (Next.Text == ":")
+                do
                 {
-                    name = Identifier().Text;
-                    Expect(":");
-                }
-                arguments.Add(new(token, name, Expression()));
-                NewLines();
-            } while (Match(","));
-        }
+                    NewLines();
+                    var token = Current;
+                    string? name = null;
+                    if (Next.Text == ":")
+                    {
+                        name = Identifier().Text;
+                        Expect(":");
+                    }
+                    arguments.Add(new(token, name, Expression()));
+                    NewLines();
+                    if (Current.Text == ",")
+                        separators?.Add(Current);
+                } while (Match(","));
+            }
 
-        if (close == "}")
-        {
-            formatting?.ExpressionClosings.Add(Current.Offset);
+            if (close == "}")
+                formatting?.ExpressionClosings.Add(Current.Offset);
+            closing = Expect(close);
+            return arguments;
         }
-        Expect(close);
-        return arguments;
+        finally
+        {
+            // Retain syntax-only call boundaries even when an editor argument is unfinished.
+            callSites?.Add(arguments, new(opening, closing, separators!));
+        }
     }
 }

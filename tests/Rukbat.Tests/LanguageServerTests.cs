@@ -7,7 +7,7 @@ using Rukbat;
 namespace Rukbat.Tests;
 
 [Trait("Category", "Unit")]
-public sealed class LanguageServerTests : TestBase
+public sealed partial class LanguageServerTests : TestBase
 {
     private static object Request(object id, string method, object? parameters = null) => new { jsonrpc = "2.0", id, method, @params = parameters };
     private static object Notice(string method, object parameters) => new { jsonrpc = "2.0", method, @params = parameters };
@@ -158,7 +158,7 @@ public sealed class LanguageServerTests : TestBase
         Assert.Equal(1, capabilities.GetProperty("textDocumentSync").GetProperty("change").GetInt32());
         foreach (var name in new[] { "hoverProvider", "definitionProvider", "documentFormattingProvider" })
             Assert.True(capabilities.GetProperty(name).GetBoolean());
-        Assert.False(capabilities.TryGetProperty("renameProvider", out _));
+        Assert.False(capabilities.GetProperty("renameProvider").GetBoolean());
     }
 
     [Theory]

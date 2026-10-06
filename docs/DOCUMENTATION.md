@@ -106,7 +106,8 @@ The language server uses the same attached comments for full hover descriptions
 and first-paragraph completion summaries, including unsaved imported sources.
 It reports misplaced comments and unresolved links as warnings; it suppresses
 link validation while ordinary compiler errors prevent reliable resolution.
-Checked examples are validated only by `rukbat doc`, not during editor analysis.
+Checked examples are validated by `rukbat doc` and during reference/rename requests;
+ordinary editor diagnostics do not check them.
 Parsed declaration comments can still be hovered when a broken import prevents
 binding. References require successful binding.
 

@@ -44,6 +44,7 @@ internal sealed class NullValue
     private NullValue() { }
 }
 internal sealed record Token(string Text, int Offset, string? StringValue = null);
+internal sealed record CallSyntax(Token Opening, Token? Closing, IReadOnlyList<Token> Separators);
 
 // Optional syntax facts for formatting. The parser remains the single authority
 // for distinguishing statement boundaries from expression continuations.
@@ -74,7 +75,10 @@ internal sealed class FormattingSyntax
 internal abstract record Node(Token Token);
 internal abstract record Statement(Token Token) : Node(Token);
 internal abstract record Expression(Token Token) : Node(Token);
-internal sealed record Import(Token Token, string Name, string Path, bool IsStandard = false) : Statement(Token);
+internal sealed record Import(Token Token, string Name, string Path, bool IsStandard = false) : Statement(Token)
+{
+    public Token NameToken { get; init; } = Token;
+}
 internal sealed record Parameter(Token Token, ValueType Type) : Node(Token);
 internal sealed record Function(
     Token Token,
@@ -147,6 +151,8 @@ internal sealed class Module(Source source, string id, List<Statement> statement
     public List<Statement> Statements { get; } = statements;
     public Dictionary<List<Statement>, (int Start, int End)>? Blocks { get; set; }
     public Dictionary<ValueType, Token>? TypeTokens { get; set; }
+    public Dictionary<ValueType, Token>? TypeQualifiers { get; set; }
+    public Dictionary<List<Argument>, CallSyntax>? CallSites { get; set; }
     public Dictionary<string, Module> Imports { get; } = new(StringComparer.Ordinal);
     public Dictionary<string, StructSymbol> Structs { get; } = new(StringComparer.Ordinal);
     public Dictionary<string, Function> Functions { get; } = new(StringComparer.Ordinal);

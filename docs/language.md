@@ -258,7 +258,7 @@ Struct literals use indented braces; their closing brace stays attached to any f
 Content-Length framing and UTF-16 positions. Standard output contains only protocol
 messages; server logs use standard error. It provides compiler diagnostics,
 scope-aware completion, hover signatures/types and standard-API documentation,
-go to definition, and canonical document formatting. Analysis uses unsaved buffers
+go to definition, references, checked rename, signature help, and canonical document formatting. Analysis uses unsaved buffers
 for both the entry and any open imported files. Open documents are rechecked when
 documents change, are saved/closed, or watched files change.
 
@@ -271,8 +271,13 @@ Only `file:` documents are supported. The first version advertises full-document
 sync and also accepts ordered incremental edits. Completion may repair a missing
 member and unclosed delimiters in a temporary analysis copy; diagnostics always
 come from the real document. Syntax errors can limit available semantic features.
-Tree-sitter, references, rename, signature help, and inferred-type hints remain
-unimplemented.
+References include closed callers in the workspace and bound documentation links
+and checked examples. Rename validates the proposed source in memory and rejects
+changes to reference bindings, errors, edits outside the workspace, and stale
+source snapshots. It requires versioned transactional text edits from the client.
+Signature help supports unfinished calls without altering ordinary diagnostics.
+See [Editor features](EDITOR.md) for scope, failure behavior, and external-data limits.
+Tree-sitter and inferred-type hints remain unimplemented.
 
 The VS Code extension also provides source-level debugging through Debug Adapter
 Protocol. `rukbat build input.rukbat --debug [--output session.ps1]` emits an

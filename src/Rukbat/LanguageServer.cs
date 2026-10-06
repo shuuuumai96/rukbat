@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 namespace Rukbat;
 
 // A stdio LSP server. It checks source, but never generates or executes PowerShell.
-public sealed class LanguageServer
+public sealed partial class LanguageServer
 {
     private const int MaximumHeaderBytes = 8192;
     private const int MaximumMessageBytes = 16 * 1024 * 1024;
@@ -102,6 +102,7 @@ public sealed class LanguageServer
                                 break;
                             }
                             initialized = true;
+                            ConfigureWorkspace(parameters);
                             Result(id, new
                             {
                                 capabilities = new
@@ -122,6 +123,10 @@ public sealed class LanguageServer
                                     },
                                     hoverProvider = true,
                                     definitionProvider = true,
+                                    referencesProvider = true,
+                                    renameProvider = RenameCapability(),
+                                    signatureHelpProvider = SignatureCapability(),
+                                    workspace = new { workspaceFolders = new { supported = true, changeNotifications = true } },
                                     documentFormattingProvider = true
                                 },
                                 serverInfo = new
@@ -152,10 +157,17 @@ public sealed class LanguageServer
                         case "workspace/didChangeWatchedFiles":
                             Recheck();
                             break;
+                        case "workspace/didChangeWorkspaceFolders":
+                            ChangeWorkspace(parameters);
+                            break;
                         case "textDocument/hover":
                         case "textDocument/definition":
                         case "textDocument/completion":
                         case "textDocument/formatting":
+                        case "textDocument/references":
+                        case "textDocument/prepareRename":
+                        case "textDocument/rename":
+                        case "textDocument/signatureHelp":
                             Result(id, Feature(method, parameters));
                             break;
                         default:
@@ -163,6 +175,11 @@ public sealed class LanguageServer
                                 Error(id, MethodNotFound, $"Unknown method '{method}'.");
                             break;
                     }
+                }
+                catch (EditorRequestFailure error)
+                {
+                    if (request)
+                        Error(id, error.Code, error.Message);
                 }
                 catch (Exception error) when (error is ArgumentException or KeyNotFoundException or JsonException or InvalidOperationException or FormatException)
                 {
@@ -299,6 +316,10 @@ public sealed class LanguageServer
         }
         var offset = map.Offset(Position(parameters.GetProperty("position")));
         var analysis = analyses[path];
+        if (method is "textDocument/references" or "textDocument/prepareRename" or "textDocument/rename")
+            return ReferenceFeature(method, parameters, path, offset);
+        if (method == "textDocument/signatureHelp")
+            return SignatureHelp.Get(document.Text, path, offset, ReadSource, signatureLabelOffsets, signatureMarkdown);
         if (method == "textDocument/hover")
             return analysis.Hover(offset);
         if (method == "textDocument/definition")
