@@ -41,6 +41,7 @@ not to compare the identity of filesystem entries.
 | Read or replace text | `fs.read_text`, `fs.write_text` | Encoding is required. A write replaces a file; it does not append or create parent directories. |
 | List matching files | `fs.list_files`, `fs.list_files_recursive` | Only files are returned. `_recursive` includes subdirectories. |
 | Check the target kind | `fs.is_file`, `fs.is_dir` | Missing or inaccessible entries return `false`. These checks do not guarantee a later operation will succeed. |
+| Read file or directory metadata | `fs.stat` | Returns kind, file byte size, and UTC last-write time. Directory size is `null`; missing/inaccessible entries and final-entry reparse points cause Error. |
 | Create a directory and its parents | `fs.create_dir_all` | An existing directory succeeds; a file at that path is an Error. |
 | Copy or move one file | `fs.copy_file`, `fs.move_file` | Destination is the complete file path, not a directory. An existing destination is never overwritten; parents must exist. |
 | Remove one file | `fs.remove_file` | A directory is an Error. |
@@ -69,8 +70,9 @@ for source in fs.list_files("input", "*.csv") {
 ```
 
 Here `input` is relative to the entry working directory, while `output` is beside the deployed script.
-The current filesystem API does not provide directory listing, directory copy/move, raw byte I/O,
-or file metadata. Those operations are not implied by similarly named file functions.
+Use `fs.stat` for the file and directory metadata specified in the `fs` section below.
+The current filesystem API does not provide subdirectory enumeration, directory copy/move, or raw byte I/O.
+Those operations are not implied by similarly named file functions.
 
 ## Admission criteria
 
@@ -414,6 +416,7 @@ the timestamp. Missing/inaccessible entries and final-entry reparse points (incl
 and junctions) raise Error. Parent paths retain normal filesystem resolution. Metadata can
 change during or after the call; this is not an atomic snapshot, file lock, identity check,
 or guarantee about a subsequent operation. Timestamp precision depends on the filesystem.
+Because `modified` is a `datetime.Timestamp`, `fs.Info` cannot be converted directly to/from JSON. To export metadata, copy the fields into a separate struct and convert `modified` with `datetime.stringify`.
 
 | Signature | Meaning | Failure |
 |---|---|---|
@@ -716,7 +719,10 @@ whitespace, key order, and escape spelling are not retained.
 ### Reading a known type
 
 `T` may be `int`, `float`, `string`, `bool`, `json.Value`, a struct, an array of supported values, or
-a nullable form of a supported type. `csv.Row`, `encoding.Encoding`, and containers containing either are not supported.
+a nullable form of a supported type. `csv.Row`, `cli.Result`, `encoding.Encoding`, `hash.Algorithm`,
+all `datetime` types, `http.Method`, and `http.Body` are not supported. This restriction also applies
+when these types occur in arrays, nullable values, or struct fields, including `fs.Info.modified`.
+The same restriction applies to values passed to `stringify` and the JSON update operations.
 `<T>` on `parse` and `as` is a dedicated result type like `powershell<T>`; it does not introduce
 general-purpose generics.
 
