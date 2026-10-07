@@ -1,3 +1,5 @@
+import cli
+
 struct Options {
     directory: string
     pattern: string
@@ -5,99 +7,44 @@ struct Options {
     help: bool
 }
 
+fn definition(): cli.Command {
+    name := ".\\main.ps1"
+    description := "List matching files as JSON."
+    command := cli.command(name, description)
+    command.arguments = [cli.argument("directory", "Directory to search")]
+    pattern := cli.option("pattern", "Filename pattern")
+    pattern.default_value = "*"
+    output := cli.option("output", "Output file; omitted means stdout")
+    output.short_name = "o"
+    output.value_name = "FILE"
+    command.options = [pattern, output]
+    return command
+}
+
 fn usage(): string {
-    return "Usage: rukbat run examples/file-browser/main.rukbat -- <directory> [--pattern <glob>] [--output <file>]\nHelp: rukbat run examples/file-browser/main.rukbat -- --help"
+    deployed := cli.help(definition())
+    development := "\n\nRukbat (from repository root):\n  .\\rukbat.cmd run examples/file-browser/main.rukbat -- [options] DIRECTORY"
+    deployment := "\n\nGenerated PowerShell: run the Usage above from the directory containing main.ps1."
+    editor := "\n\nVS Code: Rukbat: Run File\n  Enter program arguments as a JSON array:\n  [\"C:/Windows\", \"--pattern\", \"*.exe\"]\n  Help: [\"--help\"]"
+    return deployed + development + deployment + editor
 }
 
 fn parse(arguments: string[]): Options {
-    if arguments.length == 0 {
-        throw Error {
-            message: usage()
+    parsed := cli.parse(definition(), arguments)
+
+    if cli.help_requested(parsed) {
+        return Options {
+            directory: "", pattern: "*", output: "", help: true
         }
     }
 
-    options: Options = Options {
-        directory: arguments[0], pattern: "*", output: "", help: false
+    output := ""
+
+    if cli.has(parsed, "output") {
+        output = cli.get(parsed, "output")
     }
 
-    if arguments.length == 1 && arguments[0] == "--help" {
-        options.help = true
-        return options
+    return Options {
+        directory: cli.get(parsed, "directory"), pattern: cli.get(parsed, "pattern"), output: output, help: false
     }
-
-    if options.directory == "" {
-        throw Error {
-            message: "Please specify a directory"
-        }
-    }
-
-    first: bool = true
-    pending: string = ""
-    pattern_seen: bool = false
-    output_seen: bool = false
-
-    for argument in arguments {
-        if first {
-            first = false
-            continue
-        }
-
-        if pending == "--pattern" {
-            if argument == "" {
-                throw Error {
-                    message: "--pattern requires a non-empty pattern"
-                }
-            }
-
-            options.pattern = argument
-            pending = ""
-            continue
-        }
-
-        if pending == "--output" {
-            if argument == "" {
-                throw Error {
-                    message: "--output requires a non-empty output path"
-                }
-            }
-
-            options.output = argument
-            pending = ""
-            continue
-        }
-
-        if argument == "--pattern" {
-            if pattern_seen {
-                throw Error {
-                    message: "--pattern may only be specified once"
-                }
-            }
-
-            pattern_seen = true
-            pending = argument
-        } else {
-            if argument == "--output" {
-                if output_seen {
-                    throw Error {
-                        message: "--output may only be specified once"
-                    }
-                }
-
-                output_seen = true
-                pending = argument
-            } else {
-                throw Error {
-                    message: "Unknown option or extra argument: " + argument + "\n" + usage()
-                }
-            }
-        }
-    }
-
-    if pending != "" {
-        throw Error {
-            message: pending + " requires a value"
-        }
-    }
-
-    return options
 }

@@ -86,15 +86,15 @@ public class FileBrowserTests : TestBase
     [Trait("Category", "Runtime")]
     [Theory]
     [InlineData(new string[] { }, "Usage:")]
-    [InlineData(new[] { "" }, "Please specify a directory")]
-    [InlineData(new[] { ".", "--pattern" }, "--pattern requires a value")]
-    [InlineData(new[] { ".", "--output" }, "--output requires a value")]
-    [InlineData(new[] { ".", "--pattern", "" }, "non-empty pattern")]
-    [InlineData(new[] { ".", "--output", "" }, "non-empty output path")]
+    [InlineData(new[] { "" }, "Argument 'directory' requires a non-empty value")]
+    [InlineData(new[] { ".", "--pattern" }, "Option '--pattern' requires a value")]
+    [InlineData(new[] { ".", "--output" }, "Option '--output' requires a value")]
+    [InlineData(new[] { ".", "--pattern", "" }, "Option '--pattern' requires a non-empty value")]
+    [InlineData(new[] { ".", "--output", "" }, "Option '--output' requires a non-empty value")]
     [InlineData(new[] { ".", "--pattern", "*", "--pattern", "*.txt" }, "only be specified once")]
     [InlineData(new[] { ".", "--output", "one.json", "--output", "two.json" }, "only be specified once")]
     [InlineData(new[] { ".", "--unknown" }, "Unknown option")]
-    [InlineData(new[] { ".", "extra" }, "extra argument")]
+    [InlineData(new[] { ".", "extra" }, "Too many positional arguments")]
     [InlineData(new[] { "missing-directory" }, "Cannot access directory")]
     public async Task FileBrowserReportsInputFailuresOnStderr(string[] arguments, string message)
     {
@@ -114,10 +114,41 @@ public class FileBrowserTests : TestBase
         CopyFileBrowser(project);
         var result = await RunCli(project, ["run", project.PathFor(FileBrowserEntry), "--", "--help"]);
         Assert.Equal(0, result.ExitCode);
-        Assert.Contains("Usage:", result.Output);
+        AssertBrowserHelp(result.Output);
         Assert.Contains("--pattern", result.Output);
         Assert.Contains("--output", result.Output);
         Assert.Equal("", result.Error);
+    }
+
+    private static void AssertBrowserHelp(string output)
+    {
+        Assert.Contains(@"Usage: .\main.ps1 [options] DIRECTORY", output);
+        Assert.Contains("Rukbat (from repository root):", output);
+        Assert.Contains(@".\rukbat.cmd run examples/file-browser/main.rukbat -- [options] DIRECTORY", output);
+        Assert.Contains("directory containing main.ps1", output);
+        Assert.Contains("VS Code: Rukbat: Run File", output);
+        Assert.Contains("[\"C:/Windows\", \"--pattern\", \"*.exe\"]", output);
+        Assert.Contains("Help: [\"--help\"]", output);
+    }
+
+    [Trait("Category", "Runtime")]
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task StandaloneHelpRetainsAllExecutionGuidanceWithoutSources(bool windowsPowerShell)
+    {
+        using var project = new Project();
+        CopyFileBrowser(project);
+        var compiled = new Compiler().CompileFile(project.PathFor(FileBrowserEntry));
+        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+        foreach (var file in Directory.EnumerateFiles(project.DirectoryPath, "*.rukbat", SearchOption.AllDirectories))
+            File.Delete(file);
+        var result = windowsPowerShell
+            ? await project.RunOutputWithWindowsPowerShell(compiled.Output!, "--help")
+            : await project.RunOutput(compiled.Output!, "--help");
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("", result.Error);
+        AssertBrowserHelp(result.Output);
     }
 
     [Trait("Category", "Runtime")]

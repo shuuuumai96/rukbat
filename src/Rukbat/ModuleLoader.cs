@@ -4,7 +4,7 @@ internal sealed class ModuleLoader(Func<string, string>? readSource = null, bool
 {
     private static readonly HashSet<string> StandardModules = new(StringComparer.Ordinal)
     {
-        "fs", "path", "json", "csv", "env", "process", "text", "test", "encoding", "math", "datetime", "array", "zip", "hash", "http"
+        "fs", "path", "json", "csv", "env", "process", "text", "test", "encoding", "math", "datetime", "array", "zip", "hash", "http", "cli"
     };
     private readonly Dictionary<string, Module> modules = new(
         OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
@@ -58,6 +58,7 @@ internal sealed class ModuleLoader(Func<string, string>? readSource = null, bool
                 {
                     var standardText = import.Path switch
                     {
+                        "cli" => CliDefinitions.Structures,
                         "http" => HttpValues.Structures,
                         "process" => "struct Result { exit_code: int; stdout: string; stderr: string }; " +
                             "struct EnvironmentVariable { name: string; value: string? }; " +

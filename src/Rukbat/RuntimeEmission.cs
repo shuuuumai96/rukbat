@@ -208,6 +208,7 @@ internal sealed partial class Emitter
         }
 
         if (type.IsCsvRow) return "@{kind = 'csv_row'; name = 'csv.Row'}";
+        if (type.IsCliResult) return "@{kind = 'cli_result'; name = 'cli.Result'}";
         if (type.IsJsonValue)
         {
             return "@{kind = 'json'; name = 'json.Value'}";

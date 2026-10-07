@@ -148,7 +148,7 @@ without execution. See the [documentation guide](docs/DOCUMENTATION.md).
 - Prefer consistent syntax that is easy to read and write.
 - Line comments use `//`. Comment markers inside strings are literal text.
 - Named imports such as `import fs` load standard modules bundled with the compiler.
-- Standard modules are `fs`, `path`, `json`, `csv`, `env`, `process`, `http`, `text`, `array`, `math`, `datetime`, `encoding`, `zip`, `hash`, and `test`. Their APIs and external-data contracts are defined in the [standard library specification](docs/STDLIB.md).
+- Standard modules are `fs`, `path`, `json`, `csv`, `env`, `process`, `http`, `text`, `array`, `math`, `datetime`, `encoding`, `zip`, `hash`, `cli`, and `test`. Their APIs and external-data contracts are defined in the [standard library specification](docs/STDLIB.md). See [Command-line programs](docs/CLI.md) for argument definitions and generated help.
 - Use `fs` for actual file and directory operations, and `path` for constructing, decomposing, and comparing path values. For example, `fs.list_files` lists files, `fs.create_dir_all` creates directories and their parents, and `path.parent` computes a parent path without checking existence. See the [task guide](docs/STDLIB.md#choosing-filesystem-and-path-operations).
 - `exit(code)` terminates the process with a nonnegative `int` exit code. `eprint(text)` writes a line to standard error.
 - `text.from_int/from_float/from_bool` and `text.parse_int/parse_float/parse_bool` provide explicit, culture-independent string conversion and parsing.

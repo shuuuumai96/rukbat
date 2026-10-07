@@ -32,7 +32,7 @@ internal sealed partial class Emitter
         debugMap.Types[id] = new(type.Name,
             type.Element is { } element ? DebugType(element) : null,
             type.NullableElement is { } nullable ? DebugType(nullable) : null,
-            type.Struct is { IsCsvRow: false, IsJsonValue: false } structure
+            type.Struct is { IsCsvRow: false, IsJsonValue: false, IsCliResult: false } structure
                 ? structure.Fields.Select(pair => new DebugField(pair.Key, pair.Value.Key, DebugType(pair.Value.Type))).ToArray()
                 : null);
         return id;

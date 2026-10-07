@@ -37,6 +37,7 @@ internal sealed partial class Emitter(TypeChecker checker, DebugMap? debugMap = 
         }
         if (type.IsJsonValue) return "RukbatJsonValue";
         if (type.IsCsvRow) return "RukbatCsvRow";
+        if (type.IsCliResult) return "object";
         if (type == ValueType.Encoding || type == HashValues.Algorithm) return "string";
         if (type == HttpValues.Method) return "string";
         if (type == HttpValues.Body) return "RukbatHttpBody";
@@ -90,7 +91,7 @@ internal sealed partial class Emitter(TypeChecker checker, DebugMap? debugMap = 
             EmitJsonRuntime();
         }
         var standardModules = modules
-            .Where(current => current.StandardName is "fs" or "path" or "csv" or "json" or "env" or "process" or "text" or "encoding" or "math" or "datetime" or "array" or "zip" or "hash" or "http")
+            .Where(current => current.StandardName is "fs" or "path" or "csv" or "json" or "env" or "process" or "text" or "encoding" or "math" or "datetime" or "array" or "zip" or "hash" or "http" or "cli")
             .Select(current => current.StandardName!)
             .ToHashSet(StringComparer.Ordinal);
         if (standardModules.Count != 0)
@@ -461,6 +462,8 @@ internal sealed partial class Emitter(TypeChecker checker, DebugMap? debugMap = 
                 return $"(& $script:__rukbat_json_encode ({Expr(call.Arguments[0].Value)}) {Schema(checker.Types[call.Arguments[0].Value])})";
             }
             var argumentExpressions = call.Arguments.Select(argument => Expr(argument.Value)).ToArray();
+            if (standardCall.StartsWith("cli.", StringComparison.Ordinal))
+                return CliCall(call, standardCall);
             if (standardCall is "zip.list" or "zip.extract")
             {
                 var index = call.Arguments.Count - 1;

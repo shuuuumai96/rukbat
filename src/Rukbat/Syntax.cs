@@ -34,6 +34,7 @@ internal sealed record ValueType(
     public bool IsNullable => NullableElement is not null;
     public bool IsCsvRow => Struct?.IsCsvRow == true;
     public bool IsJsonValue => Struct?.IsJsonValue == true;
+    public bool IsCliResult => Struct?.IsCliResult == true;
     public ValueType NonNullable => NullableElement ?? this;
     public bool IsComposite => NonNullable.Struct is not null || NonNullable.Element is not null;
     public override string ToString() => Name;

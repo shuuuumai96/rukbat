@@ -14,6 +14,8 @@ Both reject extra arguments. Packaging and probe scope are defined in DISTRIBUTI
 `rukbat build input.rukbat` writes `input.ps1`. `rukbat run input.rukbat -- arguments...` builds and executes it with Windows PowerShell. `rukbat check input.rukbat` runs module loading, name resolution, and type checking without generating PowerShell. `rukbat fmt input.rukbat` rewrites one syntactically valid source file into the canonical layout without resolving its imports or type-checking it. `rukbat fmt directory` recursively formats `.rukbat` files under that directory; `rukbat fmt .` selects the current directory. Directory traversal excludes `.git`, `bin`, `obj`, and symbolic links/junctions, and recognizes the `.rukbat` extension case-insensitively. An empty directory succeeds. Source syntax errors leave the affected file unchanged; syntax and per-file I/O errors are reported while processing continues with other files. Successfully formatted files remain changed even when another file fails. `build`, `check`, and `fmt` do not accept program arguments. Compilation and formatting syntax errors exit with code 1; command-line and I/O failures exit with code 2, taking priority when directory formatting encounters both kinds of error. Compilation failure leaves an existing output unchanged. If compilation succeeds and the generated program starts, `rukbat run` exits with the program's exit code. If the PowerShell process fails to launch, `rukbat run` exits with code 2.
 
 `args(): string[]` returns the arguments supplied to the entry program. The compiler command, source path, and `--` separator are excluded.
+`import cli` provides explicit definitions, parsing and help for program arguments without new
+syntax or automatic output/exit. Its APIs are defined in STDLIB.md and illustrated in [CLI.md](CLI.md).
 
 `exit(code: int): void` terminates the entire program with the supplied code, including when called
 inside a function or imported module. Codes from 0 through 2147483647 are accepted.
@@ -234,7 +236,7 @@ Local imports remain compile-time paths relative to the importing source file. T
 `powershell<T>(command, ...)` is the explicit escape hatch for a PowerShell operation not covered by Rukbat. It checks the returned value against `T`; a scalar result requires exactly one value and `T[]` collects values into an array. PowerShell failures and incompatible results are runtime errors.
 
 PowerShell arguments and result types cannot contain opaque standard-library values such as
-`json.Value`, `csv.Row`, `encoding.Encoding`, `hash.Algorithm`, datetime types or HTTP Body/Method.
+`json.Value`, `csv.Row`, `cli.Result`, `encoding.Encoding`, `hash.Algorithm`, datetime types or HTTP Body/Method.
 Request a string and use `json.parse` to read a JSON document from an external command.
 For encodings, pass `encoding.name(value)` and parse returned text with `encoding.parse`.
 

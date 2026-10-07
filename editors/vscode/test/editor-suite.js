@@ -72,6 +72,29 @@ async function run() {
     const finishSignature = new vscode.WorkspaceEdit();
     finishSignature.replace(signatureUri, new vscode.Range(1, 0, 2, 0), 'print(add(1, 2))\n');
     assert.ok(await vscode.workspace.applyEdit(finishSignature));
+    const cliUri = vscode.Uri.file(path.join(root, 'cli-options.rukbat'));
+    const cliSource = 'import cli\ncommand := cli.command("demo.ps1", "Demo")\noption := cli.option("pattern", "Pattern")\noption.default_value = "*"\ncommand.options = [option]\n';
+    fs.writeFileSync(cliUri.fsPath, cliSource);
+    const cliDocument = await vscode.workspace.openTextDocument(cliUri);
+    await vscode.window.showTextDocument(cliDocument);
+    await until(async () => {
+        const completion = await vscode.commands.executeCommand('vscode.executeCompletionItemProvider', cliUri, new vscode.Position(2, 14));
+        return completion?.items?.some(item => item.label === 'parse');
+    }, 'cli module completion');
+    await until(async () => {
+        const hover = await vscode.commands.executeCommand('vscode.executeHoverProvider', cliUri, new vscode.Position(2, 17));
+        return hover?.some(item => item.contents.some(content => (content.value || content).includes('cli.option(name: string, description: string): cli.Option')));
+    }, 'cli option hover');
+    const unfinishedCli = new vscode.WorkspaceEdit();
+    unfinishedCli.replace(cliUri, new vscode.Range(2, 0, 3, 0), 'option := cli.option("pattern", \n');
+    assert.ok(await vscode.workspace.applyEdit(unfinishedCli));
+    await until(async () => {
+        const help = await vscode.commands.executeCommand('vscode.executeSignatureHelpProvider', cliUri, new vscode.Position(2, 31), ',');
+        return help?.signatures?.[0]?.label === 'cli.option(name: string, description: string): cli.Option' && help.activeParameter === 1;
+    }, 'cli incomplete signature help');
+    const restoreCli = new vscode.WorkspaceEdit();
+    restoreCli.replace(cliUri, new vscode.Range(0, 0, cliDocument.lineCount, 0), cliSource);
+    assert.ok(await vscode.workspace.applyEdit(restoreCli));
     await vscode.window.showTextDocument(document);
 
     const docUri = vscode.Uri.file(path.join(root, 'hover.rukbat'));

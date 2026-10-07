@@ -21,6 +21,7 @@ internal sealed partial class Emitter
         if (modules.Contains("zip")) EmitZipLoader();
         if (modules.Contains("http")) EmitHttpLoader();
         if (modules.Contains("csv")) EmitCsvRuntime();
+        if (modules.Contains("cli")) EmitCliRuntime();
         if (modules.Contains("text"))
         {
             EmitNativeLoader("Text");
@@ -44,6 +45,7 @@ internal sealed partial class Emitter
         }
         if (modules.Contains("path")) EmitLines(PathRuntime);
         if (modules.Contains("csv")) EmitLines(CsvRuntime);
+        if (modules.Contains("cli")) EmitLines(CliRuntime);
         if (modules.Contains("json")) EmitLines(JsonValueRuntime);
         if (modules.Contains("env")) EmitLines(EnvironmentRuntime);
         if (modules.Contains("process")) EmitLines(ProcessRuntime);

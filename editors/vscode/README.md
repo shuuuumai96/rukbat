@@ -89,6 +89,9 @@ VSIX using the bundled compiler, set `RUKBAT_TEST_BUNDLED=1` and optionally
 `RUKBAT_TEST_VSCODE` can select an existing VS Code executable without downloading it.
 
 Use **Find All References** to locate uses in open and closed workspace files.
+The `cli` snippet supplies argument definitions, generated help and explicit error/exit handling.
+See `docs/CLI.md` for value options, flags and repeatable arguments; the standard-library catalog
+provides completion, field hover and parameter help for these APIs.
 Use **Rename Symbol** (F2) to update a user-defined name. Changes are checked in
 memory before VS Code applies them; files are not saved automatically. Rename
 includes bound documentation links and explicitly checked code examples, and

@@ -67,6 +67,13 @@ An `fs` import emits both file and directory implementations. A `path` import al
 filesystem operations nor the native move helper. Selection is by imported module, not by individual
 function.
 
+The `cli` standard module owns argument-definition validation, literal token parsing and deterministic
+help. Command/Argument/Option/Flag use normal bound structs; CliEmission recursively translates their
+private field keys at the backend boundary. Result is opaque immutable dictionary storage, excluded
+recursively from JSON/PowerShell boundaries and debugger field inspection. PowerShell helpers are
+emitted only for a cli import and require no native loader. Parsing uses captured input data, does
+not print/exit or invoke user operations, and leaves numeric/domain validation to ordinary code.
+
 `json.Value` is a standard-module type bound through the existing type-name infrastructure. It is
 opaque to Rukbat source: its schema and storage are emitted as a JSON value rather than a user
 struct. The JSON parser is shared by typed and schema-free parsing; `json.as<T>` uses the same

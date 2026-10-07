@@ -410,7 +410,7 @@ internal sealed partial class TypeChecker
             module.Imports.TryGetValue(standardAlias.Token.Text, out var standardModule) &&
             standardModule.StandardName is { } standardName)
         {
-            if (call.IsStructLiteral && (standardName is "process" or "zip" or "http") && standardModule.Structs.TryGetValue(call.Name, out var structure))
+            if (call.IsStructLiteral && (standardName is "process" or "zip" or "http" or "cli") && standardModule.Structs.TryGetValue(call.Name, out var structure) && !structure.IsCliResult)
                 return Construct(call, structure, scope);
             return StandardCallType(call, scope, standardModule, standardName);
         }
@@ -441,7 +441,7 @@ internal sealed partial class TypeChecker
             powerShellType = BindType(powerShellType, call);
             if (ContainsOpaqueStandardValue(powerShellType))
             {
-                Error("RUK2010", "PowerShell result types cannot contain json.Value, csv.Row, encoding.Encoding, hash.Algorithm, datetime types, http.Method or http.Body. Read text and use the corresponding parser.", call);
+                Error("RUK2010", "PowerShell result types cannot contain json.Value, csv.Row, cli.Result, encoding.Encoding, hash.Algorithm, datetime types, http.Method or http.Body. Read text and use the corresponding parser.", call);
             }
 
             if (arguments.Length == 0 || call.Arguments[0].Name is not null)
@@ -515,6 +515,7 @@ internal sealed partial class TypeChecker
 
     private ValueType StandardCallType(Call call, Symbols scope, Module standardModule, string moduleName)
     {
+        if (moduleName == "cli") return CliCallType(call, scope, standardModule);
         if (moduleName == "array") return ArrayCallType(call, scope);
         if (moduleName == "json" && call.Name is "stringify" or "parse" or "as")
         {
@@ -756,9 +757,9 @@ internal sealed partial class TypeChecker
     }
 
     private static bool ContainsNonJsonStandardValue(ValueType type) =>
-        ContainsType(type, value => DateTimeValues.Contains(value) || HttpValues.Contains(value) || (value == ValueType.Encoding || value == HashValues.Algorithm) || value.IsCsvRow);
+        ContainsType(type, value => DateTimeValues.Contains(value) || HttpValues.Contains(value) || (value == ValueType.Encoding || value == HashValues.Algorithm) || value.IsCsvRow || value.IsCliResult);
     private static bool ContainsOpaqueStandardValue(ValueType type) =>
-        ContainsType(type, value => DateTimeValues.Contains(value) || HttpValues.Contains(value) || (value == ValueType.Encoding || value == HashValues.Algorithm) || value.IsCsvRow || value.IsJsonValue);
+        ContainsType(type, value => DateTimeValues.Contains(value) || HttpValues.Contains(value) || (value == ValueType.Encoding || value == HashValues.Algorithm) || value.IsCsvRow || value.IsJsonValue || value.IsCliResult);
     private static bool ContainsDateTime(ValueType type) => ContainsType(type, DateTimeValues.Contains);
     private static bool ContainsTaggedStandardValue(ValueType type) => ContainsType(type, value => (value == ValueType.Encoding || value == HashValues.Algorithm));
 

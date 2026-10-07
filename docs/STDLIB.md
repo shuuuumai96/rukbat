@@ -20,6 +20,7 @@ import array
 import zip
 import hash
 import http
+import cli
 ```
 
 A local module instead uses an explicit relative `.rukbat` path and an alias. Standard module names are reserved as aliases. Generated scripts contain only the standard-library runtime sections used by their imports and remain standalone on Windows PowerShell 5.1.
@@ -1186,7 +1187,112 @@ Standard filesystem operations resolve nonempty relative paths against the captu
 
 ## Program arguments
 
-`args(): string[]` returns command-line arguments supplied to the entry program in order. It returns `[]` when none were supplied. Argument parsing belongs to the program.
+`args(): string[]` returns command-line arguments supplied to the entry program in order. It returns `[]` when none were supplied. Use `cli` for declarative argument definitions, validation and help; the program decides when to display help, exit, and perform operations.
+
+## `cli`
+
+Command definitions are ordinary mutable value structs. Factory functions populate all fields;
+configure a definition before placing it in a command array, because ordinary value-copy rules apply.
+The module exports the following structs (all type names below are qualified by `cli`):
+
+```rukbat
+struct Command {
+    name: string
+    description: string
+    arguments: cli.Argument[]
+    options: cli.Option[]
+    flags: cli.Flag[]
+}
+struct Argument {
+    name: string
+    description: string
+    required: bool
+    repeatable: bool
+    allow_empty: bool
+    choices: string[]
+}
+struct Option {
+    name: string
+    description: string
+    short_name: string?
+    value_name: string
+    required: bool
+    default_value: string?
+    repeatable: bool
+    allow_empty: bool
+    choices: string[]
+}
+struct Flag {
+    name: string
+    description: string
+    short_name: string?
+}
+```
+
+`cli.Result` is an opaque immutable value with no public fields or constructor.
+It supports ordinary assignment, arguments, returns and containers; it cannot be printed,
+compared for equality, converted to/from JSON, or passed through PowerShell boundaries,
+including inside arrays/structs. Read strings and arrays explicitly before exporting data.
+
+| Signature | Meaning | Failure |
+|---|---|---|
+| `cli.command(name: string, description: string): cli.Command` | Creates a command with empty argument, option and flag arrays. name is the displayed invocation label, not inferred from the host process. | Definition validation occurs in parse/help. |
+| `cli.argument(name: string, description: string): cli.Argument` | Creates a required, non-repeatable positional argument. allow_empty is false and choices is empty. | Definition validation occurs in parse/help. |
+| `cli.option(name: string, description: string): cli.Option` | Creates an optional value option. short_name/default_value are null, value_name is the invariant uppercase name, required/repeatable/allow_empty are false and choices is empty. | Definition validation occurs in parse/help. |
+| `cli.flag(name: string, description: string): cli.Flag` | Creates a presence flag with no short name. | Definition validation occurs in parse/help. |
+| `cli.parse(command: cli.Command, arguments: string[]): cli.Result` | Validates definitions and parses literal arguments without writing streams, exiting, reading files or executing commands. The result retains independent effective values. | Invalid definition or input causes Error. Help requests suppress input errors, not definition errors. |
+| `cli.help(command: cli.Command): string` | Validates definitions and generates deterministic help in definition order, with LF separators and no trailing newline. | Invalid definition causes Error. |
+| `cli.help_requested(result: cli.Result): bool` | Reports a recognized --help or -h before the option terminator. | None. |
+| `cli.has(result: cli.Result, name: string): bool` | Reports a supplied flag or an effective value, including a default or explicitly allowed empty value. | Unknown name or help-mode result causes Error. |
+| `cli.get(result: cli.Result, name: string): string` | Reads one non-repeatable argument/option value. | Unknown name, help mode, flag, repeatable item, or absent value without a default causes Error. |
+| `cli.get_all(result: cli.Result, name: string): string[]` | Reads repeatable values in supplied order; an absent optional item returns []. The returned array is independent. | Unknown name, help mode, flag or non-repeatable item causes Error. |
+
+Definition names must match `[a-z][a-z0-9]*(-[a-z0-9]+)*`, without a leading `--`.
+Names are unique across arguments, options and flags. `help` is reserved.
+Short names are null or one lowercase ASCII letter, unique across options/flags; `h` is reserved.
+Command name must be nonblank and contain no control characters. Option value_name must be
+nonblank and contain no whitespace/control characters. Descriptions may contain Unicode/newlines.
+
+Required positionals precede optional ones. A repeatable positional must be the last argument;
+required means at least one supplied value. Options may also be required or repeatable.
+A non-null default is permitted only on an optional, non-repeatable option. It must satisfy
+allow_empty and choices. Choice strings are unique and compared exactly; an empty choices array
+accepts any value. An empty choice requires allow_empty. Empty strings are not trimmed or
+replaced by defaults. Required flags, negative flags and boolean-valued flag syntax are not provided.
+
+Long value options accept `--name VALUE` and `--name=VALUE`; short names accept `-n VALUE`
+and `-n=VALUE`. Only the first equals sign splits a token. Flags take no value. Options may be
+mixed with positionals; positional order is retained. Duplicate flags/non-repeatable options
+cause Error even when the values match. Short clusters (`-abc`), joined values (`-ofile`),
+abbreviated/case-insensitive names and implicit negation are not accepted.
+
+A bare `--` ends option recognition and is not a value. Later tokens are all positionals.
+A bare `-` is a value. Negative numeric spellings matching
+`-[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?` are values, without conversion or range checking.
+Other dash-prefixed values require `--name=VALUE` (including `--name=--`) or the positional
+terminator. A pending option does not consume the next dash-prefixed nonnumeric token;
+it reports a missing value. No quoting, path resolution, glob expansion, environment/config
+merging, response files or subcommand processing is performed. Numeric/domain validation belongs
+to the caller, using existing text conversion operations where appropriate.
+
+Exact `--help` and `-h` before `--` request help even after unknown/duplicate/missing inputs;
+`--name=--help` is a value and `-- --help` is positional data. A help result can only be queried
+with help_requested; other getters reject it. The caller explicitly prints help and exits before
+operations. Imported top-level initialization still occurs before the caller's help branch.
+
+Input Errors report the first affected argument in supplied order, followed by brief usage and
+`Use --help for details.` Missing required items follow token errors, in definition order
+(arguments, then options). An unknown spelling may suggest exactly one declared spelling one
+insertion/deletion/substitution away; ambiguous suggestions are omitted and never applied.
+Definition Errors are distinguished by the `Invalid CLI definition:` prefix.
+Generated help lists arguments, then value options, flags and the built-in help flag, preserving
+each array's order. Descriptions are indented on following lines. Required/repeatable markers,
+defaults and choices are included; formatting does not depend on terminal width or locale.
+
+See [Command-line programs](CLI.md) and the [file-browser example](../examples/file-browser/options.rukbat).
+The runtime is emitted as PowerShell 5.1-compatible helpers; importing cli alone needs no Add-Type
+or filesystem/process/encoding helper. Adding the canonical standard module name `cli` reserves
+it as a relative-import alias, following the existing standard-module rule.
 
 ## `test`
 
