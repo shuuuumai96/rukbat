@@ -17,9 +17,16 @@ internal sealed record EditorCallable(string Label, string Documentation, IReadO
                 start++;
             if (start == close)
                 break;
-            var end = symbol.Detail.IndexOf(',', start, close - start);
-            if (end < 0)
-                end = close;
+            var end = start;
+            var depth = 0;
+            while (end < close)
+            {
+                var character = symbol.Detail[end];
+                if (character == '[') depth++;
+                else if (character == ']') depth--;
+                else if (character == ',' && depth == 0) break;
+                end++;
+            }
             var label = symbol.Detail[start..end].TrimEnd();
             parameters.Add(new(label, start, start + label.Length));
             start = end + 1;

@@ -35,7 +35,8 @@ internal sealed partial class TypeChecker
 
     private static bool ContainsStruct(ValueType type) =>
         type.NullableElement is { } nullable && ContainsStruct(nullable) ||
-        type.Struct is not null || type.Element is { } element && ContainsStruct(element);
+        type.Struct is not null || type.Element is { } element && ContainsStruct(element) ||
+        type.DictionaryValue is { } value && ContainsStruct(value);
 
     private ValueType ArrayType(ArrayLiteral array, Symbols scope, ValueType? expected)
     {
@@ -63,6 +64,11 @@ internal sealed partial class TypeChecker
     private ValueType IndexType(Index index, Symbols scope)
     {
         var receiver = TypeOf(index.Receiver, scope);
+        if (receiver.DictionaryKey is { } key)
+        {
+            Match(key, TypeOf(index.Offset, scope, key), index.Offset, "dictionary key");
+            return receiver.DictionaryValue!;
+        }
         Match(ValueType.Int, TypeOf(index.Offset, scope), index.Offset, "array index");
         if (receiver.Element is { } element)
         {

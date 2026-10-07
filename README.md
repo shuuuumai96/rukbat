@@ -60,6 +60,20 @@ print(year)
 ```
 
 `powershell<string>(...)` calls a PowerShell command and checks at runtime that its result is exactly one string.
+
+Typed dictionaries use `dict[string, V]` or `dict[int, V]`, with expression keys and value-copy
+semantics. No import is needed:
+
+```rukbat
+counts: dict[string, int] = {}
+counts["error"] = 1
+if counts.has("error") {
+    print(counts["error"])
+}
+```
+
+See the [CSV category counter](examples/csv-count/README.md) for lookup and counting, and
+the [language specification](docs/language.md#dictionaries) for ordering, missing keys and nested updates.
 Use `powershell<void>(...)` when no return value is needed.
 
 ## Running programs

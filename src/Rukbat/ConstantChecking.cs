@@ -33,7 +33,7 @@ internal sealed partial class TypeChecker
                 FieldAssignment assignment => IsSelf(assignment.Target),
                 IndexAssignment assignment => IsSelf(assignment.Target),
                 _ => false
-            }) || calls.Any(call => ArrayAppends.Contains(call) && IsSelf(call.Receiver!));
+            }) || calls.Any(call => (ArrayAppends.Contains(call) || DictionaryCalls.Contains(call) && call.Name == "remove") && IsSelf(call.Receiver!));
             if (writesSelf)
                 mutating.Add(method);
             forwarding.Add(method, calls.Where(call => call.Receiver is not null && IsSelf(call.Receiver) &&
@@ -55,7 +55,11 @@ internal sealed partial class TypeChecker
             foreach (var call in NestedStatements(current.Statements).SelectMany(StatementExpressions)
                 .SelectMany(Expressions).OfType<Call>())
                 if (call.Receiver is not null && Calls.TryGetValue(call, out var target) && mutating.Contains(target))
+                {
                     RequireWritable(RootVariable(call.Receiver), call);
+                    if (!IsVariablePath(call.Receiver))
+                        Error("RUK2010", "A mutating method requires a variable, not a temporary value.", call.Receiver);
+                }
         }
         bool IsSelf(Expression expression) => RootVariable(expression)?.Name == "self";
     }
@@ -88,6 +92,7 @@ internal sealed partial class TypeChecker
             Unary unary => new[] { unary.Value },
             Binary binary => [binary.Left, binary.Right],
             ArrayLiteral array => array.Items,
+            DictionaryLiteral dictionary => dictionary.Entries.SelectMany(entry => new[] { entry.Key, entry.Value }),
             Index index => [index.Receiver, index.Offset],
             Member member => [member.Receiver],
             Call call => (call.Receiver is null ? Enumerable.Empty<Expression>() : [call.Receiver])

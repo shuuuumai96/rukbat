@@ -196,6 +196,8 @@ internal static class Documentation
                 return Type(nullable) + "?";
             if (type.Element is { } element)
                 return Type(element) + "[]";
+            if (type.DictionaryKey is { } key)
+                return "dict[" + Type(key) + ", " + Type(type.DictionaryValue!) + "]";
             if (type.Struct is { } structure && catalog.Find(structure.Declaration) is { } target)
                 return "<a href=\"#" + target.Id + "\">" + Escape(type.Name) + "</a>";
             return Escape(type.Name);

@@ -193,7 +193,7 @@ internal sealed partial class Emitter
         }
 '@ | Out-Null
         $__rukbat_json_decode = {
-            param([object]$text, [hashtable]$schema, [bool]$fromValue = $false)
+            param([object]$text, [hashtable]$schema, [bool]$fromValue, [scriptblock]$dictionaryRuntime)
             if ($fromValue) { $node = $text.Node }
             else { $node = [RukbatJsonParser]::Parse([string]$text) }
             function __rukbat_json_convert {
@@ -245,6 +245,18 @@ internal sealed partial class Emitter
                             return ,$copy
                         }
                     }
+                    'dictionary' {
+                        if ($value -is [System.Collections.Generic.Dictionary[string,object]]) {
+                            $copy = & $dictionaryRuntime 'new' $null 'string'
+                            $keys = [string[]]@($value.Keys)
+                            [Array]::Sort($keys, [StringComparer]::Ordinal)
+                            foreach ($key in $keys) {
+                                $converted = __rukbat_json_convert $value[$key] $type.element "$path[$key]"
+                                & $dictionaryRuntime 'set' $copy $key $converted
+                            }
+                            return $copy
+                        }
+                    }
                     'struct' {
                         if ($value -is [System.Collections.Generic.Dictionary[string,object]]) {
                             $copy = @{}
@@ -291,6 +303,15 @@ internal sealed partial class Emitter
                         $parts = [System.Collections.Generic.List[string]]::new()
                         foreach ($element in $item) { $null = $parts.Add((__rukbat_json_encode_value $element $type.element)) }
                         return '[' + [string]::Join(',', $parts) + ']'
+                    }
+                    'dictionary' {
+                        $parts = [System.Collections.Generic.List[string]]::new()
+                        $keys = [string[]]@($item['entries'].Keys)
+                        [Array]::Sort($keys, [StringComparer]::Ordinal)
+                        foreach ($key in $keys) {
+                            $parts.Add((__rukbat_json_quote $key) + ':' + (__rukbat_json_encode_value $item['entries'][$key]['value'] $type.element))
+                        }
+                        return '{' + [string]::Join(',', $parts) + '}'
                     }
                     'struct' {
                         $parts = [System.Collections.Generic.List[string]]::new()

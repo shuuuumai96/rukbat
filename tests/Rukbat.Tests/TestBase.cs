@@ -100,7 +100,8 @@ public abstract class TestBase
         }
         public async Task<RunResult> RunOutputWithWindowsPowerShell(string output, params string[] arguments)
         {
-            Write("main.ps1", output);
+            // Match the CLI's deployment encoding; PowerShell 5.1 otherwise reads UTF-8 as ANSI.
+            File.WriteAllText(PathFor("main.ps1"), output, new UTF8Encoding(true));
             var info = new ProcessStartInfo("powershell")
             {
                 UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,

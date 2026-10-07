@@ -141,6 +141,18 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
         }
 
         var type = new ValueType(name);
+        if (name == "dict" && Match("["))
+        {
+            NewLines();
+            var key = Type();
+            NewLines();
+            Expect(",");
+            NewLines();
+            var value = Type();
+            NewLines();
+            Expect("]");
+            type = ValueType.DictionaryOf(key, value);
+        }
         while (Current.Text is "[" or "?")
         {
             if (Match("?"))
@@ -423,24 +435,65 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
         var index = position + 1;
         bool IdentifierAt(int offset) => offset < tokens.Count && tokens[offset].StringValue is null && tokens[offset].Text.Length != 0 &&
             (char.IsLetter(tokens[offset].Text[0]) || tokens[offset].Text[0] == '_');
-        if (!IdentifierAt(index)) return false;
-        index++;
-        if (index < tokens.Count && tokens[index].Text == ".")
+        bool ReadType()
         {
-            if (!IdentifierAt(++index)) return false;
+            if (!IdentifierAt(index)) return false;
+            var dictionary = tokens[index].Text == "dict";
             index++;
+            if (index < tokens.Count && tokens[index].Text == ".")
+            {
+                if (!IdentifierAt(++index)) return false;
+                index++;
+                dictionary = false;
+            }
+            if (dictionary && index < tokens.Count && tokens[index].Text == "[")
+            {
+                index++;
+                SkipLines();
+                if (!ReadType()) return false;
+                SkipLines();
+                if (index >= tokens.Count || tokens[index++].Text != ",") return false;
+                SkipLines();
+                if (!ReadType()) return false;
+                SkipLines();
+                if (index >= tokens.Count || tokens[index++].Text != "]") return false;
+            }
+            while (index < tokens.Count)
+            {
+                if (tokens[index].Text == "?") { index++; continue; }
+                if (tokens[index].Text == "[" && index + 1 < tokens.Count && tokens[index + 1].Text == "]") { index += 2; continue; }
+                break;
+            }
+            return true;
         }
-        while (index < tokens.Count)
+        void SkipLines()
         {
-            if (tokens[index].Text == "?") { index++; continue; }
-            if (tokens[index].Text == "[" && index + 1 < tokens.Count && tokens[index + 1].Text == "]") { index += 2; continue; }
-            break;
+            while (index < tokens.Count && tokens[index].Text == "\n") index++;
         }
-        return index + 1 < tokens.Count && tokens[index].Text == ">" && tokens[index + 1].Text == "(";
+        return ReadType() && index + 1 < tokens.Count && tokens[index].Text == ">" && tokens[index + 1].Text == "(";
     }
 
     private Expression Atom(bool allowStructLiteral = true)
     {
+        if (Current.Text == "{")
+        {
+            var opening = Take();
+            var entries = new List<DictionaryEntry>();
+            NewLines();
+            while (Current.Text != "}")
+            {
+                var key = Expression();
+                Expect(":");
+                NewLines();
+                entries.Add(new(key, Expression()));
+                NewLines();
+                if (!Match(",")) break;
+                NewLines();
+            }
+            var closing = Expect("}");
+            formatting?.ExpressionClosings.Add(closing.Offset);
+            return new DictionaryLiteral(opening, entries);
+        }
         var token = Current;
         if (Current.Text is "-" or "+" or "!")
         {

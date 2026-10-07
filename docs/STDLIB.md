@@ -681,8 +681,8 @@ to retain an arbitrary subtree.
 
 Every update returns a new `json.Value`. Assign that result explicitly. Object names use the same
 literal, case-sensitive rules as `get`. `set_at` and `remove_at` require an existing element;
-use `append` to add at the end. Replacements may be `json.Value`, primitives, supported structs or
-arrays, nullable values, or literal `null`. Replacement types are inferred; updates do not accept
+use `append` to add at the end. Replacements may be `json.Value`, primitives, supported structs,
+arrays or string-keyed dictionaries, nullable values, or literal `null`. Replacement types are inferred; updates do not accept
 `<T>`. Empty replacement arrays need explicitly typed variables. `append` adds an array replacement
 as one element, without flattening it.
 
@@ -716,12 +716,36 @@ a struct with `parse<T>` or `as<T>` ignores undeclared properties; stringifying 
 restore them. Serialization emits compact text and sorted keys for dynamic objects, so original
 whitespace, key order, and escape spelling are not retained.
 
+### Dictionaries and JSON objects
+
+Use a dictionary for typed in-memory lookup and mutation; JSON conversion is an explicit data
+boundary. `json.stringify(d)` encodes a supported `dict[string, V]` as an object with keys
+sorted by ordinal order. `json.parse<dict[string, V]>(text)` and `json.as<dict[string, V]>(value)`
+require an object, strictly convert every property value, and insert keys in ordinal order.
+JSON updates accept supported dictionaries as replacements. Null/numeric/duplicate-property rules
+remain unchanged. A round trip preserves contents, but canonicalizes insertion order.
+
+Integer-keyed dictionaries are rejected recursively, including inside arrays and structs; keys
+are never implicitly converted to strings. Opaque-valued dictionaries such as `dict[string, fs.Info]`
+are legal in memory but retain the existing JSON exclusions. To export integer keys, build an
+array of explicitly named entry structs.
+
+```rukbat
+import json
+
+ports := {"https": 443, "http": 80}
+print(json.stringify(ports))
+loaded := json.parse<dict[string, int]>('{"http":80,"https":443}')
+print(loaded["https"])
+```
+
 ### Reading a known type
 
-`T` may be `int`, `float`, `string`, `bool`, `json.Value`, a struct, an array of supported values, or
+`T` may be `int`, `float`, `string`, `bool`, `json.Value`, a struct, an array of supported values,
+`dict[string, V]` with recursively supported V, or
 a nullable form of a supported type. `csv.Row`, `cli.Result`, `encoding.Encoding`, `hash.Algorithm`,
 all `datetime` types, `http.Method`, and `http.Body` are not supported. This restriction also applies
-when these types occur in arrays, nullable values, or struct fields, including `fs.Info.modified`.
+when these types occur in arrays, nullable values, dictionary values, or struct fields, including `fs.Info.modified`.
 The same restriction applies to values passed to `stringify` and the JSON update operations.
 `<T>` on `parse` and `as` is a dedicated result type like `powershell<T>`; it does not introduce
 general-purpose generics.

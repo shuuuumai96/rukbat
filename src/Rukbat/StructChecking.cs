@@ -54,7 +54,7 @@ internal sealed partial class TypeChecker
                     Error("RUK2002", $"Duplicate struct '{name}'.", declaration);
                 }
 
-                if (IsPrimitive(name) || name == "Error" || current.Imports.ContainsKey(name))
+                if (IsPrimitive(name) || name is "Error" or "dict" || current.Imports.ContainsKey(name))
                 {
                     Error("RUK2002", $"Struct name '{name}' conflicts with an existing type or import.", declaration);
                 }
@@ -133,8 +133,20 @@ internal sealed partial class TypeChecker
     }
 
     private static bool IsPrimitive(string name) => name is "int" or "float" or "string" or "bool" or "void";
-    private ValueType BindType(ValueType type, Node node)
+    public Dictionary<ValueType, ValueType> BoundTypes { get; } = new(ReferenceEqualityComparer.Instance);
+    private ValueType BindType(ValueType type, Node node) => BoundTypes[type] = BindTypeCore(type, node);
+    private ValueType BindTypeCore(ValueType type, Node node)
     {
+        if (type.DictionaryKey is { } key)
+        {
+            var boundKey = BindType(key, node);
+            var boundValue = BindType(type.DictionaryValue!, node);
+            if (boundKey != ValueType.String && boundKey != ValueType.Int && boundKey != ValueType.Error)
+                Error("RUK2001", "Dictionary keys must be non-null string or int values.", node);
+            if (boundValue == ValueType.Void)
+                Error("RUK2001", "Dictionary values cannot have type void.", node);
+            return DeclaredTypes[node] = ValueType.DictionaryOf(boundKey, boundValue);
+        }
         if (type.NullableElement is { } nullableElement)
         {
             if (nullableElement.NullableElement is not null)
@@ -203,9 +215,9 @@ internal sealed partial class TypeChecker
         foreach (var field in structure.Fields.Values)
         {
             var fieldType = field.Type;
-            while (fieldType.NullableElement is not null || fieldType.Element is not null)
+            while (fieldType.NullableElement is not null || fieldType.Element is not null || fieldType.DictionaryValue is not null)
             {
-                fieldType = fieldType.NullableElement ?? fieldType.Element!;
+                fieldType = fieldType.NullableElement ?? fieldType.Element ?? fieldType.DictionaryValue!;
             }
 
             if (fieldType.Struct is not { } nested)
@@ -279,7 +291,7 @@ internal sealed partial class TypeChecker
             return type;
         }
 
-        if (type.Element is not null && member.Name == "length")
+        if ((type.Element is not null || type.DictionaryKey is not null) && member.Name == "length")
         {
             return ValueType.Int;
         }
@@ -330,6 +342,9 @@ internal sealed partial class TypeChecker
             {
                 return receiverType;
             }
+
+            if (receiverType.DictionaryKey is not null)
+                return DictionaryCallType(call, receiverType, scope);
 
             if (receiverType.Element is { } element && call.Name == "append")
             {

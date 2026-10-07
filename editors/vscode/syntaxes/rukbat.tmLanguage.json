@@ -10,7 +10,7 @@
     { "name": "constant.language.rukbat", "match": "\\b(true|false|null)\\b" },
     { "name": "variable.language.rukbat", "match": "\\bself\\b" },
     { "name": "storage.modifier.rukbat", "match": "\\bconst\\b" },
-    { "name": "storage.type.rukbat", "match": "\\b(int|float|string|bool|void|Error)\\b" },
+    { "name": "storage.type.rukbat", "match": "\\b(int|float|string|bool|void|Error)\\b|\\bdict\\b(?=\\s*\\[)" },
     { "name": "support.function.rukbat", "match": "\\b(print|eprint|args|exit|powershell)\\b" },
     { "name": "constant.numeric.rukbat", "match": "\\b[0-9]+(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?\\b" },
     { "name": "entity.name.function.rukbat", "match": "[\\p{L}_][\\p{L}\\p{N}_]*(?=\\s*(?:<[^>]+>)?\\()" },

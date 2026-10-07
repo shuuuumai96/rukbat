@@ -38,7 +38,25 @@ Each stage has a separate responsibility:
 - EditorSymbolId separates declaration identity (normalized path, declaration offset, kind) from display types, including nullable narrowing. Parser optionally retains import-name tokens, qualified-type tokens and call delimiters, including unfinished calls. EditorWorkspace captures workspace sources on demand, uses normal front-end analysis to find closed callers, and maps bound documentation links and independent checked examples to original comment positions. Rename constructs an in-memory edit, rechecks related entries and compares every original reference binding through the edit's offset mapping before returning versioned text edits. SignatureHelp uses parser call boundaries and an ephemeral argument-free call to resolve unfinished receivers through the same front end; standard signatures are structured from the existing embedded documentation catalog. These editor operations never invoke Emitter or PowerShell.
 - During formatting, Parser also records syntax facts such as continuation newlines, struct-literal closing braces, unary operators, type-argument delimiters, and adjacent statement kinds within each block. FormattingSyntax identifies required group boundaries, and Formatter uses these facts instead of guessing expression roles from token spelling. Ordinary compilation does not collect these optional facts.
 
-Generated scripts include small PowerShell helpers implementing Rukbat value copies, array bounds, error propagation, and PowerShell boundaries. Only imported standard-library runtime sections are included. Deployment requires neither the Rukbat compiler nor a separate Rukbat runtime.
+Generated scripts include small PowerShell helpers implementing Rukbat value copies, array bounds,
+dictionary operations, error propagation, and PowerShell boundaries. Only imported standard-library
+runtime sections are included. Deployment requires neither the compiler nor a separate Rukbat runtime.
+
+Dictionary syntax retains expression pairs; checked ValueType retains invariant K/V recursively.
+BoundTypes maps parsed type identities to resolved types for editor references inside containers.
+TypeChecker owns key restrictions, contextual inference, duplicate literal keys, const/mutation,
+finite struct cycles, and recursive JSON/PowerShell admission. Dict helpers borrow receiver storage;
+ordinary value boundaries clone it. Terminal dictionary assignments capture receiver and key once
+before the RHS; intermediate indexes remain strict reads.
+
+Runtime dictionary storage is a private tagged wrapper around Dictionary<string,object> with
+StringComparer.Ordinal or Dictionary<long,object>, and a LinkedList<object> for insertion order.
+Each entry owns a value and order node. Lookup/update/removal are average O(1), length O(1),
+keys/copies O(n) plus recursive value costs. User keys never become wrapper fields or PowerShell
+properties. Clone recognizes the wrapper before ordinary struct hashtables; cli.Result remains
+opaque immutable storage. Dictionary operations alone need no Add-Type or installed runtime.
+JSON schemas use a dictionary kind; decoding receives the dictionary helper explicitly across
+module scope boundaries, and JSON encoding/decoding canonicalize keys in ordinal order.
 
 The authoring distribution uses an untrimmed self-contained Windows x64 publish.
 tools/package.ps1 builds the CLI ZIP and VSIX from the same version-checked output.

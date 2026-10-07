@@ -19,7 +19,9 @@ internal sealed record ValueType(
     string Name,
     StructSymbol? Struct = null,
     ValueType? Element = null,
-    ValueType? NullableElement = null)
+    ValueType? NullableElement = null,
+    ValueType? DictionaryKey = null,
+    ValueType? DictionaryValue = null)
 {
     public static readonly ValueType Error = new("error");
     public static readonly ValueType Int = new("int");
@@ -36,7 +38,8 @@ internal sealed record ValueType(
     public bool IsJsonValue => Struct?.IsJsonValue == true;
     public bool IsCliResult => Struct?.IsCliResult == true;
     public ValueType NonNullable => NullableElement ?? this;
-    public bool IsComposite => NonNullable.Struct is not null || NonNullable.Element is not null;
+    public bool IsComposite => NonNullable.Struct is not null || NonNullable.Element is not null || NonNullable.DictionaryKey is not null;
+    public static ValueType DictionaryOf(ValueType key, ValueType value) => new($"dict[{key}, {value}]", DictionaryKey: key, DictionaryValue: value);
     public override string ToString() => Name;
 }
 internal sealed class NullValue
@@ -95,6 +98,8 @@ internal sealed record Field(Token Token, ValueType Type) : Node(Token);
 internal sealed record StructDeclaration(Token Token, List<Field> Fields, List<Function> Methods) : Statement(Token);
 internal sealed record Member(Token Token, Expression Receiver, string Name) : Expression(Token);
 internal sealed record ArrayLiteral(Token Token, List<Expression> Items) : Expression(Token);
+internal sealed record DictionaryEntry(Expression Key, Expression Value);
+internal sealed record DictionaryLiteral(Token Token, List<DictionaryEntry> Entries) : Expression(Token);
 internal sealed record Index(Token Token, Expression Receiver, Expression Offset) : Expression(Token);
 internal sealed record IndexAssignment(Index Target, Expression Value) : Statement(Target.Token);
 internal sealed record For(Token Token, Expression Items, List<Statement> Body) : Statement(Token);

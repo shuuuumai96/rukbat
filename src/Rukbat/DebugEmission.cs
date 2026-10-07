@@ -13,7 +13,8 @@ public sealed record DebugPoint(int Id, string File, int Line, int Column,
     int GeneratedLine, string Function, IReadOnlyList<DebugVariable> Variables);
 public sealed record DebugVariable(string Name, string Storage, bool Global, string Type, bool IsConst);
 public sealed record DebugValueType(string Name, string? Element = null,
-    string? Nullable = null, IReadOnlyList<DebugField>? Fields = null);
+    string? Nullable = null, IReadOnlyList<DebugField>? Fields = null,
+    string? DictionaryKey = null, string? DictionaryValue = null);
 public sealed record DebugField(string Name, string Storage, string Type);
 
 internal sealed partial class Emitter
@@ -34,7 +35,9 @@ internal sealed partial class Emitter
             type.NullableElement is { } nullable ? DebugType(nullable) : null,
             type.Struct is { IsCsvRow: false, IsJsonValue: false, IsCliResult: false } structure
                 ? structure.Fields.Select(pair => new DebugField(pair.Key, pair.Value.Key, DebugType(pair.Value.Type))).ToArray()
-                : null);
+                : null,
+            type.DictionaryKey is { } key ? DebugType(key) : null,
+            type.DictionaryValue is { } value ? DebugType(value) : null);
         return id;
     }
 

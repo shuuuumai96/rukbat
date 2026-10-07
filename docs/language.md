@@ -62,10 +62,10 @@ fn greet(person: string): void {
   is a reserved word. Existing variable declaration and assignment syntax keeps
   its meaning; a same-scope redeclaration remains invalid.
 - Assignment to a const name, any field/index path rooted at that name, array
-  `append`, and a method that modifies that receiver produce `RUK2011`.
-  This includes nested arrays/structs and narrowed nullable values. Reading and
+  `append`, dictionary `remove`, and a method that modifies that receiver produce `RUK2011`.
+  This includes nested arrays/structs/dictionaries and narrowed nullable values. Reading and
   non-mutating method calls are allowed. Method mutation is determined after
-  binding: writes to `self` or its fields/indexes, array append through `self`, and
+  binding: writes to `self` or its fields/indexes, array append or dictionary removal through `self`, and
   indirect calls to mutating methods through `self` paths are propagated, including
   recursion and imported methods. All possible body paths count, including writes
   in unreachable branches; runtime reachability is not inferred.
@@ -97,11 +97,11 @@ Each module executes its top-level statements once, after its dependencies have 
 
 `return` is valid only inside a function. A non-`void` function must return a value or throw on every reachable path. A `void` function may omit its final `return`. Expressions and function arguments are evaluated from left to right; `&&` and `||` short-circuit.
 
-Structs and arrays are mutable value types. Their stored values can be updated, but assignment, argument passing, return, and placement into another value copy them recursively. Mutating a copied value never changes the storage location from which it was copied.
+Structs, arrays, and dictionaries are mutable value types. Their stored values can be updated, but assignment, argument passing, return, and placement into another value copy them recursively. Mutating a copied value never changes the storage location from which it was copied.
 
 ## Types, nullable values, and conversions
 
-The primitive types are `int`, `float`, `string`, and `bool`. `int` is a signed 64-bit integer. `float` is a finite IEEE 754 binary64 value. `void` is return-only. Rukbat also has user-defined `struct` types, typed arrays `T[]`, and nullable types `T?`.
+The primitive types are `int`, `float`, `string`, and `bool`. `int` is a signed 64-bit integer. `float` is a finite IEEE 754 binary64 value. `void` is return-only. Rukbat also has user-defined `struct` types, typed arrays `T[]`, typed dictionaries `dict[K, V]`, and nullable types `T?`.
 
 `import json` provides the opaque, immutable type `json.Value` for JSON documents with an unknown
 structure. It uses ordinary variable, parameter, array, struct-field, and return syntax. It has no
@@ -167,7 +167,7 @@ Float literals include `1.0`, `1e3`, `1E3`, and `1.5e-2`. The abbreviated forms 
 
 Integer or float division by zero is a runtime Error. A float literal, arithmetic result, or external value that is NaN or positive or negative Infinity is rejected. Integer arithmetic is checked: range overflow raises Error without wrapping or promotion. Division truncates toward zero; the remainder has the dividend's sign. The minimum integer divided by -1 raises Error, while its remainder is zero. The supported integer range is -9223372036854775808 through 9223372036854775807. Other float operations use binary64 round-to-nearest, ties-to-even behavior; subnormal values and arithmetic underflow to zero are allowed. Positive and negative float zero compare equal.
 
-Primitive equality requires compatible non-null values and string equality is case-sensitive. Mixed `int`/`float` equality is rejected. Struct and array equality are not defined. A nullable value may be compared directly with `null`.
+Primitive equality requires compatible non-null values and string equality is case-sensitive. Mixed `int`/`float` equality is rejected. Struct, array, and dictionary equality are not defined. A nullable value may be compared directly with `null`.
 
 Two non-null `encoding.Encoding` values support `==` and `!=`; arithmetic and ordering are not defined.
 
@@ -197,6 +197,67 @@ Every index expression in an assignment or `append` receiver is evaluated exactl
 - Array literals use `[value, ...]`; arrays can grow with the statement `values.append(value)`.
 - An array literal with a contextual type (`name: T[] = [...]` or parameter of type `T[]`) converts each element to `T` using the standard implicit conversions. Without a contextual type, all elements must have the same type; `[1, 2.0]` is rejected. A literal mixing incompatible types is a compile-time error. An explicitly typed empty array (`items: string[] = []`) is valid.
 - `items[index]` reads or writes an element, and `items.length` is read-only.
+
+## Dictionaries
+
+`dict[K, V]` stores dynamically keyed values. K is exactly non-null `string` or `int`.
+V can be any storable type, including nullable values, structs, arrays, dictionaries, and
+opaque standard values. `void` and recursive struct cycles through dictionary values are
+rejected. K and V are invariant. `dict` is a dedicated built-in type constructor, not a
+module or general generic facility. A struct cannot be named `dict`; an otherwise legal
+variable/import alias can. No import is needed.
+
+```rukbat
+counts: dict[string, int] = {}
+counts["error"] = 1
+if counts.has("error") {
+    counts["error"] = counts["error"] + 1
+}
+for key in counts.keys() {
+    print(key)
+    print(counts[key])
+}
+counts.remove("error")
+print(counts.length)
+```
+
+Literals use `{key: value, ...}`, with expression keys and optional trailing commas.
+`ports := {"http": 80, "https": 443}` infers `dict[string, int]`; an identifier key uses
+that variable's value. Without context, the first pair determines exact K/V and all later
+pairs must match. `{}` and null values require a contextual dictionary type from a declaration,
+argument, return, field, or enclosing literal. Struct literals retain their explicit type name.
+
+| Operation | Result and behavior |
+|---|---|
+| `d[key]` | V; an absent key raises Error, even if V is nullable. |
+| `d[key] = value` | Insert or replace in writable storage. |
+| `d.has(key)` | bool; true for a stored null. |
+| `d.remove(key)` | void; remove in writable storage, absent keys succeed. |
+| `d.keys()` | Independent K[] snapshot in insertion order. |
+| `d.length` | int entry count, read-only. |
+
+Methods take exactly the positional arguments shown. String keys use ordinal, case-sensitive
+equality without normalization, trimming, or path comparison. Empty strings and the entire
+signed 64-bit int range are valid. Replacement preserves position; remove then reinsert moves
+the key last. This order agrees on PowerShell 5.1 and 7.
+
+Repeated string or signed-integer literal keys are compile-time errors. Other duplicates raise
+Error during construction. Each pair evaluates key then value in written order before the
+duplicate check; earlier effects are not rolled back. Indexed assignment replaces existing keys.
+`:=` cannot declare an indexed target.
+
+Ordinary value copies are recursive. `user := users[id]` copies a stored struct;
+`users[id].name = "Taro"` updates stored fields. Writable paths include dictionary indexes
+rooted at a variable. Const roots reject insertion, replacement, removal, and nested mutation,
+including mutation forwarded through struct methods. Mutating temporary function results is
+rejected. Intermediate keys must exist; only terminal dictionary-index assignment inserts.
+There is no automatic creation of nested values. Key/index expressions evaluate once, left to right.
+
+Iteration uses `for key in d.keys()`. Mutations do not change that snapshot; `d[key]` still
+reads current contents and can fail after removal. Copy d first for stable contents, or use
+`array.sort(d.keys())` for sorted traversal. Dictionary equality and direct print/eprint are
+not defined. `has` does not narrow nullable stored values: read into a variable and check
+against null. Nullable dictionary variables use existing narrowing rules.
 
 ## Control flow
 
@@ -235,7 +296,7 @@ Local imports remain compile-time paths relative to the importing source file. T
 
 `powershell<T>(command, ...)` is the explicit escape hatch for a PowerShell operation not covered by Rukbat. It checks the returned value against `T`; a scalar result requires exactly one value and `T[]` collects values into an array. PowerShell failures and incompatible results are runtime errors.
 
-PowerShell arguments and result types cannot contain opaque standard-library values such as
+PowerShell arguments and result types cannot contain dictionaries or opaque standard-library values such as
 `json.Value`, `csv.Row`, `cli.Result`, `encoding.Encoding`, `hash.Algorithm`, datetime types or HTTP Body/Method.
 Request a string and use `json.parse` to read a JSON document from an external command.
 For encodings, pass `encoding.name(value)` and parse returned text with `encoding.parse`.

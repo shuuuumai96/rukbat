@@ -22,7 +22,8 @@ function can interrupt step over. Step out stops at the next executable
 statement in a caller; it does not stop midway through an expression.
 
 The Variables pane shows **Locals** and **Module** values under their Rukbat names.
-Arrays and ordinary structs can be expanded. The Call Stack includes user
+Arrays, dictionaries, and ordinary structs can be expanded. Dictionary entries appear in insertion
+order alongside a read-only length, without exposing backend fields. The Call Stack includes user
 functions, methods, and active module initializers, including imported sources.
 Parameters, `self`, loop and catch bindings, shadowed locals, and suspended
 callers retain their own scopes. A variable is shown after its declaration has
@@ -67,13 +68,15 @@ configuration and passes arguments without stopping.
   Line breakpoints stay in the gutter; explicit column breakpoints use inline
   markers. If several statements share a line, its line breakpoint covers all of them.
 - Watches, hovers, and the Debug Console accept read-only variable paths such as
-  `count`, `self.name`, `items.length`, or `items[0].name`. General expressions, function calls,
+  `count`, `self.name`, `items.length`, `items[0].name`, `users["id"].name`, or `codes[-1]`.
+  Dictionary string keys accept Rukbat quotes/escapes; integer keys retain the full signed 64-bit range.
+  Negative array indexes remain unavailable. General expressions, function calls,
   variable modification, conditional/hit-count/log breakpoints, exception
   breakpoints, attach, and restart requests are not implemented.
 - Pause takes effect at the next Rukbat statement. It does not interrupt an
   ongoing native call or a PowerShell escape-hatch operation. Terminate stops
   the PowerShell host even while a native operation is waiting.
-- Inspection shows at most 100 elements per array, six composite levels,
+- Inspection shows at most 100 elements per array/dictionary, six composite levels,
   approximately 2000 value nodes per stop, and 4096 characters per string.
   Opaque standard-library values show their type without exposing backend
   properties or invoking conversion functions.

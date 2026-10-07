@@ -58,6 +58,13 @@ internal sealed record EditorSymbol(string Name, string Detail, int Kind, string
 
 internal static class EditorCatalog
 {
+    public static IEnumerable<EditorSymbol> DictionaryMembers(ValueType type) =>
+    [
+        new("length", "length: int", 5, "The number of dictionary entries. Read-only."),
+        new("has", $"has(key: {type.DictionaryKey}): bool", 3, "Test whether a key exists, including entries storing null."),
+        new("remove", $"remove(key: {type.DictionaryKey}): void", 3, "Remove a key from a writable dictionary. An absent key succeeds."),
+        new("keys", $"keys(): {type.DictionaryKey}[]", 3, "Return an independent snapshot of keys in insertion order.")
+    ];
     public static EditorSymbol HttpConstant(HttpConstant value) => new(value.Name, $"http.{value.Name}: {value.Type} = {value.Value}", 21,
         "Read-only HTTP constant.", Type: value.Type);
     public static EditorSymbol HttpType(ValueType value) => new(value.Name.Split('.')[1], value.Name, 13,
@@ -396,6 +403,8 @@ internal sealed partial class LanguageAnalysis
                     Add(scope.Module, member.Token, EditorCatalog.HttpConstant(httpConstant));
                 else if (checker.Fields.TryGetValue(member, out var field))
                     Add(scope.Module, member.Token, symbols[field]);
+                else if (member.Name == "length" && checker.Types.GetValueOrDefault(member.Receiver) is { DictionaryKey: not null } dictionaryType)
+                    Add(scope.Module, member.Token, EditorCatalog.DictionaryMembers(dictionaryType).First(s => s.Name == "length"));
                 else if (member.Name == "length" && checker.Types.GetValueOrDefault(member.Receiver)?.Element is not null)
                     Add(scope.Module, member.Token, new("length", "length: int", 5, "The number of array elements."));
                 break;
@@ -415,6 +424,8 @@ internal sealed partial class LanguageAnalysis
                 }
                 else if (call.Receiver is null && EditorCatalog.Builtins.FirstOrDefault(s => s.Name == call.Name) is { } builtin)
                     Add(scope.Module, call.Token, builtin);
+                else if (checker.DictionaryCalls.Contains(call))
+                    Add(scope.Module, call.Token, EditorCatalog.DictionaryMembers(checker.Types[call.Receiver!]).First(s => s.Name == call.Name));
                 else if (checker.ArrayAppends.Contains(call))
                     Add(scope.Module, call.Token, new("append", $"append(value: {checker.Types[call.Receiver!].Element}): void", 3));
                 foreach (var argument in call.Arguments)
@@ -434,6 +445,13 @@ internal sealed partial class LanguageAnalysis
             case ArrayLiteral array:
                 foreach (var item in array.Items)
                     Walk(item, scope);
+                break;
+            case DictionaryLiteral dictionary:
+                foreach (var entry in dictionary.Entries)
+                {
+                    Walk(entry.Key, scope);
+                    Walk(entry.Value, scope);
+                }
                 break;
             case Index index:
                 Walk(index.Receiver, scope);
@@ -455,15 +473,7 @@ internal sealed partial class LanguageAnalysis
                     Add(module, qualifier, import);
             }
             // Match the actual parsed type node to its checked type, preserving module identity.
-            var bound = checker!.DeclaredTypes.FirstOrDefault(p => ReferenceEquals(syntaxType, p.Key switch
-            {
-                Function function => function.Type,
-                Parameter parameter => parameter.Type,
-                Field field => field.Type,
-                Variable variable => variable.Type,
-                Call call => call.TypeArgument ?? call.PowerShellType,
-                _ => null
-            })).Value;
+            var bound = checker!.BoundTypes.GetValueOrDefault(syntaxType);
             while (bound is not null && (bound.NullableElement is not null || bound.Element is not null))
                 bound = bound.NullableElement ?? bound.Element;
             if (bound?.Struct is { } structure)
@@ -539,6 +549,7 @@ internal sealed partial class LanguageAnalysis
                     ?? scope?.Visible(offset).FirstOrDefault(s => s.Name == receiver)?.Type;
                 candidates = type?.Struct is { } structure
                     ? structure.Fields.Values.Select(f => symbols[f]).Concat(structure.Methods.Values.Select(f => symbols[f]))
+                    : type?.DictionaryKey is not null ? EditorCatalog.DictionaryMembers(type)
                     : type?.Element is { } element
                         ? [new("length", "length: int", 5), new("append", $"append(value: {element}): void", 3)] : [];
             }

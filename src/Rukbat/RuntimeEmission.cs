@@ -6,6 +6,43 @@ internal sealed partial class Emitter
     private void EmitRuntime()
     {
         const string runtime = """
+        $__rukbat_dictionary = {
+            param([string]$operation, [object]$dictionary, [object]$key, [object]$value, [string]$location, [scriptblock]$raise)
+            if ($operation -eq 'new') {
+                $entries = if ($key -eq 'string') {
+                    [System.Collections.Generic.Dictionary[string,object]]::new([StringComparer]::Ordinal)
+                } else { [System.Collections.Generic.Dictionary[long,object]]::new() }
+                return @{ __rukbat_dictionary = $true; entries = $entries; order = [System.Collections.Generic.LinkedList[object]]::new() }
+            }
+            $entries = $dictionary['entries']
+            if ($operation -eq 'keys') {
+                $keys = [System.Collections.Generic.List[object]]::new($entries.Count)
+                foreach ($storedKey in $dictionary['order']) { $keys.Add($storedKey) }
+                return ,$keys
+            }
+            $found = $entries.ContainsKey($key)
+            if ($operation -eq 'has') { return $found }
+            if ($operation -eq 'remove') {
+                if ($found) {
+                    $dictionary['order'].Remove($entries[$key]['node'])
+                    $null = $entries.Remove($key)
+                }
+                return
+            }
+            if ($operation -eq 'add' -and $found) {
+                & $raise @{ message = "Duplicate dictionary key '$key'." } $location
+            }
+            if ($operation -eq 'set' -or $operation -eq 'add') {
+                if ($found) { $entries[$key]['value'] = $value }
+                else { $entries.Add($key, @{ value = $value; node = $dictionary['order'].AddLast([object]$key) }) }
+                return
+            }
+            if (-not $found) {
+                & $raise @{ message = "Dictionary has no key '$key'." } $location
+            }
+            if ($operation -eq 'entry') { return $entries[$key] }
+            return ,$entries[$key]['value']
+        }
         $__rukbat_array = {
             param([object[]]$values)
             $array = [System.Collections.Generic.List[object]]::new($values.Length)
@@ -24,6 +61,16 @@ internal sealed partial class Emitter
                 return ,$copy
             }
             if ($value -is [hashtable]) {
+                if ($value.ContainsKey('__rukbat_dictionary')) {
+                    $entries = if ($value['entries'] -is [System.Collections.Generic.Dictionary[string,object]]) {
+                        [System.Collections.Generic.Dictionary[string,object]]::new([StringComparer]::Ordinal)
+                    } else { [System.Collections.Generic.Dictionary[long,object]]::new() }
+                    $order = [System.Collections.Generic.LinkedList[object]]::new()
+                    foreach ($key in $value['order']) {
+                        $entries.Add($key, @{ value = (& $recurse $value['entries'][$key]['value'] $recurse); node = $order.AddLast([object]$key) })
+                    }
+                    return @{ __rukbat_dictionary = $true; entries = $entries; order = $order }
+                }
                 $copy = @{}
                 foreach ($key in $value.Keys) {
                     $copy[$key] = & $recurse $value[$key] $recurse
@@ -198,6 +245,8 @@ internal sealed partial class Emitter
 
     private static string Schema(ValueType type)
     {
+        if (type.DictionaryKey is { } key)
+            return $"@{{kind = 'dictionary'; name = {Quote(type.Name)}; key = {Quote(key.Name)}; element = {Schema(type.DictionaryValue!)}}}";
         if (type.NullableElement is { } nullable)
         {
             return $"@{{kind = 'nullable'; name = {Quote(type.Name)}; element = {Schema(nullable)}}}";

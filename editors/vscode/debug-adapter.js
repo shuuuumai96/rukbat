@@ -148,13 +148,29 @@ class RukbatDebugAdapter {
     evaluate(expression, frame) {
         // Read-only names/field/index paths. Never evaluate arbitrary PowerShell
         // or invoke user functions as a side effect of a watch or hover.
-        const tokens = expression?.trim().match(/^[\p{L}_][\p{L}\p{N}_]*(?:\.[\p{L}_][\p{L}\p{N}_]*|\[\d+\])*$/u);
-        if (!tokens || !frame) throw new Error('Use a variable name, field, or constant array index.');
-        const segments = tokens[0].match(/[\p{L}_][\p{L}\p{N}_]*|\[\d+\]/gu);
+        const identifier = '[\\p{L}_][\\p{L}\\p{N}_]*';
+        const string = '(?:"(?:[^"\\\\\\r\\n]|\\\\[nrt\\\\\'"])*"|\'(?:[^\'\\\\\\r\\n]|\\\\[nrt\\\\\'"])*\')';
+        const index = `\\[\\s*(?:[+-]?\\d+|${string})\\s*\\]`;
+        const tokens = expression?.trim().match(new RegExp(`^${identifier}(?:\\.${identifier}|${index})*$`, 'u'));
+        if (!tokens || !frame) throw new Error('Use a variable name, field, or constant array/dictionary index.');
+        const segments = tokens[0].match(new RegExp(`${identifier}|${index}`, 'gu'));
         let values = frame.variables;
         let value;
-        for (const name of segments) {
-            value = values?.find(item => item.name === name);
+        for (const segment of segments) {
+            let name = segment;
+            let key;
+            if (segment.startsWith('[')) {
+                const literal = segment.slice(1, -1).trim();
+                if (literal.startsWith('"') || literal.startsWith("'")) {
+                    const escapes = { n: '\n', r: '\r', t: '\t', '\\': '\\', "'": "'", '"': '"' };
+                    key = literal.slice(1, -1).replace(/\\([nrt\\'"])/g, (_, escape) => escapes[escape]);
+                } else {
+                    const integer = BigInt(literal);
+                    if (integer < -9223372036854775808n || integer > 9223372036854775807n) throw new Error('Dictionary key is outside int range.');
+                    name = `[${integer}]`;
+                }
+            }
+            value = values?.find(item => key !== undefined ? item.dictionaryKey === key : item.name === name);
             if (!value) throw new Error('The value is unavailable at this stop (or exceeds the inspection limit).');
             values = value.children;
         }

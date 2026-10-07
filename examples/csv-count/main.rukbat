@@ -1,0 +1,41 @@
+//! Count CSV categories and resolve their labels using typed dictionaries.
+//! Run: rukbat run main.rukbat -- rows.csv
+import array
+import csv
+import encoding
+import fs
+import text
+
+labels := {
+    "error": "Errors", "warning": "Warnings", "info": "Information"
+}
+inputs := args()
+
+if inputs.length != 1 {
+    eprint("Usage: main.ps1 CSV_FILE")
+    exit(2)
+}
+
+counts: dict[string, int] = {
+}
+table := csv.parse_table(fs.read_text(inputs[0], encoding.utf8))
+
+for row in table.rows {
+    category := csv.get(row, "category")
+
+    if counts.has(category) {
+        counts[category] = counts[category] + 1
+    } else {
+        counts[category] = 1
+    }
+}
+
+for category in array.sort(counts.keys()) {
+    label := category
+
+    if labels.has(category) {
+        label = labels[category]
+    }
+
+    print(label + ": " + text.from_int(counts[category]))
+}

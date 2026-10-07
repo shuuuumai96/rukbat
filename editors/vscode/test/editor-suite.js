@@ -97,6 +97,38 @@ async function run() {
     assert.ok(await vscode.workspace.applyEdit(restoreCli));
     await vscode.window.showTextDocument(document);
 
+    const dictionaryUri = vscode.Uri.file(path.join(root, 'dictionary.rukbat'));
+    const dictionarySource = 'struct Item { n: int }\nd: dict[string, Item] = {"x": Item {n: 1}}\nprint(d.has("x"))\n';
+    fs.writeFileSync(dictionaryUri.fsPath, dictionarySource);
+    const dictionaryDocument = await vscode.workspace.openTextDocument(dictionaryUri);
+    await vscode.window.showTextDocument(dictionaryDocument);
+    await until(async () => {
+        const hover = await vscode.commands.executeCommand('vscode.executeHoverProvider', dictionaryUri, new vscode.Position(2, 8));
+        return hover?.some(item => item.contents.some(content => (content.value || content).includes('has(key: string): bool')));
+    }, 'dictionary hover');
+    const dictionaryReferences = await until(async () => {
+        const refs = await vscode.commands.executeCommand('vscode.executeReferenceProvider', dictionaryUri, new vscode.Position(0, 8));
+        return refs?.length === 3 ? refs : null;
+    }, 'dictionary nested type references');
+    assert.equal(dictionaryReferences.length, 3);
+    const dictionaryEdit = new vscode.WorkspaceEdit();
+    dictionaryEdit.replace(dictionaryUri, new vscode.Range(2, 0, 3, 0), 'd.');
+    assert.ok(await vscode.workspace.applyEdit(dictionaryEdit));
+    await until(async () => {
+        const result = await vscode.commands.executeCommand('vscode.executeCompletionItemProvider', dictionaryUri, new vscode.Position(2, 2));
+        return result?.items?.some(item => item.label === 'keys' && item.detail === 'keys(): string[]');
+    }, 'dictionary completion');
+    const dictionarySignatureEdit = new vscode.WorkspaceEdit();
+    dictionarySignatureEdit.replace(dictionaryUri, new vscode.Range(2, 0, 2, 2), 'd.remove(');
+    assert.ok(await vscode.workspace.applyEdit(dictionarySignatureEdit));
+    await until(async () => {
+        const result = await vscode.commands.executeCommand('vscode.executeSignatureHelpProvider', dictionaryUri, new vscode.Position(2, 9), '(');
+        return result?.signatures?.[0]?.label === 'remove(key: string): void';
+    }, 'dictionary signature help');
+    const dictionaryRestore = new vscode.WorkspaceEdit();
+    dictionaryRestore.replace(dictionaryUri, new vscode.Range(0, 0, dictionaryDocument.lineCount, 0), dictionarySource);
+    assert.ok(await vscode.workspace.applyEdit(dictionaryRestore));
+
     const docUri = vscode.Uri.file(path.join(root, 'hover.rukbat'));
     fs.writeFileSync(docUri.fsPath, '/// 二つの整数を加算します。\n///\n/// **注意:** 整数の範囲を超えるとErrorになります。\nfn add(a: int, b: int): int { return a + b }\nprint(add(1, 2))\n');
     const docDocument = await vscode.workspace.openTextDocument(docUri);
@@ -241,7 +273,7 @@ async function run() {
         'options := process.options(5000, encoding.utf8)',
         'result := ' + processCall(7),
         'fraction := 1.0000000000000002',
-        'copies := [result]',
+        'copies := [result]; dictionary := {"a": [1], "A": [2]}; keyed := {-1: "negative", 9223372036854775807: "max"}',
         'print(result.exit_code)',
         'result = ' + processCall(9),
         'print(result.exit_code)'
@@ -266,6 +298,12 @@ async function run() {
             const { scopes } = await session.customRequest('scopes', { frameId });
             const { variables } = await session.customRequest('variables', { variablesReference: scopes.find(scope => scope.name === 'Module').variablesReference });
             assert.equal(variables.find(value => value.name === 'fraction').value, '1.0000000000000002');
+            const dictionary = variables.find(value => value.name === 'dictionary');
+            assert.equal(dictionary.type, 'dict[string, int[]]');
+            const { variables: entries } = await session.customRequest('variables', { variablesReference: dictionary.variablesReference });
+            assert.deepEqual(entries.map(value => value.name), ['["a"]', '["A"]', 'length']);
+            for (const [expression, expected] of [['dictionary["a"][0]', '1'], ["dictionary['A'][0]", '2'], ['keyed[-1]', '"negative"'], ['keyed[9223372036854775807]', '"max"']])
+                assert.equal((await session.customRequest('evaluate', { expression, frameId })).result, expected);
             const { variables: fields } = await session.customRequest('variables', { variablesReference: variables.find(value => value.name === 'result').variablesReference });
             assert.equal(fields.find(value => value.name === 'exit_code').value, expectedCode);
             for (const [expression, expected] of [['result.exit_code', expectedCode], ['copies[0].exit_code', '7'], ['fraction', '1.0000000000000002']])
@@ -286,7 +324,7 @@ async function run() {
         if (vscode.debug.activeDebugSession?.type === 'rukbat') await vscode.debug.stopDebugging();
     }
 
-    console.log('Passed VS Code references, rename/Undo, incomplete-call signature help, language features, tasks, saved debug launch, source breakpoints, variables, editor stepping, numeric/opaque inspection, and debug completion.');
+    console.log('Passed VS Code references, rename/Undo, incomplete-call signature help, dictionary completion/hover/references/signatures/inspection, language features, tasks, saved debug launch, source breakpoints, variables, editor stepping, numeric/opaque inspection, and debug completion.');
 }
 
 module.exports = { run };

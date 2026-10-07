@@ -29,6 +29,7 @@ internal sealed partial class Emitter(TypeChecker checker, DebugMap? debugMap = 
         {
             return "System.Collections.Generic.List[object]";
         }
+        if (type.DictionaryKey is not null) return "hashtable";
 
         if (type == ValueType.Int) return "long";
         if (type == ValueType.Float)
@@ -134,9 +135,9 @@ internal sealed partial class Emitter(TypeChecker checker, DebugMap? debugMap = 
     {
         module = current;
         Line($"$__rukbat_modules[{Quote(current.Id)}] = New-Module -AsCustomObject " +
-            "-ArgumentList $__rukbat_modules, $__rukbat_runtime, $__rukbat_array, $__rukbat_clone, $__rukbat_append, $__rukbat_index, $__rukbat_float, $__rukbat_json_decode, $__rukbat_json_encode, $__rukbat_standard, $__rukbat_error, $__rukbat_raise, $__rukbat_arguments -ScriptBlock {");
+            "-ArgumentList $__rukbat_modules, $__rukbat_runtime, $__rukbat_array, $__rukbat_clone, $__rukbat_append, $__rukbat_index, $__rukbat_float, $__rukbat_json_decode, $__rukbat_json_encode, $__rukbat_standard, $__rukbat_error, $__rukbat_raise, $__rukbat_arguments, $__rukbat_dictionary -ScriptBlock {");
         indentation++;
-        Line("param($__rukbat_dependencies, $__rukbat_runtime, $__rukbat_array, $__rukbat_clone, $__rukbat_append, $__rukbat_index, $__rukbat_float, $__rukbat_json_decode, $__rukbat_json_encode, $__rukbat_standard, $__rukbat_error, $__rukbat_raise, [System.Collections.Generic.List[object]]$__rukbat_arguments)");
+        Line("param($__rukbat_dependencies, $__rukbat_runtime, $__rukbat_array, $__rukbat_clone, $__rukbat_append, $__rukbat_index, $__rukbat_float, $__rukbat_json_decode, $__rukbat_json_encode, $__rukbat_standard, $__rukbat_error, $__rukbat_raise, [System.Collections.Generic.List[object]]$__rukbat_arguments, $__rukbat_dictionary)");
         Line("Set-StrictMode -Version Latest");
         Line("$ErrorActionPreference = 'Stop'");
 
@@ -229,7 +230,10 @@ internal sealed partial class Emitter(TypeChecker checker, DebugMap? debugMap = 
                     Line($"{Address(assignment.Target)} = {Expr(assignment.Value)}");
                     break;
                 case IndexAssignment assignment:
-                    Line($"{Address(assignment.Target)} = {Expr(assignment.Value)}");
+                    if (checker.Types[assignment.Target.Receiver].DictionaryKey is not null)
+                        EmitDictionaryAssignment(assignment);
+                    else
+                        Line($"{Address(assignment.Target)} = {Expr(assignment.Value)}");
                     break;
                 case Return result:
                     EmitReturn(result);
@@ -345,6 +349,11 @@ internal sealed partial class Emitter(TypeChecker checker, DebugMap? debugMap = 
     {
         // Evaluate a potentially side-effecting index only once and retain its target in a temporary.
         var slot = "$__rukbat_slot" + temporaryId++;
+        if (checker.Types[index.Receiver].DictionaryKey is not null)
+        {
+            Line($"{slot} = & $script:__rukbat_dictionary 'entry' ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) $null {Location(index)} $script:__rukbat_raise");
+            return $"{slot}['value']";
+        }
         Line($"{slot} = & $script:__rukbat_index ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) {Location(index)} $true $script:__rukbat_raise");
         return $"{slot}.array[{slot}.offset]";
     }
@@ -369,6 +378,8 @@ internal sealed partial class Emitter(TypeChecker checker, DebugMap? debugMap = 
             _ => throw new InvalidOperationException()
         },
         ArrayLiteral array => $"(& $script:__rukbat_array @({string.Join("; ", array.Items.Select(item => ",(" + Expr(item) + ")"))}))",
+        DictionaryLiteral dictionary => DictionaryLiteral(dictionary),
+        Index index when checker.Types[index.Receiver].DictionaryKey is not null => $"(& $script:__rukbat_dictionary 'get' ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) $null {Location(index)} $script:__rukbat_raise)",
         Index index => $"(& $script:__rukbat_index ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) {Location(index)} $false $script:__rukbat_raise)",
         Name name => checker.Variables[name].PowerShellName,
         Member member when checker.ZoneConstants.TryGetValue(member, out var zone) => "(" + zone.Expression + ")",
@@ -376,6 +387,7 @@ internal sealed partial class Emitter(TypeChecker checker, DebugMap? debugMap = 
         Member member when checker.EncodingConstants.TryGetValue(member, out var encoding) => Quote(encoding.Label),
         Member member when checker.HttpConstants.TryGetValue(member, out var constant) => constant.Value is string method ? Quote(method) : "[long]" + constant.Value,
         Member member when checker.Types[member.Receiver].Element is not null => $"([long]({RawExpr(member.Receiver)}).Count)",
+        Member member when checker.Types[member.Receiver].DictionaryKey is not null => $"([long]({RawExpr(member.Receiver)})['entries'].Count)",
         Member member => $"(({RawExpr(member.Receiver)})[{Quote(checker.Fields[member].Key)}])",
         Unary unary => unary.Token.Text == "!"
             ? $"(-not {Expr(unary.Value)})"
@@ -428,6 +440,9 @@ internal sealed partial class Emitter(TypeChecker checker, DebugMap? debugMap = 
 
     private string Call(Call call)
     {
+        if (checker.DictionaryCalls.Contains(call))
+            return $"(& $script:__rukbat_dictionary {Quote(call.Name)} ({RawExpr(call.Receiver!)}) " +
+                (call.Arguments.Count == 0 ? "$null" : $"({Expr(call.Arguments[0].Value)})") + $" $null {Location(call)} $script:__rukbat_raise)";
         if (checker.ArrayAppends.Contains(call))
         {
             var address = Address(call.Receiver!);
@@ -451,11 +466,11 @@ internal sealed partial class Emitter(TypeChecker checker, DebugMap? debugMap = 
             }
             if (standardCall == "json.parse")
             {
-                return $"(& $script:__rukbat_json_decode ({Expr(call.Arguments[0].Value)}) {Schema(checker.Types[call])})";
+                return $"(& $script:__rukbat_json_decode ({Expr(call.Arguments[0].Value)}) {Schema(checker.Types[call])} $false $script:__rukbat_dictionary)";
             }
             if (standardCall == "json.as")
             {
-                return $"(& $script:__rukbat_json_decode ({Expr(call.Arguments[0].Value)}) {Schema(checker.Types[call])} $true)";
+                return $"(& $script:__rukbat_json_decode ({Expr(call.Arguments[0].Value)}) {Schema(checker.Types[call])} $true $script:__rukbat_dictionary)";
             }
             if (standardCall == "json.stringify")
             {

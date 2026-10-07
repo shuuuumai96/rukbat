@@ -60,3 +60,10 @@ test('expected-error snippet fails outside the catchable try', () => {
     assert.ok(snippet.indexOf('    test.fail("Expected Error was not thrown")') > snippet.indexOf('    }'));
     assert.ok(snippet.includes('        return'));
 });
+
+test('dictionary type constructor is highlighted without reserving a variable name', () => {
+    assert.ok(scopesAt('values: dict[string, int] = {}', 8).includes('storage.type.rukbat'));
+    assert.ok(!scopesAt('dict := 1', 0).includes('storage.type.rukbat'));
+    const snippet = require('../snippets/rukbat.json').Dictionary.body.join('\n');
+    assert.match(snippet, /dict\[/);
+});

@@ -17,10 +17,11 @@ string array. Tests run under the active file's workspace folder or directory.
 
 **Rukbat: Debug File** and F5 start source-level debugging on Windows PowerShell
 5.1. Set executable `.rukbat` breakpoints with F9; use F10/F11/Shift+F11 to step,
-and inspect local/module variables, structs, arrays, and imported call stacks.
+and inspect local/module variables, structs, arrays, dictionaries, and imported call stacks.
 Files are saved before compiling. Each session builds a separate temporary
 script, preserving ordinary `.ps1` output. No PowerShell extension or extra
-runtime installation is required. Watches accept variable/field/index paths;
+runtime installation is required. Watches accept variable/field/index paths, including literal
+string or integer dictionary keys;
 general expressions and conditional breakpoints are not supported. See
 `docs/DEBUGGING.md` in the repository or CLI ZIP for launch.json arguments,
 supported operations, and limits.

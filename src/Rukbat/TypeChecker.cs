@@ -158,9 +158,10 @@ internal sealed partial class TypeChecker
                         Error("RUK2010", "Field assignment requires a variable, not a temporary value.", assignment);
                     }
 
-                    if (assignment.Target.Receiver is { } receiver && Types.GetValueOrDefault(receiver)?.Element is not null)
+                    if (assignment.Target.Receiver is { } receiver && Types.GetValueOrDefault(receiver) is { } receiverType &&
+                        (receiverType.Element is not null || receiverType.DictionaryKey is not null))
                     {
-                        Error("RUK2010", "Array length is read-only.", assignment);
+                        Error("RUK2010", "Container length is read-only.", assignment);
                     }
 
                     Match(fieldType, TypeOf(assignment.Value, scope, fieldType), assignment.Value, $"field '{assignment.Target.Name}'");
@@ -300,6 +301,7 @@ internal sealed partial class TypeChecker
                 _ => ValueType.Error
             },
             ArrayLiteral array => ArrayType(array, scope, expected),
+            DictionaryLiteral dictionary => DictionaryType(dictionary, scope, expected),
             Index index => IndexType(index, scope),
             Name name => Resolve(name, scope),
             Member member => MemberType(member, scope),
@@ -439,6 +441,8 @@ internal sealed partial class TypeChecker
         if (call.PowerShellType is { } powerShellType)
         {
             powerShellType = BindType(powerShellType, call);
+            if (ContainsType(powerShellType, value => value.DictionaryKey is not null))
+                Error("RUK2010", "Dictionaries cannot be returned directly from PowerShell. Convert primitive results explicitly.", call);
             if (ContainsOpaqueStandardValue(powerShellType))
             {
                 Error("RUK2010", "PowerShell result types cannot contain json.Value, csv.Row, cli.Result, encoding.Encoding, hash.Algorithm, datetime types, http.Method or http.Body. Read text and use the corresponding parser.", call);
@@ -458,6 +462,8 @@ internal sealed partial class TypeChecker
             for (var i = 0; i < call.Arguments.Count; i++)
             {
                 var argument = call.Arguments[i];
+                if (ContainsType(arguments[i], value => value.DictionaryKey is not null))
+                    Error("RUK2010", "Dictionaries cannot be passed directly to PowerShell. Pass primitive values.", argument);
                 if (ContainsTaggedStandardValue(arguments[i]) || ContainsDateTime(arguments[i]) || ContainsType(arguments[i], HttpValues.Contains))
                     Error("RUK2010", "Use explicit standard-library conversions before passing opaque values to PowerShell.", argument);
                 if (ContainsStruct(arguments[i]))
@@ -752,6 +758,8 @@ internal sealed partial class TypeChecker
         {
             return SupportsJson(element);
         }
+        if (ContainsType(type, value => value.DictionaryKey is { } key && key != ValueType.String)) return false;
+        if (type.DictionaryValue is { } dictionaryValue) return SupportsJson(dictionaryValue);
         return type is { Struct: not null } && type.Struct != ErrorStructure ||
             type == ValueType.Bool || type == ValueType.Int || type == ValueType.Float || type == ValueType.String;
     }
@@ -769,6 +777,7 @@ internal sealed partial class TypeChecker
         bool Contains(ValueType value) => matches(value) ||
             value.NullableElement is { } nullable && Contains(nullable) ||
             value.Element is { } element && Contains(element) ||
+            value.DictionaryValue is { } dictionaryValue && Contains(dictionaryValue) ||
             value.Struct is { } structure && visited.Add(structure) && structure.Fields.Values.Any(field => Contains(field.Type));
         return Contains(type);
     }
@@ -869,6 +878,7 @@ internal sealed partial class TypeChecker
             Unary unary => ContainsUnqualifiedUserCall(unary.Value),
             Binary binary => ContainsUnqualifiedUserCall(binary.Left) || ContainsUnqualifiedUserCall(binary.Right),
             ArrayLiteral array => array.Items.Any(ContainsUnqualifiedUserCall),
+            DictionaryLiteral dictionary => dictionary.Entries.Any(entry => ContainsUnqualifiedUserCall(entry.Key) || ContainsUnqualifiedUserCall(entry.Value)),
             Index index => ContainsUnqualifiedUserCall(index.Receiver) || ContainsUnqualifiedUserCall(index.Offset),
             Member member => ContainsUnqualifiedUserCall(member.Receiver),
             Call call => (call.Receiver is not null && ContainsUnqualifiedUserCall(call.Receiver)) ||
@@ -979,6 +989,8 @@ internal sealed partial class TypeChecker
 
     private static string QualifiedTypeName(ValueType type)
     {
+        if (type.DictionaryKey is { } key)
+            return $"dict[{QualifiedTypeName(key)}, {QualifiedTypeName(type.DictionaryValue!)}]";
         if (type.NullableElement is { } nullable)
         {
             return QualifiedTypeName(nullable) + "?";

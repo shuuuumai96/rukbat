@@ -34,7 +34,23 @@ function global:Format-RukbatDebugValue($value, [string]$typeId, [int]$depth, $b
         return $node
     }
     $budget.remaining--
-    if ($null -ne $type.element) {
+    if ($null -ne $type.PSObject.Properties['dictionaryKey'] -and $null -ne $type.dictionaryKey) {
+        $node.value = $type.name + ' (' + $value['entries'].Count + ')'
+        if ($depth -lt 6 -and $budget.remaining -gt 0) {
+            $children = New-Object 'System.Collections.Generic.List[object]'
+            foreach ($key in $value['order']) {
+                if ($children.Count -ge 100 -or $budget.remaining -le 0) { break }
+                $child = Format-RukbatDebugValue $value['entries'][$key]['value'] $type.dictionaryValue ($depth + 1) $budget
+                $keyType = $global:__rukbat_debug_map.types.PSObject.Properties[$type.dictionaryKey].Value
+                $label = if ($keyType.name -ceq 'string') { ConvertTo-Json -InputObject ([string]$key) -Compress } else { ([long]$key).ToString([System.Globalization.CultureInfo]::InvariantCulture) }
+                $child.name = '[' + $label + ']'
+                $child.dictionaryKey = $key
+                $null = $children.Add($child)
+            }
+            $null = $children.Add(@{ name = 'length'; type = 'int'; value = $value['entries'].Count.ToString(); children = @(); isConst = $true })
+            $node.children = $children.ToArray()
+        }
+    } elseif ($null -ne $type.element) {
         $node.value = $type.name + ' (' + $value.Count + ')'
         if ($depth -lt 6 -and $budget.remaining -gt 0) {
             $children = New-Object 'System.Collections.Generic.List[object]'

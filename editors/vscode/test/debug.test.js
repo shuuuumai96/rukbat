@@ -388,4 +388,31 @@ test('float inspection preserves the stored binary64 value', { skip: process.pla
     await s.event('terminated');
 });
 
+test('dictionary inspection preserves order and supports literal keys without executing code', { skip: process.platform !== 'win32' }, async t => {
+    const { session: s, write } = project(t);
+    const main = write('main.rukbat', [
+        'd := {"a": [1], "A": [2], "a\\\"b": [3]}',
+        'numbers := {-9223372036854775808: "min", -1: "negative", 9223372036854775807: "max"}',
+        'print(d.length)'
+    ].join('\n'));
+    await s.start(main, { stopOnEntry: false });
+    await s.request('setBreakpoints', { source: { path: main }, breakpoints: [{ line: 3 }] });
+    await s.request('configurationDone');
+    await s.event('stopped');
+    const values = await s.values();
+    assert.equal(values.d.type, 'dict[string, int[]]');
+    assert.equal(values.d.value, 'dict[string, int[]] (3)');
+    const children = (await s.request('variables', { variablesReference: values.d.variablesReference })).variables;
+    assert.deepEqual(children.slice(0, 2).map(child => child.name), ['["a"]', '["A"]']);
+    assert.equal(children.at(-1).name, 'length');
+    for (const [expression, expected] of [['d["a"][0]', '1'], ["d['A'][0]", '2'], ['d["a\\\"b"][0]', '3'],
+        ['numbers[-9223372036854775808]', '"min"'], ['numbers[-1]', '"negative"'], ['numbers[9223372036854775807]', '"max"'], ['d.length', '3']])
+        assert.equal((await s.request('evaluate', { expression })).result, expected);
+    await assert.rejects(s.request('evaluate', { expression: 'd.keys()' }), /constant array\/dictionary index/);
+    await assert.rejects(s.request('evaluate', { expression: 'd["missing"]' }), /unavailable/);
+    await s.request('continue', { threadId: 1 });
+    assert.equal((await s.event('exited')).body.exitCode, 0);
+    await s.event('terminated');
+});
+
 module.exports = { Session };
