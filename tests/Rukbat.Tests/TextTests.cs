@@ -223,7 +223,7 @@ public class TextTests : TestBase
             lines.append('first')
             print(lines[0])
             """);
-        var result = await project.RunOutputWithWindowsPowerShell("\uFEFF" + output);
+        var result = await project.RunOutputWithWindowsPowerShell(output);
         Assert.True(result.ExitCode == 0, result.Error);
         Assert.Equal("", result.Error);
         Assert.Equal("vsr\na-b-a\nx-b-x\na,b,a\nchanged,b,a,extra\nfirst\n", result.Output);

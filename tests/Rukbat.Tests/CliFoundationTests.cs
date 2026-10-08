@@ -64,8 +64,8 @@ public class CliFoundationTests : TestBase
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
         var results = crossVersion
-            ? new[] { await project.RunOutput(compiled.Output!), await project.RunOutputWithWindowsPowerShell("\uFEFF" + compiled.Output!) }
-            : new[] { await project.RunOutputWithWindowsPowerShell("\uFEFF" + compiled.Output!) };
+            ? new[] { await project.RunOutput(compiled.Output!), await project.RunOutputWithWindowsPowerShell(compiled.Output!) }
+            : new[] { await project.RunOutputWithWindowsPowerShell(compiled.Output!) };
         foreach (var result in results)
         {
             Assert.Equal(code, result.ExitCode);
@@ -90,7 +90,7 @@ public class CliFoundationTests : TestBase
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
         foreach (var result in new[] { await project.RunOutput(compiled.Output!),
-            await project.RunOutputWithWindowsPowerShell("\uFEFF" + compiled.Output!) })
+            await project.RunOutputWithWindowsPowerShell(compiled.Output!) })
         {
             Assert.Equal(0, result.ExitCode);
             Assert.Equal(expected, result.Output.TrimEnd('\r', '\n'));
@@ -123,7 +123,7 @@ public class CliFoundationTests : TestBase
         var compiled = project.Compile();
         Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
         foreach (var result in new[] { await project.RunOutput(compiled.Output!),
-            await project.RunOutputWithWindowsPowerShell("\uFEFF" + compiled.Output!) })
+            await project.RunOutputWithWindowsPowerShell(compiled.Output!) })
         {
             Assert.Equal(0, result.ExitCode);
             Assert.Equal("invalid", result.Output.TrimEnd('\r', '\n'));
