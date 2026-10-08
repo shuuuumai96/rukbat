@@ -1,0 +1,56 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+public sealed class RukbatCsvRow {
+    private sealed class Header {
+        public readonly string[] Columns;
+        public readonly Dictionary<string, int> Indices;
+        public Header(string[] columns) {
+            if (columns.Length == 0) throw new Exception("CSV table requires at least one header column.");
+            Columns = (string[])columns.Clone();
+            Indices = new Dictionary<string, int>(StringComparer.Ordinal);
+            for (int index = 0; index < columns.Length; index++) {
+                if (columns[index].Length == 0) throw new Exception("CSV header column " + (index + 1) + " is empty.");
+                if (Indices.ContainsKey(columns[index])) throw new Exception("Duplicate CSV header column '" + columns[index] + "'.");
+                Indices.Add(columns[index], index);
+            }
+        }
+    }
+    private readonly Header header;
+    private readonly string[] values;
+    private RukbatCsvRow(Header header, string[] values, int recordNumber) {
+        if (values.Length != header.Columns.Length) throw new Exception("CSV record " + recordNumber + ": expected " + header.Columns.Length + " fields, got " + values.Length + ".");
+        this.header = header; this.values = (string[])values.Clone();
+    }
+    public static void ValidateColumns(string[] columns) { new Header(columns); }
+    public static bool HasColumn(string[] columns, string column) { return new Header(columns).Indices.ContainsKey(column); }
+    public static RukbatCsvRow Create(string[] columns, string[] values) { return new RukbatCsvRow(new Header(columns), values, 1); }
+    public static RukbatCsvRow[] CreateRows(string[] columns, object[] records, int firstRecordNumber) {
+        // Validate headers even when no data rows exist, then share immutable lookup data.
+        var header = new Header(columns);
+        var rows = new RukbatCsvRow[records.Length];
+        for (int index = 0; index < records.Length; index++) {
+            var fields = new List<string>();
+            foreach (object field in (IEnumerable)records[index]) fields.Add((string)field);
+            rows[index] = new RukbatCsvRow(header, fields.ToArray(), firstRecordNumber + index);
+        }
+        return rows;
+    }
+    private int Index(string column) {
+        int index;
+        if (!header.Indices.TryGetValue(column, out index)) throw new Exception("CSV row has no column '" + column + "'.");
+        return index;
+    }
+    public string Get(string column) { return values[Index(column)]; }
+    public RukbatCsvRow Set(string column, string value) {
+        var copy = (string[])values.Clone(); copy[Index(column)] = value;
+        return new RukbatCsvRow(header, copy, 1);
+    }
+    public string[] Fields(string[] columns) {
+        if (columns.Length != header.Columns.Length) throw new Exception("CSV row columns do not match table columns.");
+        for (int index = 0; index < columns.Length; index++)
+            if (!String.Equals(columns[index], header.Columns[index], StringComparison.Ordinal))
+                throw new Exception("CSV row columns do not match table columns at column " + (index + 1) + ".");
+        return (string[])values.Clone();
+    }
+}

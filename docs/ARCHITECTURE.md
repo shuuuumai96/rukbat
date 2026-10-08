@@ -25,18 +25,61 @@ Each stage has a separate responsibility:
 - Lexer splits strings, comments, and operators into tokens.
 - Parser builds the syntax tree without type checking or name resolution.
 - ModuleLoader discovers modules, resolves import paths, determines canonical module identity, builds the dependency graph, and detects cycles.
-- Resolver registers symbols, manages scopes, resolves name references including module-qualified names, and rejects redeclarations.
+- Binding registers symbols, manages scopes, resolves name references including module-qualified names, and rejects redeclarations. This responsibility currently lives in TypeChecker's binding routines and Symbols; there is no independent Resolver class or intermediate bound-tree stage.
 - TypeChecker validates type compatibility, explicit numeric conversion contracts, nullable flow narrowing, function call signatures, and control-flow return semantics.
 - Const is stored on variable declarations and bound symbols. TypeChecker checks writes through bound variable paths and propagates receiver mutations through bound method calls after checking all bodies. This fixed-point analysis covers indirect calls and recursion; ordinary copied arguments and locals do not forward receiver mutation. Emitter uses the existing initialization and copy operations unchanged. LSP and documentation signatures retain the const modifier.
 - Emitter consumes validated syntax trees and type information to generate standalone Windows PowerShell 5.1-compatible `.ps1` files. It does not infer semantics or resolve names.
 - Compiler invokes these stages in order. It validates the generated PowerShell syntax as a generator sanity check; Windows PowerShell 5.1 compatibility is established by the execution test suite, not by this parser validation alone.
-- `rukbat check` stops after ModuleLoader, Resolver, and TypeChecker. It invokes neither Emitter nor the PowerShell parser.
+- `rukbat check` stops after ModuleLoader and TypeChecker (including binding). It invokes neither Emitter nor the PowerShell parser.
 - `rukbat test` discovers source files in the CLI, uses the same front end to bind test function signatures, then emits and validates every selected entrypoint before execution. Emitter initializes the ordinary module graph, invokes one validated function with an optional bound `test.Context`, and writes a private completion marker only after that function returns. The runner captures each PowerShell host in a separate Windows process job; process exit alone does not imply test success. The same native `ProcessJob.cs.txt` is compiled into the CLI and embedded for deployed `process.run` scripts.
 - Formatter validates syntax, then normalizes tokens while preserving comments. It does not check types or resolve imports.
 - Lexer retains source comment ranges outside the token stream; Parser records declaration starts. ModuleDocumentation attaches comments to parsed declarations once. DocumentationCatalog resolves user-symbol links and reuses bound type information for signatures. `rukbat doc` uses the normal checking front end and a bundled CommonMark parser, validates independent opt-in examples without execution, then renders offline HTML without calling Emitter. LSP hover, completion, and documentation warnings share the same attachment and reference model. Standard-library documentation remains owned by STDLIB.md.
 - `rukbat lsp` runs a stdio JSON-RPC server. LanguageAnalysis uses the same ModuleLoader, Parser, and TypeChecker as the compiler, with an in-memory source reader for open documents. Optional parser block spans describe lexical scopes; bound symbol identities provide hover and definitions without rebinding names by spelling. Completion uses those scopes and the embedded canonical STDLIB.md signatures/documentation. Formatting calls the existing Formatter and returns edits. No backend or user code is executed. The VS Code client and TextMate grammar live under `editors/vscode`.
 - EditorSymbolId separates declaration identity (normalized path, declaration offset, kind) from display types, including nullable narrowing. Parser optionally retains import-name tokens, qualified-type tokens and call delimiters, including unfinished calls. EditorWorkspace captures workspace sources on demand, uses normal front-end analysis to find closed callers, and maps bound documentation links and independent checked examples to original comment positions. Rename constructs an in-memory edit, rechecks related entries and compares every original reference binding through the edit's offset mapping before returning versioned text edits. SignatureHelp uses parser call boundaries and an ephemeral argument-free call to resolve unfinished receivers through the same front end; standard signatures are structured from the existing embedded documentation catalog. These editor operations never invoke Emitter or PowerShell.
 - During formatting, Parser also records syntax facts such as continuation newlines, struct-literal closing braces, unary operators, type-argument delimiters, and adjacent statement kinds within each block. FormattingSyntax identifies required group boundaries, and Formatter uses these facts instead of guessing expression roles from token spelling. Ordinary compilation does not collect these optional facts.
+
+## Source layout
+
+The compiler remains one project with unchanged namespaces and public entry points. Directories separate
+responsibilities without adding service interfaces or independently configurable stages.
+
+| Location under `src/Rukbat` | Responsibility |
+|---|---|
+| `Compiler.cs`, `CompilationResult.cs`, `Diagnostic.cs`, `Source.cs` | Public compilation entry points, results, and source locations |
+| `Program.cs`, `Commands/` | Process entry point, CLI commands, distribution probes, test execution |
+| `Syntax/` | Tokens, AST, lexing, parsing |
+| `Modules/` | Loaded modules, import resolution, dependency ordering |
+| `Semantics/` | Symbols, bound types, binding, type compatibility, flow and expression checking |
+| `StandardLibrary/` | Canonical standard modules, struct definitions, fixed call signatures and validated constants |
+| `CodeGeneration/` | PowerShell traversal, expression/statement lowering, standard-call adapters, debug maps and resource emission |
+| `Runtime/PowerShell/` | Fixed PowerShell helper and operation fragments embedded in generated scripts |
+| `Runtime/Native/` | Embedded C# helper sources compatible with Windows PowerShell 5.1 |
+| `Formatting/`, `Documentation/`, `LanguageServer/` | Formatter, documentation and editor tooling |
+
+TypeChecker and Emitter use partial files for cohesive responsibilities within each stage.
+Their main files own stage state and orchestration. Partial files share that state; they are
+not independent pipeline stages. In particular, binding and checking still cooperate during
+the same traversal, and parsed type names still use ValueType until binding resolves them.
+
+For a fixed standard API, keep parameter and result types together in
+`StandardLibrary/StandardSignatures.cs`. Datetime operations reuse DateTimeValues' existing
+operation definitions. Generic array and JSON operations need context-dependent checking and
+remain in Semantics. Module declarations and implicit dependencies belong to StandardModules;
+dependency traversal belongs to ModuleLoader. Editor documentation still comes from STDLIB.md.
+
+Edit fixed runtime code in its source language, not in C# raw string literals. PowerShell files
+are fragments (some are switch arms), not standalone scripts. RuntimeResources embeds and reads
+them without requiring loose files beside the compiler. CodeGeneration owns dynamic substitutions,
+bound field keys and emitted indentation. Native files retain the `.cs.txt` suffix so they are not
+accidentally compiled into the authoring tool; ProcessJob is explicitly compiled for the test runner
+as well as embedded for generated scripts. Moving these files must preserve both resource names and
+the operations toolkit's ProcessJob copy path.
+
+Structural changes should preserve generated text, diagnostics and debug maps. Compare representative
+ordinary and debug compilations before and after a refactor, then run semantic/editor tests and
+execute affected helpers on Windows PowerShell 5.1 and PowerShell 7.
+
+## Generated runtime
 
 Generated scripts include small PowerShell helpers implementing Rukbat value copies, array bounds,
 dictionary operations, error propagation, and PowerShell boundaries. Only imported standard-library
@@ -107,7 +150,7 @@ one CSV parser; both serializers share one quoting implementation. The checker e
 from JSON conversion and PowerShell results, including nested containers. The emitter adapts
 table results to actual bound field keys. Only a `csv` import emits CSV helpers.
 
-Native Windows helpers for contained process execution and journaled file moves live in `Runtime/*.cs.txt`, embedded as compiler resources and copied into the generated script. `NativeEmission` emits lazy `Add-Type` loaders; the deployment machine uses its existing PowerShell/.NET facilities. These helpers use C# syntax compatible with the Windows PowerShell 5.1 compiler. Process job assignment is part of process creation, so host termination cannot leave a child executing outside the job. Move journals are flushed before renames; locked file handles preserve identity across moves and recovery.
+Native Windows helpers for contained process execution and journaled file moves live in `Runtime/Native/*.cs.txt`, embedded as compiler resources and copied into the generated script. `NativeEmission` emits lazy `Add-Type` loaders; the deployment machine uses its existing PowerShell/.NET facilities. These helpers use C# syntax compatible with the Windows PowerShell 5.1 compiler. Process job assignment is part of process creation, so host termination cannot leave a child executing outside the job. Move journals are flushed before renames; locked file handles preserve identity across moves and recovery.
 
 Generated scripts reject non-FullLanguage sessions before user operations. They do not change or bypass the machine's execution/security policy.
 

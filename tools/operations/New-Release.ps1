@@ -20,7 +20,7 @@ try {
     foreach ($name in @('Common.ps1','Invoke-Job.ps1','Test-Job.ps1','Manage-Task.ps1')) {
         Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination (Join-Path $Destination $name)
     }
-    Copy-Item -LiteralPath (Join-Path $PSScriptRoot '../../src/Rukbat/Runtime/ProcessJob.cs.txt') -Destination (Join-Path $Destination 'ProcessJob.cs.txt')
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot '../../src/Rukbat/Runtime/Native/ProcessJob.cs.txt') -Destination (Join-Path $Destination 'ProcessJob.cs.txt')
     $hashes = [ordered]@{}
     foreach ($name in @('job.ps1','Common.ps1','Invoke-Job.ps1','Test-Job.ps1','Manage-Task.ps1','ProcessJob.cs.txt')) { $hashes[$name] = Get-Sha256 (Join-Path $Destination $name) }
     Write-AtomicJson (Join-Path $Destination 'release.json') ([ordered]@{

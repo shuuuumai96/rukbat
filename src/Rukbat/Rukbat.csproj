@@ -18,8 +18,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Runtime/*.cs.txt" WithCulture="false" LogicalName="Rukbat.Runtime.%(Filename)%(Extension)" />
-    <Compile Include="Runtime/ProcessJob.cs.txt" Link="Runtime/ProcessJob.cs" />
+    <EmbeddedResource Include="Runtime/PowerShell/*.ps1" LogicalName="Rukbat.Runtime.PowerShell.%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Runtime/Native/*.cs.txt" WithCulture="false" LogicalName="Rukbat.Runtime.%(Filename)%(Extension)" />
+    <Compile Include="Runtime/Native/ProcessJob.cs.txt" Link="Runtime/ProcessJob.cs" />
   </ItemGroup>
 
 </Project>
