@@ -24,6 +24,35 @@ public class CliRunTests : TestBase
     [Trait("Category", "PowerShell51")]
     [Trait("Category", "Runtime")]
     [Fact]
+    public async Task CliRunKeepsLiteralWorkingDirectoryAndArguments()
+    {
+        using var project = new Project();
+        const string workDirectory = "work 日本語 [brackets] ' ; $ &";
+        const string contents = "literal argument 日本語 [brackets] ' ; $ &";
+        project.Write(workDirectory + "/input.txt", "relative input");
+        project.Write("source/main.rukbat", """
+            import fs
+            import encoding
+            import path
+            arguments := args()
+            print(fs.read_text(arguments[0], encoding.utf8))
+            fs.write_text(arguments[1], arguments[2], encoding.utf8)
+            print(path.script_dir())
+            """);
+        var working = project.PathFor(workDirectory);
+        var result = await RunCliProcess(project,
+            ["run", project.PathFor("source/main.rukbat"), "--", "input.txt", "output.txt", contents],
+            workingDirectory: working);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal($"relative input\n{project.PathFor("source")}\n", result.Output);
+        Assert.Empty(result.Error);
+        Assert.Equal(contents, File.ReadAllText(Path.Combine(working, "output.txt")));
+        Assert.False(File.Exists(project.PathFor("source/output.txt")));
+    }
+
+    [Trait("Category", "PowerShell51")]
+    [Trait("Category", "Runtime")]
+    [Fact]
     public async Task CliRunNeverExecutesStaleOutputAfterCompilationFailure()
     {
         using var project = new Project();
@@ -90,7 +119,8 @@ public class CliRunTests : TestBase
         Assert.Contains("Usage: rukbat <build|run|check|fmt>", error.ToString());
     }
 
-    private static async Task<RunResult> RunCliProcess(Project project, string[] args, bool hidePowerShell = false)
+    private static async Task<RunResult> RunCliProcess(Project project, string[] args, bool hidePowerShell = false,
+        string? workingDirectory = null)
     {
         var host = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH");
         if (string.IsNullOrEmpty(host))
@@ -102,7 +132,7 @@ public class CliRunTests : TestBase
         var info = new ProcessStartInfo(host)
         {
             UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
-            CreateNoWindow = true, WorkingDirectory = project.DirectoryPath,
+            CreateNoWindow = true, WorkingDirectory = workingDirectory ?? project.DirectoryPath,
             StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8
         };
         info.ArgumentList.Add(typeof(Cli).Assembly.Location);

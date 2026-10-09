@@ -67,10 +67,11 @@ internal sealed partial class Emitter(TypeChecker checker, DebugMap? debugMap = 
         Line("}");
         Line("& {");
         indentation++;
-        Line("param([string[]]$__rukbat_arguments, [string]$__rukbat_working_dir, [string]$__rukbat_script_dir)");
+        Line("param([string[]]$__rukbat_arguments, [bool]$__rukbat_direct_file, [string]$__rukbat_script_dir)");
         Line("$ErrorActionPreference = 'Stop'");
         Line("[Console]::OutputEncoding = [System.Text.Encoding]::UTF8");
         Line("Set-StrictMode -Version Latest");
+        EmitLines(RuntimeResources.ReadPowerShell("EntryContextRuntime"));
         Line("$__rukbat_modules = @{}");
         if (debugMap is not null)
             Line("$global:__rukbat_debug_frames = New-Object 'System.Collections.Generic.List[object]'");
@@ -126,7 +127,7 @@ internal sealed partial class Emitter(TypeChecker checker, DebugMap? debugMap = 
         indentation--;
         Line("}");
         indentation--;
-        Line("} ([string[]]$args) $PWD.ProviderPath $PSScriptRoot");
+        Line("} ([string[]]$args) ($MyInvocation.ScriptLineNumber -eq 0) $PSScriptRoot");
         return output.ToString();
     }
 

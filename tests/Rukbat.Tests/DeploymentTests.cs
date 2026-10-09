@@ -7,7 +7,7 @@ public class DeploymentTests : TestBase
 {
     private static string SourcePath(string path) => path.Replace('\\', '/').Replace("'", "\\'");
 
-    private static async Task<RunResult> RunDeployedScript(string shell, string script, string working, string nativeWorking)
+    private static async Task<RunResult> RunDeployedScript(string shell, string script, string working, string nativeWorking, bool directFile = false)
     {
         var info = new ProcessStartInfo(shell)
         {
@@ -15,9 +15,11 @@ public class DeploymentTests : TestBase
             CreateNoWindow = true, WorkingDirectory = nativeWorking,
             StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8
         };
-        foreach (var value in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
-            "Set-Location -LiteralPath '" + working.Replace("'", "''") + "'; & '" + script.Replace("'", "''") + "'" })
+        foreach (var value in new[] { "-NoLogo", "-NoProfile", "-NonInteractive" })
             info.ArgumentList.Add(value);
+        info.ArgumentList.Add(directFile ? "-File" : "-Command");
+        info.ArgumentList.Add(directFile ? script :
+            "Set-Location -LiteralPath '" + working.Replace("'", "''") + "'; & '" + script.Replace("'", "''") + "'");
         using var child = Process.Start(info)!;
         var stdout = child.StandardOutput.ReadToEndAsync();
         var stderr = child.StandardError.ReadToEndAsync();
@@ -41,13 +43,32 @@ public class DeploymentTests : TestBase
     public async Task DeployedScriptKeepsEntryWorkingDirectoryAndScriptDirectoryOnWindowsPowerShell51()
         => await AssertDeployedScriptKeepsEntryWorkingDirectoryAndScriptDirectory("powershell");
 
-    private async Task AssertDeployedScriptKeepsEntryWorkingDirectoryAndScriptDirectory(string shell)
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
+    [Theory]
+    [InlineData("powershell")]
+    [InlineData("pwsh")]
+    public async Task DirectFileInvocationKeepsLiteralProcessWorkingDirectory(string shell)
+        => await AssertDeployedScriptKeepsEntryWorkingDirectoryAndScriptDirectory(
+            shell, "work 日本語 [brackets] ' ; $ &", directFile: true);
+
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
+    [Theory]
+    [InlineData("powershell")]
+    [InlineData("pwsh")]
+    public async Task SessionInvocationKeepsLiteralPowerShellLocationInsteadOfProcessDirectory(string shell)
+        => await AssertDeployedScriptKeepsEntryWorkingDirectoryAndScriptDirectory(
+            shell, "work 日本語 [brackets] ' ; $ &");
+
+    private async Task AssertDeployedScriptKeepsEntryWorkingDirectoryAndScriptDirectory(
+        string shell, string workDirectory = "work", bool directFile = false)
     {
         using var project = new Project();
-        project.Write("work/data.txt", "working");
+        project.Write(workDirectory + "/data.txt", "working");
         project.Write("other/data.txt", "wrong");
         project.Write("deploy/config.json", "adjacent");
-        var working = project.PathFor("work");
+        var working = project.PathFor(workDirectory);
         var other = project.PathFor("other");
         var windowsShell = Path.Combine(Environment.GetEnvironmentVariable("SystemRoot")!, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
         project.Write("source/helper.rukbat", "import path\nfn directory(): string { return path.script_dir() }");
@@ -66,9 +87,9 @@ public class DeploymentTests : TestBase
             names := fs.list_files('.', '*.txt')
             print(names.length)
             print(fs.read_text(path.join([path.script_dir(), 'config.json']), encoding.utf8))
-            result: process.Result = process.run('powershell', ['-NoLogo', '-NoProfile', '-Command', '[Console]::Write([Environment]::CurrentDirectory)'], process.options(null, encoding.utf8))
+            result: process.Result = process.run('powershell', ['-NoLogo', '-NoProfile', '-Command', '[Console]::OutputEncoding = [Text.Encoding]::UTF8; [Console]::Write([Environment]::CurrentDirectory)'], process.options(null, encoding.utf8))
             print(result.stdout)
-            relative: process.Result = process.run('{{SourcePath(Path.GetRelativePath(working, windowsShell))}}', ['-NoLogo', '-NoProfile', '-Command', '[Console]::Write([Environment]::CurrentDirectory)'], process.options(null, encoding.utf8))
+            relative: process.Result = process.run('{{SourcePath(Path.GetRelativePath(working, windowsShell))}}', ['-NoLogo', '-NoProfile', '-Command', '[Console]::OutputEncoding = [Text.Encoding]::UTF8; [Console]::Write([Environment]::CurrentDirectory)'], process.options(null, encoding.utf8))
             print(relative.stdout)
             """);
         var compiled = new Compiler().CompileFile(project.PathFor("source/main.rukbat"));
@@ -78,11 +99,11 @@ public class DeploymentTests : TestBase
         File.Delete(project.PathFor("source/helper.rukbat"));
         var script = project.PathFor("deploy/job.ps1");
         File.WriteAllText(script, compiled.Output, new UTF8Encoding(true));
-        var result = await RunDeployedScript(shell, script, working, other);
+        var result = await RunDeployedScript(shell, script, working, directFile ? working : other, directFile);
         Assert.True(result.ExitCode == 0, result.Error);
         Assert.Equal("", result.Error);
         Assert.Equal($"{project.PathFor("deploy")}\n{project.PathFor("deploy")}\nworking\nTrue\n2\nadjacent\n{working}\n{working}\n", result.Output);
-        Assert.Equal("saved", File.ReadAllText(project.PathFor("work/result.txt")));
+        Assert.Equal("saved", File.ReadAllText(Path.Combine(working, "result.txt")));
         Assert.False(File.Exists(project.PathFor("other/result.txt")));
     }
 
