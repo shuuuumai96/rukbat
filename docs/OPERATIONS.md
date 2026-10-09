@@ -1,6 +1,7 @@
 # Operating unattended Rukbat jobs
 
-Rukbat owns language/API behavior and supplies the integration tools in `tools/operations`. Windows owns scheduling, account permissions, policy enforcement and the monitoring infrastructure. The job author owns business completion checks, external side effects and the decision to retry. Use the same `Invoke-Job.ps1` entry point for manual and scheduled launches.
+Use `tools/operations/Invoke-Job.ps1` for both manual and scheduled launches.
+The table below separates tool guarantees from deployment responsibilities.
 
 The tools require Windows 10 / Server 2016 or later, FullLanguage, and Windows PowerShell 5.1 or PowerShell 7. State storage must be local fixed NTFS. All configured paths must be absolute local paths without reparse points. Network access performed by the business program is separate from this local deployment profile. No execution-policy bypass, elevation, persistent agent or extra deployment runtime is installed.
 
@@ -21,7 +22,7 @@ The tools require Windows 10 / Server 2016 or later, FullLanguage, and Windows P
 
 ## Build a release
 
-On the development machine, build the compiler, then package a source entry point:
+On the development machine, package a source entry point:
 
 ```powershell
 dotnet build src/Rukbat
@@ -110,11 +111,23 @@ The note is an operator assertion, not an automatic proof of business correctnes
 
 ## Upgrade, roll back and restore data
 
-Keep releases in immutable version directories and state/work paths separate. Before an upgrade, stop scheduling new runs and wait for the current job to finish. Reconcile any unresolved run under its original configuration first. Keep the old release and configuration, build a new directory, test it against disposable inputs, then change the configuration's release path and re-register the task with the new tool path. A configuration change appears in monitoring until the new configuration completes successfully.
+Keep releases immutable and work/state directories separate. To upgrade or roll back:
 
-To roll back code, use the same procedure to restore the previous release/configuration and task action. This does not roll back data. Test that the old program understands the current data format before using it. Do not modify or replace files inside a release that is executing.
+1. Stop scheduling new runs and wait for the current job to finish.
+2. Reconcile unresolved runs with their original configuration.
+3. Retain the old release/configuration; test the replacement on disposable inputs.
+4. Change the release path and re-register the task with the matching tool path.
 
-For data restoration, stop the task, preserve failed-run evidence, restore an independently verified backup into a separate staging directory, and compare its checksum/content against the backup inventory before changing live paths. Restored files may have different file IDs and cannot be assumed to match an old move journal. Treat the restored data as a new explicitly reviewed plan; retain the old journal as evidence. Set backup frequency and permitted data loss for the actual business, and exercise restore on the target storage. No universal backup of arbitrary external side effects is provided.
+Monitoring reports a configuration change until it completes successfully. Code
+rollback does not restore data: verify that the old program accepts the current
+format. Never replace files inside an executing release.
+
+For data restoration, stop the task and preserve failure evidence. Restore a
+verified backup into staging and compare checksums/content with its inventory
+before switching live paths. Restored file IDs may differ from the move journal;
+use a new reviewed plan and retain the old journal. Set backup frequency and
+permitted data loss for the job, and exercise restoration on target storage.
+Arbitrary external side effects have no universal backup/rollback mechanism.
 
 ## Acceptance examples and release gate
 

@@ -2,7 +2,6 @@
 
 Use `import cli` to define positional arguments, value options, flags and help in one place.
 The parser returns data; the program controls output, exit codes and operations.
-All definitions use ordinary value structs and required positional function arguments.
 
 ```rukbat
 import cli
@@ -47,10 +46,11 @@ rukbat build list-files.rukbat
 .\list-files.ps1 --help
 ```
 
-The command name is a display label, not an automatically detected invocation. `rukbat run`
-builds and launches the same generated script, so cli.help alone does not distinguish that route
-from direct PowerShell execution. Include program-specific Rukbat/VS Code instructions after
-the generated help when the program is used during development. For this example:
+## Invocation and help
+
+`cli.command` takes a display name; help does not detect whether the program was
+started through Rukbat or PowerShell. Add explicit invocation instructions when
+supporting both, as in [file-browser](../examples/file-browser/main.rukbat):
 
 ```text
 Rukbat (from the source directory):
@@ -64,11 +64,12 @@ VS Code: Rukbat: Run File
   Help: ["--help"]
 ```
 
-The Rukbat command above assumes the optional CLI package is available on PATH. The VS Code
-extension uses its bundled compiler and needs no PATH setup. `--` separates compiler arguments
-from program arguments; the VS Code prompt accepts only the program's JSON argument array.
-These are instructions for invoking this program, not the compiler's general command help.
-See the file-browser example's `usage()` for an explicit implementation without extra cli APIs.
+The CLI examples assume `rukbat` is on PATH. VS Code uses its bundled compiler;
+its argument prompt takes only the JSON array. In a terminal, `--` separates
+compiler arguments from program arguments.
+
+## Options and flags
+
 Configure individual definitions before adding them to arrays: copying or appending a definition
 copies its fields and arrays. Later changes to the original variable do not update the command.
 Parsing also snapshots values; subsequent definition changes do not affect an existing result.
@@ -102,6 +103,8 @@ or allow_empty to accept an explicit empty value. A default is only valid on an 
 non-repeatable option. Use `text.parse_int(cli.get(parsed, "count"))` for numeric conversion;
 range constraints, filesystem checks and business combinations remain ordinary procedural code.
 Use `cli.get(parsed, output.name)` when sharing the definition's name avoids duplicate string literals.
+
+## Parsing and errors
 
 Names are exact and lowercase. Options can precede/follow positionals. Non-repeatable duplicates
 are errors. `--name=VALUE` safely supplies a dash-prefixed value; use `--` before dash-prefixed

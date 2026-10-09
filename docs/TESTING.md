@@ -2,7 +2,7 @@
 
 `rukbat test` discovers ordinary functions, compiles them to standalone PowerShell,
 and executes each test in its own process. Write tests next to your application or
-under a `tests` directory. No new language syntax or external testing dependency is required.
+under a `tests` directory.
 
 ## First test
 
@@ -104,8 +104,7 @@ initializes its module graph before invoking its selected function. Keep
 reusable logic in modules without application-starting top-level side effects;
 importing a command entrypoint runs those side effects again for every test.
 Shared setup can be an ordinary helper function called explicitly by each test.
-Use `try`/`catch` for explicit cleanup when needed. There is no hidden fixture
-dependency resolution or global before/after hook.
+Use `try`/`catch` for cleanup; there are no implicit fixtures or setup/teardown hooks.
 
 Successful tests' temporary artifacts are removed without traversing directory
 links. Failed tests retain their generated script and work directory; the failure
@@ -115,8 +114,7 @@ prints the artifact path under `%TEMP%/rukbat-test-...`. Normal failures also re
 ## Multiple cases and expected errors
 
 Use ordinary arrays and loops for multiple inputs. A loop is one test: the first
-failure stops it, and the direct comparison message shows that case's actual
-and expected values. No decorators, untyped arguments, or function values are needed.
+failure stops it, and direct comparison diagnostics show its actual/expected values.
 
 ```rukbat
 struct Case {
@@ -196,28 +194,14 @@ errors. From the repository root:
 
 ## Compiler contributor tests
 
-`dotnet test --filter FullyQualifiedName~Constant` covers const declarations,
-direct/nested writes, method mutation propagation, copied values, diagnostics,
-output preservation, and standalone execution on both PowerShell hosts. Const
-Hover/completion, formatting, and HTML signatures also have focused tooling tests.
+Compiler checks and generated-PowerShell execution are separate suites. Windows
+PowerShell 5.1 is the deployment target; PowerShell 7 supplies additional checks.
+See the [extension guide](../editors/vscode/README.md#extension-development) for
+VS Code tests.
 
-Documentation tests cover attachment, shared imports, bound signatures, stable
-offline HTML, CommonMark links, invalid comments, checked examples and diagnostic
-locations, output preservation, unsaved LSP comments, and formatter preservation.
-Run `dotnet test --filter FullyQualifiedName~Documentation` for the focused suite,
-including a standalone-script test on both PowerShell hosts. CI for Rukbat source
-documentation can use `rukbat doc entry.rukbat --check`; examples are never executed.
-
-LSP protocol, unsaved-import, scope, diagnostic, hover, definition, and formatting
-tests are part of `Unit`. Run them separately with
-`dotnet test --filter FullyQualifiedName~LanguageServerTests`.
-In `editors/vscode`, run `npm ci` and `npm test` for TextMate tokenization, then
-`npm run test:editor` for the real VS Code extension-host integration tests.
-The latter downloads VS Code and requires a built compiler; see the extension guide.
-
-Rukbat keeps compiler checks separate from generated-PowerShell execution.
-Windows PowerShell 5.1 is the primary deployment target. PowerShell 7 is an
-additional runtime and cross-version check; it is never required for deployed scripts.
+Focused selections use `dotnet test --filter FullyQualifiedName~<name>`, for example
+`Constant`, `Documentation`, or `LanguageServerTests`. Source-comment validation
+uses `rukbat doc entry.rukbat --check` and never executes examples.
 
 ### Categories
 
@@ -228,38 +212,22 @@ additional runtime and cross-version check; it is never required for deployed sc
 | `PowerShell51` | Direct Windows PowerShell 5.1 execution, including primary-target checks. |
 | `CrossVersion` | Selected public behaviors verified with both PowerShell 5.1 and PowerShell 7. |
 
-`Smoke=PowerShell51` is an execution-frequency trait, not a fifth test category.
-It selects representative primary-target coverage for generated script startup,
-standard-library paths, process execution, errors, CLI exit behavior, and standalone deployment.
-Categories intentionally overlap: `Runtime` marks a generated-script execution
-test, while `PowerShell51` and `CrossVersion` specify its target-host coverage.
-Thus both host-specific categories are subsets of `Runtime`. `Smoke=PowerShell51`
-is the PR-facing representative suite: every selected test case executes on
-Windows PowerShell 5.1. It is independent of the category traits.
+Categories overlap: `PowerShell51` and `CrossVersion` are subsets of `Runtime`.
+`Smoke=PowerShell51` is a separate trait selecting representative startup, library,
+process, error, CLI, and standalone checks; every selected case executes on 5.1.
 
 ### Commands
 
-`dotnet test` defaults to `Unit` through the VSTest `VSTestTestCaseFilter` MSBuild property.
-The explicit equivalent is:
+`dotnet test` defaults to `Unit` through the VSTest filter in `Directory.Build.props`.
+Use an explicit selection for execution tests:
 
 ```powershell
 dotnet test -p:RukbatTestCategory=Unit
-```
-
-Run a category explicitly:
-
-```powershell
 dotnet test -p:RukbatTestCategory=Runtime
 dotnet test -p:RukbatTestCategory=PowerShell51
 dotnet test -p:RukbatTestCategory=CrossVersion
-```
-
-Run the primary-target smoke selection or every category:
-
-```powershell
 dotnet test --filter "Smoke=PowerShell51"
 dotnet test -p:RukbatTestCategory=All
 ```
 
-The final command intentionally suppresses the default filter. Test parallelism is
-explicitly disabled; no process sharing or bounded parallelism is enabled.
+`All` suppresses the default filter. Test parallelism and process sharing are disabled.

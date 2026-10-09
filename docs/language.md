@@ -6,12 +6,23 @@ Rukbat is a typed, procedural language for Windows system scripting. It is not P
 
 ## Commands and arguments
 
-`rukbat --version` prints the compiler version without starting PowerShell.
-`rukbat doctor` checks local Windows PowerShell/native-helper capabilities without
-changing policy, and returns 0 on success or 2 on a missing capability/probe failure.
-Both reject extra arguments. Packaging and probe scope are defined in DISTRIBUTION.md.
+| Command | Behavior |
+|---|---|
+| `rukbat --version` | Print the compiler version without starting PowerShell. |
+| `rukbat doctor` | Probe local PowerShell/native-helper capabilities without changing policy; see [distribution](DISTRIBUTION.md). |
+| `rukbat build input.rukbat` | Validate and write `input.ps1`. |
+| `rukbat run input.rukbat -- arguments...` | Build, then execute with Windows PowerShell. |
+| `rukbat check input.rukbat` | Check imports, names, and types without generation. |
+| `rukbat fmt input.rukbat` / `rukbat fmt directory` | Apply [canonical formatting](#formatting) to a file or directory. |
+| `rukbat test [path]` | Discover and run tests; see [TESTING.md](TESTING.md). |
+| `rukbat doc input.rukbat` | Generate source documentation; see [DOCUMENTATION.md](DOCUMENTATION.md). |
+| `rukbat lsp` | Serve the language protocol; see [EDITOR.md](EDITOR.md#language-server-protocol). |
 
-`rukbat build input.rukbat` writes `input.ps1`. `rukbat run input.rukbat -- arguments...` builds and executes it with Windows PowerShell. `rukbat check input.rukbat` runs module loading, name resolution, and type checking without generating PowerShell. `rukbat fmt input.rukbat` rewrites one syntactically valid source file into the canonical layout without resolving its imports or type-checking it. `rukbat fmt directory` recursively formats `.rukbat` files under that directory; `rukbat fmt .` selects the current directory. Directory traversal excludes `.git`, `bin`, `obj`, and symbolic links/junctions, and recognizes the `.rukbat` extension case-insensitively. An empty directory succeeds. Source syntax errors leave the affected file unchanged; syntax and per-file I/O errors are reported while processing continues with other files. Successfully formatted files remain changed even when another file fails. `build`, `check`, and `fmt` do not accept program arguments. Compilation and formatting syntax errors exit with code 1; command-line and I/O failures exit with code 2, taking priority when directory formatting encounters both kinds of error. Compilation failure leaves an existing output unchanged. If compilation succeeds and the generated program starts, `rukbat run` exits with the program's exit code. If the PowerShell process fails to launch, `rukbat run` exits with code 2.
+`--version` and `doctor` reject extra arguments. `build`, `check`, and `fmt` do not
+accept program arguments. Compilation failures leave existing output unchanged.
+Compiler success exits 0, compilation/formatting syntax errors exit 1, and argument
+or I/O errors exit 2. `doctor` exits 0 on success or 2 on a failed probe/capability.
+After launch, `run` returns the program's exit code; a launch failure exits 2.
 
 `args(): string[]` returns the arguments supplied to the entry program. The compiler command, source path, and `--` separator are excluded.
 `import cli` provides explicit definitions, parsing and help for program arguments without new
@@ -25,13 +36,6 @@ The generated script must be executed in its own PowerShell process; exit termin
 `eprint(value): void` is the built-in stderr counterpart of `print(value)` and requires no import.
 Both accept one positional value with the same type checks, append one platform newline, and do not contribute to function return values. Printing a diagnostic does not set the exit code.
 Explicit string conversion and strict parsing use the `text` module described in STDLIB.md.
-
-`rukbat test [path]` discovers ordinary top-level `fn test_name(): void` functions
-in `test_*.rukbat` files. A test may instead take one `test.Context` parameter for
-temporary filesystem fixtures. Testing adds no syntax or general function-value
-feature. Assertions are standard-library operations (`import test`). The
-[testing guide](TESTING.md) defines discovery, filtering, deadlines, isolation,
-and exit codes.
 
 ## Declarations and assignment
 
@@ -81,15 +85,10 @@ Names are case-sensitive. Statements are separated by a newline or `;`. Blocks u
 Line comments begin with `//` and continue to the end of the line. Block comments are not supported.
 Comment markers inside strings are literal text. Outside strings and `//` comments, `#` is an invalid character.
 
-`//!` is a module documentation comment before the first code token. `///` attaches
-documentation to the immediately following top-level function, struct, variable,
-struct field, or method; a blank line or ordinary comment breaks attachment.
-`////` remains an ordinary comment. These conventions do not affect compilation
-semantics. `rukbat doc input.rukbat [--output reference.html | --check]` checks
-documentation and opt-in examples separately, then generates offline HTML unless
-`--check` is selected. Placement/link errors do not make `rukbat check` fail.
-The formatter preserves indentation within comment bodies and their trailing spaces.
-See [documentation](DOCUMENTATION.md) for Markdown and validation rules.
+`//!` and `///` are documentation comments; `////` remains an ordinary comment.
+They do not change compilation semantics. Placement/link errors do not make
+`rukbat check` fail. See [DOCUMENTATION.md](DOCUMENTATION.md) for attachment,
+Markdown, validation, and formatter preservation rules.
 
 ## Scope and execution
 
@@ -103,47 +102,23 @@ Structs, arrays, and dictionaries are mutable value types. Their stored values c
 
 The primitive types are `int`, `float`, `string`, and `bool`. `int` is a signed 64-bit integer. `float` is a finite IEEE 754 binary64 value. `void` is return-only. Rukbat also has user-defined `struct` types, typed arrays `T[]`, typed dictionaries `dict[K, V]`, and nullable types `T?`.
 
-`import json` provides the opaque, immutable type `json.Value` for JSON documents with an unknown
-structure. It uses ordinary variable, parameter, array, struct-field, and return syntax. It has no
-public fields, struct literal, or general dynamic member/index access. Read, update, and convert
-its contents with the operations in STDLIB.md. A `json.Value` representing JSON `null` is a value,
-distinct from a Rukbat `null`; the latter requires `json.Value?`. JSON updates return new values
-and require explicit assignment. Original documents and previously selected children are unchanged.
+Standard modules also define ordinary structs and opaque immutable types. Opaque
+types use ordinary variable, parameter, return, field, array, dictionary, and nullable
+syntax, but expose no public fields or struct literals. Their APIs and conversion
+rules are defined in [STDLIB.md](STDLIB.md).
 
-`import csv` provides `csv.Table` with `columns: string[]` and `rows: csv.Row[]`. `csv.Row` is an
-opaque, immutable row accessed by column name through standard-library functions. Tables use
-ordinary struct and array copy semantics; row updates return new rows. These types do not add
-dynamic indexing or new syntax. See STDLIB.md for header validation and serialization.
+| Type | Language behavior |
+|---|---|
+| `json.Value` | Unknown JSON structure; no dynamic member/index access, equality, or direct printing. JSON null is a value distinct from Rukbat null. Updates return new values. |
+| `csv.Row` | Immutable row accessed/updated through library functions. No equality or direct printing. `csv.Table` is an ordinary struct with `columns: string[]` and `rows: csv.Row[]`. |
+| `encoding.Encoding`, `hash.Algorithm` | Validated read-only constants and same-type equality; no ordering or implicit string/numeric conversion. External names use explicit parse/name operations. |
+| `http.Body`, `http.Method` | Immutable response bytes and validated method constants. Only Method has equality. HTTP request/options/result types are ordinary structs; status constants are read-only ints. |
+| `datetime.Timestamp`, `datetime.Date`, `datetime.Duration`, `datetime.Zone` | Explicit conversions/arithmetic; same-type equality, and ordering except for Zone. Named zones are read-only constants. |
 
-`import encoding` provides the validated standard type `encoding.Encoding` and its read-only
-values such as `encoding.utf8`, `encoding.windows_932`, and `encoding.windows_1252`.
-`encoding.from_code_page(number)` validates additional fixed Windows code pages on the target.
-See STDLIB.md for predefined values and unsupported conversion families.
-It supports variables, parameters, returns, arrays, struct fields, nullable wrappers, and
-same-type equality. It has no public fields or constructors and no implicit string or numeric
-conversions. Convert external names explicitly with `encoding.parse` / `encoding.name`.
-Direct printing, JSON conversion, and PowerShell arguments/results containing this type are
-rejected; convert to/from a string at these boundaries. There is no general enum declaration.
-
-`import hash` provides the opaque validated `hash.Algorithm` type and read-only algorithm values.
-It follows encoding's container/equality and explicit name/parse boundary rules; no general enum
-syntax is added. ZIP exports ordinary `zip.Options` and `zip.Entry` structs. See STDLIB.md.
-
-`import http` provides immutable `http.Body` response bytes and validated `http.Method` values
-(`http.method_get`, etc.). Body has no public fields, constructor or equality; text decoding is
-explicit through `http.text`. Methods allow same-type equality. Both support ordinary containers,
-parameters and returns, but are rejected recursively at printing, JSON and PowerShell boundaries.
-HTTP requests/options/results are ordinary value structs. Numeric status constants such as
-`http.status_200_ok` are read-only int values; unknown response status numbers remain representable.
-
-`import datetime` provides the opaque immutable types `datetime.Timestamp`, `datetime.Date`,
-`datetime.Duration`, and `datetime.Zone`. They have no public fields or struct literals and no
-implicit conversions. Timestamp, Date, and Duration support same-type equality and ordering;
-Zone supports equality. They support nullable values and ordinary containers. Date/time
-arithmetic and all external conversions are explicit standard-library functions in STDLIB.md.
-Named zones such as `datetime.utc`, `datetime.tokyo`, and `datetime.eastern` are read-only
-`datetime.Zone` constants. STDLIB.md links the complete fixed name-to-Windows-ID catalog.
-Direct printing, JSON conversion, and PowerShell boundaries reject these types recursively.
+Encoding, hash, HTTP opaque types, and datetime types are recursively rejected at
+printing, JSON, and PowerShell boundaries. These standard types introduce no general
+enum syntax. JSON/CSV updates preserve originals; ordinary container copies remain
+independent. ZIP exports ordinary `zip.Options` and `zip.Entry` structs.
 
 ```rukbat
 nickname: string? = null
@@ -169,11 +144,6 @@ Integer or float division by zero is a runtime Error. A float literal, arithmeti
 
 Primitive equality requires compatible non-null values and string equality is case-sensitive. Mixed `int`/`float` equality is rejected. Struct, array, and dictionary equality are not defined. A nullable value may be compared directly with `null`.
 
-Two non-null `encoding.Encoding` values support `==` and `!=`; arithmetic and ordering are not defined.
-
-Equality and direct `print` / `eprint` are not defined for `json.Value` or `csv.Row`. Use `json.as<T>` to read a
-primitive or `json.stringify` to obtain JSON text.
-
 ## Errors
 
 Runtime errors report source names relative to the entry source directory, normalized with `/` separators, and the original line number. Imports outside that directory use `../` segments. Generated error metadata does not embed absolute development source paths and does not require source files at runtime. Compile-time diagnostics still use the actual source paths. User-written string literals, such as explicit absolute data paths, are preserved rather than redacted.
@@ -190,10 +160,7 @@ Arrays have mutable lengths. `values.append(value)` adds one value to the end of
 
 Every index expression in an assignment or `append` receiver is evaluated exactly once, from left to right. A nested update writes the result back to the addressed storage location rather than mutating a temporary copy.
 
-- Integer division truncates toward zero.
 - `+` concatenates two strings.
-- Equality follows the rules defined in "Numbers and equality" above.
-- Boolean `&&` and `||` short-circuit.
 - Array literals use `[value, ...]`; arrays can grow with the statement `values.append(value)`.
 - An array literal with a contextual type (`name: T[] = [...]` or parameter of type `T[]`) converts each element to `T` using the standard implicit conversions. Without a contextual type, all elements must have the same type; `[1, 2.0]` is rejected. A literal mixing incompatible types is a compile-time error. An explicitly typed empty array (`items: string[] = []`) is valid.
 - `items[index]` reads or writes an element, and `items.length` is read-only.
@@ -309,6 +276,12 @@ Execution requires FullLanguage mode. Generated scripts check this before user o
 
 ## Formatting
 
+`rukbat fmt` parses without binding or type checking. Directory mode recognizes
+`.rukbat` case-insensitively and excludes `.git`, `bin`, `obj`, and links/junctions.
+An empty directory succeeds. Syntax/I/O failures are reported while remaining
+files are processed: valid files are rewritten, invalid files remain unchanged.
+If both syntax and I/O failures occur, exit code 2 takes precedence.
+
 Formatting is canonical and has no configuration. `rukbat fmt` uses four-space indentation, one statement per line, spaces around binary operators and after commas/colons, no padding immediately inside delimiters, braces on the declaration or control-flow line, and `else` / `catch` on the same line as the preceding closing brace. It preserves comments and blank lines between statements or comments, collapsing consecutive blank lines to one. Leading blank lines and blank lines immediately inside block braces are removed. It writes UTF-8 without a BOM and LF line endings, and ends with one LF newline (`\n`) without an additional trailing blank line. An empty source becomes `\n`.
 
 The formatter also inserts one blank line between an import group and other statements, and before and after functions, struct declarations, and control-flow statements (`if`, `for`, `while`, and `try`) when another statement exists in the same block. Struct fields and methods are separated in the same way. Consecutive simple statements remain adjacent unless the source explicitly separates them. No blank line is inserted at a block's edges or between an `if` and its `else`, or a `try` and its `catch`. Leading comments stay with the following statement; trailing comments stay with the preceding statement.
@@ -317,38 +290,9 @@ Struct literals use indented braces; their closing brace stays attached to any f
 
 ## Editor support
 
-`rukbat lsp` serves Language Server Protocol over standard input/output with UTF-8
-Content-Length framing and UTF-16 positions. Standard output contains only protocol
-messages; server logs use standard error. It provides compiler diagnostics,
-scope-aware completion, hover signatures/types and standard-API documentation,
-go to definition, references, checked rename, signature help, and canonical document formatting. Analysis uses unsaved buffers
-for both the entry and any open imported files. Open documents are rechecked when
-documents change, are saved/closed, or watched files change.
-
-The [VS Code extension](../editors/vscode/README.md) supplies TextMate highlighting,
-`//` commenting, bracket handling, snippets, and the LSP client. The compiler runs
-only in trusted workspaces. Language-server analysis never generates or executes
-PowerShell, and formatting returns editor edits without writing files.
-
-Only `file:` documents are supported. The first version advertises full-document
-sync and also accepts ordered incremental edits. Completion may repair a missing
-member and unclosed delimiters in a temporary analysis copy; diagnostics always
-come from the real document. Syntax errors can limit available semantic features.
-References include closed callers in the workspace and bound documentation links
-and checked examples. Rename validates the proposed source in memory and rejects
-changes to reference bindings, errors, edits outside the workspace, and stale
-source snapshots. It requires versioned transactional text edits from the client.
-Signature help supports unfinished calls without altering ordinary diagnostics.
-See [Editor features](EDITOR.md) for scope, failure behavior, and external-data limits.
-Tree-sitter and inferred-type hints remain unimplemented.
-
-The VS Code extension also provides source-level debugging through Debug Adapter
-Protocol. `rukbat build input.rukbat --debug [--output session.ps1]` emits an
-instrumented standalone script and a `.ps1.rukbat-map.json` sidecar for executable
-source locations, bound variables, and types. The sidecar contains absolute
-development source paths. Ordinary builds emit no debug instrumentation or map.
-The [debugging guide](DEBUGGING.md) specifies supported operations and limits;
-debugging adds no Rukbat syntax or standard-library APIs.
+See [EDITOR.md](EDITOR.md) for language-server behavior and editing scope, and
+[DEBUGGING.md](DEBUGGING.md) for debug builds and metadata. These tools add no
+language syntax or standard-library APIs.
 
 ## Current exclusions
 

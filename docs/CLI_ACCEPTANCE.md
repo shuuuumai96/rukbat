@@ -1,16 +1,9 @@
 # Practical CLI acceptance scenario: batch file validation
 
-## Status and purpose
-
-This is the acceptance contract and regression scenario for the implemented `examples/batch-check` example.
-It exercises a common automation sequence: read typed JSON configuration, find files recursively, invoke an existing checker for each file, save a typed JSON report, and return an explicit exit code.
-The checker is a user-supplied executable already available on the target machine; it is not a new Rukbat dependency.
-
-The example and its end-to-end tests keep this scenario separate from the CLI foundation.
-
-## CLI exit-code semantics
-
-If compilation succeeds and the generated program starts, `rukbat run` exits with the program's exit code. If compilation fails, `rukbat run` exits with the compiler's own exit code (1 for compilation errors, 2 for CLI/IO errors). If the PowerShell process fails to launch, `rukbat run` exits with code 2. The normative exit-code rules are defined in the `Commands and arguments` section of `LANGUAGE.md`.
+The implemented [batch-check example](../examples/batch-check/main.rukbat) reads
+JSON configuration, finds files recursively, invokes a user-supplied checker, and
+writes a JSON report. This document defines its acceptance contract. Compiler
+exit codes are defined in [the language specification](language.md#commands-and-arguments).
 
 ## Invocation and configuration
 
@@ -44,7 +37,7 @@ Example configuration (the checker executable is illustrative):
 `directory`, `pattern`, and `executable` must be nonempty. Parse with `json.parse<Config>` and its existing strict type rules.
 For each matching file, copy the configured arguments, append the file's absolute path as one argument, and call `process.run` with a fixed 30-second timeout and explicit `encoding.utf8` output encoding. The checker must produce UTF-8 output.
 Do not build a shell command string or interpolate the path into code. Run checkers sequentially.
-A checker exit code of zero means that file passed. Any nonzero checker code means it failed, but does not stop checks of the remaining files. A timeout is an operational Error: Rukbat terminates the directly started checker process, stops the run, and does not guarantee termination of checker descendants.
+A checker exit code of zero means that file passed. Any nonzero checker code means it failed, but does not stop checks of the remaining files. A timeout terminates the contained checker process tree and stops the run with Error. Work delegated to an existing service or remote host is outside that containment; see [process](STDLIB.md#process).
 
 ## Report and streams
 
@@ -76,13 +69,6 @@ On a normal run, stdout is empty; checker streams belong only in the report. Ope
 Enumeration completes before starting any checker. A process API Error stops the run rather than inventing a checker exit code or writing a partial report.
 Checker side effects cannot be rolled back. This example is intended for read-only validators; executable selection remains the caller's responsibility.
 
-## Standard-library dependencies
-
-`fs.list_files_recursive` was introduced to satisfy this scenario and is now part of the confirmed v0.1 standard library. Its normative contract is defined in `STDLIB.md`.
-
-Existing `args`, arrays/append, control flow, `fs.read_text` / `fs.write_text`, `json.parse` / `json.stringify`, `process.run`, `eprint`, and `exit` cover the rest.
-The recursive listing already returns absolute paths, so this scenario does not require a separate `path.absolute` API. It also does not yet justify copy, move, remove, directory creation, parent-path lookup, additional text operations, CSV, or a new test runner.
-
 ## Acceptance tests for the completed example
 
 - Check nested files and direct children while excluding nonmatches and directories. Confirm each file is passed once as a separate final argument.
@@ -92,7 +78,7 @@ The recursive listing already returns absolute paths, so this scenario does not 
 - Reject missing/extra/empty arguments and malformed or incorrectly typed configuration. Verify stderr and code `2`, with an existing report unchanged.
 - Cover missing roots, file-as-root, inaccessible traversal where test permissions allow it, invalid patterns, and a missing executable. Do not silently skip unavailable permission fixtures: report their limitations.
 - Cover hidden files/subtrees and reparse-point handling without following a directory cycle. Tests requiring link-creation privileges must report unavailable fixtures explicitly.
-- Verify a failed report save is reported as failure, not success; do not promise preservation after a write begins.
+- Verify failed report saves return failure and pre-replacement failures preserve an existing report, as specified above.
 - Verify relative paths from a working directory different from the configuration directory.
 - Compile and run the example on Windows PowerShell 5.1 and PowerShell 7. Run the generated `.ps1` with Rukbat source files removed and no compiler dependency.
 - Confirm the example source contains no `powershell<T>` escape hatch. A test-only checker fixture may use PowerShell; it is not part of the Rukbat example implementation.

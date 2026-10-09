@@ -9,24 +9,16 @@ No .NET SDK/runtime installation, PATH change, compiler configuration or
 additional download is required. The first release targets Windows x64.
 Existing application-control policy still applies to the bundled executable.
 
-Use the editor title actions or Command Palette:
+Use **Rukbat: Run File** to run a saved source, or **Rukbat: Build PowerShell**
+to write a `.ps1` beside it. Run arguments are literal JSON strings, such as
+`["config.json", "report.json"]`. Commands save files first; canceling a save
+stops the command. The working directory is the active file's workspace folder,
+or its directory outside a workspace. Output/exit codes appear in the task terminal
+and compiler diagnostics in Problems. Opening a file does not execute it.
 
-- **Rukbat: Check File** checks the active file.
-- **Rukbat: Test Project** discovers tests under its workspace folder (or its directory if opened outside a workspace).
-- **Rukbat: Build PowerShell** writes a `.ps1` beside the active file and displays its path.
-- **Rukbat: Run File** builds and runs it with Windows PowerShell. Enter arguments as a JSON string array, such as `["config.json", "report.json"]`; each string is passed literally as one argument.
-- **Rukbat: Check Environment** checks the local PowerShell/native-helper environment.
-
-Commands save open file-backed documents first; canceling a save stops the command.
-The working directory is the active file's workspace folder, or its parent directory
-outside a workspace. Commands run as VS Code tasks, retaining output and exit codes
-in the task terminal. Compilation diagnostics also appear in Problems.
-Workspace trust is required for all compiler commands. Opening a file does not run it.
-
-Leave `rukbat.server.command` empty to use the bundled compiler. An explicit command
-and arguments select an external compiler for both LSP and editor actions; this is
-an optional development override. Unsupported hosts need an external compiler;
-generated-script execution remains a Windows operation.
+Leave `rukbat.server.command` empty for the bundled compiler. Unsupported hosts
+need an external compiler; execution remains a Windows operation. See the
+[extension guide](../editors/vscode/README.md) for all commands and development overrides.
 
 ## CLI: extract one ZIP
 
@@ -44,8 +36,7 @@ Open a terminal in that directory:
 ```
 
 No administrator access, .NET installation or network access is required to use
-the package. PATH registration is optional. Explicit paths also work in automated
-builds: `C:\Tools\Rukbat\0.1.0\rukbat.exe build C:\Jobs\main.rukbat`.
+the package. PATH registration is optional; automation can use the executable's absolute path.
 Generated scripts run separately using Windows PowerShell 5.1; they do not need
 the compiler, extension or the bundled runtime. Native APIs require FullLanguage
 and Add-Type permission. HTTP requires the target's .NET Framework 4.7.1 or later.
@@ -85,9 +76,10 @@ unless caches are complete. Existing destination directories are refused. A fail
 build may leave incomplete output; only a successful run produces a complete release.
 The extension runtime directory is generated and ignored by Git.
 
-`rukbat doc input.rukbat` generates offline HTML; `--check` validates comments and
-opt-in examples without writing output. The CLI and VSIX bundle the Markdown
-parser and its license notice. No extra tool installation is required.
+The Markdown parser and its license are included in both packages; source
+documentation generation requires no additional installation.
+
+## Release acceptance
 
 Before approving a release, exercise check/build/run/test/fmt/doc/LSP from the ZIP and
 VSIX with no system .NET dependency. A clean Windows machine with no SDK/runtime

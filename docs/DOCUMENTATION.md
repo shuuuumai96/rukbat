@@ -1,8 +1,7 @@
 # Documentation from source comments
 
-Keep usage instructions and API explanations beside the code they describe.
-`rukbat doc` combines them with compiler-checked signatures in one offline HTML file.
-It never executes source code or examples and does not require PowerShell.
+`rukbat doc` combines source comments and checked signatures into one offline HTML
+file. It never executes source/examples and does not require PowerShell.
 
 ```powershell
 rukbat doc examples/documentation/main.rukbat
@@ -21,10 +20,7 @@ It does not scan unrelated files or embed standard-library API pages.
 Use a single contiguous `//!` block before the first code token for module usage:
 
 ```rukbat
-//! Lists CSV files directly inside the directory supplied as the first argument.
-//!
-//! Relative paths use the caller's working directory. No files are modified.
-//! Success exits 0; invalid arguments or listing failures exit 1.
+//! File-listing utilities. Paths use the caller's working directory.
 import fs
 ```
 
@@ -41,28 +37,21 @@ fn add(value: int, offset: int): int {
 }
 ```
 
-Functions, structs, fields, and methods appear even without comments. Top-level
-variables appear only when documented and are labelled module-local: documenting
-them does not make them accessible through imports. Write constraints, errors,
-side effects, and examples as ordinary prose; parameter and return types come
-from the compiler and need no duplicate tags.
+Functions, structs, fields, and methods appear even without comments. Module
+variables/constants appear only when documented and remain module-local; constants
+retain their modifier. Describe constraints, errors, effects, and usage. Types come
+from checked signatures and need no duplicate tags.
 
-Documented `const` declarations retain their modifier and are labelled module-local
-constants. They follow the same attachment rules as ordinary variables.
-
-All these markers remain comments for `build`, `run`, `check`, and `test`.
-`////` is an ordinary comment. Markers inside strings are literal text.
-`fmt` preserves documentation indentation and trailing spaces, including Markdown
-hard line breaks, while using canonical source indentation and LF line endings.
+Markers remain comments during compilation. `////` is ordinary; markers in strings
+are literal. Formatting preserves comment-body indentation and trailing spaces
+(including Markdown breaks), while applying canonical source indentation and LF.
 
 ## Markdown, links, and examples
 
-Comment bodies use CommonMark. One optional space after the marker is removed;
-further indentation is preserved. Headings, paragraphs, lists, emphasis, ordinary
-links, and fenced code are supported. Raw HTML is displayed as text. Images are
-reduced to their captions and never loaded. Links allow fragments, `https`, `http`,
-and `mailto`; other destinations are disabled. HTML includes its own stylesheet,
-with no scripts or external resources.
+Bodies use CommonMark: one optional space after the marker is removed; further
+indentation stays. Raw HTML is text, images become captions, and links allow only
+fragments, `https`, `http`, and `mailto`. Output embeds its stylesheet and loads no
+scripts or external resources.
 
 Use ``[`add`]`` to link a declaration in the same module, ``[`files.list_csv`]``
 for an imported user module's declaration, and ``[`Listing.paths`]`` for a struct

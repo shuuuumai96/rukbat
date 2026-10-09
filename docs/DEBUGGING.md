@@ -1,9 +1,8 @@
 # Debugging Rukbat in VS Code
 
-The Rukbat extension debugs `.rukbat` source on Windows using the installed
-Windows PowerShell 5.1 engine. No Microsoft PowerShell extension, separately
-installed .NET runtime, or additional debugger installation is needed with the
-bundled VSIX. A checkout uses the same external compiler settings as its LSP.
+The extension uses Windows PowerShell 5.1 to debug `.rukbat` source. The bundled
+VSIX needs no extra debugger, PowerShell extension, or .NET installation. A checkout
+uses the same compiler override as its language server.
 
 ## Start a session
 
@@ -21,16 +20,13 @@ generated helpers and standard-library internals. A breakpoint inside a called
 function can interrupt step over. Step out stops at the next executable
 statement in a caller; it does not stop midway through an expression.
 
-The Variables pane shows **Locals** and **Module** values under their Rukbat names.
-Arrays, dictionaries, and ordinary structs can be expanded. Dictionary entries appear in insertion
-order alongside a read-only length, without exposing backend fields. The Call Stack includes user
-functions, methods, and active module initializers, including imported sources.
-Parameters, `self`, loop and catch bindings, shadowed locals, and suspended
-callers retain their own scopes. A variable is shown after its declaration has
-executed. Module variables not yet initialized are omitted. Const names are
-marked read-only. Primitive values are formatted using their Rukbat types;
-float display retains enough digits to identify the stored value. Program stdout
-and stderr appear in the Debug Console.
+The Variables pane shows **Locals** and **Module** values after initialization;
+arrays, dictionaries, and structs expand under their Rukbat names. Dictionaries
+show insertion order and read-only length. Const values are marked read-only,
+and primitives retain their types (including round-trip float precision).
+The Call Stack preserves scopes for parameters, `self`, loop/catch bindings,
+shadowed locals, suspended callers, and imported module initializers.
+Program stdout/stderr appear in the Debug Console.
 
 ## Arguments and working directory
 
