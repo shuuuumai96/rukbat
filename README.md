@@ -1,448 +1,72 @@
 # Rukbat
 
-Rukbat is a small, statically typed language that compiles to PowerShell.
-It removes `$` prefixes from variables and provides conventional function calls and file-based modules.
-Source files use `.rukbat`; the output is a single `.ps1` containing all Rukbat modules needed to run it.
+Rukbat is a small, statically typed language for Windows system scripting.
+It compiles `.rukbat` sources and their imports into one standalone `.ps1` file
+for Windows PowerShell 5.1. The generated script needs no Rukbat installation.
 
-## Editor support
+## Getting started
 
-The [VS Code extension](editors/vscode/README.md) provides syntax highlighting,
-diagnostics, completion, hover, go to definition, and canonical formatting.
-Install the Windows x64 VSIX to use its bundled compiler and LSP without installing
-.NET or configuring PATH. Editor actions check, test, build, run, and document saved sources.
-The [distribution guide](docs/DISTRIBUTION.md) covers the portable CLI ZIP, offline
-installation and controlled updates. Maintainers build both packages with
-`tools/package.ps1`; a local compiler override remains available for development.
+On Windows x64, install `rukbat-<version>-win32-x64.vsix` in VS Code using
+**Extensions: Install from VSIX**. The extension includes the compiler;
+no separate .NET installation or PATH configuration is needed.
 
-Other LSP clients can launch `rukbat lsp` over stdio. The initial server supports
-file-backed documents and uses UTF-16 positions. It checks unsaved source and
-imports without running scripts or generating PowerShell.
-
-## Syntax
-
-`math.rukbat`:
+Open a trusted folder and save this as `hello.rukbat`:
 
 ```rukbat
-fn add(a: int, b: int): int {
-    return a + b
+fn greet(name: string): void {
+    print("Hello, " + name)
 }
+
+greet("Rukbat")
 ```
 
-`hello.rukbat`:
+1. Run **Rukbat: Run File** from the Command Palette. Accept `[]` for no arguments.
+2. Run **Rukbat: Build PowerShell** to generate `hello.ps1` beside the source.
+3. Run the generated script independently:
 
-```rukbat
-import "./math.rukbat" as arithmetic
+   ```powershell
+   powershell -NoProfile -File .\hello.ps1
+   ```
 
-struct User {
-    name: string
-    age: int
+The extension also provides completion, diagnostics, formatting and debugging.
+See the [extension guide](editors/vscode/README.md) for editor commands.
 
-    fn is_adult(): bool {
-        return self.age >= 20
-    }
-}
+For terminal use, extract the CLI ZIP and run its `rukbat.exe`:
 
-user: User = User {
-    name: "Taro",
-    age: 30
-}
-
-result: int = arithmetic.add(user.age, 2)
-print(user.name)
-print(result)
-
-if user.is_adult() {
-    print("adult")
-}
-
-year: string = powershell<string>("Get-Date", Format: "yyyy")
-print(year)
+```powershell
+.\rukbat.exe check .\hello.rukbat
+.\rukbat.exe run .\hello.rukbat
+.\rukbat.exe build .\hello.rukbat
 ```
 
-`powershell<string>(...)` calls a PowerShell command and checks at runtime that its result is exactly one string.
+Generated scripts require PowerShell's FullLanguage mode; native helpers require
+Add-Type permission. See the [distribution guide](docs/DISTRIBUTION.md) for
+packages, environment requirements and updates.
 
-Typed dictionaries use `dict[string, V]` or `dict[int, V]`, with expression keys and value-copy
-semantics. No import is needed:
+## Documentation
 
-```rukbat
-counts: dict[string, int] = {}
-counts["error"] = 1
-if counts.has("error") {
-    print(counts["error"])
-}
-```
+- [Language](docs/language.md) — syntax, types and command-line reference.
+- [Standard library](docs/STDLIB.md) — files, CSV, JSON, processes and other APIs.
+- [Examples](examples/) — runnable scripts, including [CSV filtering](examples/csv-filter/README.md),
+  [category counting](examples/csv-count/README.md) and [JSON configuration](examples/json-config/README.md).
+- [Command-line programs](docs/CLI.md), [testing](docs/TESTING.md) and [debugging](docs/DEBUGGING.md).
+- [Source documentation](docs/DOCUMENTATION.md) and [editor features](docs/EDITOR.md).
+- [Unattended execution](docs/UNATTENDED.md) and [operations](docs/OPERATIONS.md).
+- [Design philosophy](docs/PHILOSOPHY.md) and [compiler architecture](docs/ARCHITECTURE.md).
 
-See the [CSV category counter](examples/csv-count/README.md) for lookup and counting, and
-the [language specification](docs/language.md#dictionaries) for ordering, missing keys and nested updates.
-Use `powershell<void>(...)` when no return value is needed.
+## Developing the compiler
 
-## Running programs
-
-Building requires the .NET 8 SDK. Generated scripts require Windows PowerShell 5.1 or later in FullLanguage mode. Process containment requires Windows 10 / Server 2016 or later; unsupported launch conditions fail closed.
-The initial dependency restore requires a network connection.
+Building Rukbat itself requires the .NET 8 SDK. From the repository root:
 
 ```powershell
 dotnet restore --configfile NuGet.Config
-dotnet run --no-restore --project src/Rukbat -- run examples/hello.rukbat
+dotnet build --no-restore
+dotnet test --no-restore
 ```
 
-On Windows, you can also use the repository wrappers:
-
-```powershell
-.\rukbat run examples/import-data.rukbat
-# With this directory on PATH:
-rukbat run examples/import-data.rukbat
-# Generate a .ps1 without running it:
-.\rukbat build examples/hello.rukbat
-# Check syntax, imports, and types without generating PowerShell:
-.\rukbat check examples/hello.rukbat
-# Apply canonical source formatting:
-.\rukbat fmt examples/hello.rukbat
-# Format every .rukbat source under the current directory:
-.\rukbat fmt .
-# Run the current project's test_*.rukbat tests:
-.\rukbat test
-# Generate offline documentation from source comments and checked signatures:
-.\rukbat doc examples/documentation/main.rukbat
-# Validate documentation and opt-in examples without generating HTML:
-.\rukbat doc examples/documentation/main.rukbat --check
-# A build-only shortcut is also available:
-.\build examples/hello.rukbat
-```
-
-`run` executes the generated `.ps1` with `powershell -NoLogo -NoProfile -File` only after successful type checking and compilation.
-It inherits the caller's working directory and standard streams and returns the PowerShell process exit code.
-Compilation errors prevent execution even if an older `.ps1` exists. Windows PowerShell's `powershell` must be on PATH.
-
-Use `rukbat run input.rukbat -- arguments...` to pass everything after `--` to the program.
-Rukbat exposes these values through `args(): string[]`, returning an empty array when no arguments are supplied.
-To run a generated script directly, use `powershell -File input.ps1 arguments...`.
-
-`build` and `run` write a `.ps1` with the entry file's base name in the same directory, replacing existing output on success.
-Syntax, type, and import errors leave existing output unchanged. Always check the compiler exit code in automation: stale output may remain.
-`check` generates no PowerShell and leaves existing `.ps1` files untouched.
-`fmt` accepts a `.rukbat` file or a directory and uses canonical four-space indentation while preserving comments. `rukbat fmt .` recursively formats sources under the current directory, excluding `.git`, `bin`, `obj`, and symbolic links/junctions. An empty directory succeeds. Files with syntax or I/O errors are reported, and remaining files are still processed; successful files are rewritten and invalid sources stay unchanged. The command returns `1` if any source has a syntax error, or `2` if an I/O error occurs.
-Blank lines between statements are preserved, with consecutive blank lines collapsed to one. Every formatted file ends with one LF newline (`\n`), without an additional trailing blank line.
-Formatting also inserts blank lines around functions, struct declarations, and control-flow statements, and after import groups. Related simple statements remain adjacent, and comments stay with their statements.
-Compiler success is `0`, compilation errors are `1`, and CLI argument or I/O errors are `2`.
-Diagnostics use `file(line,column): error RUKxxxx: message`. Errors in imported files identify the location in that file.
-Compilation never executes Rukbat or PowerShell user code.
-
-To publish the CLI:
-
-```powershell
-.\tools\package.ps1
-# Extract the generated CLI ZIP, then:
-.\rukbat.exe --version
-.\rukbat.exe doctor
-.\rukbat.exe build .\example\hello.rukbat
-```
-
-## Principles and current scope
-
-Use `const` to declare a value that cannot be changed through that name:
-
-```rukbat
-const max_retries := 3
-const timeout_ms: int = 5000
-const arguments := args()
-```
-
-Reassignment, nested field/array updates, `append`, and mutating methods are
-compile-time errors. Read-only methods are allowed. Copying into an ordinary
-variable produces a mutable value, following existing value semantics. Initializers
-run normally when their declaration executes. See [examples/const.rukbat](examples/const.rukbat).
-
-Use `//!` for module usage and `///` immediately before declarations for Markdown
-documentation. Hover shows these comments; completion shows the first paragraph.
-`rukbat doc` generates one offline HTML file for the entrypoint and its reachable
-user imports. Explicit `rukbat check` fences inside comments are statically checked
-without execution. See the [documentation guide](docs/DOCUMENTATION.md).
-
-- Prefer consistent syntax that is easy to read and write.
-- Line comments use `//`. Comment markers inside strings are literal text.
-- Named imports such as `import fs` load standard modules bundled with the compiler.
-- Standard modules are `fs`, `path`, `json`, `csv`, `env`, `process`, `http`, `text`, `array`, `math`, `datetime`, `encoding`, `zip`, `hash`, `cli`, and `test`. Their APIs and external-data contracts are defined in the [standard library specification](docs/STDLIB.md). See [Command-line programs](docs/CLI.md) for argument definitions and generated help.
-- Use `fs` for actual file and directory operations, and `path` for constructing, decomposing, and comparing path values. For example, `fs.list_files` lists files, `fs.create_dir_all` creates directories and their parents, and `path.parent` computes a parent path without checking existence. See the [task guide](docs/STDLIB.md#choosing-filesystem-and-path-operations).
-- `exit(code)` terminates the process with a nonnegative `int` exit code. `eprint(text)` writes a line to standard error.
-- `text.from_int/from_float/from_bool` and `text.parse_int/parse_float/parse_bool` provide explicit, culture-independent string conversion and parsing.
-- `import "./models/user.rukbat" as model` loads a module relative to the importing file, including across directories.
-- Variables and functions are isolated per module. Shared dependencies are initialized once.
-- Rukbat functions return only explicitly returned values. Intermediate expression values are discarded.
-- `print(value)` produces visible output without contributing to a function's return value.
-- PowerShell interoperability uses `powershell<T>(...)`.
-
-The original prototype's PowerShell-superset approach is no longer supported.
-Sources using the old `$name: string` syntax or raw PowerShell command syntax are rejected.
-Consistent Rukbat syntax and behavior take priority over syntax compatibility with existing `.ps1` files.
-
-Current types are `int`, finite binary64 `float`, `string`, `bool`, return-only `void`, built-in `Error`, user-defined `struct`, typed arrays `T[]`, and nullable types `T?`.
-Only `T?` can hold `null`. After an explicit check such as `if value != null`, a simple variable can be used as `T`.
-`int` is signed 64-bit and `float` is finite binary64. Numeric conversions are explicit through `math.to_float` / `math.to_int`; mixed arithmetic and comparisons are rejected. Integer overflow raises Error. Division by zero and non-finite floats cause Error.
-`datetime` separates UTC instants (`Timestamp`), calendar dates (`Date`), elapsed time (`Duration`),
-and Windows time zones (`Zone`). Parse offset-qualified timestamps with `datetime.parse`, add
-elapsed time with `datetime.add`, and serialize with `datetime.stringify`. Local parsing requires
-an explicit zone and rejects ambiguous or nonexistent daylight-saving times.
-See [examples/datetime.rukbat](examples/datetime.rukbat) and the [datetime API](docs/STDLIB.md#datetime).
-Structs are constructed with named arguments and support fields and internal `fn` methods.
-Assignment, arguments, and return values copy nested fields by value. A method's `self` updates the variable on which it was called.
-See `examples/value-semantics.rukbat` for a demonstration that the original value remains unchanged after copying.
-Functions and struct methods use `fn`; `func` and `function` are rejected.
-Arrays support literals such as `[1, 2]`, indexed reads and writes, `.length`, `.append(value)`, and `for item in items`.
-Control flow also includes `while condition`, `break`, and `continue`.
-`powershell<User[]>` validates and imports multiple external objects. Arrays copy nested elements by value as well.
-Use `name := "Taro"` for an inferred declaration. `:=` only declares a new variable; it does not assign to an existing variable.
-General-purpose object types, union types, pipeline parsing, and package management are not implemented.
-See the [language specification](docs/LANGUAGE.md) for syntax, module rules, and limitations.
-
-## Organizing code across directories
-
-```text
-app/
-├── main.rukbat
-├── models/
-│   └── user.rukbat
-└── services/
-    └── users.rukbat
-```
-
-`main.rukbat`:
-
-```rukbat
-import "./models/user.rukbat" as model
-import "./services/users.rukbat" as users
-
-user: model.User = users.load()
-print(user.name)
-```
-
-From `services/users.rukbat`, use `import "../models/user.rukbat" as model` to share the same type.
-String import paths require a `.rukbat` extension and an explicit `as alias`. Use `/` separators even on Windows.
-Local modules always use a string path and an alias, so a local filename matching a standard module does not change import behavior.
-Normalized absolute paths identify modules: different aliases or relative paths to the same file still initialize it only once.
-The output remains a single `.ps1`.
-
-Run the example:
-
-```powershell
-.\rukbat.cmd run examples/app/main.rukbat
-```
-
-## Example CLI: exporting a file list as JSON
-
-`examples/file-browser` filters files directly inside a directory supplied as an argument and outputs their names as a JSON array.
-It separates the entry point, argument validation, file listing, and shared library operations into modules.
-
-```powershell
-# Write direct-child Markdown filenames, such as README.md, to stdout:
-.\rukbat.cmd run examples/file-browser/main.rukbat -- . --pattern '*.md'
-# Save to a JSON file:
-.\rukbat.cmd run examples/file-browser/main.rukbat -- . --pattern '*.md' --output files.json
-# Show help:
-.\rukbat.cmd run examples/file-browser/main.rukbat -- --help
-```
-
-```json
-["README.md"]
-```
-
-The first argument is the directory. `--pattern` defaults to `*` and uses the PowerShell file-system filter.
-Listing is not recursive, normally excludes hidden files, and does not guarantee order.
-Zero matches produce `[]`; a single match still produces an array. Normal stdout contains JSON only.
-With `--output`, stdout is empty and the file is UTF-8 without a BOM or trailing newline.
-Paths are relative to the runtime working directory. Quote paths and patterns containing spaces.
-Missing arguments, unknown options, directory access failures, and save failures produce a message on stderr and exit code `1`.
-Success and help use exit code `0`.
-
-File operations and JSON encoding use the compiler's `fs` and `json` standard modules.
-Only imported standard-library implementations are embedded in the generated script; no separate library files are needed at deployment.
-
-## Arrays, loops, and external data
-
-`examples/arrays.rukbat` demonstrates array updates and loops. `examples/import-data.rukbat` imports an array of structs from JSON.
-
-```powershell
-.\rukbat.cmd run examples/import-data.rukbat
-```
-
-```rukbat
-struct User {
-    name: string
-    age: int
-}
-
-users: User[] = powershell<User[]>(
-    "ConvertFrom-Json",
-    '[{"name":"Taro","age":30},{"name":"Hanako","age":25}]'
-)
-for user in users {
-    print(user.name)
-}
-```
-
-Missing fields, nulls, and type mismatches produce import errors identifying the location and field.
-Arrays are mutable values. `items.append(value)` adds an element, while assignment, arguments, and returns still copy nested values.
-Use `array.remove_at` and `array.slice` to produce new arrays; `array.sort` and `array.sort_by`
-provide stable ordering without changing the input. Sending structs to PowerShell is not supported.
-
-## Recovering from errors
-
-Use `try / catch / throw` with the built-in `Error`, which has a `message: string` field.
-
-```rukbat
-try {
-    throw Error {message: "Operation failed"}
-} catch err {
-    print(err.message)
-}
-```
-
-The same catch handles PowerShell errors and type-import failures.
-Rethrowing with `throw err` preserves the original location.
-Unhandled errors report the Rukbat file, line, and message on stderr and terminate with exit code `1`.
-For external executables called directly through `powershell<T>`, exit code `0` means success and any other code causes Error.
-
-The `process.run(executable, arguments, options)` API captures stdout and stderr with an explicit `encoding.Encoding` value (for example `encoding.utf8`, `encoding.windows_932`, or `encoding.windows_1252`) and returns nonzero child exit codes as normal results. File text operations use the same type. There are 26 predefined values; `encoding.from_code_page(number)` validates additional fixed Windows code pages. Strings are rejected during checking; use `encoding.parse(name)` for external configuration and `encoding.name(value)` for logging or serialization. Create options with `process.options(timeout_ms, output_encoding)`, then set `working_dir`, `environment` or `stdin` as needed. See [the input example](examples/process-input.rukbat). A positive deadline covers the process tree, input transmission and output capture; `null` is deliberately unbounded. Windows Job Objects terminate the tree on timeout, capture failure, or host termination. This requires Windows 10 / Server 2016 or later. Input defaults to EOF; an explicit process.Input sends bounded text in its own encoding. Input and each output stream are limited to 64 MiB. See [the process contract](docs/STDLIB.md#process) for containment and cleanup details.
-The initial specification allows one catch clause and has no typed catches, `finally`, or `throws` declarations.
-
-```powershell
-.\rukbat.cmd run examples/errors.rukbat
-```
-
-## Testing your programs
-
-Write ordinary `fn test_name(): void` functions in `test_*.rukbat` files:
-
-```rukbat
-import test
-
-fn test_add(): void {
-    test.assert(2 + 3 == 5)
-}
-```
-
-`rukbat test` discovers these functions and runs each in a separate PowerShell process.
-Failures show the source expression, location, comparison values, and captured output;
-remaining tests continue. `fn test_report(ctx: test.Context): void` receives a unique
-temporary directory for file operations. Use `rukbat test --filter test_report` to
-select a test, or `--shell pwsh` to validate with PowerShell 7 instead of the default
-Windows PowerShell 5.1. The default deadline is 30 seconds per test.
-
-See the [testing guide](docs/TESTING.md) for fixtures, multiple inputs, expected errors,
-exit codes, and isolation limits. Try `.\rukbat test examples/testing` for a working
-CSV/JSON/file-processing example. `dotnet test` below tests the compiler itself.
-
-## Implementation and verification
-
-The compiler follows `Lexer → Parser → AST → ModuleLoader / TypeChecker → Emitter`.
-A dedicated lexer and recursive-descent parser produce the AST, where names and types are checked.
-The official `System.Management.Automation` library validates generated PowerShell syntax.
-Compilation does not rely on regex substitution or executing input scripts.
-
-```powershell
-dotnet test
-```
-
-Tests cover syntax, types, diagnostic locations, and the CLI, and execute generated `.ps1` files on Windows PowerShell 5.1 and PowerShell 7.
-Both `powershell` and `pwsh` must be on PATH. Execution tests are never silently skipped.
-Coverage includes struct value copies and `self` updates, explicit returns, scopes, PowerShell type boundaries, shared module initialization, and execution without source files.
-
-## Filtering a text log
-
-The [log-filter example](examples/filter-errors.rukbat) reads a UTF-8 log, splits Windows or Unix line
-endings, trims each line, and saves lines starting with the case-sensitive prefix `ERROR:`.
-
-For a legacy Japanese Windows CSV, select CP932 explicitly:
-
-```rukbat
-import encoding
-import fs
-import csv
-
-content := fs.read_text("legacy.csv", encoding.windows_932)
-rows := csv.parse(content)
-```
-
-```powershell
-.\rukbat.cmd run examples/filter-errors.rukbat -- application.log errors.log
-```
-
-The output uses CRLF between lines, with no trailing newline or BOM. No matching lines produce an empty
-file. An existing output file is replaced; its parent directory must exist. Relative paths use the
-caller's working directory. Success exits `0`, an incorrect argument count exits `2`, and a read/write
-failure exits `1` with a diagnostic on stderr.
-
-The `text` module also provides literal `contains`, `ends_with`, `replace_all`, and `split` operations.
-See the [text API contracts and examples](docs/STDLIB.md#text).
-
-## CSV and JSON conversions
-
-For CSV with headers, read and update cells by column name. Loading validates header names and
-row widths. Cells remain strings; choose numeric or boolean conversion explicitly when needed.
-
-```rukbat
-import csv
-import encoding
-import fs
-
-people := csv.parse_table(fs.read_text("people.csv", encoding.windows_932))
-kept: csv.Row[] = []
-
-for person in people.rows {
-    if csv.get(person, "enabled") == "true" {
-        kept.append(csv.set(person, "note", "checked"))
-    }
-}
-people.rows = kept
-fs.write_text("enabled.csv", csv.stringify_table(people), encoding.utf8)
-```
-
-For CSV without headers, `csv.parse` returns `string[][]` and `csv.stringify` writes those records.
-For JSON, omit a type to read an unknown or complex document. No structs are required. Select only
-the properties you need and retain unknown properties when updating a configuration:
-
-```rukbat
-import json
-import encoding
-import fs
-
-config := json.parse(fs.read_text("config.json", encoding.utf8))
-service := json.get(config, "service")
-print(json.as<bool>(json.get(service, "enabled")))
-service = json.set(service, "enabled", true)
-config = json.set(config, "service", service)
-config = json.remove(config, "obsolete")
-fs.write_text("updated.json", json.stringify(config), encoding.utf8)
-```
-
-Updates return copies: assign the result to retain a change. JSON arrays support `items`, `set_at`,
-`remove_at`, and `append`. For a fixed schema, `json.parse<Config>` and `json.as<Config>` validate
-that type. Struct conversion ignores unknown fields; use `json.Value` to retain unknown data.
-
-See the [CSV and JSON contracts](docs/STDLIB.md#choosing-csv-and-json-operations) for the full APIs,
-empty values, escaping, and errors. Runnable examples are [CSV filtering](examples/csv-filter/main.rukbat)
-and [JSON configuration updates](examples/json-config/main.rukbat). Both formats are processed in
-memory; serialization retains data rather than the original whitespace and layout.
-
-## Batch validation acceptance example
-
-The implemented [batch validation acceptance example](examples/batch-check/main.rukbat) follows the [CLI acceptance scenario](docs/CLI_ACCEPTANCE.md). Its end-to-end tests cover the contract from configuration through checker execution and report output.
-
-## Batch organization acceptance example
-
-The [batch organization acceptance example](examples/batch-organize/main.rukbat) follows the [batch organization contract](docs/BATCH_ORGANIZE_ACCEPTANCE.md). It parses a CSV move plan and uses `fs.move_files_batch` for locked, journaled moves on one local NTFS volume. Interrupted work can be recovered or retried, and committed plans can be replayed without repeating moves. See [unattended operation](docs/UNATTENDED.md) for the supported environment, recovery procedure, and fault tests.
-
-The [operations toolkit](docs/OPERATIONS.md) packages versioned releases, runs them with a whole-job deadline and exclusive job lock, records outcomes, generates scheduled tasks, and exposes a JSON health probe with notification integration. It includes file, CLI and Windows administration acceptance examples. Target-account scheduling, backup restoration and production alert delivery remain explicit deployment acceptance checks.
-
-ZIP packaging and checksums use `zip.create`, `zip.list`, `zip.extract`, `hash.file`, and `hash.text`.
-ZIP reads have explicit name encodings and extraction limits; output publication rejects existing
-files/directories. Hash algorithms are typed values such as `hash.sha256`, with explicit external
-name conversion. See [the packaging example](examples/package.rukbat) and [the contracts](docs/STDLIB.md#zip).
-
-HTTP requests use `http.request(http.method_get, url)` and `http.send(request, http.options(30000))`.
-Status constants include their numbers (`http.status_200_ok`, `http.status_404_not_found`). Non-2xx
-responses retain their headers/body; communication failures use ordinary Error. Decode captured
-bytes with `http.text(response.body, encoding.utf8)` and use existing `json.parse` for JSON.
-`http.download` streams a bounded status-200 response to a new file without overwriting an existing
-destination. See [the runnable JSON example](examples/http-json.rukbat) and [the HTTP contract](docs/STDLIB.md#http)
-for explicit deadlines, redirects, proxy/credentials, content coding and download limits.
+Execution tests require both Windows PowerShell 5.1 (`powershell`) and
+PowerShell 7 (`pwsh`) on PATH. Dependency restoration requires network access
+unless dependencies are cached.
+
+To build the VSIX and portable CLI ZIP, install Node.js/npm and run
+`tools/package.ps1`. See [packaging instructions](docs/DISTRIBUTION.md#build-the-distribution-maintainers).
