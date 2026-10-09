@@ -54,7 +54,9 @@ async function run() {
     assert.equal(document.getText().split('\n')[1], 'count: int = helper.number()');
     assert.equal(document.getText().split('\n')[2], 'print(count)');
     assert.ok(fs.readFileSync(uri.fsPath, 'utf8').includes('value: int'));
+    await vscode.window.showTextDocument(document);
     await vscode.commands.executeCommand('undo');
+    await until(() => document.getText().split('\n')[1] === 'value: int = helper.number()', 'editor Undo after rename');
     assert.equal(document.getText().split('\n')[1], 'value: int = helper.number()');
     assert.equal(document.getText().split('\n')[2], 'print(value)');
 
@@ -218,6 +220,36 @@ async function run() {
     assert.ok(fs.readFileSync(path.join(root, 'task.html'), 'utf8').includes('Editor task documentation.'));
     assert.ok(fs.readFileSync(path.join(root, 'task.html'), 'utf8').includes('const message: string'));
 
+    // Accept the default argument prompt, then execute the real Run File task.
+    const runContents = "relative input 日本語 [brackets] ' ; $ &";
+    fs.writeFileSync(path.join(root, 'run-input.txt'), runContents);
+    const runUri = vscode.Uri.file(path.join(root, 'run task.rukbat'));
+    fs.writeFileSync(runUri.fsPath, 'import fs\nimport encoding\narguments := args()\nif arguments.length != 0 { exit(2) }\nmessage := fs.read_text("run-input.txt", encoding.utf8)\nfs.write_text("run-output.txt", message, encoding.utf8)\n');
+    await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(runUri));
+    let runStarted = false;
+    const started = vscode.tasks.onDidStartTask(event => {
+        if (event.execution.task.definition.action === 'run') runStarted = true;
+    });
+    try {
+        const finished = new Promise((resolve, reject) => {
+            const timer = setTimeout(() => { listener.dispose(); reject(new Error('Run File task timed out')); }, 30000);
+            const listener = vscode.tasks.onDidEndTaskProcess(event => {
+                if (event.execution.task.definition.action !== 'run') return;
+                clearTimeout(timer); listener.dispose(); resolve(event.exitCode);
+            });
+        });
+        const command = vscode.commands.executeCommand('rukbat.run');
+        await until(async () => {
+            if (!runStarted) await vscode.commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+            return runStarted;
+        }, 'Run File argument prompt accepted');
+        await command;
+        assert.equal(await finished, 0, 'Run File in a literal workspace directory');
+        assert.equal(fs.readFileSync(path.join(root, 'run-output.txt'), 'utf8'), runContents);
+    } finally {
+        started.dispose();
+    }
+
     // Exercise the real inline debug adapter through VS Code's Debug API.
     const debugUri = vscode.Uri.file(path.join(root, 'debug.rukbat'));
     fs.writeFileSync(debugUri.fsPath, 'value := 1\nfn number(n: int): int {\n    result := n + 1\n    return result\n}\nconst result := number(value)\nprint(result)\n');
@@ -324,7 +356,7 @@ async function run() {
         if (vscode.debug.activeDebugSession?.type === 'rukbat') await vscode.debug.stopDebugging();
     }
 
-    console.log('Passed VS Code references, rename/Undo, incomplete-call signature help, dictionary completion/hover/references/signatures/inspection, language features, tasks, saved debug launch, source breakpoints, variables, editor stepping, numeric/opaque inspection, and debug completion.');
+    console.log('Passed VS Code references, rename/Undo, incomplete-call signature help, dictionary completion/hover/references/signatures/inspection, language features, tasks including Run File in literal workspaces, saved debug launch, source breakpoints, variables, editor stepping, numeric/opaque inspection, and debug completion.');
 }
 
 module.exports = { run };

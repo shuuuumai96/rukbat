@@ -67,7 +67,7 @@ class Session {
 }
 
 function project(t) {
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'rukbat debug 日本語 '));
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'rukbat debug 日本語 [literal] '));
     const session = new Session();
     t.after(async () => {
         if (!session.adapter.finished) {

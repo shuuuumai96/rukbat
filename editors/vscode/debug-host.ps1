@@ -129,8 +129,10 @@ try {
     if ($ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage') {
         throw 'Rukbat debugging requires FullLanguage mode.'
     }
+    # Set-PSBreakpoint expands wildcards; the generated script path is literal.
+    $breakpointScript = [System.Management.Automation.WildcardPattern]::Escape($config.script)
     foreach ($point in $global:__rukbat_debug_map.points) {
-        Set-PSBreakpoint -Script $config.script -Line $point.generatedLine -Action {
+        Set-PSBreakpoint -Script $breakpointScript -Line $point.generatedLine -Action {
             & $global:__rukbat_debug_checkpoint
         } | Out-Null
     }

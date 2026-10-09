@@ -10,7 +10,7 @@ async function main() {
     const bundled = process.env.RUKBAT_TEST_BUNDLED === '1';
     const dll = process.env.RUKBAT_TEST_DLL || path.resolve(root, '../../src/Rukbat/bin/Debug/net8.0/rukbat.dll');
     if (!bundled && !fs.existsSync(dll)) throw new Error(`Build the compiler before testing: ${dll}`);
-    const workspace = path.join(root, '.vscode-test/workspace');
+    const workspace = path.join(root, '.vscode-test/workspace [literal] 日本語');
     fs.mkdirSync(path.join(workspace, '.vscode'), { recursive: true });
     fs.writeFileSync(path.join(workspace, '.vscode/settings.json'), JSON.stringify(bundled ? {} : {
         'rukbat.server.command': 'dotnet', 'rukbat.server.arguments': [dll], 'rukbat.trace.server': 'verbose'
