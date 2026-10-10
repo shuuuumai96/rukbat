@@ -1,0 +1,56 @@
+using System;
+using System.ComponentModel;
+using System.IO;
+using System.Runtime.InteropServices;
+
+public static class RukbatTemporaryEntries {
+    private const int MaximumAttempts = 32;
+    private const int ErrorFileExists = 80;
+    private const int ErrorAlreadyExists = 183;
+
+    [DllImport("kernel32.dll", EntryPoint = "CreateDirectoryW", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CreateDirectoryExclusive(string path, IntPtr security);
+
+    private static void ValidateParent(string directory) {
+        if ((File.GetAttributes(directory) & FileAttributes.Directory) == 0)
+            throw new IOException("Temporary entry parent must be an existing directory: " + directory);
+    }
+
+    private static string Candidate(string directory) {
+        return Path.Combine(directory, ".rukbat-temp-" + Guid.NewGuid().ToString("N"));
+    }
+
+    private static bool IsCollision(int error) {
+        return error == ErrorFileExists || error == ErrorAlreadyExists;
+    }
+
+    public static string CreateFile(string directory) {
+        ValidateParent(directory);
+        for (int attempt = 0; attempt < MaximumAttempts; attempt++) {
+            string candidate = Candidate(directory);
+            try {
+                using (var stream = new FileStream(candidate, FileMode.CreateNew, FileAccess.Write, FileShare.None)) { }
+                return candidate;
+            } catch (IOException error) {
+                if (!IsCollision(error.HResult & 0xffff)) throw;
+            } catch (UnauthorizedAccessException) {
+                // CreateNew reports access denied when the candidate is an existing directory.
+                if (!Directory.Exists(candidate)) throw;
+            }
+        }
+        throw new IOException("fs.create_temp_file could not create a unique temporary file.");
+    }
+
+    public static string CreateDirectory(string directory) {
+        ValidateParent(directory);
+        for (int attempt = 0; attempt < MaximumAttempts; attempt++) {
+            string candidate = Candidate(directory);
+            if (CreateDirectoryExclusive(candidate, IntPtr.Zero)) return candidate;
+            int error = Marshal.GetLastWin32Error();
+            if (!IsCollision(error))
+                throw new IOException("Cannot create temporary directory in: " + directory, new Win32Exception(error));
+        }
+        throw new IOException("fs.create_temp_dir could not create a unique temporary directory.");
+    }
+}

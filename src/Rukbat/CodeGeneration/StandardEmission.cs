@@ -16,7 +16,11 @@ internal sealed partial class Emitter
             EmitNativeLoader("DateTime");
             Line("& $__rukbat_load_DateTime");
         }
-        if (modules.Contains("fs")) EmitNativeLoader("MoveBatch");
+        if (modules.Contains("fs"))
+        {
+            EmitNativeLoader("MoveBatch");
+            EmitNativeLoader("TemporaryEntries");
+        }
         if (modules.Contains("process")) EmitNativeLoader("ProcessJob");
         if (modules.Contains("hash")) EmitNativeLoader("Hash");
         if (modules.Contains("zip")) EmitZipLoader();

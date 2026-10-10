@@ -148,6 +148,11 @@
     }
     return
 }
+'fs.create_temp_file' {
+    $directory = & $__rukbat_resolve_path ([string]$values[0])
+    & $__rukbat_load_TemporaryEntries
+    return [RukbatTemporaryEntries]::CreateFile($directory)
+}
 'fs.move_files_batch' {
     $sources = [System.Collections.Generic.List[string]]::new()
     $destinations = [System.Collections.Generic.List[string]]::new()

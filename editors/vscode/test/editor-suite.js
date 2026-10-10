@@ -151,16 +151,18 @@ async function run() {
         'directories := fs.list_dirs("incoming", "*")',
         'fs.move_dir("incoming/batch", "processed/batch")',
         'fs.append_text("moves.log", "moved\\r\\n", encoding.utf8)',
+        'temporary_file := fs.create_temp_file("work")',
+        'temporary_directory := fs.create_temp_dir("work")',
         ''
     ].join('\n');
     fs.writeFileSync(filesystemUri.fsPath, filesystemSource);
     const filesystemDocument = await vscode.workspace.openTextDocument(filesystemUri);
     await vscode.window.showTextDocument(filesystemDocument);
-    const filesystemOperations = ['list_dirs', 'move_dir', 'append_text'];
+    const filesystemOperations = ['list_dirs', 'move_dir', 'append_text', 'create_temp_file', 'create_temp_dir'];
     await until(async () => {
         const result = await vscode.commands.executeCommand('vscode.executeCompletionItemProvider', filesystemUri, new vscode.Position(2, 18));
         return filesystemOperations.every(name => result?.items?.some(item => item.label === name));
-    }, 'three filesystem API completions');
+    }, 'five filesystem API completions');
     for (const [line, name] of filesystemOperations.entries()) {
         await until(async () => {
             const sourceLine = filesystemDocument.lineAt(line + 2).text;
@@ -186,6 +188,26 @@ async function run() {
     restoreFilesystem.replace(filesystemUri, new vscode.Range(0, 0, filesystemDocument.lineCount, 0), filesystemSource);
     assert.ok(await vscode.workspace.applyEdit(restoreFilesystem));
     await until(() => vscode.languages.getDiagnostics(filesystemUri).length === 0, 'valid filesystem API diagnostics');
+    for (const [line, name, variable] of [[5, 'create_temp_file', 'temporary_file'], [6, 'create_temp_dir', 'temporary_directory']]) {
+        const invalid = new vscode.WorkspaceEdit();
+        invalid.replace(filesystemUri, new vscode.Range(line, 0, line + 1, 0), `${variable} := fs.${name}(1)\n`);
+        assert.ok(await vscode.workspace.applyEdit(invalid));
+        await until(() => vscode.languages.getDiagnostics(filesystemUri).some(d => d.code === 'RUK2001' && d.range.start.line === line),
+            `fs.${name} argument diagnostic`);
+        const call = `${variable} := fs.${name}(`;
+        const incomplete = new vscode.WorkspaceEdit();
+        incomplete.replace(filesystemUri, new vscode.Range(line, 0, line + 1, 0), call + '\n');
+        assert.ok(await vscode.workspace.applyEdit(incomplete));
+        await until(async () => {
+            const help = await vscode.commands.executeCommand('vscode.executeSignatureHelpProvider', filesystemUri,
+                new vscode.Position(line, call.length), '(');
+            return help?.signatures?.[0]?.label === `fs.${name}(directory: string): string` && help.activeParameter === 0;
+        }, `fs.${name} incomplete signature help`);
+        const restore = new vscode.WorkspaceEdit();
+        restore.replace(filesystemUri, new vscode.Range(line, 0, line + 1, 0), filesystemSource.split('\n')[line] + '\n');
+        assert.ok(await vscode.workspace.applyEdit(restore));
+        await until(() => vscode.languages.getDiagnostics(filesystemUri).length === 0, `valid fs.${name} diagnostics`);
+    }
 
     const dictionaryUri = vscode.Uri.file(path.join(root, 'dictionary.rukbat'));
     const dictionarySource = 'struct Item { n: int }\nd: dict[string, Item] = {"x": Item {n: 1}}\nprint(d.has("x"))\n';
@@ -344,6 +366,24 @@ async function run() {
         '    for directory in directories {',
         '        fs.move_dir(directory, path.resolve(processed, path.filename(directory)))',
         '    }',
+        `    temporary := fs.create_temp_dir("${runDirectoriesName}")`,
+        '    file := fs.create_temp_file(temporary)',
+        '    test.assert(path.is_absolute(file))',
+        '    test.assert(path.is_absolute(temporary))',
+        '    test.assert(fs.is_file(file))',
+        '    test.assert(fs.is_dir(temporary))',
+        '    test.assert(fs.read_text(file, encoding.utf8) == "")',
+        '    fs.write_text(file, message, encoding.utf8)',
+        '    test.assert(fs.read_text(file, encoding.utf8) == message)',
+        '    fs.remove_file(file)',
+        '    fs.remove_dir(temporary)',
+        '    test.assert(!fs.is_file(file))',
+        '    test.assert(!fs.is_dir(temporary))',
+        `    nested := fs.create_temp_dir("${runDirectoriesName}")`,
+        '    child := fs.create_temp_file(nested)',
+        '    fs.write_text(child, "payload", encoding.utf8)',
+        '    fs.remove_dir_all(nested)',
+        '    test.assert(!fs.is_dir(nested))',
         '} catch error {',
         '    fs.write_text(path.join([path.script_dir(), "run-failure.txt"]), error.message + "\\nworking=" + path.working_dir(), encoding.utf8)',
         '    throw error',
@@ -379,6 +419,7 @@ async function run() {
         assert.ok(fs.statSync(path.join(runDirectories, 'processed/empty')).isDirectory());
         assert.equal(fs.readFileSync(path.join(runDirectories, 'processed/batch/marker.txt'), 'utf8'), 'kept');
         assert.deepEqual(fs.readdirSync(path.join(runDirectories, 'incoming')), []);
+        assert.deepEqual(fs.readdirSync(runDirectories).sort(), ['incoming', 'processed']);
     } finally {
         started.dispose();
     }

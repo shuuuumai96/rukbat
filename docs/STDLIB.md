@@ -429,6 +429,7 @@ Because `modified` is a `datetime.Timestamp`, `fs.Info` cannot be converted dire
 | `fs.read_text(path: string, encoding: encoding.Encoding): string` | Reads text with one explicit encoding value. | Missing/inaccessible files, an invalid byte sequence, or a conflicting UTF-16 BOM causes Error. |
 | `fs.write_text(path: string, text: string, encoding: encoding.Encoding): void` | Replaces a file with one explicit encoding value, without a BOM or implicit newline. It does not create parent directories. Complete new contents are written to a temporary file in the destination directory before it is moved or used to replace the destination. | An inaccessible path, missing parent directory, or unencodable text causes Error. |
 | `fs.append_text(path: string, text: string, encoding: encoding.Encoding): void` | Appends strictly encoded text bytes to a file, without a BOM or implicit newline. Creates a missing file, including for empty text, and does not create parent directories. | An invalid/inaccessible path, missing parent, unencodable text, sharing conflict, or I/O failure causes Error. An I/O failure can leave a partial append. |
+| `fs.create_temp_file(directory: string): string` | Exclusively creates an empty temporary file in an existing directory and returns its absolute path. | An invalid/missing/inaccessible parent, a file passed as parent, exhausted name collisions, or an I/O failure causes Error. |
 | `fs.is_file(path: string): bool` | Returns `true` for an existing file. Missing files, directories, invalid paths, and access failures or other cases that File.Exists cannot determine return `false`. | This predicate returns `false` rather than raising Error when path resolution or existence checking fails. |
 | `fs.copy_file(source: string, destination: string): void` | Copies one file without overwriting an existing destination or creating its parent directory. | A missing, inaccessible, or directory source; an existing destination; a missing parent; identical source and destination; or an I/O failure causes Error. |
 | `fs.move_file(source: string, destination: string): void` | Moves one file. Moving within one directory renames it. It does not overwrite an existing destination or create its parent directory. On success the source no longer exists. | A missing or directory source; an existing destination; a missing parent; identical source and destination; or an I/O failure causes Error. Cross-volume moves are allowed but are not atomic; after an error, the destination may remain. |
@@ -458,6 +459,7 @@ file. Neither a BOM nor a newline is added; put the desired line ending in the t
 | `fs.list_dirs(directory: string, pattern: string): string[]` | Returns absolute paths of directly contained ordinary directories matching a directory-name wildcard, including empty, Hidden and System directories. Does not recurse; child reparse points are excluded; order is unspecified. | An invalid/inaccessible/nonexistent root, a file passed as root, an invalid pattern, or an enumeration failure causes Error. |
 | `fs.move_dir(source: string, destination: string): void` | Moves an ordinary directory and its contents by a same-volume rename. Within one parent this renames the directory. Destination must not exist and its parent must exist. | A missing/file/reparse-point source, existing destination, missing parent, identical paths, destination beneath source, different drives/UNC shares or volumes, protected source, or I/O failure causes Error. |
 | `fs.create_dir_all(path: string): void` | Creates the directory and any missing parent directories. Creating an existing directory succeeds. | A file at the target path, an invalid path, or an I/O failure causes Error. |
+| `fs.create_temp_dir(directory: string): string` | Exclusively creates an empty temporary directory in an existing directory and returns its absolute path. | An invalid/missing/inaccessible parent, a file passed as parent, exhausted name collisions, or an I/O failure causes Error. |
 | `fs.is_dir(path: string): bool` | Returns `true` only for an existing reachable directory. Files, missing paths, invalid paths, inaccessible paths, and indeterminate checks return `false`. | This predicate returns `false` rather than raising Error. |
 | `fs.remove_dir(path: string): void` | Deletes an empty directory. Removing a missing directory succeeds. | A file, a non-empty directory, a filesystem root, the captured working directory or its ancestor, or an I/O failure causes Error. A directory reparse point removes the entry, not its target. |
 | `fs.remove_dir_all(path: string): void` | Deletes a directory and its ordinary subtree. Removing a missing directory succeeds. | A file, a filesystem root, the captured working directory or its ancestor, or an I/O failure causes Error. Partial deletion is possible. Reparse points at the target or beneath it are removed as entries and are never traversed. |
@@ -491,6 +493,45 @@ for directory in fs.list_dirs("incoming", "batch-*") {
     fs.move_dir(directory, destination)
     fs.append_text("moves.log", "Moved " + destination + "\r\n", encoding.utf8)
 }
+```
+
+### Temporary files and directories
+
+`fs.create_temp_file` and `fs.create_temp_dir` create entries before returning; they do not
+just propose unused names. Each candidate is created exclusively. An existing file or
+directory is never reused, truncated, or removed, including when another caller wins the
+creation race. Name collisions are retried with new random candidates, with at most 32
+attempts per call. Other filesystem errors fail without retrying as name collisions.
+
+The parent must already exist. It is a literal path; relative parents use the captured
+working directory, just like other `fs` operations. Choose the parent explicitly; neither
+operation selects the operating system's temporary directory or creates parent directories.
+Parent paths use normal filesystem resolution, including directory reparse points. These
+operations do not lock the parent or protect returned entries from subsequent changes by
+other processes. Names and extensions are implementation details; callers should use the
+returned path directly. A created file has zero bytes and no open handle on return, and a
+created directory has no children. Windows permissions are inherited normally from the parent.
+
+Cleanup is explicit. Call `fs.remove_file`, `fs.remove_dir`, or `fs.remove_dir_all` when done;
+there is no automatic removal on return, Error, or process termination. If a later operation
+fails, use `try` / `catch` when cleanup is needed on that path too.
+
+```rukbat
+import fs
+import encoding
+
+fs.create_dir_all("work")
+directory := fs.create_temp_dir("work")
+try {
+    file := fs.create_temp_file(directory)
+    fs.write_text(file, "temporary content", encoding.utf8)
+    print(fs.read_text(file, encoding.utf8))
+    fs.remove_file(file)
+} catch error {
+    fs.remove_dir_all(directory)
+    throw error
+}
+fs.remove_dir(directory)
 ```
 
 ### Recoverable file moves

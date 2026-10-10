@@ -12,6 +12,8 @@ public class FileSystemApiTests : TestBase
     [InlineData("is_dir('x')", "bool")]
     [InlineData("write_text('x', 'text', encoding.utf8)", "void")]
     [InlineData("append_text('x', 'text', encoding.utf8)", "void")]
+    [InlineData("create_temp_file('.')", "string")]
+    [InlineData("create_temp_dir('.')", "string")]
     [InlineData("copy_file('x', 'y')", "void")]
     [InlineData("move_file('x', 'y')", "void")]
     [InlineData("move_dir('x', 'y')", "void")]

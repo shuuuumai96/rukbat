@@ -280,6 +280,8 @@ public sealed partial class LanguageServerTests
     [InlineData("import fs\nfs.list_dirs('.', ", 1, "fs.list_dirs(directory: string, pattern: string): string[]")]
     [InlineData("import fs\nfs.move_dir('source', ", 1, "fs.move_dir(source: string, destination: string): void")]
     [InlineData("import fs\nfs.append_text('log', 'entry', ", 2, "fs.append_text(path: string, text: string, encoding: encoding.Encoding): void")]
+    [InlineData("import fs\nfs.create_temp_file(", 0, "fs.create_temp_file(directory: string): string")]
+    [InlineData("import fs\nfs.create_temp_dir(", 0, "fs.create_temp_dir(directory: string): string")]
     [InlineData("import process\nprocess.run('x', ['a,b', 'c'], ", 2, "process.run(executable: string, arguments: string[], options: process.Options): process.Result")]
     [InlineData("items: int[] = []\nitems.append(", 0, "append(value: int): void")]
     [InlineData("struct S { fn get(a: int): int { return a } }\ns := S {}\ns.get(", 0, "fn get(a: int): int")]

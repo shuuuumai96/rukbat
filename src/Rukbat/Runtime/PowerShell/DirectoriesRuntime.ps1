@@ -56,6 +56,11 @@
     [System.IO.Directory]::CreateDirectory($path)
     return
 }
+'fs.create_temp_dir' {
+    $directory = & $__rukbat_resolve_path ([string]$values[0])
+    & $__rukbat_load_TemporaryEntries
+    return [RukbatTemporaryEntries]::CreateDirectory($directory)
+}
 'fs.is_dir' {
     try { return [System.IO.Directory]::Exists((& $__rukbat_resolve_path ([string]$values[0]))) }
     catch { return $false }
