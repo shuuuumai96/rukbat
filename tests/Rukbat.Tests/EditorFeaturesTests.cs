@@ -282,6 +282,9 @@ public sealed partial class LanguageServerTests
     [InlineData("struct S { fn get(a: int): int { return a } }\ns := S {}\ns.get(", 0, "fn get(a: int): int")]
     [InlineData("import json\njson.parse<int>(", 0, "json.parse<T>(text: string): T")]
     [InlineData("import array\narray.sort(", 0, "array.sort(values: T[]): T[]")]
+    [InlineData("import path\npath.resolve('C:/work', ", 1, "path.resolve(base_dir: string, value: string): string")]
+    [InlineData("import path\npath.relative('C:/work', ", 1, "path.relative(base_dir: string, target: string): string")]
+    [InlineData("import path\npath.change_extension('report.csv', ", 1, "path.change_extension(value: string, extension: string): string")]
     public void SignatureHelpWorksForIncompleteCalls(string source, int parameter, string label)
     {
         using var project = new Project();

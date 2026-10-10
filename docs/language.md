@@ -261,6 +261,12 @@ The generated script captures its initial filesystem working directory and its s
 
 Local imports remain compile-time paths relative to the importing source file. They are unrelated to runtime working and script directories. `path.script_dir()` explicitly locates data beside the deployed `.ps1`. Execute the generated artifact as a file in a separate PowerShell process. Ordinary source locations support error reporting; the VS Code debugger uses separate development metadata described in [DEBUGGING.md](DEBUGGING.md).
 
+`path.working_dir()` exposes the captured entry working directory. `path.resolve(base_dir, value)`
+selects an explicit absolute directory for path-value resolution without changing the program's
+working directory. `path.relative(base_dir, target)` computes a relative path between absolute
+values. These operations do not inspect filesystem entries; their Windows path contracts are
+defined in STDLIB.md.
+
 `powershell<T>(command, ...)` is the explicit escape hatch for a PowerShell operation not covered by Rukbat. It checks the returned value against `T`; a scalar result requires exactly one value and `T[]` collects values into an array. PowerShell failures and incompatible results are runtime errors.
 
 PowerShell arguments and result types cannot contain dictionaries or opaque standard-library values such as

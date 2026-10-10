@@ -71,7 +71,7 @@ public class DeploymentTests : TestBase
         var working = project.PathFor(workDirectory);
         var other = project.PathFor("other");
         var windowsShell = Path.Combine(Environment.GetEnvironmentVariable("SystemRoot")!, "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
-        project.Write("source/helper.rukbat", "import path\nfn directory(): string { return path.script_dir() }");
+        project.Write("source/helper.rukbat", "import path\nfn directory(): string { return path.script_dir() }\nfn working(): string { return path.working_dir() }");
         project.Write("source/main.rukbat", $$"""
             import encoding; import fs
             import path
@@ -79,8 +79,12 @@ public class DeploymentTests : TestBase
             import "./helper.rukbat" as helper
             print(path.script_dir())
             print(helper.directory())
+            print(path.working_dir())
+            print(helper.working())
             powershell<void>('Set-Location', LiteralPath: '{{SourcePath(other)}}')
             powershell<void>('Invoke-Expression', "[Environment]::CurrentDirectory = '{{SourcePath(project.PathFor("deploy"))}}'")
+            print(path.working_dir())
+            print(helper.working())
             print(fs.read_text('data.txt', encoding.utf8))
             fs.write_text('result.txt', 'saved', encoding.utf8)
             print(fs.is_file('result.txt'))
@@ -102,7 +106,7 @@ public class DeploymentTests : TestBase
         var result = await RunDeployedScript(shell, script, working, directFile ? working : other, directFile);
         Assert.True(result.ExitCode == 0, result.Error);
         Assert.Equal("", result.Error);
-        Assert.Equal($"{project.PathFor("deploy")}\n{project.PathFor("deploy")}\nworking\nTrue\n2\nadjacent\n{working}\n{working}\n", result.Output);
+        Assert.Equal($"{project.PathFor("deploy")}\n{project.PathFor("deploy")}\n{working}\n{working}\n{working}\n{working}\nworking\nTrue\n2\nadjacent\n{working}\n{working}\n", result.Output);
         Assert.Equal("saved", File.ReadAllText(Path.Combine(working, "result.txt")));
         Assert.False(File.Exists(project.PathFor("other/result.txt")));
     }

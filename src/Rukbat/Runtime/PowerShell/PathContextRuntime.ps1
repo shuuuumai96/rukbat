@@ -7,16 +7,16 @@ $__rukbat_reject_invalid_path_characters = {
     }
 }.GetNewClosure()
 $__rukbat_resolve_path = {
-    param([string]$value)
+    param([string]$value, [string]$baseDirectory = $__rukbat_working_dir)
     if ([string]::IsNullOrWhiteSpace($value)) { throw 'Path must not be empty or whitespace.' }
     & $__rukbat_reject_invalid_path_characters $value
     if ($value -match '^[A-Za-z]:(?![\\/])') {
         throw 'Drive-relative paths are not supported; use an absolute or working-directory-relative path.'
     }
     if ($value -match '^[\\/](?![\\/])') {
-        $value = [IO.Path]::Combine([IO.Path]::GetPathRoot($__rukbat_working_dir), $value.Substring(1))
+        $value = [IO.Path]::Combine([IO.Path]::GetPathRoot($baseDirectory), $value.Substring(1))
     } elseif (-not [IO.Path]::IsPathRooted($value)) {
-        $value = [IO.Path]::Combine($__rukbat_working_dir, $value)
+        $value = [IO.Path]::Combine($baseDirectory, $value)
     }
     return [IO.Path]::GetFullPath($value)
 }.GetNewClosure()

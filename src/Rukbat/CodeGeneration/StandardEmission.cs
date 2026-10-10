@@ -5,6 +5,7 @@ internal sealed partial class Emitter
     private void EmitStandardRuntime(IReadOnlySet<string> modules)
     {
         EmitLines(RuntimeResources.ReadPowerShell("PathContextRuntime"));
+        if (modules.Contains("path")) EmitLines(RuntimeResources.ReadPowerShell("PathValueRuntime"));
         if (modules.Contains("encoding") || modules.Contains("fs") || modules.Contains("process") || modules.Contains("zip") || modules.Contains("hash") || modules.Contains("http"))
         {
             EmitNativeLoader("CodePageCodec");

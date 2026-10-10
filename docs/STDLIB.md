@@ -474,6 +474,12 @@ to `fs.is_file` and `fs.is_dir`; `path.parent` only computes the parent path val
 | Signature | Meaning | Failure |
 |---|---|---|
 | `path.script_dir(): string` | Returns the deployed script directory captured at startup. | None. |
+| `path.working_dir(): string` | Returns the absolute filesystem working directory captured at entry-script startup. | None. |
+| `path.resolve(base_dir: string, value: string): string` | Resolves a path against an explicit absolute directory and returns a normalized absolute Windows path. No entry needs to exist. | A non-absolute base, invalid/empty path, drive-relative path, or unsupported path form causes Error. |
+| `path.relative(base_dir: string, target: string): string` | Returns the component-relative path from an absolute directory to an absolute target, or `"."` for the same location. No entry needs to exist. | Non-absolute or invalid inputs, unsupported path forms, or different drives/UNC shares cause Error. |
+| `path.is_absolute(value: string): bool` | Tests whether a supported Windows path fixes its drive or UNC server/share independently of any current location. | Empty, invalid, relative, and unsupported path forms return `false`. |
+| `path.stem(value: string): string` | Returns the final filename without its last extension. Roots, trailing separators, and final `.`/`..` components return `""`. | Invalid/empty paths or unsupported path forms cause Error. |
+| `path.change_extension(value: string, extension: string): string` | Returns a path with its final extension replaced; `""` removes the extension. Preserves directory spelling and does not change a file. | An invalid path or extension, unsupported path form, absent filename, or an empty resulting filename causes Error. |
 | `path.join(parts: string[]): string` | Joins one or more path components using the target platform's path rules. | An empty array or an invalid component causes Error. |
 | `path.filename(value: string): string` | Returns the final file-name component, or `""` when the path ends in a directory separator. | An invalid path causes Error. |
 | `path.extension(value: string): string` | Returns the final component's extension including its leading `.`, or `""` when none exists. | An invalid path causes Error. |
@@ -489,7 +495,62 @@ to `fs.is_file` and `fs.is_dir`; `path.parent` only computes the parent path val
 config := path.join([path.script_dir(), "config.json"])
 ```
 
+`working_dir` returns the same captured entry directory used by relative `fs` paths and
+the default child-process working directory. Later PowerShell or .NET directory changes
+do not change this value, including calls from imported functions.
+
+`resolve` requires a fully qualified absolute `base_dir`, interpreted as a directory even
+when it does not exist. Ordinary relative `value` paths resolve against that directory;
+a root-relative value such as `/data/file.csv` resolves from the base's drive or UNC share
+root. A fully qualified value uses its own root. `.` and `..` follow Windows full-path
+normalization; separators become `\`, and a drive/UNC share root retains its trailing `\`.
+Other trailing separators are preserved. It does not resolve links, check existence,
+expand environment variables or `~`, or interpret wildcard patterns.
+
+```rukbat
+input := path.resolve(path.working_dir(), "input/data.csv")
+config := path.resolve(path.script_dir(), "config/settings.json")
+data := path.resolve(path.parent(config), "../data")
+```
+
+`relative` requires both arguments to be fully qualified absolute paths; use `resolve`
+first for relative input. It normalizes both paths and compares roots and components
+with Windows ordinal case-insensitive comparison. The base is always a directory.
+It ignores trailing separators, returns `"."` for the same components, and uses `\`
+separators and `..` for parent traversal. For example,
+`relative("C:/work/data", "C:/work/out/a.csv")` returns `"..\\out\\a.csv"`.
+Different drives, servers, or UNC shares raise Error rather than returning an absolute
+path. These are path-value operations, not filesystem identity or containment checks.
+
+`is_absolute` accepts drive-absolute paths such as `C:/work` and complete UNC paths such
+as `//server/share/data`. Ordinary relative paths, root-relative `/data`, drive-relative
+`C:data`, incomplete UNC roots, and unsupported forms return `false`. A `true` result
+does not imply existence, permissions, or that a later filesystem operation will succeed.
+
+The new `resolve`, `relative`, `is_absolute`, `stem`, and `change_extension` operations
+support ordinary Windows drive and UNC paths. Device namespaces (`\\?\` and `\\.\`),
+PowerShell provider paths, alternate data streams, drive-relative spellings, and invalid
+path characters are rejected. The transformations raise Error; `is_absolute` returns
+`false`. Whitespace-only and empty path inputs are invalid. Existing lexical operations
+retain their own contracts, including `parent("C:child")`.
+
+`stem` and `change_extension` follow the existing last-extension rule:
+`stem("archive.tar.gz")` is `"archive.tar"`, `stem("README")` is `"README"`, and
+`stem(".env")` is `""` because `extension(".env")` is `".env"`.
+`stem("report.")` is `"report"`; extension replacement/removal also removes that final dot.
+Extension changes preserve the original directory text, separators, and relative/absolute
+form. The extension must be empty or start with `.` and contain at least one more character;
+separators, colons, control characters, and invalid path characters are forbidden.
+`change_extension("dir/report.csv", ".json")` is `"dir/report.json"`;
+`change_extension("dir/report.csv", "")` is `"dir/report"`.
+The operation rejects roots, trailing separators, final `.`/`..`, and removals such as
+`change_extension(".env", "")` that would leave no filename.
+
 `equal` compares resolved path spelling, not filesystem object identity. It does not resolve symbolic links, junctions, hard links, short names, or filesystem object IDs.
+
+Existing `equal` and `find_duplicate` preserve trailing separators in their comparison;
+`equal("C:/work", "C:/work/")` is `false`. In contrast, `relative` compares directory
+components and returns `"."` for that pair.
 
 `path.find_duplicate(paths: string[]): string?` scans paths in input order and returns the original spelling of the first path equal to an earlier path, or `null` when no path repeats (including an empty array). Equality uses the same captured-working-directory resolution and ordinal case-insensitive comparison as `path.equal`; entries need not exist. An invalid path encountered before a duplicate raises Error. Scanning stops at the first duplicate. Each visited path is resolved once and checked against a set, avoiding pairwise comparisons when validating file plans. The input array is not changed.
 

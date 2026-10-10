@@ -99,6 +99,51 @@ async function run() {
     assert.ok(await vscode.workspace.applyEdit(restoreCli));
     await vscode.window.showTextDocument(document);
 
+    const pathUri = vscode.Uri.file(path.join(root, 'path-api.rukbat'));
+    const pathSource = [
+        'import path',
+        'working := path.working_dir()',
+        'absolute := path.resolve(working, "data/report.csv")',
+        'relative := path.relative(working, absolute)',
+        'qualified := path.is_absolute(absolute)',
+        'stem := path.stem(relative)',
+        'output := path.change_extension(absolute, ".json")',
+        ''
+    ].join('\n');
+    fs.writeFileSync(pathUri.fsPath, pathSource);
+    const pathDocument = await vscode.workspace.openTextDocument(pathUri);
+    await vscode.window.showTextDocument(pathDocument);
+    const pathOperations = ['working_dir', 'resolve', 'relative', 'is_absolute', 'stem', 'change_extension'];
+    await until(async () => {
+        const result = await vscode.commands.executeCommand('vscode.executeCompletionItemProvider', pathUri, new vscode.Position(1, 16));
+        return pathOperations.every(name => result?.items?.some(item => item.label === name));
+    }, 'six path API completions');
+    for (const [line, name] of pathOperations.entries()) {
+        await until(async () => {
+            const sourceLine = pathDocument.lineAt(line + 1).text;
+            const result = await vscode.commands.executeCommand('vscode.executeHoverProvider', pathUri,
+                new vscode.Position(line + 1, sourceLine.indexOf(`path.${name}`) + 'path.'.length + 1));
+            return result?.some(item => item.contents.some(content => (content.value || content).includes(`path.${name}(`)));
+        }, `path.${name} hover`);
+    }
+    const invalidPath = new vscode.WorkspaceEdit();
+    invalidPath.replace(pathUri, new vscode.Range(2, 0, 3, 0), 'absolute := path.resolve(1, "data/report.csv")\n');
+    assert.ok(await vscode.workspace.applyEdit(invalidPath));
+    await until(() => vscode.languages.getDiagnostics(pathUri).some(d => d.code === 'RUK2001'), 'path API argument diagnostic');
+    const incompletePath = new vscode.WorkspaceEdit();
+    const pathCall = 'absolute := path.resolve(working, ';
+    incompletePath.replace(pathUri, new vscode.Range(2, 0, 3, 0), pathCall + '\n');
+    assert.ok(await vscode.workspace.applyEdit(incompletePath));
+    await until(async () => {
+        const help = await vscode.commands.executeCommand('vscode.executeSignatureHelpProvider', pathUri,
+            new vscode.Position(2, pathCall.length), ',');
+        return help?.signatures?.[0]?.label === 'path.resolve(base_dir: string, value: string): string' && help.activeParameter === 1;
+    }, 'path.resolve incomplete signature help');
+    const restorePath = new vscode.WorkspaceEdit();
+    restorePath.replace(pathUri, new vscode.Range(0, 0, pathDocument.lineCount, 0), pathSource);
+    assert.ok(await vscode.workspace.applyEdit(restorePath));
+    await until(() => vscode.languages.getDiagnostics(pathUri).length === 0, 'valid path API diagnostics');
+
     const dictionaryUri = vscode.Uri.file(path.join(root, 'dictionary.rukbat'));
     const dictionarySource = 'struct Item { n: int }\nd: dict[string, Item] = {"x": Item {n: 1}}\nprint(d.has("x"))\n';
     fs.writeFileSync(dictionaryUri.fsPath, dictionarySource);
@@ -223,12 +268,40 @@ async function run() {
     // Accept the default argument prompt, then execute the real Run File task.
     const runContents = "relative input 日本語 [brackets] ' ; $ &";
     fs.writeFileSync(path.join(root, 'run-input.txt'), runContents);
+    const runFailure = path.join(root, 'run-failure.txt');
+    fs.rmSync(runFailure, { force: true });
+    fs.rmSync(path.join(root, 'run-output.txt'), { force: true });
     const runUri = vscode.Uri.file(path.join(root, 'run task.rukbat'));
-    fs.writeFileSync(runUri.fsPath, 'import fs\nimport encoding\narguments := args()\nif arguments.length != 0 { exit(2) }\nmessage := fs.read_text("run-input.txt", encoding.utf8)\nfs.write_text("run-output.txt", message, encoding.utf8)\n');
+    fs.writeFileSync(runUri.fsPath, [
+        'import fs',
+        'import encoding',
+        'import path',
+        'import test',
+        'arguments := args()',
+        'if arguments.length != 0 { exit(2) }',
+        'try {',
+        '    working := path.working_dir()',
+        '    input := path.resolve(working, "run-input.txt")',
+        '    output := path.change_extension(path.resolve(working, "run-output.tmp"), ".txt")',
+        '    test.assert(path.is_absolute(input))',
+        '    test.assert(path.relative(working, input) == "run-input.txt")',
+        '    test.assert(path.stem(input) == "run-input")',
+        '    message := fs.read_text(input, encoding.utf8)',
+        '    fs.write_text(output, message, encoding.utf8)',
+        '} catch error {',
+        '    fs.write_text(path.join([path.script_dir(), "run-failure.txt"]), error.message + "\\nworking=" + path.working_dir(), encoding.utf8)',
+        '    throw error',
+        '}',
+        ''
+    ].join('\n'));
     await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(runUri));
     let runStarted = false;
+    let runExecution;
     const started = vscode.tasks.onDidStartTask(event => {
-        if (event.execution.task.definition.action === 'run') runStarted = true;
+        if (event.execution.task.definition.action === 'run') {
+            runStarted = true;
+            runExecution = event.execution.task.execution;
+        }
     });
     try {
         const finished = new Promise((resolve, reject) => {
@@ -244,7 +317,8 @@ async function run() {
             return runStarted;
         }, 'Run File argument prompt accepted');
         await command;
-        assert.equal(await finished, 0, 'Run File in a literal workspace directory');
+        assert.equal(await finished, 0, fs.existsSync(runFailure) ? fs.readFileSync(runFailure, 'utf8') :
+            'Run File in a literal workspace directory: ' + JSON.stringify(runExecution));
         assert.equal(fs.readFileSync(path.join(root, 'run-output.txt'), 'utf8'), runContents);
     } finally {
         started.dispose();
@@ -356,7 +430,7 @@ async function run() {
         if (vscode.debug.activeDebugSession?.type === 'rukbat') await vscode.debug.stopDebugging();
     }
 
-    console.log('Passed VS Code references, rename/Undo, incomplete-call signature help, dictionary completion/hover/references/signatures/inspection, language features, tasks including Run File in literal workspaces, saved debug launch, source breakpoints, variables, editor stepping, numeric/opaque inspection, and debug completion.');
+    console.log('Passed VS Code path API completion/hover/diagnostics/signature help/Run File, references, rename/Undo, incomplete-call signature help, dictionary completion/hover/references/signatures/inspection, language features, tasks in literal workspaces, saved debug launch, source breakpoints, variables, editor stepping, numeric/opaque inspection, and debug completion.');
 }
 
 module.exports = { run };

@@ -161,6 +161,25 @@ public sealed partial class LanguageServerTests : TestBase
         Assert.False(capabilities.GetProperty("renameProvider").GetBoolean());
     }
 
+    [Fact]
+    public void PathCompletionAndHoverUseTheNewCanonicalContracts()
+    {
+        using var project = new Project();
+        var uri = UriFor(project);
+        var completion = Result(Session(Open(uri, "import path\npath."), Feature(uri, "completion", 1, 5)));
+        foreach (var name in new[] { "working_dir", "resolve", "relative", "is_absolute", "stem", "change_extension" })
+        {
+            var item = completion.EnumerateArray().Single(item => item.GetProperty("label").GetString() == name);
+            Assert.Contains("path." + name + "(", item.GetProperty("detail").GetString());
+            Assert.NotEmpty(item.GetProperty("documentation").GetProperty("value").GetString()!);
+        }
+        var messages = Session(Open(uri, "import path\nvalue := path.working_dir()"), Feature(uri, "hover", 1, 17));
+        var hover = Result(messages).GetProperty("contents").GetProperty("value").GetString();
+        Assert.Contains("path.working_dir(): string", hover);
+        Assert.Contains("captured at entry-script startup", hover);
+        Assert.Empty(LastDiagnostics(messages, uri).GetProperty("diagnostics").EnumerateArray());
+    }
+
     [Theory]
     [InlineData("value := missing", "RUK2004")]
     [InlineData("value: int = \"東京\"", "RUK2001")]
