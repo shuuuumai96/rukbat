@@ -27,6 +27,10 @@ installation, PATH setup, or compiler download is needed. Leave
 | **Rukbat: Generate Documentation** | Write offline HTML from source comments. |
 | **Rukbat: Restart Language Server** | Restart analysis after configuration changes. |
 
+The editor title shows **Run File** and **Debug File** as icons, in that order.
+**Check File**, **Build PowerShell**, and **Test Project** are in its **More Actions**
+(`...`) menu. All commands are also available in the Command Palette.
+
 Execution and generation commands save files first. Check/build/run/test output
 appears in the task terminal; debugging uses the Debug Console. Relative paths use
 the active file's workspace folder, or its directory outside a workspace.

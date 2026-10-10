@@ -71,7 +71,8 @@
       },
       {
         "command": "rukbat.run",
-        "title": "Rukbat: Run File"
+        "title": "Rukbat: Run File",
+        "icon": "$(play)"
       },
       {
         "command": "rukbat.doctor",
@@ -150,29 +151,29 @@
     "menus": {
       "editor/title": [
         {
-          "command": "rukbat.debug",
-          "when": "resourceLangId == rukbat && isWorkspaceTrusted",
-          "group": "navigation"
-        },
-        {
           "command": "rukbat.run",
           "when": "resourceLangId == rukbat && isWorkspaceTrusted",
-          "group": "navigation"
+          "group": "navigation@1"
         },
         {
-          "command": "rukbat.build",
+          "command": "rukbat.debug",
           "when": "resourceLangId == rukbat && isWorkspaceTrusted",
-          "group": "navigation"
+          "group": "navigation@2"
         },
         {
           "command": "rukbat.check",
           "when": "resourceLangId == rukbat && isWorkspaceTrusted",
-          "group": "navigation"
+          "group": "rukbat@1"
+        },
+        {
+          "command": "rukbat.build",
+          "when": "resourceLangId == rukbat && isWorkspaceTrusted",
+          "group": "rukbat@2"
         },
         {
           "command": "rukbat.test",
           "when": "resourceLangId == rukbat && isWorkspaceTrusted",
-          "group": "navigation"
+          "group": "rukbat@3"
         }
       ]
     }
