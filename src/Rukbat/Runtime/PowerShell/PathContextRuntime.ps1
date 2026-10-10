@@ -26,8 +26,8 @@ $__rukbat_entry_attributes = {
     catch [System.IO.FileNotFoundException] { return $null }
     catch [System.IO.DirectoryNotFoundException] { return $null }
 }.GetNewClosure()
-$__rukbat_reject_directory_delete = {
-    param([string]$path)
+$__rukbat_reject_directory_mutation = {
+    param([string]$path, [string]$operation = 'delete')
     $trim = {
         param([string]$value)
         $root = [System.IO.Path]::GetPathRoot($value)
@@ -39,11 +39,11 @@ $__rukbat_reject_directory_delete = {
     $target = & $trim $path
     $root = [System.IO.Path]::GetPathRoot($target)
     if ([string]::Equals($target, $root, [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw 'Refusing to delete a filesystem root.'
+        throw "Refusing to $operation a filesystem root."
     }
     $working = & $trim ([System.IO.Path]::GetFullPath($__rukbat_working_dir))
     if ([string]::Equals($target, $working, [System.StringComparison]::OrdinalIgnoreCase) -or
         $working.StartsWith($target + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw 'Refusing to delete the captured working directory or one of its ancestors.'
+        throw "Refusing to $operation the captured working directory or one of its ancestors."
     }
 }.GetNewClosure()

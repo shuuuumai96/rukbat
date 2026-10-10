@@ -135,6 +135,19 @@
     }
     return
 }
+'fs.append_text' {
+    $selected = & $__rukbat_text_encoding ([string]$values[2]) 'file'
+    $bytes = $selected.encoding.GetBytes([string]$values[1])
+    $path = & $__rukbat_resolve_path ([string]$values[0])
+    $stream = [System.IO.File]::Open($path, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write, [System.IO.FileShare]::Read)
+    try {
+        $stream.Write($bytes, 0, $bytes.Length)
+        $stream.Flush($true)
+    } finally {
+        $stream.Dispose()
+    }
+    return
+}
 'fs.move_files_batch' {
     $sources = [System.Collections.Generic.List[string]]::new()
     $destinations = [System.Collections.Generic.List[string]]::new()

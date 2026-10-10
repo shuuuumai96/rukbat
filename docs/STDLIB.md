@@ -39,11 +39,14 @@ not to compare the identity of filesystem entries.
 | Task | Canonical operation | Important boundary |
 |---|---|---|
 | Read or replace text | `fs.read_text`, `fs.write_text` | Encoding is required. A write replaces a file; it does not append or create parent directories. |
+| Append text | `fs.append_text` | Encoding is required; no BOM or newline is added. A missing file is created; parents must exist. |
 | List matching files | `fs.list_files`, `fs.list_files_recursive` | Only files are returned. `_recursive` includes subdirectories. |
+| List directly contained directories | `fs.list_dirs` | Includes empty and Hidden directories, excludes child reparse points, and does not recurse. |
 | Check the target kind | `fs.is_file`, `fs.is_dir` | Missing or inaccessible entries return `false`. These checks do not guarantee a later operation will succeed. |
 | Read file or directory metadata | `fs.stat` | Returns kind, file byte size, and UTC last-write time. Directory size is `null`; missing/inaccessible entries and final-entry reparse points cause Error. |
 | Create a directory and its parents | `fs.create_dir_all` | An existing directory succeeds; a file at that path is an Error. |
 | Copy or move one file | `fs.copy_file`, `fs.move_file` | Destination is the complete file path, not a directory. An existing destination is never overwritten; parents must exist. |
+| Move or rename one directory tree | `fs.move_dir` | Same-volume rename; destination is the complete directory path, must not exist, and its parent must exist. |
 | Remove one file | `fs.remove_file` | A directory is an Error. |
 | Remove an empty directory | `fs.remove_dir` | A file or a nonempty directory is an Error. |
 | Remove a directory tree | `fs.remove_dir_all` | Explicit recursive deletion; directory links are not traversed. |
@@ -71,7 +74,7 @@ for source in fs.list_files("input", "*.csv") {
 
 Here `input` is relative to the entry working directory, while `output` is beside the deployed script.
 Use `fs.stat` for the file and directory metadata specified in the `fs` section below.
-The current filesystem API does not provide subdirectory enumeration, directory copy/move, or raw byte I/O.
+The current filesystem API does not provide directory copy or raw byte I/O.
 Those operations are not implied by similarly named file functions.
 
 ## Admission criteria
@@ -425,6 +428,7 @@ Because `modified` is a `datetime.Timestamp`, `fs.Info` cannot be converted dire
 | `fs.list_files_recursive(directory: string, pattern: string): string[]` | Returns absolute paths to files matching the filename wildcard `pattern` at every depth beneath `directory`, including direct children. It excludes directories and does not guarantee order. | An inaccessible/nonexistent directory, a file passed as `directory`, an invalid path or pattern, or a traversal failure causes Error. |
 | `fs.read_text(path: string, encoding: encoding.Encoding): string` | Reads text with one explicit encoding value. | Missing/inaccessible files, an invalid byte sequence, or a conflicting UTF-16 BOM causes Error. |
 | `fs.write_text(path: string, text: string, encoding: encoding.Encoding): void` | Replaces a file with one explicit encoding value, without a BOM or implicit newline. It does not create parent directories. Complete new contents are written to a temporary file in the destination directory before it is moved or used to replace the destination. | An inaccessible path, missing parent directory, or unencodable text causes Error. |
+| `fs.append_text(path: string, text: string, encoding: encoding.Encoding): void` | Appends strictly encoded text bytes to a file, without a BOM or implicit newline. Creates a missing file, including for empty text, and does not create parent directories. | An invalid/inaccessible path, missing parent, unencodable text, sharing conflict, or I/O failure causes Error. An I/O failure can leave a partial append. |
 | `fs.is_file(path: string): bool` | Returns `true` for an existing file. Missing files, directories, invalid paths, and access failures or other cases that File.Exists cannot determine return `false`. | This predicate returns `false` rather than raising Error when path resolution or existence checking fails. |
 | `fs.copy_file(source: string, destination: string): void` | Copies one file without overwriting an existing destination or creating its parent directory. | A missing, inaccessible, or directory source; an existing destination; a missing parent; identical source and destination; or an I/O failure causes Error. |
 | `fs.move_file(source: string, destination: string): void` | Moves one file. Moving within one directory renames it. It does not overwrite an existing destination or create its parent directory. On success the source no longer exists. | A missing or directory source; an existing destination; a missing parent; identical source and destination; or an I/O failure causes Error. Cross-volume moves are allowed but are not atomic; after an error, the destination may remain. |
@@ -438,14 +442,56 @@ Relative paths for `fs` are resolved from the filesystem working directory captu
 
 `encoding.windows_932` reads use the Windows code-page mapping with strict validation, including NEC-selected IBM and IBM extension byte sequences for the same character (for example, `EE E0` and `FB FC` both decode to U+9AD9). A valid read does not imply that re-encoding reproduces the original bytes. The generated script embeds its decoder and requires no additional installation.
 
+`fs.append_text` validates and encodes the supplied text before opening or creating the file.
+Existing bytes, including a BOM, remain unchanged; their encoding is not detected or validated.
+The caller must select an encoding compatible with the existing contents. The operation opens
+one append stream, permits readers and excludes other writers while that stream is open, then
+writes and flushes only the new bytes. Sharing conflicts cause Error rather than waiting or
+retrying. It is not a transactional replacement: write/flush failures or host termination may
+leave a partial suffix. Empty text creates a missing empty file and adds nothing to an existing
+file. Neither a BOM nor a newline is added; put the desired line ending in the text explicitly.
+
 ### Directory operations
 
 | Signature | Meaning | Failure |
 |---|---|---|
+| `fs.list_dirs(directory: string, pattern: string): string[]` | Returns absolute paths of directly contained ordinary directories matching a directory-name wildcard, including empty, Hidden and System directories. Does not recurse; child reparse points are excluded; order is unspecified. | An invalid/inaccessible/nonexistent root, a file passed as root, an invalid pattern, or an enumeration failure causes Error. |
+| `fs.move_dir(source: string, destination: string): void` | Moves an ordinary directory and its contents by a same-volume rename. Within one parent this renames the directory. Destination must not exist and its parent must exist. | A missing/file/reparse-point source, existing destination, missing parent, identical paths, destination beneath source, different drives/UNC shares or volumes, protected source, or I/O failure causes Error. |
 | `fs.create_dir_all(path: string): void` | Creates the directory and any missing parent directories. Creating an existing directory succeeds. | A file at the target path, an invalid path, or an I/O failure causes Error. |
 | `fs.is_dir(path: string): bool` | Returns `true` only for an existing reachable directory. Files, missing paths, invalid paths, inaccessible paths, and indeterminate checks return `false`. | This predicate returns `false` rather than raising Error. |
 | `fs.remove_dir(path: string): void` | Deletes an empty directory. Removing a missing directory succeeds. | A file, a non-empty directory, a filesystem root, the captured working directory or its ancestor, or an I/O failure causes Error. A directory reparse point removes the entry, not its target. |
 | `fs.remove_dir_all(path: string): void` | Deletes a directory and its ordinary subtree. Removing a missing directory succeeds. | A file, a filesystem root, the captured working directory or its ancestor, or an I/O failure causes Error. Partial deletion is possible. Reparse points at the target or beneath it are removed as entries and are never traversed. |
+
+`fs.list_dirs` treats its root literally and resolves relative roots against the captured entry
+working directory. Its nonempty pattern applies to directory names using the same file-system
+wildcard filter as `list_files`; `*` and `?` are supported, and `/` or `\` in the pattern is
+rejected. It returns no partial result on error. Unlike existing file enumeration, it includes
+Hidden directories. An explicitly supplied root may be a directory reparse point; only child
+reparse points are excluded. Use repeated calls for explicit traversal.
+
+`fs.move_dir` preserves the directory tree, including empty/Hidden children, by moving the
+directory entry rather than copying and deleting its contents. Child links move with the tree
+without being traversed; a reparse point cannot be the source itself. The source cannot be a
+filesystem root, the captured entry working directory, or an ancestor of that directory.
+Both paths are resolved against the captured directory, independent of later location changes.
+Trailing separators do not distinguish paths, and ordinal case-insensitive same-path checks
+also reject case-only renames. Moving into a descendant is rejected. Cross-volume moves have
+no copy/delete fallback. Parent paths use normal filesystem resolution; this is not a path
+containment or hostile-concurrency guarantee. The operation does not create parent directories,
+replace an existing destination, or provide a recovery journal.
+
+```rukbat
+import fs
+import path
+import encoding
+
+fs.create_dir_all("processed")
+for directory in fs.list_dirs("incoming", "batch-*") {
+    destination := path.resolve(path.resolve(path.working_dir(), "processed"), path.filename(directory))
+    fs.move_dir(directory, destination)
+    fs.append_text("moves.log", "Moved " + destination + "\r\n", encoding.utf8)
+}
+```
 
 ### Recoverable file moves
 

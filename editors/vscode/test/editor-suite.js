@@ -144,6 +144,49 @@ async function run() {
     assert.ok(await vscode.workspace.applyEdit(restorePath));
     await until(() => vscode.languages.getDiagnostics(pathUri).length === 0, 'valid path API diagnostics');
 
+    const filesystemUri = vscode.Uri.file(path.join(root, 'filesystem-api.rukbat'));
+    const filesystemSource = [
+        'import fs',
+        'import encoding',
+        'directories := fs.list_dirs("incoming", "*")',
+        'fs.move_dir("incoming/batch", "processed/batch")',
+        'fs.append_text("moves.log", "moved\\r\\n", encoding.utf8)',
+        ''
+    ].join('\n');
+    fs.writeFileSync(filesystemUri.fsPath, filesystemSource);
+    const filesystemDocument = await vscode.workspace.openTextDocument(filesystemUri);
+    await vscode.window.showTextDocument(filesystemDocument);
+    const filesystemOperations = ['list_dirs', 'move_dir', 'append_text'];
+    await until(async () => {
+        const result = await vscode.commands.executeCommand('vscode.executeCompletionItemProvider', filesystemUri, new vscode.Position(2, 18));
+        return filesystemOperations.every(name => result?.items?.some(item => item.label === name));
+    }, 'three filesystem API completions');
+    for (const [line, name] of filesystemOperations.entries()) {
+        await until(async () => {
+            const sourceLine = filesystemDocument.lineAt(line + 2).text;
+            const result = await vscode.commands.executeCommand('vscode.executeHoverProvider', filesystemUri,
+                new vscode.Position(line + 2, sourceLine.indexOf(`fs.${name}`) + 'fs.'.length + 1));
+            return result?.some(item => item.contents.some(content => (content.value || content).includes(`fs.${name}(`)));
+        }, `fs.${name} hover`);
+    }
+    const invalidFilesystem = new vscode.WorkspaceEdit();
+    invalidFilesystem.replace(filesystemUri, new vscode.Range(3, 0, 4, 0), 'fs.move_dir(1, "processed/batch")\n');
+    assert.ok(await vscode.workspace.applyEdit(invalidFilesystem));
+    await until(() => vscode.languages.getDiagnostics(filesystemUri).some(d => d.code === 'RUK2001'), 'filesystem argument diagnostic');
+    const incompleteFilesystem = new vscode.WorkspaceEdit();
+    const appendCall = 'fs.append_text("moves.log", "moved", ';
+    incompleteFilesystem.replace(filesystemUri, new vscode.Range(4, 0, 5, 0), appendCall + '\n');
+    assert.ok(await vscode.workspace.applyEdit(incompleteFilesystem));
+    await until(async () => {
+        const help = await vscode.commands.executeCommand('vscode.executeSignatureHelpProvider', filesystemUri,
+            new vscode.Position(4, appendCall.length), ',');
+        return help?.signatures?.[0]?.label === 'fs.append_text(path: string, text: string, encoding: encoding.Encoding): void' && help.activeParameter === 2;
+    }, 'fs.append_text incomplete signature help');
+    const restoreFilesystem = new vscode.WorkspaceEdit();
+    restoreFilesystem.replace(filesystemUri, new vscode.Range(0, 0, filesystemDocument.lineCount, 0), filesystemSource);
+    assert.ok(await vscode.workspace.applyEdit(restoreFilesystem));
+    await until(() => vscode.languages.getDiagnostics(filesystemUri).length === 0, 'valid filesystem API diagnostics');
+
     const dictionaryUri = vscode.Uri.file(path.join(root, 'dictionary.rukbat'));
     const dictionarySource = 'struct Item { n: int }\nd: dict[string, Item] = {"x": Item {n: 1}}\nprint(d.has("x"))\n';
     fs.writeFileSync(dictionaryUri.fsPath, dictionarySource);
@@ -271,6 +314,11 @@ async function run() {
     const runFailure = path.join(root, 'run-failure.txt');
     fs.rmSync(runFailure, { force: true });
     fs.rmSync(path.join(root, 'run-output.txt'), { force: true });
+    const runDirectories = fs.mkdtempSync(path.join(root, 'run-directories-'));
+    const runDirectoriesName = path.basename(runDirectories);
+    fs.mkdirSync(path.join(runDirectories, 'incoming/empty'), { recursive: true });
+    fs.mkdirSync(path.join(runDirectories, 'incoming/batch'), { recursive: true });
+    fs.writeFileSync(path.join(runDirectories, 'incoming/batch/marker.txt'), 'kept');
     const runUri = vscode.Uri.file(path.join(root, 'run task.rukbat'));
     fs.writeFileSync(runUri.fsPath, [
         'import fs',
@@ -288,6 +336,14 @@ async function run() {
         '    test.assert(path.stem(input) == "run-input")',
         '    message := fs.read_text(input, encoding.utf8)',
         '    fs.write_text(output, message, encoding.utf8)',
+        '    fs.append_text(output, "\\nappended", encoding.utf8)',
+        `    processed := path.resolve(working, "${runDirectoriesName}/processed")`,
+        '    fs.create_dir_all(processed)',
+        `    directories := fs.list_dirs("${runDirectoriesName}/incoming", "*")`,
+        '    test.assert(directories.length == 2)',
+        '    for directory in directories {',
+        '        fs.move_dir(directory, path.resolve(processed, path.filename(directory)))',
+        '    }',
         '} catch error {',
         '    fs.write_text(path.join([path.script_dir(), "run-failure.txt"]), error.message + "\\nworking=" + path.working_dir(), encoding.utf8)',
         '    throw error',
@@ -319,7 +375,10 @@ async function run() {
         await command;
         assert.equal(await finished, 0, fs.existsSync(runFailure) ? fs.readFileSync(runFailure, 'utf8') :
             'Run File in a literal workspace directory: ' + JSON.stringify(runExecution));
-        assert.equal(fs.readFileSync(path.join(root, 'run-output.txt'), 'utf8'), runContents);
+        assert.equal(fs.readFileSync(path.join(root, 'run-output.txt'), 'utf8'), runContents + '\nappended');
+        assert.ok(fs.statSync(path.join(runDirectories, 'processed/empty')).isDirectory());
+        assert.equal(fs.readFileSync(path.join(runDirectories, 'processed/batch/marker.txt'), 'utf8'), 'kept');
+        assert.deepEqual(fs.readdirSync(path.join(runDirectories, 'incoming')), []);
     } finally {
         started.dispose();
     }
@@ -430,7 +489,7 @@ async function run() {
         if (vscode.debug.activeDebugSession?.type === 'rukbat') await vscode.debug.stopDebugging();
     }
 
-    console.log('Passed VS Code path API completion/hover/diagnostics/signature help/Run File, references, rename/Undo, incomplete-call signature help, dictionary completion/hover/references/signatures/inspection, language features, tasks in literal workspaces, saved debug launch, source breakpoints, variables, editor stepping, numeric/opaque inspection, and debug completion.');
+    console.log('Passed VS Code path/filesystem API completion/hover/diagnostics/signature help/Run File, references, rename/Undo, incomplete-call signature help, dictionary completion/hover/references/signatures/inspection, language features, tasks in literal workspaces, saved debug launch, source breakpoints, variables, editor stepping, numeric/opaque inspection, and debug completion.');
 }
 
 module.exports = { run };

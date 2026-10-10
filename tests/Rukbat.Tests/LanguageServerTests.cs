@@ -181,6 +181,25 @@ public sealed partial class LanguageServerTests : TestBase
     }
 
     [Theory]
+    [InlineData("list_dirs", "fs.list_dirs('.', '*')", "Hidden")]
+    [InlineData("move_dir", "fs.move_dir('source', 'destination')", "same-volume")]
+    [InlineData("append_text", "fs.append_text('log', 'entry', encoding.utf8)", "without a BOM")]
+    public void FilesystemCompletionHoverAndDiagnosticsUseTheNewContracts(string name, string call, string description)
+    {
+        using var project = new Project();
+        var uri = UriFor(project);
+        var completion = Result(Session(Open(uri, "import fs\nfs."), Feature(uri, "completion", 1, 3)));
+        var item = completion.EnumerateArray().Single(item => item.GetProperty("label").GetString() == name);
+        Assert.Contains("fs." + name + "(", item.GetProperty("detail").GetString());
+        Assert.Contains(description, item.GetProperty("documentation").GetProperty("value").GetString());
+        var messages = Session(Open(uri, "import fs; import encoding\n" + call), Feature(uri, "hover", 1, 4));
+        var hover = Result(messages).GetProperty("contents").GetProperty("value").GetString();
+        Assert.Contains("fs." + name + "(", hover);
+        Assert.Contains(description, hover);
+        Assert.Empty(LastDiagnostics(messages, uri).GetProperty("diagnostics").EnumerateArray());
+    }
+
+    [Theory]
     [InlineData("value := missing", "RUK2004")]
     [InlineData("value: int = \"東京\"", "RUK2001")]
     [InlineData("fn bad(: void {}", "RUK1000")]
