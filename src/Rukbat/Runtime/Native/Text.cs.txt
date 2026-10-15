@@ -2,22 +2,29 @@ using System;
 using System.Collections.Generic;
 
 public static class RukbatText {
+    private static int NextIndex(string value, int index) {
+        if (Char.IsHighSurrogate(value[index])) {
+            if (index + 1 == value.Length || !Char.IsLowSurrogate(value[index + 1]))
+                throw new ArgumentException("Text contains an unpaired UTF-16 surrogate.");
+            return index + 2;
+        }
+        if (Char.IsLowSurrogate(value[index]))
+            throw new ArgumentException("Text contains an unpaired UTF-16 surrogate.");
+        return index + 1;
+    }
     private static List<int> Boundaries(string value) {
         var result = new List<int>();
-        for (int index = 0; index < value.Length; index++) {
+        for (int index = 0; index < value.Length; index = NextIndex(value, index)) {
             result.Add(index);
-            if (Char.IsHighSurrogate(value[index])) {
-                if (index + 1 == value.Length || !Char.IsLowSurrogate(value[index + 1]))
-                    throw new ArgumentException("Text contains an unpaired UTF-16 surrogate.");
-                index++;
-            } else if (Char.IsLowSurrogate(value[index])) {
-                throw new ArgumentException("Text contains an unpaired UTF-16 surrogate.");
-            }
         }
         result.Add(value.Length);
         return result;
     }
-    public static long Length(string value) { return Boundaries(value).Count - 1; }
+    public static long Length(string value) {
+        long count = 0;
+        for (int index = 0; index < value.Length; index = NextIndex(value, index)) count++;
+        return count;
+    }
     public static string Slice(string value, long start, long count) {
         var positions = Boundaries(value);
         long length = positions.Count - 1;
@@ -28,10 +35,10 @@ public static class RukbatText {
     }
     public static long? IndexOf(string value, string search) {
         var positions = Boundaries(value);
-        Boundaries(search);
+        Length(search);
         int found = value.IndexOf(search, StringComparison.Ordinal);
         return found < 0 ? (long?)null : positions.BinarySearch(found);
     }
-    public static string Upper(string value) { Boundaries(value); return value.ToUpperInvariant(); }
-    public static string Lower(string value) { Boundaries(value); return value.ToLowerInvariant(); }
+    public static string Upper(string value) { Length(value); return value.ToUpperInvariant(); }
+    public static string Lower(string value) { Length(value); return value.ToLowerInvariant(); }
 }

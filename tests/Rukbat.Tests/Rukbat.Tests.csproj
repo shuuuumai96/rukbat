@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Rukbat\Rukbat.csproj" />
+    <Compile Include="../../src/Rukbat/Runtime/Native/Text.cs.txt" Link="Runtime/Text.cs" />
   </ItemGroup>
 
   <ItemGroup>
