@@ -209,6 +209,32 @@ async function run() {
         await until(() => vscode.languages.getDiagnostics(filesystemUri).length === 0, `valid fs.${name} diagnostics`);
     }
 
+    const linesUri = vscode.Uri.file(path.join(root, 'file-lines.rukbat'));
+    const linesSource = 'import fs; import encoding\nsource: fs.Lines = fs.lines("run-input.txt", encoding.utf8)\nfor line in source { print(line); break }\n';
+    fs.writeFileSync(linesUri.fsPath, linesSource);
+    const linesDocument = await vscode.workspace.openTextDocument(linesUri);
+    await vscode.window.showTextDocument(linesDocument);
+    await until(() => vscode.languages.getDiagnostics(linesUri).length === 0, 'file lines diagnostics');
+    await until(async () => {
+        const result = await vscode.commands.executeCommand('vscode.executeHoverProvider', linesUri, new vscode.Position(1, 23));
+        return result?.some(item => item.contents.some(content => (content.value || content).includes('fs.lines(path: string, encoding: encoding.Encoding): fs.Lines')));
+    }, 'fs.lines hover');
+    await until(async () => {
+        const result = await vscode.commands.executeCommand('vscode.executeCompletionItemProvider', linesUri, new vscode.Position(1, 22));
+        return ['lines', 'Lines'].every(label => result?.items?.some(item => item.label === label));
+    }, 'fs.lines and fs.Lines completion');
+    const incompleteLines = new vscode.WorkspaceEdit();
+    const linesCall = 'source := fs.lines("run-input.txt", ';
+    incompleteLines.replace(linesUri, new vscode.Range(1, 0, 2, 0), linesCall + '\n');
+    assert.ok(await vscode.workspace.applyEdit(incompleteLines));
+    await until(async () => {
+        const result = await vscode.commands.executeCommand('vscode.executeSignatureHelpProvider', linesUri, new vscode.Position(1, linesCall.length), ',');
+        return result?.signatures?.[0]?.label === 'fs.lines(path: string, encoding: encoding.Encoding): fs.Lines' && result.activeParameter === 1;
+    }, 'fs.lines incomplete signature help');
+    const restoreLines = new vscode.WorkspaceEdit();
+    restoreLines.replace(linesUri, new vscode.Range(0, 0, linesDocument.lineCount, 0), linesSource);
+    assert.ok(await vscode.workspace.applyEdit(restoreLines));
+
     const dictionaryUri = vscode.Uri.file(path.join(root, 'dictionary.rukbat'));
     const dictionarySource = 'struct Item { n: int }\nd: dict[string, Item] = {"x": Item {n: 1}}\nprint(d.has("x"))\n';
     fs.writeFileSync(dictionaryUri.fsPath, dictionarySource);
@@ -359,6 +385,12 @@ async function run() {
         '    message := fs.read_text(input, encoding.utf8)',
         '    fs.write_text(output, message, encoding.utf8)',
         '    fs.append_text(output, "\\nappended", encoding.utf8)',
+        '    line_count := 0',
+        '    for line in fs.lines(output, encoding.utf8) {',
+        '        if line_count == 0 { test.assert(line == message) } else { test.assert(line == "appended") }',
+        '        line_count = line_count + 1',
+        '    }',
+        '    test.assert(line_count == 2)',
         `    processed := path.resolve(working, "${runDirectoriesName}/processed")`,
         '    fs.create_dir_all(processed)',
         `    directories := fs.list_dirs("${runDirectoriesName}/incoming", "*")`,

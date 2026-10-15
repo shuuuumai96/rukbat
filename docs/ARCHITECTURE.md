@@ -119,6 +119,7 @@ API contracts belong in [STDLIB.md](STDLIB.md). The implementation boundaries ar
 | Area | Implementation |
 |---|---|
 | `fs`, `path` | An fs import emits file/directory operations, with lazy native helpers for recoverable moves and exclusive temporary entries. A path-only import emits neither filesystem operations nor those helpers. |
+| File lines | FileText shares BOM validation and implements immutable descriptors and per-loop native cursors. The checker records ArraySnapshot or OwnedCursor in BoundIteration; generation owns cleanup and defers function return output until cleanup succeeds. CodePageCodec supplies independent strict incremental decoders through standard delegates. |
 | `cli` | Ordinary definition structs are adapted by CliEmission. Result uses opaque immutable storage excluded from JSON, PowerShell, and debugger field inspection. Helpers need no native loader and never print, exit, or run user operations during parsing. |
 | `json` | One parser serves typed and schema-free reads; `as<T>` reuses typed conversion. Immutable nodes share untouched subtrees; updates copy changed nodes. Typed replacements use the encoder. Returned arrays follow value-copy rules. |
 | `csv` | Table is a bound struct; immutable Row shares an ordinal column lookup. Raw/table parsing and quoting are shared. Field keys are adapted at emission; recursive external-boundary checks exclude Row. |

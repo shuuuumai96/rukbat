@@ -351,6 +351,8 @@ internal sealed partial class LanguageAnalysis
                 Add(module, token, EditorCatalog.HttpType(bound));
             else if (bound == ValueType.Encoding)
                 Add(module, token, EditorCatalog.EncodingType);
+            else if (bound == ValueType.FileLines)
+                Add(module, token, EditorCatalog.FileLinesType);
         }
     }
 
@@ -397,6 +399,8 @@ internal sealed partial class LanguageAnalysis
                     candidates = candidates.Append(EditorCatalog.HttpType(HttpValues.Method)).Append(EditorCatalog.HttpType(HttpValues.Body));
                 if (imported.StandardName == "encoding")
                     candidates = candidates.Append(EditorCatalog.EncodingType);
+                if (imported.StandardName == "fs")
+                    candidates = candidates.Append(EditorCatalog.FileLinesType);
                 if (imported.StandardName == "datetime")
                     candidates = candidates.Concat(DateTimeValues.All.Select(EditorCatalog.DateTimeType));
             }

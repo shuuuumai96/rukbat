@@ -185,6 +185,8 @@ internal sealed partial class TypeChecker
 
         var parts = type.Name.Split('.');
         var owner = parts.Length == 1 ? module : module.Imports.GetValueOrDefault(parts[0]);
+        if (owner?.StandardName == "fs" && parts[^1] == "Lines")
+            return DeclaredTypes[node] = ValueType.FileLines;
         if (owner?.StandardName == "http" && HttpValues.OpaqueType(parts[^1]) is { } httpType)
             return DeclaredTypes[node] = httpType;
         if (owner?.StandardName == "datetime" && DateTimeValues.All.FirstOrDefault(value => value.Name == "datetime." + parts[^1]) is { } dateTimeType)

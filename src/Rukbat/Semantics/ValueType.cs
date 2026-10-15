@@ -18,6 +18,7 @@ internal sealed record ValueType(
     public static readonly ValueType Void = new("void");
     public static readonly ValueType Null = new("null");
     public static readonly ValueType Encoding = new("encoding.Encoding");
+    public static readonly ValueType FileLines = new("fs.Lines");
     public static ValueType ArrayOf(ValueType element) => new(element.Name + "[]", Element: element);
     public static ValueType NullableOf(ValueType element) => new(element.Name + "?", NullableElement: element);
     public bool IsNullable => NullableElement is not null;

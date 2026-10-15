@@ -18,6 +18,7 @@ internal sealed partial class Emitter
         }
         if (modules.Contains("fs"))
         {
+            EmitNativeLoader("FileText");
             EmitNativeLoader("MoveBatch");
             EmitNativeLoader("TemporaryEntries");
         }

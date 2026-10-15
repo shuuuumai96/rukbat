@@ -21,6 +21,8 @@ internal static class EditorCatalog
     public static EditorSymbol HashValue(string name) => new(name, $"hash.{name}: hash.Algorithm", 20, HashValues.Description(name), Type: HashValues.Algorithm);
     public static readonly EditorSymbol EncodingType = new("Encoding", "encoding.Encoding", 13,
         "A validated encoding type. Use predefined encoding values or encoding.from_code_page for an explicit Windows code page.", Type: ValueType.Encoding);
+    public static readonly EditorSymbol FileLinesType = new("Lines", "fs.Lines", 13,
+        "An immutable file-line descriptor. Each for opens an independent traversal and closes it on termination.", Type: ValueType.FileLines);
     public static EditorSymbol EncodingValue(StandardEncoding value) => new(value.Name,
         $"encoding.{value.Name}: encoding.Encoding", 20, value.Documentation + " Read-only.", Type: ValueType.Encoding);
     public static EditorSymbol DateTimeType(ValueType value) => new(value.Name.Split('.')[1], value.Name, 13, DateTimeValues.Description(value), Type: value);

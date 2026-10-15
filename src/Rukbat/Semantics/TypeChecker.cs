@@ -8,6 +8,7 @@ internal sealed partial class TypeChecker
     public HashSet<Call> ArrayAppends { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Call, string> StandardCalls { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Expression, ValueType> Types { get; } = new(ReferenceEqualityComparer.Instance);
+    public Dictionary<For, BoundIteration> Iterations { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Member, DateTimeValues.ZoneConstant> ZoneConstants { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Member, string> HashConstants { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Member, HttpConstant> HttpConstants { get; } = new(ReferenceEqualityComparer.Instance);

@@ -79,6 +79,46 @@ public sealed class RukbatCodePageCodec {
         return i - offset;
     }
 
+    public Func<byte[], int, int, bool, string> CreateDecoder() {
+        return new IncrementalDecoder(this).Convert;
+    }
+
+    private sealed class IncrementalDecoder {
+        private const int MaximumSuffix = 3;
+        private readonly RukbatCodePageCodec codec;
+        private byte[] pending = new byte[0];
+        private bool terminal;
+        public IncrementalDecoder(RukbatCodePageCodec codec) { this.codec = codec; }
+        public string Convert(byte[] bytes, int offset, int count, bool final) {
+            if (terminal) throw new InvalidOperationException("Decoder has finished or failed.");
+            if (offset < 0 || count < 0 || offset > bytes.Length - count) throw new ArgumentOutOfRangeException();
+            try {
+                byte[] block = new byte[checked(pending.Length + count)];
+                Buffer.BlockCopy(pending, 0, block, 0, pending.Length);
+                Buffer.BlockCopy(bytes, offset, block, pending.Length, count);
+                int complete = block.Length;
+                string result;
+                if (codec.codePage == Gb18030) {
+                    complete = ScanGb18030(block, 0, block.Length, final);
+                    result = codec.GetString(block, 0, complete);
+                } else if (final) {
+                    result = codec.GetString(block);
+                } else {
+                    result = null;
+                    for (int tail = 0; tail <= Math.Min(MaximumSuffix, block.Length); tail++) {
+                        try { complete = block.Length - tail; result = codec.GetString(block, 0, complete); break; }
+                        catch (Win32Exception error) { if (error.NativeErrorCode != InvalidSequence) throw; }
+                    }
+                    if (result == null) throw new Win32Exception(InvalidSequence, "Invalid encoded input.");
+                }
+                pending = new byte[block.Length - complete];
+                Buffer.BlockCopy(block, complete, pending, 0, pending.Length);
+                if (final) terminal = true;
+                return result;
+            } catch { pending = new byte[0]; terminal = true; throw; }
+        }
+    }
+
     public byte[] GetBytes(string text) {
         return GetBytes(text, Int32.MaxValue);
     }

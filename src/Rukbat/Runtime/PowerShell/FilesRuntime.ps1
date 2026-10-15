@@ -58,31 +58,25 @@
     }
     return ,([object[]]$paths)
 }
+'fs.lines' {
+    $path = & $__rukbat_resolve_path ([string]$values[0])
+    $selected = & $__rukbat_text_encoding ([string]$values[1]) 'file'
+    & $__rukbat_load_FileText
+    return [RukbatFileText]::Describe($path, $selected.name)
+}
+'fs.__open_lines' {
+    $source = $values[0]
+    $selected = & $__rukbat_text_encoding $source.Encoding 'file'
+    $decoder = if ($selected.encoding -is [System.Text.Encoding]) {
+        [RukbatFileText]::CreateDecoder($selected.encoding)
+    } else { $selected.encoding.CreateDecoder() }
+    return [RukbatFileText]::Open($source, $decoder)
+}
 'fs.read_text' {
     $selected = & $__rukbat_text_encoding ([string]$values[1]) 'file'
     $bytes = [System.IO.File]::ReadAllBytes((& $__rukbat_resolve_path ([string]$values[0])))
-    $offset = 0
-    switch ($selected.name) {
-        'utf-8' {
-            if ($bytes.Length -ge 3 -and $bytes[0] -eq 239 -and $bytes[1] -eq 187 -and $bytes[2] -eq 191) { $offset = 3 }
-        }
-        'utf-16le' {
-            if ($bytes.Length -ge 2 -and $bytes[0] -eq 255 -and $bytes[1] -eq 254) { $offset = 2 }
-            elseif ($bytes.Length -ge 2 -and $bytes[0] -eq 254 -and $bytes[1] -eq 255) { throw 'file encoding utf-16le conflicts with a UTF-16BE BOM.' }
-        }
-        'utf-16be' {
-            if ($bytes.Length -ge 2 -and $bytes[0] -eq 254 -and $bytes[1] -eq 255) { $offset = 2 }
-            elseif ($bytes.Length -ge 2 -and $bytes[0] -eq 255 -and $bytes[1] -eq 254) { throw 'file encoding utf-16be conflicts with a UTF-16LE BOM.' }
-        }
-        'utf-32le' {
-            if ($bytes.Length -ge 4 -and $bytes[0] -eq 255 -and $bytes[1] -eq 254 -and $bytes[2] -eq 0 -and $bytes[3] -eq 0) { $offset = 4 }
-            elseif ($bytes.Length -ge 4 -and $bytes[0] -eq 0 -and $bytes[1] -eq 0 -and $bytes[2] -eq 254 -and $bytes[3] -eq 255) { throw 'file encoding utf-32le conflicts with a UTF-32BE BOM.' }
-        }
-        'utf-32be' {
-            if ($bytes.Length -ge 4 -and $bytes[0] -eq 0 -and $bytes[1] -eq 0 -and $bytes[2] -eq 254 -and $bytes[3] -eq 255) { $offset = 4 }
-            elseif ($bytes.Length -ge 4 -and $bytes[0] -eq 255 -and $bytes[1] -eq 254 -and $bytes[2] -eq 0 -and $bytes[3] -eq 0) { throw 'file encoding utf-32be conflicts with a UTF-32LE BOM.' }
-        }
-    }
+    & $__rukbat_load_FileText
+    $offset = [RukbatFileText]::BomOffset($selected.name, $bytes, $bytes.Length)
     return $selected.encoding.GetString($bytes, $offset, $bytes.Length - $offset)
 }
 'fs.write_text' {

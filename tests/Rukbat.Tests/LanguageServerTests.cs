@@ -184,6 +184,7 @@ public sealed partial class LanguageServerTests : TestBase
     [InlineData("list_dirs", "fs.list_dirs('.', '*')", "Hidden")]
     [InlineData("move_dir", "fs.move_dir('source', 'destination')", "same-volume")]
     [InlineData("append_text", "fs.append_text('log', 'entry', encoding.utf8)", "without a BOM")]
+    [InlineData("lines", "fs.lines('log', encoding.utf8)", "independent traversal")]
     [InlineData("create_temp_file", "fs.create_temp_file('.')", "Exclusively creates an empty temporary file")]
     [InlineData("create_temp_dir", "fs.create_temp_dir('.')", "Exclusively creates an empty temporary directory")]
     public void FilesystemCompletionHoverAndDiagnosticsUseTheNewContracts(string name, string call, string description)
@@ -303,6 +304,8 @@ public sealed partial class LanguageServerTests : TestBase
 
     [Theory]
     [InlineData("fs", "read_text")]
+    [InlineData("fs", "lines")]
+    [InlineData("fs", "Lines")]
     [InlineData("fs", "stat")]
     [InlineData("fs", "Info")]
     [InlineData("fs", "move_files_batch")]

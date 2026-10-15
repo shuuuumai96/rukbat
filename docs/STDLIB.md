@@ -427,6 +427,7 @@ Because `modified` is a `datetime.Timestamp`, `fs.Info` cannot be converted dire
 | `fs.list_files(directory: string, pattern: string): string[]` | Returns absolute paths of directly contained, non-Hidden files that match the file-system wildcard `pattern`. It excludes directories, does not recurse, and does not guarantee order. | An inaccessible or nonexistent directory, or an invalid pattern, causes Error. |
 | `fs.list_files_recursive(directory: string, pattern: string): string[]` | Returns absolute paths to files matching the filename wildcard `pattern` at every depth beneath `directory`, including direct children. It excludes directories and does not guarantee order. | An inaccessible/nonexistent directory, a file passed as `directory`, an invalid path or pattern, or a traversal failure causes Error. |
 | `fs.read_text(path: string, encoding: encoding.Encoding): string` | Reads text with one explicit encoding value. | Missing/inaccessible files, an invalid byte sequence, or a conflicting UTF-16 BOM causes Error. |
+| `fs.lines(path: string, encoding: encoding.Encoding): fs.Lines` | Creates an immutable descriptor for sequential physical lines. Each for opens an independent traversal and closes it on termination. | Invalid paths or encodings cause Error during descriptor creation. Opening, reading, decoding, BOM conflicts, sharing conflicts, and cleanup failures cause Error during traversal. |
 | `fs.write_text(path: string, text: string, encoding: encoding.Encoding): void` | Replaces a file with one explicit encoding value, without a BOM or implicit newline. It does not create parent directories. Complete new contents are written to a temporary file in the destination directory before it is moved or used to replace the destination. | An inaccessible path, missing parent directory, or unencodable text causes Error. |
 | `fs.append_text(path: string, text: string, encoding: encoding.Encoding): void` | Appends strictly encoded text bytes to a file, without a BOM or implicit newline. Creates a missing file, including for empty text, and does not create parent directories. | An invalid/inaccessible path, missing parent, unencodable text, sharing conflict, or I/O failure causes Error. An I/O failure can leave a partial append. |
 | `fs.create_temp_file(directory: string): string` | Exclusively creates an empty temporary file in an existing directory and returns its absolute path. | An invalid/missing/inaccessible parent, a file passed as parent, exhausted name collisions, or an I/O failure causes Error. |
@@ -451,6 +452,40 @@ writes and flushes only the new bytes. Sharing conflicts cause Error rather than
 retrying. It is not a transactional replacement: write/flush failures or host termination may
 leave a partial suffix. Empty text creates a missing empty file and adds nothing to an existing
 file. Neither a BOM nor a newline is added; put the desired line ending in the text explicitly.
+
+### Sequential line reads
+
+`fs.Lines` stores an absolute path resolved against the captured entry working directory and
+a canonical encoding name. Creating or copying it does not open or check the target file.
+Variables, const values, parameters, returns, fields, arrays, dictionaries, and nullable values
+can retain descriptors. They expose no fields, constructor, index, length, next, or close.
+Printing, equality, JSON conversion, and PowerShell transfer are rejected, including within containers.
+
+Use `for line in fs.lines(path, encoding)` to read strings. Each traversal evaluates its input once,
+opens a separate read-only handle with FileShare.Read, and starts at the beginning. Repeated or
+nested traversal is independent. Reassigning the descriptor or loop variable does not move an
+active reader. A descriptor does not freeze file contents or file identity; a later traversal opens
+the file then present at its stored path. Writers and deletion/replacement can conflict with the
+open handle. This is synchronous reading of regular files, not log tailing.
+
+CRLF, lone CR, and lone LF delimit lines and are removed. Empty input produces no lines;
+an empty physical line produces an empty string. A final terminator adds no extra empty line.
+Other characters, including NUL and Unicode separators, are preserved. All accepted encoding
+values and existing BOM rules apply. For valid, unchanged input, complete traversal matches
+`text.split_lines(fs.read_text(path, encoding))`.
+
+EOF, break, return, and escaping Error release the handle before control continues. Continue
+and errors handled inside the body keep it open. A valid exit or forced host termination does
+not guarantee generated cleanup. Return expressions are evaluated and copied before cleanup,
+but their result is emitted only after cleanup succeeds. A cleanup failure becomes Error;
+with a primary Error it preserves that Error's location/message and appends cleanup information.
+
+Reading can prefetch bytes: an error after a valid line may occur before that line reaches the
+body. The number of processed lines for invalid input is unspecified. Close does not decode
+or validate unread input. Internal retention is proportional to a fixed buffer plus the longest
+line encountered, excluding user-retained values. There is no line-length limit or fixed memory
+bound for arbitrarily long lines. Multiline CSV records require a record parser rather than
+independent calls to csv.parse on physical lines.
 
 ### Directory operations
 

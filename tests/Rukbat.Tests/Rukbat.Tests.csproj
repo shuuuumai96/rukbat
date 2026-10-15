@@ -29,4 +29,19 @@
     <None Include="../../examples/testing/fixtures/*.csv" Link="Fixtures/examples/testing/fixtures/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <!-- Compile the exact C# 5 helpers for native tests, with a test-only nullable context. -->
+  <Target Name="CompileFileLineRuntime" BeforeTargets="CoreCompile">
+    <ReadLinesFromFile File="../../src/Rukbat/Runtime/Native/FileText.cs.txt">
+      <Output TaskParameter="Lines" ItemName="FileTextRuntimeLines" />
+    </ReadLinesFromFile>
+    <ReadLinesFromFile File="../../src/Rukbat/Runtime/Native/CodePageCodec.cs.txt">
+      <Output TaskParameter="Lines" ItemName="CodePageRuntimeLines" />
+    </ReadLinesFromFile>
+    <WriteLinesToFile File="$(IntermediateOutputPath)FileTextRuntime.cs" Lines="#nullable disable;@(FileTextRuntimeLines)" Overwrite="true" />
+    <WriteLinesToFile File="$(IntermediateOutputPath)CodePageRuntime.cs" Lines="#nullable disable;@(CodePageRuntimeLines)" Overwrite="true" />
+    <ItemGroup>
+      <Compile Include="$(IntermediateOutputPath)FileTextRuntime.cs" />
+      <Compile Include="$(IntermediateOutputPath)CodePageRuntime.cs" />
+    </ItemGroup>
+  </Target>
 </Project>

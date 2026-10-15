@@ -76,9 +76,13 @@ internal sealed partial class TypeChecker
                     break;
                 case For loop:
                     var collectionType = TypeOf(loop.Items, scope);
-                    if (collectionType.Element is null && collectionType != ValueType.Error)
+                    var iteration = collectionType == ValueType.FileLines
+                        ? new BoundIteration(IterationKind.OwnedCursor, ValueType.String, "fs.__open_lines")
+                        : new BoundIteration(IterationKind.ArraySnapshot, collectionType.Element ?? ValueType.Error);
+                    Iterations[loop] = iteration;
+                    if (collectionType.Element is null && collectionType != ValueType.FileLines && collectionType != ValueType.Error)
                     {
-                        Error("RUK2001", "for ... in requires an array.", loop.Items);
+                        Error("RUK2001", "for ... in requires an array or fs.Lines.", loop.Items);
                     }
 
                     var beforeLoop = SnapshotRefinements();
@@ -96,7 +100,7 @@ internal sealed partial class TypeChecker
                     }
 
                     var loopScope = new Symbols(scope);
-                    DeclaredTypes[loop] = collectionType.Element ?? ValueType.Error;
+                    DeclaredTypes[loop] = iteration.ElementType;
                     Declare(loop, DeclaredTypes[loop], loopScope, false);
                     loopDepth++;
                     CheckStatements(loop.Body, loopScope, returnType, false);

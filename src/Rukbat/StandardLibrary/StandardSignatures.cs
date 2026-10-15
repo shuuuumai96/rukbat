@@ -21,6 +21,7 @@ internal static class StandardSignatures
             ("fs", "list_files_recursive") => new([ValueType.String, ValueType.String], ValueType.ArrayOf(ValueType.String)),
             ("fs", "list_dirs") => new([ValueType.String, ValueType.String], ValueType.ArrayOf(ValueType.String)),
             ("fs", "read_text") => new([ValueType.String, ValueType.Encoding], ValueType.String),
+            ("fs", "lines") => new([ValueType.String, ValueType.Encoding], ValueType.FileLines),
             ("fs", "is_file") => new([ValueType.String], ValueType.Bool),
             ("fs", "remove_file") => new([ValueType.String], ValueType.Void),
             ("fs", "write_text") => new([ValueType.String, ValueType.String, ValueType.Encoding], ValueType.Void),

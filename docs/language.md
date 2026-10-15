@@ -113,9 +113,10 @@ rules are defined in [STDLIB.md](STDLIB.md).
 | `csv.Row` | Immutable row accessed/updated through library functions. No equality or direct printing. `csv.Table` is an ordinary struct with `columns: string[]` and `rows: csv.Row[]`. |
 | `encoding.Encoding`, `hash.Algorithm` | Validated read-only constants and same-type equality; no ordering or implicit string/numeric conversion. External names use explicit parse/name operations. |
 | `http.Body`, `http.Method` | Immutable response bytes and validated method constants. Only Method has equality. HTTP request/options/result types are ordinary structs; status constants are read-only ints. |
+| `fs.Lines` | Immutable file-line descriptor; for owns each independent traversal. No equality, direct printing, or exposed fields. |
 | `datetime.Timestamp`, `datetime.Date`, `datetime.Duration`, `datetime.Zone` | Explicit conversions/arithmetic; same-type equality, and ordering except for Zone. Named zones are read-only constants. |
 
-Encoding, hash, HTTP opaque types, and datetime types are recursively rejected at
+Encoding, hash, HTTP opaque types, fs.Lines, and datetime types are recursively rejected at
 printing, JSON, and PowerShell boundaries. These standard types introduce no general
 enum syntax. JSON/CSV updates preserve originals; ordinary container copies remain
 independent. ZIP exports ordinary `zip.Options` and `zip.Entry` structs.
@@ -231,6 +232,13 @@ against null. Nullable dictionary variables use existing narrowing rules.
 `if` / `else`, `for item in items`, `while condition`, `break`, `continue`, and `return` are explicit control-flow constructs. A `while` condition must be `bool` and is evaluated before each iteration. `break` exits the innermost `for` or `while`; `continue` starts its next iteration. A loop alone does not prove a return because it may execute zero times.
 
 The iterable expression of a `for` loop is evaluated exactly once when the loop begins. The loop iterates over a snapshot of that resulting array value. Modifying the original array variable inside the loop body (including `append`) does not affect the iteration sequence. The loop variable is a copy of each element; assigning to it does not modify the source array.
+
+A `for` also accepts non-null `fs.Lines`, yielding strings. Each loop owns an independent
+file traversal and closes it on EOF, break, return, or escaping Error. Continue keeps it open.
+Return expressions are evaluated and copied before closure; return values are emitted after
+successful cleanup. Cleanup failure follows the ordinary Error path. A caught primary Error
+retains its location when cleanup also fails. Valid exit and forced termination do not guarantee
+finally execution. Descriptor, decoding, and read-ahead behavior are defined in STDLIB.md.
 
 ## Structs and modules
 

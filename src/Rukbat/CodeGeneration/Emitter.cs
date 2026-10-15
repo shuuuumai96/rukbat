@@ -17,6 +17,8 @@ internal sealed partial class Emitter(TypeChecker checker, DebugMap? debugMap = 
     private int temporaryId;
     private int generatedLine = 1;
     private ValueType currentReturnType = ValueType.Void;
+    private string? returnLabel;
+    private string? returnValue;
     private static string Quote(string value) => "'" + value.Replace("'", "''") + "'";
     private static string TypeName(ValueType type)
     {
@@ -38,6 +40,7 @@ internal sealed partial class Emitter(TypeChecker checker, DebugMap? debugMap = 
         if (type.IsJsonValue) return "RukbatJsonValue";
         if (type.IsCsvRow) return "RukbatCsvRow";
         if (type.IsCliResult) return "object";
+        if (type == ValueType.FileLines) return "object";
         if (type == ValueType.Encoding || type == HashValues.Algorithm) return "string";
         if (type == HttpValues.Method) return "string";
         if (type == HttpValues.Body) return "RukbatHttpBody";
@@ -181,7 +184,21 @@ internal sealed partial class Emitter(TypeChecker checker, DebugMap? debugMap = 
             parametersForDebug = parametersForDebug.Prepend(new("self", owner.BoundType, "$__rukbat_self"));
         DebugEnter(checker.Functions[function].Owner is { } debugOwner
             ? debugOwner.Declaration.Token.Text + "." + function.Name : function.Name, parametersForDebug.Concat(globals));
-        EmitGuardedStatements(function.Body, Location(function));
+        if (ContainsOwnedIteration(function.Body))
+        {
+            returnLabel = "__rukbat_function_exit" + temporaryId++;
+            returnValue = "$__rukbat_function_result" + temporaryId++;
+            Line($"{returnValue} = $null");
+            Line($":{returnLabel} do {{");
+            indentation++;
+            EmitGuardedStatements(function.Body, Location(function));
+            indentation--;
+            Line("} while ($false)");
+            EmitReturnValue(returnValue);
+            returnLabel = null;
+            returnValue = null;
+        }
+        else EmitGuardedStatements(function.Body, Location(function));
         DebugLeave();
         currentReturnType = previousReturnType;
         indentation--;

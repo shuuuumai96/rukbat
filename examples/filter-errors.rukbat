@@ -10,11 +10,9 @@ if arguments.length != 2 {
 }
 
 try {
-    content := fs.read_text(arguments[0], encoding.utf8)
-    lines := text.split_lines(content)
     errors: string[] = []
 
-    for line in lines {
+    for line in fs.lines(arguments[0], encoding.utf8) {
         cleaned := text.trim(line)
 
         if text.starts_with(cleaned, "ERROR:") {

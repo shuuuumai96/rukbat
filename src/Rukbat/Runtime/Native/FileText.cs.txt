@@ -1,0 +1,123 @@
+using System;
+using System.IO;
+using System.Text;
+
+public static class RukbatFileText {
+    public static int BomOffset(string name, byte[] bytes, int count) {
+        bool le16 = count >= 2 && bytes[0] == 255 && bytes[1] == 254;
+        bool be16 = count >= 2 && bytes[0] == 254 && bytes[1] == 255;
+        bool le32 = count >= 4 && le16 && bytes[2] == 0 && bytes[3] == 0;
+        bool be32 = count >= 4 && bytes[0] == 0 && bytes[1] == 0 && bytes[2] == 254 && bytes[3] == 255;
+        switch (name) {
+            case "utf-8": return count >= 3 && bytes[0] == 239 && bytes[1] == 187 && bytes[2] == 191 ? 3 : 0;
+            case "utf-16le": if (be16) throw new ArgumentException("file encoding utf-16le conflicts with a UTF-16BE BOM."); return le16 ? 2 : 0;
+            case "utf-16be": if (le16) throw new ArgumentException("file encoding utf-16be conflicts with a UTF-16LE BOM."); return be16 ? 2 : 0;
+            case "utf-32le": if (be32) throw new ArgumentException("file encoding utf-32le conflicts with a UTF-32BE BOM."); return le32 ? 4 : 0;
+            case "utf-32be": if (le32) throw new ArgumentException("file encoding utf-32be conflicts with a UTF-32LE BOM."); return be32 ? 4 : 0;
+            default: return 0;
+        }
+    }
+
+    public static Func<byte[], int, int, bool, string> CreateDecoder(Encoding encoding) {
+        Decoder decoder = encoding.GetDecoder();
+        bool terminal = false;
+        return delegate(byte[] bytes, int offset, int count, bool final) {
+            if (terminal) throw new InvalidOperationException("Decoder has finished or failed.");
+            try {
+                char[] chars = new char[encoding.GetMaxCharCount(count)];
+                int length = decoder.GetChars(bytes, offset, count, chars, 0, final);
+                if (final) terminal = true;
+                return new string(chars, 0, length);
+            } catch { terminal = true; throw; }
+        };
+    }
+
+    public static RukbatFileLines Describe(string path, string encoding) { return new RukbatFileLines(path, encoding); }
+    public static RukbatFileLineCursor Open(RukbatFileLines source, Func<byte[], int, int, bool, string> decode) {
+        Stream stream = File.Open(source.Path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        try { return new RukbatFileLineCursor(stream, source.Encoding, decode); }
+        catch { stream.Dispose(); throw; }
+    }
+}
+
+public sealed class RukbatFileLines {
+    public readonly string Path;
+    public readonly string Encoding;
+    internal RukbatFileLines(string path, string encoding) { Path = path; Encoding = encoding; }
+}
+
+// No IEnumerable: PowerShell must never enumerate a descriptor or cursor implicitly.
+public sealed class RukbatFileLineCursor {
+    private const int BufferSize = 64 * 1024;
+    private const int BomProbeSize = 4;
+    private Stream stream;
+    private Func<byte[], int, int, bool, string> decode;
+    private readonly string encoding;
+    private byte[] buffer = new byte[BufferSize];
+    private StringBuilder line = new StringBuilder();
+    private string chunk = String.Empty;
+    private int position;
+    private bool first = true, eof, ended, failed, skipLf;
+    public string Current { get; private set; }
+
+    public RukbatFileLineCursor(Stream stream, string encoding, Func<byte[], int, int, bool, string> decode) {
+        if (stream == null || decode == null) throw new ArgumentNullException();
+        this.stream = stream; this.encoding = encoding; this.decode = decode;
+    }
+
+    public bool MoveNext() {
+        Current = null;
+        if (stream == null || failed) throw new InvalidOperationException("Traversal has closed or failed.");
+        if (ended) return false;
+        try {
+            while (true) {
+                if (position == chunk.Length) {
+                    if (eof) {
+                        ended = true;
+                        if (line.Length == 0) return false;
+                        Current = line.ToString(); line.Clear(); return true;
+                    }
+                    ReadChunk();
+                    continue;
+                }
+                if (skipLf) {
+                    if (chunk[position] == '\n') position++;
+                    skipLf = false;
+                    if (position == chunk.Length) continue;
+                }
+                int start = position;
+                while (position < chunk.Length && chunk[position] != '\r' && chunk[position] != '\n') position++;
+                line.Append(chunk, start, position - start);
+                if (position != chunk.Length) {
+                    skipLf = chunk[position++] == '\r';
+                    Current = line.ToString(); line.Clear(); return true;
+                }
+            }
+        } catch { failed = true; throw; }
+    }
+
+    private void ReadChunk() {
+        int count, offset = 0;
+        if (first) {
+            count = 0;
+            while (count < BomProbeSize) {
+                int read = stream.Read(buffer, count, BomProbeSize - count);
+                if (read == 0) { eof = true; break; }
+                count += read;
+            }
+            offset = RukbatFileText.BomOffset(encoding, buffer, count);
+            first = false;
+        } else {
+            count = stream.Read(buffer, 0, buffer.Length);
+            if (count == 0) eof = true;
+        }
+        chunk = decode(buffer, offset, count - offset, eof);
+        position = 0;
+    }
+
+    public void Close() {
+        Stream owned = stream;
+        stream = null; decode = null; buffer = null; chunk = null; line = null; Current = null;
+        if (owned != null) owned.Dispose();
+    }
+}

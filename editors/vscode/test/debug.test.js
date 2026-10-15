@@ -375,6 +375,37 @@ test('inspection formats bound integer fields and opaque standard values consist
     assert.match(s.outputs, /7/);
 });
 
+test('file line descriptors stay opaque while a traversal is paused', { skip: process.platform !== 'win32' }, async t => {
+    const { session: s, write } = project(t);
+    const input = write('lines.txt', 'first\nsecond\n');
+    const main = write('main.rukbat', [
+        'import fs; import encoding',
+        `source := fs.lines(${JSON.stringify(input.replace(/\\/g, '/'))}, encoding.utf8)`,
+        'for line in source {',
+        '    print(line)',
+        '    break',
+        '}',
+        'print("done")'
+    ].join('\n'));
+    await s.start(main, { stopOnEntry: false });
+    await s.request('setBreakpoints', { source: { path: main }, breakpoints: [{ line: 4 }] });
+    await s.request('configurationDone');
+    await s.event('stopped');
+    const values = await s.values();
+    assert.equal(values.source.type, 'fs.Lines');
+    assert.equal(values.source.value, '<fs.Lines>');
+    assert.equal(values.source.variablesReference, 0);
+    assert.match(values.line.value, /first/);
+    const invalid = await s.request('evaluate', { expression: 'source.Path' }).catch(error => error);
+    assert.ok(invalid instanceof Error || !('result' in invalid));
+    await s.request('continue', { threadId: 1 });
+    assert.equal((await s.event('exited')).body.exitCode, 0);
+    await s.event('terminated');
+    assert.match(s.outputs, /first/);
+    assert.match(s.outputs, /done/);
+    fs.renameSync(input, input + '.released');
+});
+
 test('float inspection preserves the stored binary64 value', { skip: process.platform !== 'win32' }, async t => {
     const { session: s, write } = project(t);
     const main = write('main.rukbat', 'value := 1.0000000000000002\nprint(value)');
