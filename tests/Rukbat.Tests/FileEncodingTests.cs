@@ -11,6 +11,35 @@ public class FileEncodingTests : TestBase
     [Theory]
     [InlineData("powershell")]
     [InlineData("pwsh")]
+    public async Task Gb18030RejectsUnmappedSequencesWithoutReplacingThem(string shell)
+    {
+        using var project = new Project();
+        File.WriteAllBytes(project.PathFor("gap.bin"), [0x84, 0x31, 0xa5, 0x30]);
+        File.WriteAllBytes(project.PathFor("overflow.bin"), [0xfe, 0x39, 0xfe, 0x39]);
+        File.WriteAllBytes(project.PathFor("question.bin"), [0x3f]);
+        var directory = RukbatLiteral(project.DirectoryPath);
+        project.Write("main.rukbat", $$"""
+            import fs; import encoding; import test
+            rejected := 0
+            try { fs.read_text('{{directory}}/gap.bin', encoding.gb18030) } catch err { rejected = rejected + 1 }
+            try { fs.read_text('{{directory}}/overflow.bin', encoding.gb18030) } catch err { rejected = rejected + 1 }
+            test.assert(rejected == 2)
+            test.assert(fs.read_text('{{directory}}/question.bin', encoding.gb18030) == '?')
+            print('passed')
+            """);
+        var compiled = project.Compile();
+        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+        var result = shell == "powershell" ? await project.RunOutputWithWindowsPowerShell(compiled.Output!) : await project.RunOutput(compiled.Output!);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Empty(result.Error);
+        Assert.Equal("passed\n", result.Output);
+    }
+
+    [Trait("Category", "CrossVersion")]
+    [Trait("Category", "Runtime")]
+    [Theory]
+    [InlineData("powershell")]
+    [InlineData("pwsh")]
     public async Task Windows932ReadsExternalNecAndIbmMappingsWithoutReplacingInvalidBytes(string shell)
     {
         using var project = new Project();
