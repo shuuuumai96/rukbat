@@ -231,7 +231,7 @@ against null. Nullable dictionary variables use existing narrowing rules.
 
 `if` / `else`, `for item in items`, `while condition`, `break`, `continue`, and `return` are explicit control-flow constructs. A `while` condition must be `bool` and is evaluated before each iteration. `break` exits the innermost `for` or `while`; `continue` starts its next iteration. A loop alone does not prove a return because it may execute zero times.
 
-The iterable expression of a `for` loop is evaluated exactly once when the loop begins. The loop iterates over a snapshot of that resulting array value. Modifying the original array variable inside the loop body (including `append`) does not affect the iteration sequence. The loop variable is a copy of each element; assigning to it does not modify the source array.
+The iterable expression of a `for` loop is evaluated exactly once when the loop begins. For an array, the loop iterates over a snapshot of that value. Modifying the original array variable inside the loop body (including `append`) does not affect the iteration sequence. The loop variable is a copy of each element; assigning to it does not modify the source array.
 
 A `for` also accepts non-null `fs.Lines`, yielding strings. Each loop owns an independent
 file traversal and closes it on EOF, break, return, or escaping Error. Continue keeps it open.
