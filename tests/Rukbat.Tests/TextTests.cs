@@ -246,7 +246,7 @@ public class TextTests : TestBase
         Assert.True(build.ExitCode == 0, build.Error);
         var bytes = File.ReadAllBytes(project.PathFor("source/main.ps1"));
         Assert.True(bytes.AsSpan().StartsWith(Encoding.UTF8.Preamble));
-        var output = "\uFEFF" + File.ReadAllText(project.PathFor("source/main.ps1"));
+        var output = File.ReadAllText(project.PathFor("source/main.ps1"));
         var inputPath = project.PathFor("入力 [log].txt");
         var outputPath = project.PathFor("結果 [log].txt");
         File.WriteAllText(inputPath, " INFO: start\r\n\tERROR: 接続失敗　\n\nerror: ignored\r　ERROR: 保存失敗 \r\n");
