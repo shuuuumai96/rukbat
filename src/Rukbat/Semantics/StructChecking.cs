@@ -4,7 +4,7 @@ internal sealed class StructSymbol(Module module, StructDeclaration declaration)
 {
     public Module Module { get; } = module;
     public StructDeclaration Declaration { get; } = declaration;
-    public ValueType Type { get; } = new(module.StandardName is "json" or "csv" or "test" or "cli"
+    public ValueType Type { get; } = new(module.StandardName is "json" or "csv" or "test" or "cli" or "log"
         ? module.StandardName + "." + declaration.Token.Text : declaration.Token.Text);
     public bool IsCsvRow => Module.StandardName == "csv" && Declaration.Token.Text == "Row";
     public bool IsJsonValue => Module.StandardName == "json" && Declaration.Token.Text == "Value";
@@ -193,6 +193,8 @@ internal sealed partial class TypeChecker
             return DeclaredTypes[node] = dateTimeType;
         if (owner?.StandardName == "hash" && parts[^1] == "Algorithm")
             return DeclaredTypes[node] = HashValues.Algorithm;
+        if (owner?.StandardName == "log" && parts[^1] == "Level")
+            return DeclaredTypes[node] = LogValues.Level;
         if (owner?.StandardName == "encoding" && parts[^1] == "Encoding")
         {
             return DeclaredTypes[node] = ValueType.Encoding;
@@ -242,6 +244,17 @@ internal sealed partial class TypeChecker
 
     private ValueType MemberType(Member member, Symbols scope)
     {
+        if (member.Receiver is Name logName && module.Imports.TryGetValue(logName.Token.Text, out var logModule) && logModule.StandardName == "log")
+        {
+            var value = LogValues.Levels.FirstOrDefault(value => value.Name == member.Name);
+            if (value is null)
+            {
+                Error("RUK2004", $"Unknown logging level '{member.Name}'.", member);
+                return ValueType.Error;
+            }
+            LogConstants[member] = value;
+            return LogValues.Level;
+        }
         if (member.Receiver is Name httpName && module.Imports.TryGetValue(httpName.Token.Text, out var httpModule) && httpModule.StandardName == "http")
         {
             var value = HttpValues.Constants.FirstOrDefault(value => value.Name == member.Name);

@@ -235,6 +235,69 @@ async function run() {
     restoreLines.replace(linesUri, new vscode.Range(0, 0, linesDocument.lineCount, 0), linesSource);
     assert.ok(await vscode.workspace.applyEdit(restoreLines));
 
+    const logUri = vscode.Uri.file(path.join(root, 'logging-api.rukbat'));
+    const logSource = [
+        'import log',
+        'logger: log.Logger = log.create()',
+        'logger.file = "job.log"',
+        'logger.file_level = log.level_debug',
+        'log.debug(logger, "debug")',
+        'log.info(logger, "info")',
+        'log.warn(logger, "warn")',
+        'log.error(logger, "error")',
+        'active := log.enabled(logger, log.level_info)',
+        'minimum: log.Level = log.level_info',
+        ''
+    ].join('\n');
+    fs.writeFileSync(logUri.fsPath, logSource);
+    const logDocument = await vscode.workspace.openTextDocument(logUri);
+    await vscode.window.showTextDocument(logDocument);
+    await until(() => vscode.languages.getDiagnostics(logUri).length === 0, 'valid logging API diagnostics');
+    await until(async () => {
+        const sourceLine = logDocument.lineAt(1).text;
+        const result = await vscode.commands.executeCommand('vscode.executeCompletionItemProvider', logUri,
+            new vscode.Position(1, sourceLine.indexOf('log.create') + 'log.'.length));
+        return ['create', 'debug', 'info', 'warn', 'error', 'enabled', 'level_debug', 'level_info', 'level_warn', 'level_error', 'Level', 'Logger']
+            .every(name => result?.items?.some(item => item.label === name));
+    }, 'logging operations, constants and types completion');
+    await until(async () => {
+        const result = await vscode.commands.executeCommand('vscode.executeCompletionItemProvider', logUri, new vscode.Position(2, 7));
+        return ['stderr_level', 'file', 'file_level'].every(name => result?.items?.some(item => item.label === name));
+    }, 'Logger field completion');
+    for (const [line, operation] of [[1, 'create'], [4, 'debug'], [5, 'info'], [6, 'warn'], [7, 'error'], [8, 'enabled']]) {
+        await until(async () => {
+            const sourceLine = logDocument.lineAt(line).text;
+            const result = await vscode.commands.executeCommand('vscode.executeHoverProvider', logUri,
+                new vscode.Position(line, sourceLine.indexOf(`log.${operation}`) + 'log.'.length + 1));
+            return result?.some(item => item.contents.some(content => (content.value || content).includes(`log.${operation}(`)));
+        }, `log.${operation} hover`);
+    }
+    for (const [line, character, expected] of [[1, 13, 'struct log.Logger'], [9, 14, 'log.Level'], [3, 25, 'log.level_debug: log.Level']]) {
+        await until(async () => {
+            const result = await vscode.commands.executeCommand('vscode.executeHoverProvider', logUri, new vscode.Position(line, character));
+            return result?.some(item => item.contents.some(content => (content.value || content).includes(expected)));
+        }, `logging type or constant hover: ${expected}`);
+    }
+    const invalidLog = new vscode.WorkspaceEdit();
+    invalidLog.replace(logUri, new vscode.Range(3, 0, 4, 0), 'logger.file_level = "debug"\n');
+    assert.ok(await vscode.workspace.applyEdit(invalidLog));
+    await until(() => vscode.languages.getDiagnostics(logUri).some(d => d.code === 'RUK2001' && d.range.start.line === 3),
+        'logging Level argument diagnostic');
+    const incompleteLog = new vscode.WorkspaceEdit();
+    incompleteLog.replace(logUri, new vscode.Range(3, 0, 4, 0), logSource.split('\n')[3] + '\n');
+    const logCall = 'log.info(logger, ';
+    incompleteLog.replace(logUri, new vscode.Range(5, 0, 6, 0), logCall + '\n');
+    assert.ok(await vscode.workspace.applyEdit(incompleteLog));
+    await until(async () => {
+        const result = await vscode.commands.executeCommand('vscode.executeSignatureHelpProvider', logUri,
+            new vscode.Position(5, logCall.length), ',');
+        return result?.signatures?.[0]?.label === 'log.info(logger: log.Logger, message: string): void' && result.activeParameter === 1;
+    }, 'log.info incomplete signature help');
+    const restoreLog = new vscode.WorkspaceEdit();
+    restoreLog.replace(logUri, new vscode.Range(0, 0, logDocument.lineCount, 0), logSource);
+    assert.ok(await vscode.workspace.applyEdit(restoreLog));
+    await until(() => vscode.languages.getDiagnostics(logUri).length === 0, 'logging API diagnostics repaired');
+
     const dictionaryUri = vscode.Uri.file(path.join(root, 'dictionary.rukbat'));
     const dictionarySource = 'struct Item { n: int }\nd: dict[string, Item] = {"x": Item {n: 1}}\nprint(d.has("x"))\n';
     fs.writeFileSync(dictionaryUri.fsPath, dictionarySource);
@@ -362,6 +425,8 @@ async function run() {
     const runFailure = path.join(root, 'run-failure.txt');
     fs.rmSync(runFailure, { force: true });
     fs.rmSync(path.join(root, 'run-output.txt'), { force: true });
+    const runLogName = 'run logging 日本語 [literal].log';
+    fs.rmSync(path.join(root, runLogName), { force: true });
     const runDirectories = fs.mkdtempSync(path.join(root, 'run-directories-'));
     const runDirectoriesName = path.basename(runDirectories);
     fs.mkdirSync(path.join(runDirectories, 'incoming/empty'), { recursive: true });
@@ -373,6 +438,7 @@ async function run() {
         'import encoding',
         'import path',
         'import test',
+        'import log',
         'arguments := args()',
         'if arguments.length != 0 { exit(2) }',
         'try {',
@@ -383,6 +449,10 @@ async function run() {
         '    test.assert(path.relative(working, input) == "run-input.txt")',
         '    test.assert(path.stem(input) == "run-input")',
         '    message := fs.read_text(input, encoding.utf8)',
+        '    logger := log.create()',
+        '    logger.stderr_level = null',
+        `    logger.file = "${runLogName}"`,
+        '    log.info(logger, message)',
         '    fs.write_text(output, message, encoding.utf8)',
         '    fs.append_text(output, "\\nappended", encoding.utf8)',
         '    line_count := 0',
@@ -448,6 +518,11 @@ async function run() {
         assert.equal(await finished, 0, fs.existsSync(runFailure) ? fs.readFileSync(runFailure, 'utf8') :
             'Run File in a literal workspace directory: ' + JSON.stringify(runExecution));
         assert.equal(fs.readFileSync(path.join(root, 'run-output.txt'), 'utf8'), runContents + '\nappended');
+        const logBytes = fs.readFileSync(path.join(root, runLogName));
+        assert.notDeepEqual([...logBytes.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
+        const logged = logBytes.toString('utf8').match(/^time=\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{7}Z level=INFO message=("[^\r\n]*")\r\n$/);
+        assert.ok(logged, 'Run File must write one canonical logging record');
+        assert.equal(JSON.parse(logged[1]), runContents);
         assert.ok(fs.statSync(path.join(runDirectories, 'processed/empty')).isDirectory());
         assert.equal(fs.readFileSync(path.join(runDirectories, 'processed/batch/marker.txt'), 'utf8'), 'kept');
         assert.deepEqual(fs.readdirSync(path.join(runDirectories, 'incoming')), []);

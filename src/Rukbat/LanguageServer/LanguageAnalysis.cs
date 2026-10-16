@@ -264,6 +264,8 @@ internal sealed partial class LanguageAnalysis
                     Add(scope.Module, member.Token, EditorCatalog.EncodingValue(encoding));
                 else if (checker.HashConstants.TryGetValue(member, out var algorithm))
                     Add(scope.Module, member.Token, EditorCatalog.HashValue(algorithm));
+                else if (checker.LogConstants.TryGetValue(member, out var logLevel))
+                    Add(scope.Module, member.Token, EditorCatalog.LogValue(logLevel));
                 else if (checker.HttpConstants.TryGetValue(member, out var httpConstant))
                     Add(scope.Module, member.Token, EditorCatalog.HttpConstant(httpConstant));
                 else if (checker.Fields.TryGetValue(member, out var field))
@@ -347,6 +349,8 @@ internal sealed partial class LanguageAnalysis
                 Add(module, token, EditorCatalog.DateTimeType(bound));
             else if (bound == HashValues.Algorithm)
                 Add(module, token, EditorCatalog.HashType);
+            else if (bound == LogValues.Level)
+                Add(module, token, EditorCatalog.LogType);
             else if (bound is not null && HttpValues.Contains(bound))
                 Add(module, token, EditorCatalog.HttpType(bound));
             else if (bound == ValueType.Encoding)
@@ -395,6 +399,8 @@ internal sealed partial class LanguageAnalysis
                     : imported.Functions.Values.Select(f => symbols[checker!.Functions[f]]).Concat(imported.Structs.Values.Select(s => symbols[s]));
                 if (imported.StandardName == "hash")
                     candidates = candidates.Append(EditorCatalog.HashType);
+                if (imported.StandardName == "log")
+                    candidates = candidates.Append(EditorCatalog.LogType);
                 if (imported.StandardName == "http")
                     candidates = candidates.Append(EditorCatalog.HttpType(HttpValues.Method)).Append(EditorCatalog.HttpType(HttpValues.Body));
                 if (imported.StandardName == "encoding")

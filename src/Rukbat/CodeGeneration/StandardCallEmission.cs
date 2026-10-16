@@ -5,6 +5,7 @@ internal sealed partial class Emitter
     private string StandardCall(Call call, string standardCall)
     {
         if (standardCall.StartsWith("http.", StringComparison.Ordinal)) return HttpCall(call, standardCall);
+        if (standardCall.StartsWith("log.", StringComparison.Ordinal)) return LogCall(call, standardCall);
         if (standardCall == "test.assert")
         {
             return TestAssertion(call);

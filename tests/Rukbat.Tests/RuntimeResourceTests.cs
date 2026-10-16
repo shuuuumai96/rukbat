@@ -5,7 +5,7 @@ public class RuntimeResourceTests : TestBase
     public static TheoryData<string> StandardModules => new()
     {
         "fs", "path", "json", "csv", "env", "process", "text", "test",
-        "encoding", "math", "datetime", "array", "zip", "hash", "http", "cli"
+        "encoding", "math", "datetime", "array", "zip", "hash", "http", "cli", "log"
     };
 
     [Theory]
@@ -32,6 +32,10 @@ public class RuntimeResourceTests : TestBase
             test.assert(csv.get(row, "name") == "Rukbat")
             values: dict[string, int] = json.parse<dict[string, int]>('{"a": 1}')
             test.assert(values["a"] == 1)
+            logger := log.create()
+            logger.stderr_level = null
+            test.assert(!log.enabled(logger, log.level_info))
+            log.info(logger, "filtered")
             print(text.upper("ok"))
             """);
         var result = windowsPowerShell

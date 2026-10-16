@@ -9,6 +9,14 @@ internal static class StandardSignatures
     public static StandardSignature? Find(Module standardModule, string name)
     {
         ValueType Structure(string type) => standardModule.Structs[type].BoundType;
+        if (standardModule.StandardName == "log")
+        {
+            var operation = LogValues.Operations.FirstOrDefault(value => value.Name == name);
+            return operation?.Level is not null ? new([Structure("Logger"), ValueType.String], ValueType.Void)
+                : operation?.Name == "create" ? new([], Structure("Logger"))
+                : operation?.Name == "enabled" ? new([Structure("Logger"), LogValues.Level], ValueType.Bool)
+                : null;
+        }
         if (standardModule.StandardName == "datetime")
         {
             var operation = DateTimeValues.Operations.FirstOrDefault(value => value.Name == name);

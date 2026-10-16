@@ -62,6 +62,7 @@ internal sealed partial class Emitter
         Name name => checker.Variables[name].PowerShellName,
         Member member when checker.ZoneConstants.TryGetValue(member, out var zone) => "(" + zone.Expression + ")",
         Member member when checker.HashConstants.TryGetValue(member, out var algorithm) => Quote(algorithm),
+        Member member when checker.LogConstants.TryGetValue(member, out var level) => Quote(level.Tag),
         Member member when checker.EncodingConstants.TryGetValue(member, out var encoding) => Quote(encoding.Label),
         Member member when checker.HttpConstants.TryGetValue(member, out var constant) => constant.Value is string method ? Quote(method) : "[long]" + constant.Value,
         Member member when checker.Types[member.Receiver].Element is not null => $"([long]({RawExpr(member.Receiver)}).Count)",

@@ -19,6 +19,10 @@ internal static class EditorCatalog
     public static readonly EditorSymbol HashType = new("Algorithm", "hash.Algorithm", 13,
         "A validated checksum algorithm. Use hash.parse/name at external boundaries.", Type: HashValues.Algorithm);
     public static EditorSymbol HashValue(string name) => new(name, $"hash.{name}: hash.Algorithm", 20, HashValues.Description(name), Type: HashValues.Algorithm);
+    public static readonly EditorSymbol LogType = new("Level", "log.Level", 13,
+        "A validated logging severity. Use log.level_debug/info/warn/error constants.", Type: LogValues.Level);
+    public static EditorSymbol LogValue(LogValues.LevelConstant value) => new(value.Name,
+        $"log.{value.Name}: log.Level", 21, value.Documentation, Type: LogValues.Level);
     public static readonly EditorSymbol EncodingType = new("Encoding", "encoding.Encoding", 13,
         "A validated encoding type. Use predefined encoding values or encoding.from_code_page for an explicit Windows code page.", Type: ValueType.Encoding);
     public static readonly EditorSymbol FileLinesType = new("Lines", "fs.Lines", 13,
@@ -78,6 +82,7 @@ internal static class EditorCatalog
         }
         // Zero-argument signatures are covered by the same expression (the ')' is nonempty).
         result.AddRange(HashValues.All.Select(HashValue));
+        result.AddRange(LogValues.Levels.Select(LogValue));
         result.AddRange(HttpValues.Constants.Select(HttpConstant));
         result.AddRange(EncodingValues.All.Select(EncodingValue));
         result.AddRange(DateTimeValues.Zones.Select(ZoneConstant));

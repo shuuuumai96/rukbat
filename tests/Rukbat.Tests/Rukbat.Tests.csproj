@@ -38,11 +38,16 @@
     <ReadLinesFromFile File="../../src/Rukbat/Runtime/Native/CodePageCodec.cs.txt">
       <Output TaskParameter="Lines" ItemName="CodePageRuntimeLines" />
     </ReadLinesFromFile>
+    <ReadLinesFromFile File="../../src/Rukbat/Runtime/Native/Log.cs.txt">
+      <Output TaskParameter="Lines" ItemName="LogRuntimeLines" />
+    </ReadLinesFromFile>
     <WriteLinesToFile File="$(IntermediateOutputPath)FileTextRuntime.cs" Lines="#nullable disable;@(FileTextRuntimeLines)" Overwrite="true" />
     <WriteLinesToFile File="$(IntermediateOutputPath)CodePageRuntime.cs" Lines="#nullable disable;@(CodePageRuntimeLines)" Overwrite="true" />
+    <WriteLinesToFile File="$(IntermediateOutputPath)LogRuntime.cs" Lines="#nullable disable;@(LogRuntimeLines)" Overwrite="true" />
     <ItemGroup>
       <Compile Include="$(IntermediateOutputPath)FileTextRuntime.cs" />
       <Compile Include="$(IntermediateOutputPath)CodePageRuntime.cs" />
+      <Compile Include="$(IntermediateOutputPath)LogRuntime.cs" />
     </ItemGroup>
   </Target>
 </Project>

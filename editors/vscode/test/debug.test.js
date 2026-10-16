@@ -406,6 +406,45 @@ test('file line descriptors stay opaque while a traversal is paused', { skip: pr
     fs.renameSync(input, input + '.released');
 });
 
+test('logging configuration and levels have readable debugger values', { skip: process.platform !== 'win32' }, async t => {
+    const { session: s, write } = project(t);
+    const main = write('main.rukbat', [
+        'import log',
+        'const logger := log.create()',
+        'levels: log.Level[] = [log.level_debug, log.level_info, log.level_warn, log.level_error]',
+        'disabled: log.Level? = null',
+        'selected: log.Level? = log.level_warn',
+        'print(log.enabled(logger, levels[1]))'
+    ].join('\n'));
+    await s.start(main, { stopOnEntry: false });
+    await s.request('setBreakpoints', { source: { path: main }, breakpoints: [{ line: 6 }] });
+    await s.request('configurationDone');
+    await s.event('stopped');
+    const values = await s.values();
+    assert.equal(values.logger.type, 'log.Logger');
+    assert.equal(values.logger.value, 'log.Logger');
+    assert.equal(values.logger.presentationHint.attributes[0], 'readOnly');
+    assert.equal((await s.request('evaluate', { expression: 'logger.stderr_level' })).result, 'log.level_info');
+    assert.equal((await s.request('evaluate', { expression: 'logger.file_level' })).result, 'log.level_info');
+    assert.equal((await s.request('evaluate', { expression: 'logger.file' })).result, 'null');
+    assert.equal(values.disabled.value, 'null');
+    assert.equal(values.selected.type, 'log.Level?');
+    assert.equal(values.selected.value, 'log.level_warn');
+    for (const [index, name] of ['debug', 'info', 'warn', 'error'].entries()) {
+        const level = await s.request('evaluate', { expression: `levels[${index}]` });
+        assert.equal(level.type, 'log.Level');
+        assert.equal(level.result, 'log.level_' + name);
+    }
+    const fields = (await s.request('variables', { variablesReference: values.logger.variablesReference })).variables;
+    assert.deepEqual(fields.map(field => field.name), ['stderr_level', 'file', 'file_level']);
+    const invalid = await s.request('evaluate', { expression: 'levels[0].Tag' }).catch(error => error);
+    assert.ok(invalid instanceof Error || !('result' in invalid));
+    await s.request('continue', { threadId: 1 });
+    assert.equal((await s.event('exited')).body.exitCode, 0, s.outputs);
+    await s.event('terminated');
+    assert.equal(s.outputs.trim(), 'True');
+});
+
 test('float inspection preserves the stored binary64 value', { skip: process.platform !== 'win32' }, async t => {
     const { session: s, write } = project(t);
     const main = write('main.rukbat', 'value := 1.0000000000000002\nprint(value)');

@@ -1,0 +1,14 @@
+import log
+
+logger := log.create()
+logger.file = "job.log"
+logger.file_level = log.level_debug
+
+log.info(logger, "Starting")
+
+if log.enabled(logger, log.level_debug) {
+    log.debug(logger, "Detailed diagnostics are enabled for the file")
+}
+
+log.warn(logger, "An optional operation was skipped")
+log.info(logger, "Completed")

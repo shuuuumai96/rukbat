@@ -14,7 +14,8 @@ public sealed record DebugPoint(int Id, string File, int Line, int Column,
 public sealed record DebugVariable(string Name, string Storage, bool Global, string Type, bool IsConst);
 public sealed record DebugValueType(string Name, string? Element = null,
     string? Nullable = null, IReadOnlyList<DebugField>? Fields = null,
-    string? DictionaryKey = null, string? DictionaryValue = null);
+    string? DictionaryKey = null, string? DictionaryValue = null,
+    IReadOnlyDictionary<string, string>? DisplayValues = null);
 public sealed record DebugField(string Name, string Storage, string Type);
 
 internal sealed partial class Emitter
@@ -37,7 +38,8 @@ internal sealed partial class Emitter
                 ? structure.Fields.Select(pair => new DebugField(pair.Key, pair.Value.Key, DebugType(pair.Value.Type))).ToArray()
                 : null,
             type.DictionaryKey is { } key ? DebugType(key) : null,
-            type.DictionaryValue is { } value ? DebugType(value) : null);
+            type.DictionaryValue is { } value ? DebugType(value) : null,
+            type == LogValues.Level ? LogValues.Levels.ToDictionary(value => value.Tag, value => "log." + value.Name, StringComparer.Ordinal) : null);
         return id;
     }
 

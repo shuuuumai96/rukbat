@@ -1,0 +1,108 @@
+using System;
+using System.Globalization;
+using System.IO;
+using System.Runtime.ExceptionServices;
+using System.Text;
+
+public static class RukbatLog {
+    private static readonly Encoding Utf8 = new UTF8Encoding(false, true);
+    private const string Hex = "0123456789abcdef";
+
+    private static int EscapedLength(string message) {
+        int length = 0;
+        for (int index = 0; index < message.Length; index++) {
+            char value = message[index];
+            if (Char.IsHighSurrogate(value)) {
+                if (index + 1 == message.Length || !Char.IsLowSurrogate(message[index + 1]))
+                    throw new ArgumentException("Log message contains an unpaired UTF-16 surrogate.");
+                index++;
+                length = checked(length + 2);
+            } else if (Char.IsLowSurrogate(value)) {
+                throw new ArgumentException("Log message contains an unpaired UTF-16 surrogate.");
+            } else {
+                int width;
+                switch (value) {
+                    case '"': case '\\': case '\b': case '\t': case '\n': case '\f': case '\r': width = 2; break;
+                    default: width = MustEscape(value) ? 6 : 1; break;
+                }
+                length = checked(length + width);
+            }
+        }
+        return length;
+    }
+
+    private static bool MustEscape(char value) {
+        return value < '\u0020' || (value >= '\u007f' && value <= '\u009f') || value == '\u2028' || value == '\u2029';
+    }
+
+    private static string FormatValidated(DateTimeOffset timestamp, string label, string message, int escapedLength) {
+        string time = timestamp.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.fffffff'Z'", CultureInfo.InvariantCulture);
+        int capacity = checked(5 + time.Length + 7 + label.Length + 10 + escapedLength + 3);
+        var record = new StringBuilder(capacity);
+        record.Append("time=").Append(time).Append(" level=").Append(label).Append(" message=\"");
+        for (int index = 0; index < message.Length; index++) {
+            char value = message[index];
+            switch (value) {
+                case '"': record.Append("\\\""); break;
+                case '\\': record.Append("\\\\"); break;
+                case '\b': record.Append("\\b"); break;
+                case '\t': record.Append("\\t"); break;
+                case '\n': record.Append("\\n"); break;
+                case '\f': record.Append("\\f"); break;
+                case '\r': record.Append("\\r"); break;
+                default:
+                    if (MustEscape(value)) {
+                        record.Append("\\u");
+                        record.Append(Hex[(value >> 12) & 15]).Append(Hex[(value >> 8) & 15]);
+                        record.Append(Hex[(value >> 4) & 15]).Append(Hex[value & 15]);
+                    } else record.Append(value);
+                    break;
+            }
+        }
+        return record.Append("\"\r\n").ToString();
+    }
+
+    public static string Format(DateTimeOffset timestamp, string label, string message) {
+        return FormatValidated(timestamp, label, message, EscapedLength(message));
+    }
+
+    // Keep large strings inside an argument array at every PowerShell/native boundary.
+    public static object[] Prepare(object[] values) {
+        string label = (string)values[0];
+        string message = (string)values[1];
+        bool includeFileBytes = (bool)values[2];
+        int escapedLength = EscapedLength(message);
+        string record = FormatValidated(DateTimeOffset.UtcNow, label, message, escapedLength);
+        byte[] bytes = includeFileBytes ? Utf8.GetBytes(record) : null;
+        return new object[] { record, bytes };
+    }
+
+    public static void WriteStderr(object[] prepared) {
+        TextWriter writer = Console.Error;
+        writer.Write((string)prepared[0]);
+        writer.Flush();
+    }
+
+    public static void AppendFile(object[] values) {
+        string path = (string)values[0];
+        byte[] bytes = (byte[])((object[])values[1])[1];
+        if (bytes == null) throw new InvalidOperationException("Prepared log record has no file bytes.");
+        var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read);
+        WriteAndClose(stream, bytes, delegate { stream.Flush(true); });
+    }
+
+    internal static void WriteAndClose(Stream stream, byte[] bytes, Action flush) {
+        Exception primary = null;
+        try {
+            stream.Write(bytes, 0, bytes.Length);
+            flush();
+        } catch (Exception error) { primary = error; }
+        try { stream.Dispose(); }
+        catch (Exception cleanup) {
+            if (primary != null)
+                throw new IOException(primary.Message + " Cleanup failed: " + cleanup.Message, primary);
+            throw;
+        }
+        if (primary != null) ExceptionDispatchInfo.Capture(primary).Throw();
+    }
+}

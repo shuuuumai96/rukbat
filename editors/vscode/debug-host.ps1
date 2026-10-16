@@ -74,6 +74,10 @@ function global:Format-RukbatDebugValue($value, [string]$typeId, [int]$depth, $b
             }
             $node.children = $children.ToArray()
         }
+    } elseif ($null -ne $type.PSObject.Properties['displayValues'] -and $null -ne $type.displayValues) {
+        # Validated standard tags use compiler-provided labels, never property getters.
+        $label = $type.displayValues.PSObject.Properties[[string]$value]
+        $node.value = if ($null -ne $label) { [string]$label.Value } else { '<' + $type.name + '>' }
     } elseif ($type.name -ceq 'string') {
         $text = [string]$value
         if ($text.Length -gt 4096) { $text = $text.Substring(0, 4096) + '...' }

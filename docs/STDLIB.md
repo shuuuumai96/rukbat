@@ -21,6 +21,7 @@ import zip
 import hash
 import http
 import cli
+import log
 ```
 
 A local module instead uses an explicit relative `.rukbat` path and an alias. Standard module names are reserved as aliases. Generated scripts contain only the standard-library runtime sections used by their imports and remain standalone on Windows PowerShell 5.1.
@@ -87,6 +88,136 @@ Use one canonical API per operation. Rukbat's standard library does not aim to p
 ## Standard output and error
 
 The built-in `print(value)` and `eprint(value)` write to stdout and stderr respectively, with identical type checks and one appended platform newline. Neither requires an import. Explicit string formatting uses `text.from_*`. Output alone does not change the exit code.
+
+## `log`
+
+Use an ordinary Logger value for diagnostic messages. Defaults write INFO and higher
+to stderr. Set one field to retain the same records in a file:
+
+```rukbat
+import log
+
+logger := log.create()
+logger.file = "job.log"
+log.info(logger, "Starting")
+```
+
+Logging never writes a success/stdout value. ERROR is a severity, not a request to
+throw or exit. Only an actual preparation or delivery failure raises Error.
+
+| Signature | Behavior |
+|---|---|
+| `log.create(): log.Logger` | Return the default configuration without I/O. |
+| `log.debug(logger: log.Logger, message: string): void` | Write a DEBUG record to eligible destinations. |
+| `log.info(logger: log.Logger, message: string): void` | Write an INFO record to eligible destinations. |
+| `log.warn(logger: log.Logger, message: string): void` | Write a WARN record to eligible destinations. |
+| `log.error(logger: log.Logger, message: string): void` | Write an ERROR record to eligible destinations. |
+| `log.enabled(logger: log.Logger, level: log.Level): bool` | Return whether at least one destination accepts the level. |
+
+All arguments are required and positional. Format non-string messages explicitly
+with existing APIs. There is no global Logger, generic write function, alias,
+callback, or separate Output/Handler type.
+
+### Logger configuration and levels
+
+`log.Logger` is an ordinary struct with these three fields:
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `stderr_level` | `log.Level?` | `log.level_info` | Minimum stderr severity; null disables stderr. |
+| `file` | `string?` | `null` | File path; null disables file output. |
+| `file_level` | `log.Level` | `log.level_info` | Minimum file severity; ignored while file is null. |
+
+The four read-only constants, from lowest to highest severity, are
+`log.level_debug`, `log.level_info`, `log.level_warn`, and `log.level_error`.
+A minimum accepts itself and all higher levels. File and stderr thresholds are
+independent. Set `stderr_level = null` for file-only logging, or both
+`stderr_level = null` and `file = null` to disable output entirely.
+
+Level is opaque and immutable. It supports ordinary storage and non-null same-type
+equality, but no ordering, arithmetic, custom numeric levels, public fields,
+struct literal, or implicit string/numeric conversion. Nullable Level follows
+ordinary null comparison and narrowing. Level and values containing it, including
+Logger, cannot cross JSON or PowerShell boundaries; Level cannot be printed.
+
+Logger literals initialize all three fields. The struct owns no stream or external
+resource and needs no close operation. Assignment, arguments, returns and containers
+use ordinary value copies; mutating a copied Logger does not reconfigure its original.
+
+### Filtering and evaluation
+
+Arguments are evaluated once, left to right, before filtering. In
+`log.info(logger, message())`, the Logger is copied before `message()` runs.
+Subsequent mutations inside `message()` do not change that call's configuration.
+Filtering does not suppress argument side effects or errors. Guard expensive
+construction explicitly with `if log.enabled(logger, log.level_debug) { ... }`.
+
+`enabled` checks thresholds only. It does not validate paths or inspect the filesystem,
+read the clock, load a native helper, or guarantee a later write. An invalid selected
+path can make it return true. When neither destination accepts a writing call,
+the call skips message validation, native loading, timestamp capture, path resolution,
+formatting, encoding and I/O. A configured but filtered file cannot prevent stderr output.
+
+### Records and destinations
+
+Every record has this fixed field order and ends with exactly one CRLF:
+
+```text
+time=2026-10-16T09:00:00.1234567Z level=INFO message="Starting"
+```
+
+One UTC wall-clock timestamp is captured per eligible call and shared by both
+destinations. Its invariant spelling is `yyyy-MM-ddTHH:mm:ss.fffffffZ`, the same
+as `datetime.stringify`. Seven fractional digits do not imply clock precision;
+timestamps need not be unique, monotonic, or sorted.
+
+Messages are always quoted JSON strings. Quote and backslash use `\"` and `\\`;
+backspace, tab, LF, form feed and CR use `\b`, `\t`, `\n`, `\f` and `\r`.
+Other U+0000–U+001F, U+007F–U+009F, U+2028 and U+2029 use lowercase `\uXXXX`.
+Other valid Unicode scalars are preserved, including supplementary characters.
+Empty messages are valid. Unpaired UTF-16 surrogates raise Error before any output.
+Embedded line endings and terminal escape characters cannot create extra physical
+records or ANSI control sequences. This format is neither JSON Lines nor a secret
+redaction or general sanitization API.
+
+Stderr uses the existing `Console.Error` writer and flushes it after the complete
+record. It does not replace that writer, add colors, change host preferences, or
+use PowerShell's warning/verbose/error streams. Generated scripts retain their
+ordinary UTF-8 console setup and host redirection semantics.
+
+File output uses strict UTF-8 without a BOM. Relative paths use the captured entry
+working directory, even after PowerShell/.NET location changes. Use
+`path.script_dir()` explicitly for deployment-relative logs. A missing file is
+created on its first eligible write; parent directories must already exist.
+Existing bytes are not scanned, decoded, rewritten or truncated. An existing log
+must be compatible UTF-8 ending at a record boundary; no BOM, newline or tail repair
+is added. See [the logging example](../examples/logging.rukbat).
+
+Bytes are prepared before opening the file. Each write uses `FileMode.Append`,
+`FileAccess.Write`, and `FileShare.Read`, then calls `Flush(true)` and closes before
+returning, as with `fs.append_text`. There is no buffered/background mode, lock retry,
+cross-process atomic append, or ordering guarantee. Overlapping writers can fail;
+reader sharing must be compatible in both directions. An active `fs.lines` traversal
+is not a concurrent log tailer. An I/O failure can leave a partial record. Flush
+completion does not guarantee durability across power loss or noncompliant storage.
+
+### Failure behavior
+
+Shared record preparation occurs before delivery. A preparation failure writes
+neither destination. Delivery attempts stderr first and then the selected file,
+even if stderr failed. File path resolution belongs to the file attempt; an invalid
+selected path cannot suppress eligible stderr output. After both attempts, a failure
+in either destination raises one Error identifying each failed destination and its
+description. File errors include the resolved path, or the supplied path when
+resolution failed. A close failure preserves the primary write/flush failure.
+Delivery errors do not include the message. Normal source metadata identifies the
+logging call site.
+
+Successful delivery to one destination is not rolled back. An Error does not mean
+nothing was written; a retry can duplicate a record. Logging inside a catch can
+itself fail under ordinary Error semantics. Handle that failure separately when
+the original Error must be preserved. The library adds no retry, fallback,
+process-exit hook, rotation, history buffer, or retained stream.
 
 ## `text`
 

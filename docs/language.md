@@ -112,11 +112,12 @@ rules are defined in [STDLIB.md](STDLIB.md).
 | `json.Value` | Unknown JSON structure; no dynamic member/index access, equality, or direct printing. JSON null is a value distinct from Rukbat null. Updates return new values. |
 | `csv.Row` | Immutable row accessed/updated through library functions. No equality or direct printing. `csv.Table` is an ordinary struct with `columns: string[]` and `rows: csv.Row[]`. |
 | `encoding.Encoding`, `hash.Algorithm` | Validated read-only constants and same-type equality; no ordering or implicit string/numeric conversion. External names use explicit parse/name operations. |
+| `log.Level` | Validated severity constants and non-null same-type equality; no ordering, arithmetic, fields, struct literal, or implicit conversion. `log.Logger` is an ordinary struct with copyable configuration fields. |
 | `http.Body`, `http.Method` | Immutable response bytes and validated method constants. Only Method has equality. HTTP request/options/result types are ordinary structs; status constants are read-only ints. |
 | `fs.Lines` | Immutable file-line descriptor; for owns each independent traversal. No equality, direct printing, or exposed fields. |
 | `datetime.Timestamp`, `datetime.Date`, `datetime.Duration`, `datetime.Zone` | Explicit conversions/arithmetic; same-type equality, and ordering except for Zone. Named zones are read-only constants. |
 
-Encoding, hash, HTTP opaque types, fs.Lines, and datetime types are recursively rejected at
+Encoding, hash, log.Level, HTTP opaque types, fs.Lines, and datetime types are recursively rejected at
 printing, JSON, and PowerShell boundaries. These standard types introduce no general
 enum syntax. JSON/CSV updates preserve originals; ordinary container copies remain
 independent. ZIP exports ordinary `zip.Options` and `zip.Entry` structs.
@@ -262,6 +263,10 @@ Methods use `fn` and may read or update `self`. A method that updates `self` may
 Imports are static and resolved before execution. Relative project modules use an explicit relative `.rukbat` path and an alias. Standard-library modules use their canonical module names as defined in `STDLIB.md`.
 
 Filesystem operations use `import fs`; path-value operations use `import path`.
+Diagnostic logging uses `import log`, reserving `log` as a standard module alias.
+Logger arguments use ordinary copying and eager left-to-right evaluation even when
+the record is filtered. Logging configuration, format, destinations and failure
+rules are defined in STDLIB.md.
 
 ## PowerShell boundary
 
@@ -278,7 +283,7 @@ defined in STDLIB.md.
 `powershell<T>(command, ...)` is the explicit escape hatch for a PowerShell operation not covered by Rukbat. It checks the returned value against `T`; a scalar result requires exactly one value and `T[]` collects values into an array. PowerShell failures and incompatible results are runtime errors.
 
 PowerShell arguments and result types cannot contain dictionaries or opaque standard-library values such as
-`json.Value`, `csv.Row`, `cli.Result`, `encoding.Encoding`, `hash.Algorithm`, datetime types or HTTP Body/Method.
+`json.Value`, `csv.Row`, `cli.Result`, `encoding.Encoding`, `hash.Algorithm`, `log.Level`/`log.Logger`, datetime types or HTTP Body/Method.
 Request a string and use `json.parse` to read a JSON document from an external command.
 For encodings, pass `encoding.name(value)` and parse returned text with `encoding.parse`.
 

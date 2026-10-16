@@ -24,6 +24,7 @@ internal sealed partial class Emitter
         }
         if (modules.Contains("process")) EmitNativeLoader("ProcessJob");
         if (modules.Contains("hash")) EmitNativeLoader("Hash");
+        if (modules.Contains("log")) EmitLogRuntime();
         if (modules.Contains("zip")) EmitZipLoader();
         if (modules.Contains("http")) EmitHttpLoader();
         if (modules.Contains("csv")) EmitCsvRuntime();
@@ -56,6 +57,7 @@ internal sealed partial class Emitter
         if (modules.Contains("env")) EmitLines(RuntimeResources.ReadPowerShell("EnvironmentRuntime"));
         if (modules.Contains("process")) EmitLines(RuntimeResources.ReadPowerShell("ProcessRuntime"));
         if (modules.Contains("hash")) EmitLines(RuntimeResources.ReadPowerShell("HashRuntime"));
+        if (modules.Contains("log")) EmitLines(RuntimeResources.ReadPowerShell("LogRuntime"));
         if (modules.Contains("zip")) EmitLines(RuntimeResources.ReadPowerShell("ZipRuntime"));
         if (modules.Contains("http")) EmitLines(RuntimeResources.ReadPowerShell("HttpRuntime"));
         if (modules.Contains("text")) EmitLines(RuntimeResources.ReadPowerShell("TextRuntime"));
