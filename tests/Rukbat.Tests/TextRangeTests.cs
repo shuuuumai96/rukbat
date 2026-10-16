@@ -62,4 +62,64 @@ public class TextRangeTests : TestBase
         Assert.Empty(result.Error);
         Assert.Equal("passed\n", result.Output);
     }
+
+    [Trait("Category", "CrossVersion")]
+    [Theory]
+    [InlineData("powershell", false)]
+    [InlineData("powershell", true)]
+    [InlineData("pwsh", false)]
+    [InlineData("pwsh", true)]
+    public async Task PreservesNormalizedArgumentsAcrossCopiesAndModuleCalls(string shell, bool debug)
+    {
+        using var project = new Project();
+        project.Write("aBc", "");
+        project.Write("values.rukbat", """
+            import text; import test
+            struct Sample { value: string; offset: int }
+            fn verify(samples: Sample[]): void {
+                for sample in samples {
+                    test.assert(text.length(sample.value) == 3)
+                    test.assert(text.slice(sample.value, sample.offset, 1) == 'B')
+                    found := text.index_of(sample.value, 'B')
+                    if found != null { test.assert(found == 1) } else { test.fail('Missing match') }
+                    test.assert(text.upper(sample.value) == 'ABC')
+                    test.assert(text.lower(sample.value) == 'abc')
+                }
+            }
+            """);
+        var entry = project.PathFor("aBc").Replace("\\", "/").Replace("'", "\\'");
+        project.Write("main.rukbat", $$"""
+            import text; import test; import process; import encoding
+            import './values.rukbat' as values
+            calls := ''
+            fn value(): string {
+                calls = calls + 'v'
+                return powershell<string>('Invoke-Expression', "'aBc' | Add-Member -NotePropertyName Extra -NotePropertyValue 'test' -PassThru")
+            }
+            fn offset(): int {
+                calls = calls + 'o'
+                return powershell<int>('Invoke-Expression', '[psobject]1')
+            }
+            fn count(): int {
+                calls = calls + 'c'
+                return powershell<int>('Invoke-Expression', '[psobject]1')
+            }
+            test.assert(text.slice(value(), offset(), count()) == 'B')
+            test.assert(calls == 'voc')
+            result := process.run('powershell', ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', 'exit 1'], process.options(10000, encoding.utf8))
+            test.assert(text.slice('abc', result.exit_code, result.exit_code) == 'b')
+            named := powershell<string>('Get-ChildItem', LiteralPath: '{{entry}}', Name: true)
+            samples := [values.Sample { value: value(), offset: offset() }, values.Sample { value: named, offset: result.exit_code }]
+            values.verify(samples)
+            print('passed')
+            """);
+        var compiled = new Compiler().CompileFile(project.PathFor("main.rukbat"), debug);
+        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+
+        var result = shell == "powershell" ? await project.RunOutputWithWindowsPowerShell(compiled.Output!) : await project.RunOutput(compiled.Output!);
+
+        Assert.True(result.ExitCode == 0, result.Error);
+        Assert.Empty(result.Error);
+        Assert.Equal("passed\n", result.Output);
+    }
 }

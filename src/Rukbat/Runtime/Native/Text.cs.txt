@@ -41,4 +41,15 @@ public static class RukbatText {
     }
     public static string Upper(string value) { Length(value); return value.ToUpperInvariant(); }
     public static string Lower(string value) { Length(value); return value.ToLowerInvariant(); }
+
+    // Pass the existing argument array across the PowerShell boundary. Hosts that
+    // format string arguments for invocation logging otherwise copy large inputs.
+    public static long Length(object[] values) { return Length((string)values[0]); }
+    public static string Slice(object[] values) {
+        // Integer-producing APIs can box values as Int32 or Int64.
+        return Slice((string)values[0], Convert.ToInt64(values[1]), Convert.ToInt64(values[2]));
+    }
+    public static long? IndexOf(object[] values) { return IndexOf((string)values[0], (string)values[1]); }
+    public static string Upper(object[] values) { return Upper((string)values[0]); }
+    public static string Lower(object[] values) { return Lower((string)values[0]); }
 }

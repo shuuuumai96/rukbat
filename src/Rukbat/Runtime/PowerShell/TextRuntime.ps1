@@ -1,8 +1,8 @@
-'text.length' { return [RukbatText]::Length([string]$values[0]) }
-'text.slice' { return [RukbatText]::Slice([string]$values[0], [long]$values[1], [long]$values[2]) }
-'text.index_of' { return [RukbatText]::IndexOf([string]$values[0], [string]$values[1]) }
-'text.upper' { return [RukbatText]::Upper([string]$values[0]) }
-'text.lower' { return [RukbatText]::Lower([string]$values[0]) }
+'text.length' { return [RukbatText]::Length($values) }
+'text.slice' { return [RukbatText]::Slice($values) }
+'text.index_of' { return [RukbatText]::IndexOf($values) }
+'text.upper' { return [RukbatText]::Upper($values) }
+'text.lower' { return [RukbatText]::Lower($values) }
 'text.trim' {
     # Fixed Unicode White_Space set; independent of the host's Unicode tables.
     $value = [string]$values[0]
