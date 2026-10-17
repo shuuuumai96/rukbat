@@ -84,8 +84,7 @@ can write and maintain consistently.
 Treat tooling as part of the language: checking, building, running, formatting,
 testing, documentation, and editor integration should share predictable semantics.
 Keep the language analyzable enough for reliable diagnostics, navigation, completion,
-rename, signature help, and future inferred-type hints. See [editor support](EDITOR.md)
-for implemented capabilities rather than treating design goals as release status.
+rename, and signature help. See [editor support](EDITOR.md) for available features.
 
 ## Deployment model
 

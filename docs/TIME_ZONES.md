@@ -2,9 +2,8 @@
 
 This is the fixed public catalog for `datetime.Zone` constants, referenced by
 [the standard-library specification](STDLIB.md#datetime). All constants are read-only.
-The catalog covers the 143 Windows IDs enumerated on the development Windows host
-on 2026-10-04. It is checked into Rukbat rather than generated on the compiler host.
-Windows may add IDs after this catalog; `datetime.zone(id)` accepts additional installed IDs.
+The catalog is fixed by the Rukbat version. `datetime.zone(id)` accepts additional
+IDs installed on the target Windows machine.
 
 Names remove the exact phrase ` Standard Time`, lowercase the remaining ID, and replace
 punctuation/space runs with `_`. Hyphens in region names act as separators.

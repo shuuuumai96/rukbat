@@ -1,8 +1,6 @@
-# Practical CLI acceptance scenario: batch file organization
+# Batch file organization example
 
-## Status and purpose
-
-This is the acceptance contract for `examples/batch-organize`. It reads a CSV move plan, uses fs.move_files_batch to validate and lock a complete plan, create destination parent directories, and move files in CSV-record order with a persistent recovery journal.
+The [batch-organize example](../examples/batch-organize/main.rukbat) reads a CSV move plan and calls `fs.move_files_batch` to move files with a persistent recovery journal.
 
 ## Invocation and exit codes
 
@@ -32,8 +30,4 @@ The CSV plan itself must not be listed as a source. It must remain available for
 
 The journal records absolute paths, file identities and content hashes. A normal failure rolls back moved files. After abrupt termination, the same invocation restores interrupted moves and retries; `--recover` only restores them. A committed journal causes verified replay without another move. Different plans cannot reuse a journal, and concurrent uses of one journal fail before mutation. Changed files or a corrupt journal stop recovery without overwriting data.
 
-These are the [standard-library contracts](STDLIB.md#recoverable-file-moves), with operating instructions in [UNATTENDED.md](UNATTENDED.md). Created directories are retained, and other readers can observe intermediate paths; the batch is recoverable rather than atomically visible. Single-file `fs.move_file` retains its existing behavior, including cross-volume support, but this example uses the stricter batch API.
-
-## CSV dependency
-
-`csv.parse` parses CSV structure only. It does not infer types, interpret a header, require a rectangular table, or map records to structs. Its public contract is defined in `STDLIB.md`.
+These are the [standard-library contracts](STDLIB.md#recoverable-file-moves), with operating instructions in [UNATTENDED.md](UNATTENDED.md). Created directories are retained, and other readers can observe intermediate paths; the batch is recoverable rather than atomically visible.

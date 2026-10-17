@@ -1,6 +1,6 @@
 # Unattended Windows jobs
 
-The [operations guide](OPERATIONS.md) supplies the responsibility boundary, release packaging, job runner, scheduler integration, health probe, notification adapter and deployment acceptance procedure. The API contracts below remain narrower than a complete business workflow.
+See the [operations guide](OPERATIONS.md) for release packaging, scheduling, monitoring, and recovery.
 
 Rukbat's supported unattended path uses Windows 10 / Server 2016 or later, PowerShell 5.1 or 7 in FullLanguage mode, a dedicated working directory, and an account allowed to operate the required files. Journaled moves require one local fixed NTFS drive. Restricted language modes are rejected before user operations; no policy bypass is attempted.
 
@@ -33,16 +33,8 @@ Use a positive `process.run` deadline. A Windows Job Object contains the root an
 
 Containment is established before child code runs, using the Windows [job-list process attribute](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute) and [kill-on-close job semantics](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects). Failure to establish it rejects launch. This does not undo external side effects or contain work delegated to an existing service or a remote host. For a modifying external command, retries need that command's own idempotency or recovery contract.
 
-## Fault acceptance
+## Storage limits
 
-`UnattendedTests` and `BatchOrganizeExampleTests` execute generated artifacts on both PowerShell versions. They cover:
-
-- host termination immediately before the first move and immediately after a rename, followed by recovery and retry;
-- ordinary failure after a successful move and automatic rollback;
-- concurrent use of one journal;
-- successful-plan replay, changed files, and corrupt journals;
-- descendant termination on deadline and after abrupt host termination;
-- closed stdin, excessive output, and restricted-language rejection;
-- 500-file execution with every output's contents checked.
-
-`fs.write_text` flushes its staged bytes before replacement; journals flush their plan before moves and commit after completion. Fault tests cover process termination, not physical power removal, damaged storage, or devices that do not honor flush requests. Keep independent backups appropriate to the data's value. These contracts support the listed workflows; the choice of language cannot make arbitrary external actions transactional.
+`fs.write_text` flushes staged bytes before replacement; journals flush their plan
+before moves and commit after completion. Flush completion does not guarantee
+recovery from power loss or damaged storage. Keep independent data backups.

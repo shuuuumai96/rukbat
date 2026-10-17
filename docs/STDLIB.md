@@ -1,7 +1,5 @@
 # Rukbat Standard Library
 
-## Confirmed v0.1 specification
-
 The standard library is part of the compiler version. A standard module is imported by its canonical name and cannot be aliased:
 
 ```rukbat
@@ -31,9 +29,9 @@ All failures described below are ordinary Rukbat runtime `Error` values and can 
 ## Choosing filesystem and path operations
 
 Use `fs` (filesystem) to inspect or change actual files and directories. Use `path` to construct,
-decompose, and compare path values without inspecting filesystem entries. Both use strings;
-no special path object or method chaining is required. A file need not exist to use `path.filename`
-or `path.parent`. `path.script_dir` reads the deployed script directory captured at startup;
+decompose, and compare path values without inspecting filesystem entries. Both use strings.
+A file need not exist to use `path.filename` or `path.parent`.
+`path.script_dir` reads the deployed script directory captured at startup;
 `path.equal` and `path.find_duplicate` use the captured working directory to resolve path spelling,
 not to compare the identity of filesystem entries.
 
@@ -74,16 +72,7 @@ for source in fs.list_files("input", "*.csv") {
 ```
 
 Here `input` is relative to the entry working directory, while `output` is beside the deployed script.
-Use `fs.stat` for the file and directory metadata specified in the `fs` section below.
-The current filesystem API does not provide directory copy or raw byte I/O.
-Those operations are not implied by similarly named file functions.
-
-## Admission criteria
-
-Standard operations must be common in Windows automation and repeatedly useful in Rukbat programs.
-They must have explicit, statically checked input/output contracts and predictable failure behavior.
-They should run on Windows PowerShell 5.1 without additional deployment dependencies.
-Use one canonical API per operation. Rukbat's standard library does not aim to provide a comprehensive wrapper for PowerShell APIs.
+Directory copy and raw byte I/O are not supported.
 
 ## Standard output and error
 
@@ -114,9 +103,8 @@ throw or exit. Only an actual preparation or delivery failure raises Error.
 | `log.error(logger: log.Logger, message: string): void` | Write an ERROR record to eligible destinations. |
 | `log.enabled(logger: log.Logger, level: log.Level): bool` | Return whether at least one destination accepts the level. |
 
-All arguments are required and positional. Format non-string messages explicitly
-with existing APIs. There is no global Logger, generic write function, alias,
-callback, or separate Output/Handler type.
+All arguments are required and positional. Format non-string messages explicitly.
+Pass the Logger to functions that need it; there is no global logger.
 
 ### Logger configuration and levels
 
@@ -177,13 +165,10 @@ Other U+0000–U+001F, U+007F–U+009F, U+2028 and U+2029 use lowercase `\uXXXX`
 Other valid Unicode scalars are preserved, including supplementary characters.
 Empty messages are valid. Unpaired UTF-16 surrogates raise Error before any output.
 Embedded line endings and terminal escape characters cannot create extra physical
-records or ANSI control sequences. This format is neither JSON Lines nor a secret
-redaction or general sanitization API.
+records or ANSI control sequences. Messages are not redacted.
 
-Stderr uses the existing `Console.Error` writer and flushes it after the complete
-record. It does not replace that writer, add colors, change host preferences, or
-use PowerShell's warning/verbose/error streams. Generated scripts retain their
-ordinary UTF-8 console setup and host redirection semantics.
+Stderr uses `Console.Error` and flushes it after each record. It uses the script's
+UTF-8 console setup and host redirection, without colors or PowerShell stream prefixes.
 
 File output uses strict UTF-8 without a BOM. Relative paths use the captured entry
 working directory, even after PowerShell/.NET location changes. Use
@@ -216,8 +201,7 @@ logging call site.
 Successful delivery to one destination is not rolled back. An Error does not mean
 nothing was written; a retry can duplicate a record. Logging inside a catch can
 itself fail under ordinary Error semantics. Handle that failure separately when
-the original Error must be preserved. The library adds no retry, fallback,
-process-exit hook, rotation, history buffer, or retained stream.
+the original Error must be preserved. There is no automatic retry, fallback, or log rotation.
 
 ## `text`
 
@@ -276,11 +260,6 @@ elements. An empty array returns `""`; one element returns that element; an empt
 the elements directly. For a nonempty separator, joining the result of `split` with that same separator
 reconstructs the original input exactly.
 
-These operations intentionally cover reading, filtering, and rewriting ordinary logs and delimited text.
-`replace_all` states the replacement scope in its name; `split_lines` gives mixed Windows/Unix line endings
-one canonical operation. No new language syntax, overloads, boolean mode flags, string methods, or regex
-API are introduced.
-
 `length`, `slice`, and `index_of` count Unicode code points, starting at zero, rather than
 UTF-16 code units or user-perceived grapheme clusters. A supplementary character such as an
 emoji counts once; a combining mark counts separately. `slice` takes a start and a count,
@@ -289,7 +268,7 @@ ranges outside the string raise Error without clamping. `index_of` returns the f
 ordinal match or `null`; an empty search returns `0`. These three operations and `upper`/`lower`
 reject unpaired UTF-16 surrogates. Case conversion uses the host .NET invariant Unicode casing
 tables, without normalization or full case folding; mappings for newly assigned Unicode
-characters can depend on the runtime version. Other text operations retain their existing contracts.
+characters can depend on the runtime version.
 
 See [the log-filter example](../examples/filter-errors.rukbat) for a procedural file-processing workflow.
 
@@ -341,7 +320,7 @@ of UTF-16 code units, independent of culture, without normalization or natural-n
 Integers remain exact, and datetime keys compare their exact tick counts. Equal keys preserve
 the original order, including descending sorts. `sort_by` variants require one key per value;
 unequal lengths raise Error. Inputs and keys are evaluated once, in written order. Build a
-separate key array to order CSV rows or structs without callbacks or new language syntax.
+separate key array to order CSV rows or structs.
 
 ```rukbat
 import array
@@ -518,7 +497,7 @@ print(datetime.stringify_date(yesterday))
 
 Predefined values are not the support ceiling. `from_code_page` supports additional fixed Windows code pages when the target Windows APIs accept strict decoding and encoding flags. Additional values use `windows-N`; predefined special names remain canonical (`65001` is `utf-8`, not `windows-65001`). `parse(name(value))` preserves identity.
 
-Numbers 0, 1, 2, and 3 (environment-dependent defaults), Symbol (42), UTF-7, stateful encodings such as ISO-2022 and ISCII, and EUC-JP (20932 / 51932) are unsupported. EUC-JP and ISO-2022-JP need separate mapping and strict validation policies. Unsupported values cause ordinary Error; no converter silently substitutes characters or applies best-fit transliteration. Availability is checked on the deployment machine.
+Numbers 0, 1, 2, and 3 (environment-dependent defaults), Symbol (42), UTF-7, stateful encodings such as ISO-2022 and ISCII, and EUC-JP (20932 / 51932) are unsupported. Unsupported values cause ordinary Error; no converter silently substitutes characters or applies best-fit transliteration. Availability is checked on the deployment machine.
 
 Use the typed values directly in source. Use `parse` only at an external text boundary:
 
@@ -535,7 +514,7 @@ Values support ordinary assignment, parameters, returns, arrays, struct fields, 
 and same-type `==` / `!=`. They have no fields, constructors, numeric conversions, or implicit
 conversion to/from strings. To print or serialize an encoding, call `encoding.name`. To restore
 it, call `encoding.parse`. Direct JSON conversion and direct PowerShell arguments/results,
-including nested containers, are rejected. This module adds no user-declared enum syntax.
+including nested containers, are rejected.
 
 ## `fs`
 
@@ -780,12 +759,11 @@ as `//server/share/data`. Ordinary relative paths, root-relative `/data`, drive-
 `C:data`, incomplete UNC roots, and unsupported forms return `false`. A `true` result
 does not imply existence, permissions, or that a later filesystem operation will succeed.
 
-The new `resolve`, `relative`, `is_absolute`, `stem`, and `change_extension` operations
+The `resolve`, `relative`, `is_absolute`, `stem`, and `change_extension` operations
 support ordinary Windows drive and UNC paths. Device namespaces (`\\?\` and `\\.\`),
 PowerShell provider paths, alternate data streams, drive-relative spellings, and invalid
 path characters are rejected. The transformations raise Error; `is_absolute` returns
-`false`. Whitespace-only and empty path inputs are invalid. Existing lexical operations
-retain their own contracts, including `parent("C:child")`.
+`false`. Whitespace-only and empty path inputs are invalid.
 
 `stem` and `change_extension` follow the existing last-extension rule:
 `stem("archive.tar.gz")` is `"archive.tar"`, `stem("README")` is `"README"`, and
@@ -801,7 +779,7 @@ The operation rejects roots, trailing separators, final `.`/`..`, and removals s
 
 `equal` compares resolved path spelling, not filesystem object identity. It does not resolve symbolic links, junctions, hard links, short names, or filesystem object IDs.
 
-Existing `equal` and `find_duplicate` preserve trailing separators in their comparison;
+`equal` and `find_duplicate` preserve trailing separators in their comparison;
 `equal("C:/work", "C:/work/")` is `false`. In contrast, `relative` compares directory
 components and returns `"."` for that pair.
 
@@ -1111,7 +1089,7 @@ print(numbers[0])
 | `env.set(name: string, value: string): void` | Sets a non-empty value in the current Rukbat process environment. | An empty value or invalid platform-level access causes Error. |
 | `env.remove(name: string): void` | Removes a name from the current Rukbat process environment. Removing an undefined name succeeds. | Invalid platform-level access causes Error. |
 
-Ordinary environment-variable operations in Windows PowerShell 5.1 / .NET Framework treat setting an empty string as removal. Because the Windows PowerShell 5.1-compatible runtime cannot safely represent setting an empty value, `env.set(name, "")` causes Rukbat Error. Use `env.remove(name)` for removal. If an empty environment value is inherited from a parent process, `env.get` reads it as `""`. No Win32 API calls are added solely to support setting empty values.
+Windows PowerShell 5.1 / .NET Framework treats setting an empty string as removal. Rukbat rejects `env.set(name, "")`; use `env.remove(name)` for removal. An empty value inherited from a parent process is read as `""`.
 
 Changes affect the current process and are inherited by subsequently started child processes. They do not modify persistent user or machine environment settings.
 
@@ -1465,7 +1443,7 @@ Content-Length. Protocol upgrades are unsupported. HTTP/1.1 is the common target
 
 The client requests `Accept-Encoding: identity`. Received application bytes are not transformed;
 non-identity Content-Encoding is rejected (except HEAD, where it describes an untransferred body).
-Gzip/Deflate/Brotli HTTP content coding is not implemented in this version. Chunked transfer framing
+Chunked transfer framing
 is handled by the HTTP transport and is not part of Body. The byte limit applies while reading,
 not only to the declared Content-Length; mismatched/incomplete lengths are errors.
 
@@ -1636,9 +1614,7 @@ each array's order. Descriptions are indented on following lines. Required/repea
 defaults and choices are included; formatting does not depend on terminal width or locale.
 
 See [Command-line programs](CLI.md) and the [file-browser example](../examples/file-browser/options.rukbat).
-The runtime is emitted as PowerShell 5.1-compatible helpers; importing cli alone needs no Add-Type
-or filesystem/process/encoding helper. Adding the canonical standard module name `cli` reserves
-it as a relative-import alias, following the existing standard-module rule.
+The `cli` module requires no Add-Type permission.
 
 ## `test`
 

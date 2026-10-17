@@ -6,7 +6,7 @@ Install `rukbat-<version>-win32-x64.vsix` using **Extensions: Install from VSIX*
 Open a saved `.rukbat` file in a trusted Windows workspace. Diagnostics,
 completion and formatting use the compiler included in the extension.
 No .NET SDK/runtime installation, PATH change, compiler configuration or
-additional download is required. The first release targets Windows x64.
+additional download is required. The package targets Windows x64.
 Existing application-control policy still applies to the bundled executable.
 
 Use **Rukbat: Run File** to run a saved source, or **Rukbat: Build PowerShell**
@@ -56,8 +56,7 @@ Compare hashes with a trusted copy of SHA256SUMS before installing. A hash manif
 detects changed files; it does not establish publisher identity by itself.
 Archives have versioned names. Keep the approved ZIP in a versioned directory and
 pin automated builds to its executable. To roll back, select the previous directory
-or install the previous VSIX. VS Code's automatic extension-update setting controls
-editor updates if a Marketplace version is used in the future.
+or install the previous VSIX.
 
 ## Build the distribution (maintainers)
 

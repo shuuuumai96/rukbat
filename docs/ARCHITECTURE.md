@@ -54,10 +54,6 @@ accidentally compiled into the authoring tool; ProcessJob is explicitly compiled
 as well as embedded for generated scripts. Moving these files must preserve both resource names and
 the operations toolkit's ProcessJob copy path.
 
-Structural changes should preserve generated text, diagnostics and debug maps. Compare representative
-ordinary and debug compilations before and after a refactor, then run semantic/editor tests and
-execute affected helpers on Windows PowerShell 5.1 and PowerShell 7.
-
 ## Shared tooling
 
 | Tool | Use of compiler stages |
@@ -132,7 +128,7 @@ API contracts belong in [STDLIB.md](STDLIB.md). The implementation boundaries ar
 | `hash` | HashValues shares validated identities and boundary checks. The helper streams standard cryptographic operations and uses canonical strict text encoding. |
 | `zip` | Bound Options/Entry fields are adapted. Metadata, including ZIP64, is bounded before ZipArchive materialization; raw names use strict codecs. Extraction checks sizes/CRC and publishes a sibling stage without replacement. Loads the installed compression assembly. |
 | `http` | HttpValues shares identities/constants; HttpEmission adapts struct fields and evaluates expressions once. System.Net.Http handles bounded immutable body bytes with reusable clients, explicit proxy/credentials, one deadline, and response disposal. Redirects are controlled explicitly; downloads stage and publish without replacement. Non-200 bodies use bounded memory. |
-| `log` | LogValues centralizes levels, ranks, labels and operations. LogEmission adapts ordinary Logger field keys after argument copying. Shared PowerShell threshold selection handles enabled/filtered calls without native loading. Eligible writes lazily load a C# 5 formatter/delivery helper, prepare one record, attempt stderr then file, and aggregate destination-labelled failures. File resolution uses captured entry context. Native calls carry argument/prepared arrays so large messages and records are not exposed as scalar string arguments to the PowerShell binder. No messages, configurations, history or open streams are retained. |
+| `log` | LogValues defines levels and operations. LogEmission adapts Logger fields; LogRuntime selects destinations and aggregates failures. Eligible writes lazily load a C# 5 formatter/delivery helper. Native argument arrays avoid large-string invocation copies. See [logging design](LOGGING_DESIGN.md). |
 
 Process byte capture and file decoding share the encoding selector. The CLI runner
 and operations toolkit use the process helper's UTF-8 wrapper. Opaque validated

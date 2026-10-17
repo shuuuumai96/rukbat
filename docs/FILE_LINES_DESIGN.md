@@ -7,7 +7,7 @@ internal iteration contract shared with array iteration.
 The [standard library](STDLIB.md#sequential-line-reads) defines the public API,
 the [language specification](language.md#control-flow) defines loop semantics, and
 the [architecture](ARCHITECTURE.md#standard-library-implementation) identifies compiler
-and runtime responsibilities. This document explains the design and its validation limits.
+and runtime responsibilities.
 
 ## Purpose and design rationale
 
@@ -33,52 +33,6 @@ The design targets synchronous reads of regular files. Log tailing, asynchronous
 I/O, cancellation, seeking, resumable positions, writable streams, and incremental
 CSV/JSON parsing are outside its scope. Physical lines are not CSV records;
 multiline CSV requires a record parser.
-
-## Descriptor semantics
-
-```text
-fs.lines(path: string, encoding: encoding.Encoding): fs.Lines
-```
-
-```rukbat
-import encoding
-import fs
-import text
-
-count := 0
-for line in fs.lines("application.log", encoding.utf8) {
-    if text.contains(line, "ERROR") {
-        count = count + 1
-    }
-}
-print(count)
-```
-
-`fs.Lines` contains an absolute path and a canonical encoding name. Arguments are
-evaluated once, left to right. Relative paths resolve against the working directory
-captured at script startup, using the ordinary fs path rules. Descriptor creation
-validates the encoding but neither checks file existence nor opens the target.
-A failure to load a required native helper raises Error at the call.
-
-Descriptors hold no cursor, file handle, decoder, or module closure. Variables,
-const values, parameters, returns, structs, arrays, dictionaries, and nullable values
-can retain them. A const descriptor does not freeze external file contents.
-Printing, equality, JSON conversion, and PowerShell transfer are rejected recursively,
-including inside containers. Descriptors expose no fields, constructor, indexing,
-length, next, or close operation. A nullable descriptor requires ordinary null narrowing
-before iteration; iterating `fs.Lines[]` yields descriptor values.
-
-| Operation | Behavior |
-|---|---|
-| Create, copy, retain, or discard a descriptor | Retains no file handle. |
-| Enter `for` | Evaluates the input once and opens its stored absolute path once. Missing-file and access errors occur here. |
-| Repeat or nest traversal | Opens an independent handle and decoder, starting at the beginning. |
-| Replace the file between traversals | The next traversal opens the file then present at the stored path. |
-| Reassign the descriptor variable in the body | Leaves the active traversal unchanged. |
-| Assign to the loop variable | Changes only the retrieved string value. |
-
-The descriptor preserves neither file identity nor a snapshot of file contents.
-Repeatability means independent positions, not identical contents across traversals.
 
 ## Traversal ownership and cleanup
 
@@ -114,49 +68,6 @@ Only reaching EOF flushes the decoder. Closing after an early exit neither decod
 nor validates unread input. A previously raised read-ahead error still follows the
 ordinary Error path.
 
-## Lines, encodings, and read-ahead
-
-CRLF is one terminator; lone CR and LF also terminate lines. Terminators are removed.
-Spaces, tabs, NUL, internal U+FEFF, U+0085, U+2028, and U+2029 remain content.
-An internal boolean distinguishes EOF from an empty physical line.
-
-| Text after BOM handling | Returned lines |
-|---|---|
-| `""` | No lines |
-| `"a"`, `"a\n"` | `"a"` |
-| `"\n"` | `""` |
-| `"a\n\n"` | `"a"`, `""` |
-| `"a\r\nb\rc\n"` | `"a"`, `"b"`, `"c"` |
-| `"\r\r\n"` | `""`, `""` |
-
-For valid, unchanged contents, complete traversal matches
-`text.split_lines(fs.read_text(path, encoding))`. The reader itself decodes chunks and
-splits lines without materializing the whole file.
-
-All encodings accepted by `encoding.Encoding` apply, including values constructed
-with `encoding.from_code_page`. The existing encoding selector controls acceptance
-on the target Windows environment; predefined values are not a separate support limit.
-Decoding is strict and uses the same valid-input mappings as whole-input conversion.
-
-`RukbatFileText.BomOffset` supplies the same BOM rules to line traversal and `fs.read_text`:
-
-| Selected encoding | Leading BOM handling |
-|---|---|
-| UTF-8 | Removes only the matching three bytes. |
-| UTF-16 LE/BE | Removes the matching two bytes; an opposite-endian two-byte BOM causes Error. |
-| UTF-32 LE/BE | Removes the matching four bytes; an opposite-endian four-byte BOM causes Error. |
-| Other encodings | No special BOM handling. |
-
-A missing BOM is valid. Encoding selection never changes automatically. With UTF-16LE
-selected, `FF FE 00 00` removes only the first two bytes and retains NUL. A second BOM
-is content; partial prefixes are passed through strict decoding.
-
-Read-ahead decodes a chunk before returning its lines. Invalid bytes after a valid
-line can therefore cause Error before that line reaches the body. The number of body
-executions for invalid input depends on read boundaries and is unspecified. Only
-complete traversal validates the entire input. This permits chunked conversion without
-a separate mechanism to defer errors to a particular physical line.
-
 ## Decoding and buffering
 
 The read path is `FileStream -> BOM handling -> decoding -> line splitting`.
@@ -184,9 +95,7 @@ Windows codecs other than GB18030 use the following algorithm:
 
 This relies on stateless conversion, a maximum incomplete suffix of three bytes, and
 accepted prefixes that later bytes cannot reinterpret. The codec excludes stateful
-formats. Finite composition tests cover locally accepted code pages; they are not an
-independent proof of every mapping or longer input. Any counterexample requires
-boundary handling that preserves the same public encoding contract.
+formats.
 
 The native codec and Unicode adapter expose
 `Func<byte[], int, int, bool, string>` internally, with the boolean requesting EOF flush.
@@ -247,7 +156,6 @@ There is no line-length limit. A single line spanning the file still requires me
 proportional to that file, and recovery from memory exhaustion is not guaranteed.
 Nested traversals, user-retained lines, and ordinary function locals add their own
 storage. Closing clears internal references without requiring immediate collection.
-Process-memory measurements remain outside the verified coverage described below.
 
 ## Binding, generation, and diagnostics
 
@@ -337,7 +245,7 @@ Execution stops at the loop header on entry and at body statements, as for other
 Inspection displays `fs.Lines` as opaque and does not expand internal readers or
 buffers. A paused traversal keeps its handle open under the normal sharing rules.
 
-## Implementation and verification
+## Implementation
 
 | Component | Responsibility |
 |---|---|
@@ -352,46 +260,3 @@ buffers. A paused traversal keeps its handle open under the normal sharing rules
 Native sources remain C# 5-compatible and are embedded in standalone generated scripts.
 The feature uses the target's existing Windows PowerShell/.NET facilities. Authoring
 tool packaging is described in [DISTRIBUTION.md](DISTRIBUTION.md).
-
-### Test coverage
-
-These tests exercise the implementation directly.
-
-| Test source | Coverage |
-|---|---|
-| [FileLineRuntimeTests](../tests/Rukbat.Tests/FileLineRuntimeTests.cs) | Short reads, Unicode boundaries, BOM rules, terminators, long lines, EOF, decoder state, and idempotent close including injected disposal failure. Whole-input GB18030 checks cover all four-byte shapes; incremental split checks cover representative valid, unmapped, and incomplete units. |
-| [FileLinesTests](../tests/Rukbat.Tests/FileLinesTests.cs) | Invalid API uses, bound opaque types across modules and containers, whole-read equivalence, invalid bytes, independent traversal, value copies, cleanup, and deferred returns. Control-flow and injected-close-failure cases run generated normal/debug scripts on both PowerShell hosts. |
-| [FileEncodingTests](../tests/Rukbat.Tests/FileEncodingTests.cs), [ExpandedEncodingTests](../tests/Rukbat.Tests/ExpandedEncodingTests.cs), [ProcessEncodingTests](../tests/Rukbat.Tests/ProcessEncodingTests.cs) | Shared encoding and whole-input conversion regressions. |
-| [LanguageServerTests](../tests/Rukbat.Tests/LanguageServerTests.cs) | File API completion, hover, and diagnostics. |
-| [Debug adapter tests](../editors/vscode/test/debug.test.js) | Opaque descriptor inspection while paused and file release after `break`. |
-| [VS Code acceptance suite](../editors/vscode/test/editor-suite.js) | Completion, hover, incomplete-call signature help, and Run File traversal using the bundled compiler. |
-
-`AllAcceptedNativeCodecsPreserveConcatenatedUnitsAndIndependentState` enumerates code
-pages accepted on the test host. It concatenates accepted single-byte units and
-accepted pairs whose first byte cannot stand alone, compares whole-input and incremental
-decoding at widths 1, 2, 3, 7, and 65,536, and checks independent empty decoders. This
-finite composition coverage does not prove all longer inputs or mapping correctness
-against independent tables. Native tests compile the embedded helper sources with
-a test-only nullable-context header; generated scripts use the C# 5 sources directly.
-
-### Validation limits
-
-The public contract and implementation structure do not imply complete environmental
-or fault-injection coverage. The following remain unverified for file-line traversal:
-
-- UNC shares and broader Windows-version coverage, including the codecs available
-  on each target environment.
-- Dedicated filesystem cases for literal metacharacters, Japanese paths, cwd changes,
-  links, and sharing conflicts.
-- Explicit assertions for combined Error source locations, exclusive reopening
-  immediately inside a catch, and failures during post-open initialization.
-- Process memory as file size increases with fixed line length, and retention in
-  nested traversals and long-lived functions. Measure huge single lines separately;
-  distinguish helper loading and GC variation from sustained traversal. Fixed elapsed-time
-  thresholds do not belong in CI.
-- CLI, LSP, and extension execution on a machine without a separately installed .NET
-  runtime. Local self-contained packaging alone does not establish this.
-
-Tests that establish file release after traversal do not prove cleanup execution
-after forced host termination. Encoding tests on one Windows environment likewise
-do not establish compatibility on every Windows version.

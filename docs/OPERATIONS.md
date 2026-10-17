@@ -1,11 +1,10 @@
 # Operating unattended Rukbat jobs
 
 Use `tools/operations/Invoke-Job.ps1` for both manual and scheduled launches.
-The table below separates tool guarantees from deployment responsibilities.
 
 The tools require Windows 10 / Server 2016 or later, FullLanguage, and Windows PowerShell 5.1 or PowerShell 7. State storage must be local fixed NTFS. All configured paths must be absolute local paths without reparse points. Network access performed by the business program is separate from this local deployment profile. No execution-policy bypass, elevation, persistent agent or extra deployment runtime is installed.
 
-## Responsibility and acceptance boundary
+## Responsibilities
 
 | Concern | Rukbat and its supplied tools | Deployment owner |
 |---|---|---|
@@ -89,7 +88,7 @@ Have the site's monitoring system poll this command and alert on nonzero exit or
 
 `-NotifyScript C:\Monitoring\notify.ps1` invokes an adapter only for a nonhealthy probe, passes a temporary JSON report path as its sole argument, and bounds it to thirty seconds. The adapter must read the file before returning and return nonzero when delivery fails. `tools/operations/Notify-Webhook.ps1` is an HTTPS JSON POST example using the monitor account's `RUKBAT_ALERT_URL` environment variable; set it only for the intended endpoint. The example does not implement provider-specific payloads. Repeated probe failures invoke the adapter again; deduplication/escalation belongs to the monitoring service.
 
-The integration tests use a local notification sink and check its received JSON. That is not proof that an external service or a person received a production alert. Test delivery and acknowledgment with the actual configured receiver. To detect a stopped machine, run monitoring outside that machine; local scheduled monitoring cannot notify while its host is down.
+Test delivery and acknowledgment with the configured receiver. Run monitoring outside the job's machine so it can detect a stopped host.
 
 ## Reconcile a failed or interrupted run
 
@@ -107,7 +106,7 @@ Do not delete the current run record to allow another launch. After any nonsucce
     -RecoveryNote 'Verified the move journal and restored the interrupted plan.'
 ```
 
-The note is an operator assertion, not an automatic proof of business correctness. The runner preserves it and links the new run to the old run. The API's own journal verification still applies. Retrying with a changed configuration is rejected. External commands need their own idempotency/reconciliation contract; terminating a process cannot undo its effects.
+The runner preserves the recovery note and links the new run to the old run. Journal verification still applies. Retrying with a changed configuration is rejected. External commands need their own idempotency/reconciliation contract; terminating a process cannot undo its effects.
 
 ## Upgrade, roll back and restore data
 
@@ -128,15 +127,3 @@ before switching live paths. Restored file IDs may differ from the move journal;
 use a new reviewed plan and retain the old journal. Set backup frequency and
 permitted data loss for the job, and exercise restoration on target storage.
 Arbitrary external side effects have no universal backup/rollback mechanism.
-
-## Acceptance examples and release gate
-
-`OperationsTests` exercises both PowerShell hosts through actual packaged releases:
-
-- CSV file organization with journaled replay (`examples/batch-organize`).
-- External CLI checks with output/result verification (`examples/batch-check`).
-- Read-only Windows administration, verifying a named service is running and writing typed JSON (`examples/windows-audit`).
-- Literal argument preservation without original sources, manifest refusal, stale-build refusal, whole-job deadlines, concurrent launch rejection, supervisor termination, monitoring, notification handoff and explicit reconciliation.
-- Scheduler XML, bounded retries and release rollback.
-
-Run `dotnet test --filter FullyQualifiedName~OperationsTests`. Unit/API tests and operations tests establish different claims. The final deployment acceptance must additionally include the actual account, scheduler launch without an interactive login, storage permission/capacity failures, required production volume, backup restoration, remote availability monitoring and receiver acknowledgment. Record each as passed, failed or unverified; never substitute an exported task or a local notification file for those production checks.

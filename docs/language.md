@@ -1,7 +1,5 @@
 # Rukbat Language Specification
 
-## Confirmed specification
-
 Rukbat is a typed, procedural language for Windows system scripting. It is not PowerShell syntax. Successful compilation produces one standalone Windows PowerShell 5.1-compatible `.ps1` file.
 
 ## Commands and arguments
@@ -63,8 +61,7 @@ fn greet(person: string): void {
   or function invocation. `const` does not add compile-time expression evaluation.
 - Const declarations are allowed at module level and in ordinary statement blocks.
   They cannot qualify parameters, struct fields, or function declarations. `const`
-  is a reserved word. Existing variable declaration and assignment syntax keeps
-  its meaning; a same-scope redeclaration remains invalid.
+  is a reserved word.
 - Assignment to a const name, any field/index path rooted at that name, array
   `append`, dictionary `remove`, and a method that modifies that receiver produce `RUK2011`.
   This includes nested arrays/structs/dictionaries and narrowed nullable values. Reading and
@@ -76,9 +73,7 @@ fn greet(person: string): void {
 - Ordinary assignment, arguments, returns, and loop bindings still copy values.
   A copy of a const value held by an ordinary variable or parameter is mutable.
   `const` is a restriction on a declared name, not a new type. Const module values
-  remain module-local, like ordinary variables. These rules are checked by the
-  Rukbat front end; generated PowerShell uses ordinary initialization and value
-  copies, without an additional runtime or PowerShell constant-variable mechanism.
+  remain module-local, like ordinary variables.
 - `fn` is the only function declaration syntax. Free functions are defined at module scope. Methods are defined inside a struct declaration.
 
 Names are case-sensitive. Statements are separated by a newline or `;`. Blocks use braces.
@@ -118,8 +113,7 @@ rules are defined in [STDLIB.md](STDLIB.md).
 | `datetime.Timestamp`, `datetime.Date`, `datetime.Duration`, `datetime.Zone` | Explicit conversions/arithmetic; same-type equality, and ordering except for Zone. Named zones are read-only constants. |
 
 Encoding, hash, log.Level, HTTP opaque types, fs.Lines, and datetime types are recursively rejected at
-printing, JSON, and PowerShell boundaries. These standard types introduce no general
-enum syntax. JSON/CSV updates preserve originals; ordinary container copies remain
+printing, JSON, and PowerShell boundaries. JSON/CSV updates preserve originals; ordinary container copies remain
 independent. ZIP exports ordinary `zip.Options` and `zip.Entry` structs.
 
 ```rukbat
@@ -132,11 +126,11 @@ optional_values: string[]? = null
 
 `int` and `float` have no implicit conversions, including nullable values. Use the explicit `math` conversion operations in STDLIB.md.
 
-A nullable variable or parameter can be narrowed by a direct `== null` or `!= null` check. An early `return` or `throw` from the null branch also narrows the following path. Assignment recalculates the variable's narrowed state. Struct fields, array elements, and other complex expressions are not narrowed in v0.1.
+A nullable variable or parameter can be narrowed by a direct `== null` or `!= null` check. An early `return` or `throw` from the null branch also narrows the following path. Assignment recalculates the variable's narrowed state. Struct fields, array elements, and other complex expressions are not narrowed.
 
 Module variables can also be narrowed. A call to an ordinary function in the same module invalidates their narrowing because that function may modify them. `print`, standard built-ins, and functions in another module do not invalidate current-module narrowing.
 
-Before narrowing, a `T?` value can only be compared directly with the `null` literal, stored in a compatible nullable location, passed or returned as a nullable value, encoded as JSON when its type supports JSON, or passed through a supported nullable-aware external boundary. General equality between two nullable expressions is not defined in v0.1.
+Before narrowing, a `T?` value can only be compared directly with the `null` literal, stored in a compatible nullable location, passed or returned as a nullable value, encoded as JSON when its type supports JSON, or passed through a supported nullable-aware external boundary. General equality between two nullable expressions is not defined.
 
 ## Numbers and equality
 
@@ -155,7 +149,7 @@ Runtime errors report source names relative to the entry source directory, norma
 ## Types and expressions
 
 `import array` provides slice, removal, and stable sort operations that return new arrays.
-Element types are inferred from typed array arguments; this adds no general generic syntax.
+Element types are inferred from typed array arguments.
 See STDLIB.md for range checks, supported key types and ordering rules.
 
 Arrays have mutable lengths. `values.append(value)` adds one value to the end of an array and returns `void`. `append` exists only on an array value that is assignable as the left side of `=`: a variable, or a chain of struct fields and array indexes rooted at a variable. It cannot mutate a temporary value such as a function result. The appended value must be compatible with the array element type.
@@ -262,12 +256,6 @@ Methods use `fn` and may read or update `self`. A method that updates `self` may
 
 Imports are static and resolved before execution. Relative project modules use an explicit relative `.rukbat` path and an alias. Standard-library modules use their canonical module names as defined in `STDLIB.md`.
 
-Filesystem operations use `import fs`; path-value operations use `import path`.
-Diagnostic logging uses `import log`, reserving `log` as a standard module alias.
-Logger arguments use ordinary copying and eager left-to-right evaluation even when
-the record is filtered. Logging configuration, format, destinations and failure
-rules are defined in STDLIB.md.
-
 ## PowerShell boundary
 
 The generated script captures its initial filesystem working directory and its script directory from `$PSScriptRoot` before initializing modules. For direct `powershell -File` / `pwsh -File` execution, including `rukbat run`, the working directory is the host process's current directory, with path characters such as `[` and `]` treated literally. When a PowerShell statement invokes the script, the working directory is that session's filesystem location instead. Relative standard-library file paths use that captured directory, even if escape-hatch code changes PowerShell's location or .NET's current directory. process.Options.working_dir explicitly chooses the child's working directory; a relative setting and executable path still resolve against the captured directory. Child-only environment overrides and text input are described in STDLIB.md. Escape-hatch commands retain PowerShell semantics.
@@ -313,10 +301,6 @@ See [EDITOR.md](EDITOR.md) for language-server behavior and editing scope, and
 [DEBUGGING.md](DEBUGGING.md) for debug builds and metadata. These tools add no
 language syntax or standard-library APIs.
 
-## Current exclusions
+## Unsupported features
 
-Rukbat does not provide union types, arbitrary object types, pipelines, closures, function values, package management, multiple catch clauses, `finally`, or generic language syntax. Standard-library API design is specified separately and must not be inferred from the current compiler layout.
-
-## Not yet specified
-
-The following are not confirmed language specification: function overloads, a named `main` entry point, additional numeric types.
+Rukbat does not provide union types, arbitrary object types, pipelines, closures, function values, function overloads, package management, multiple catch clauses, `finally`, or user-defined generics. Module-level statements are the program entry point.

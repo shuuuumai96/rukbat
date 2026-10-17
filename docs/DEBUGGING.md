@@ -57,7 +57,7 @@ own output and removes it after the PowerShell host exits. A regular `.ps1`
 build is not overwritten. **Run Without Debugging** uses the same launch
 configuration and passes arguments without stopping.
 
-## Current limits
+## Limitations
 
 - Line breakpoints stop before executable statements. Declarations of functions
   or structs, imports, comments, and closing braces are not executable stops.

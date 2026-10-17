@@ -1,5 +1,7 @@
 # Rukbat
 
+[日本語](docs/ja/README.md)
+
 Rukbat is a small, statically typed language for Windows system scripting.
 It compiles `.rukbat` sources and their imports into one standalone `.ps1` file
 for Windows PowerShell 5.1. The generated script needs no Rukbat installation.

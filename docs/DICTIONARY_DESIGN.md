@@ -1,6 +1,5 @@
-# Typed dictionaries — design record
+# Dictionary design
 
-Status: implemented. This record explains the choices behind dictionaries.
 The [language specification](language.md#dictionaries) owns syntax and semantics;
 [STDLIB.md](STDLIB.md#dictionaries-and-json-objects) owns JSON conversion, and
 [ARCHITECTURE.md](ARCHITECTURE.md#dictionaries) describes storage and generation.
@@ -31,8 +30,6 @@ APIs. This built-in container does not introduce user-defined generics.
 | String-key JSON conversion only | JSON object names are strings; integer keys must be represented explicitly. |
 | No direct PowerShell dictionary boundary | Avoid case-insensitive keys, mixed values, implicit conversion, and stream enumeration. |
 
-There is no separate set type, alternate get/set API, default-on-missing read,
-callback-based insertion, values/items API, or dictionary-specific loop syntax.
 JSON conversion canonicalizes keys in ordinal order, so it preserves supported
 content but not insertion order. Immutable opaque values may share backing storage;
 that does not make them JSON-compatible.
@@ -53,15 +50,5 @@ Expected costs, excluding copying an individual composite value:
 Function arguments still copy dictionaries. Optimizations must preserve observable
 value semantics. Dictionary operations alone require neither Add-Type nor an extra
 installed runtime; contained values and imported modules retain their own requirements.
-
-## Regression coverage
-
-- Literal inference and context, invalid types, duplicate keys, nested types, and unchanged struct/block parsing.
-- Missing versus null, ordinal key identity, extreme integer keys, overwrite/remove/reinsert order, and key snapshots.
-- Deep copies, nested mutation, const/temporary rejection, and single evaluation of key expressions.
-- Strict JSON conversion and recursive rejection of unsupported external values.
-- Large counters without whole-receiver copies; avoid wall-clock performance thresholds.
-- Formatting, diagnostics, completion, hover, signature help, references, rename, and debugger inspection.
-- CSV lookup/counting on PowerShell 5.1 and 7, standalone deployment, and the packaged VS Code extension.
 
 Runnable usage: [CSV category counter](../examples/csv-count/README.md).

@@ -76,7 +76,6 @@ Changes, saves, closes, and watched-file changes trigger reanalysis.
 
 Completion may repair missing members or delimiters in a temporary copy. Syntax
 errors can limit semantic features; real-source diagnostics remain unchanged.
-Tree-sitter integration is not implemented.
 
 Rename requires versioned `documentChanges` and transactional or text-only-
 transactional edits. Prepare Rename returns a range/name without reserving a source
