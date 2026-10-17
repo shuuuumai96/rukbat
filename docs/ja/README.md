@@ -1,19 +1,10 @@
 # Rukbat
 
-[English](../../README.md)
+[English](../../README.md) · [言語仕様](language.md) · [標準ライブラリ](STDLIB.md) · [サンプル](../../examples/)
 
 Rukbatは、Windowsのシステムスクリプトを書くための小さな静的型付き言語です。
-`.rukbat`のソースとインポート先を、Windows PowerShell 5.1で単独実行できる1つの`.ps1`ファイルにコンパイルします。
-生成したスクリプトの実行先にRukbatをインストールする必要はありません。
-
-<a id="getting-started"></a>
-
-## はじめに
-
-Windows x64では、VS Codeの **Extensions: Install from VSIX** で`rukbat-<version>-win32-x64.vsix`をインストールします。
-コンパイラは拡張機能に含まれるため、.NETの別途インストールやPATHの設定は不要です。
-
-信頼済みのフォルダーを開き、次の内容を`hello.rukbat`として保存します。
+Windows PowerShell 5.1で単独実行できるスクリプトにコンパイルします。
+実行先にRukbatをインストールする必要はありません。
 
 ```rukbat
 fn greet(name: string): void {
@@ -23,16 +14,17 @@ fn greet(name: string): void {
 greet("Rukbat")
 ```
 
-1. コマンドパレットから **Rukbat: Run File** を実行します。引数がなければ`[]`のまま確定します。
-2. **Rukbat: Build PowerShell** を実行すると、ソースと同じディレクトリに`hello.ps1`が生成されます。
-3. 生成したスクリプトを単独で実行します。
+<a id="getting-started"></a>
 
-   ```powershell
-   powershell -NoProfile -File .\hello.ps1
-   ```
+## はじめに
 
-拡張機能には、補完、診断、整形、デバッグもあります。
-エディタのコマンドは[VS Code拡張機能ガイド](VSCODE.md)を参照してください。
+配布パッケージはまだリリースしていません。
+[パッケージ作成手順](DISTRIBUTION.md#build-the-distribution-maintainers)に沿って、Windows x64向けのVSIXとCLIのZIPをビルドしてください。
+
+VS Codeの **Extensions: Install from VSIX** でVSIXをインストールします。
+信頼済みのフォルダーに上の例を`hello.rukbat`として保存し、コマンドパレットから **Rukbat: Run File** を実行します。引数がなければ`[]`のまま確定します。
+**Rukbat: Build PowerShell** で、ソースと同じ場所に`hello.ps1`を生成します。
+拡張機能にはコンパイラのほか、補完、診断、整形、デバッグが含まれます。
 
 ターミナルから使う場合はCLIのZIPを展開し、その中の`rukbat.exe`を実行します。
 
@@ -40,11 +32,12 @@ greet("Rukbat")
 .\rukbat.exe check .\hello.rukbat
 .\rukbat.exe run .\hello.rukbat
 .\rukbat.exe build .\hello.rukbat
+powershell -NoProfile -File .\hello.ps1
 ```
 
-生成したスクリプトにはPowerShellのFullLanguageモードが必要です。
-ネイティブヘルパーを使う機能には、Add-Typeの実行許可も必要です。
-パッケージ、実行環境の要件、更新方法は[配布ガイド](DISTRIBUTION.md)を参照してください。
+パッケージには.NETを同梱しているため、ランタイムの別途インストールは不要です。
+生成したスクリプトにはFullLanguageモード、ネイティブヘルパーにはAdd-Typeの実行許可が必要です。
+実行環境の要件は[配布ガイド](DISTRIBUTION.md)を参照してください。
 
 <a id="documentation"></a>
 
@@ -62,6 +55,9 @@ greet("Rukbat")
 
 ## コンパイラを開発する
 
+<details>
+<summary>ソースからのビルドとテスト</summary>
+
 Rukbat自体のビルドには.NET 8 SDKが必要です。リポジトリのルートで実行します。
 
 ```powershell
@@ -75,3 +71,5 @@ dotnet test --no-restore
 
 VSIXとポータブルCLIのZIPを作るには、Node.js/npmをインストールして`tools/package.ps1`を実行します。
 詳細は[パッケージ作成手順](DISTRIBUTION.md#build-the-distribution-maintainers)を参照してください。
+
+</details>

@@ -1,18 +1,10 @@
 # Rukbat
 
-[日本語](docs/ja/README.md)
+[日本語](docs/ja/README.md) · [Language](docs/language.md) · [Standard library](docs/STDLIB.md) · [Examples](examples/)
 
 Rukbat is a small, statically typed language for Windows system scripting.
-It compiles `.rukbat` sources and their imports into one standalone `.ps1` file
-for Windows PowerShell 5.1. The generated script needs no Rukbat installation.
-
-## Getting started
-
-On Windows x64, install `rukbat-<version>-win32-x64.vsix` in VS Code using
-**Extensions: Install from VSIX**. The extension includes the compiler;
-no separate .NET installation or PATH configuration is needed.
-
-Open a trusted folder and save this as `hello.rukbat`:
+It compiles to standalone Windows PowerShell 5.1 scripts. No Rukbat installation
+is needed on the target machine.
 
 ```rukbat
 fn greet(name: string): void {
@@ -22,28 +14,29 @@ fn greet(name: string): void {
 greet("Rukbat")
 ```
 
-1. Run **Rukbat: Run File** from the Command Palette. Accept `[]` for no arguments.
-2. Run **Rukbat: Build PowerShell** to generate `hello.ps1` beside the source.
-3. Run the generated script independently:
+## Getting started
 
-   ```powershell
-   powershell -NoProfile -File .\hello.ps1
-   ```
+No packaged release is available yet. Build the Windows x64 VSIX and CLI ZIP
+using the [packaging instructions](docs/DISTRIBUTION.md#build-the-distribution-maintainers).
 
-The extension also provides completion, diagnostics, formatting and debugging.
-See the [extension guide](editors/vscode/README.md) for editor commands.
+In VS Code, install the VSIX using **Extensions: Install from VSIX**.
+Open a trusted folder, save the example as `hello.rukbat`, then run
+**Rukbat: Run File** from the Command Palette (accept `[]` for no arguments).
+Use **Rukbat: Build PowerShell** to generate `hello.ps1` beside the source.
+The extension includes the compiler, completion, diagnostics, formatting and debugging.
 
-For terminal use, extract the CLI ZIP and run its `rukbat.exe`:
+For terminal use, extract the CLI ZIP and run:
 
 ```powershell
 .\rukbat.exe check .\hello.rukbat
 .\rukbat.exe run .\hello.rukbat
 .\rukbat.exe build .\hello.rukbat
+powershell -NoProfile -File .\hello.ps1
 ```
 
-Generated scripts require PowerShell's FullLanguage mode; native helpers require
-Add-Type permission. See the [distribution guide](docs/DISTRIBUTION.md) for
-packages, environment requirements and updates.
+The packages include .NET; no separate runtime installation is needed.
+Generated scripts require FullLanguage mode; native helpers require Add-Type permission.
+See the [distribution guide](docs/DISTRIBUTION.md) for environment requirements.
 
 ## Documentation
 
@@ -57,6 +50,9 @@ packages, environment requirements and updates.
 - [Design philosophy](docs/PHILOSOPHY.md) and [compiler architecture](docs/ARCHITECTURE.md).
 
 ## Developing the compiler
+
+<details>
+<summary>Build and test from source</summary>
 
 Building Rukbat itself requires the .NET 8 SDK. From the repository root:
 
@@ -72,3 +68,5 @@ unless dependencies are cached.
 
 To build the VSIX and portable CLI ZIP, install Node.js/npm and run
 `tools/package.ps1`. See [packaging instructions](docs/DISTRIBUTION.md#build-the-distribution-maintainers).
+
+</details>
