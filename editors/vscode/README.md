@@ -54,7 +54,7 @@ For a checkout, run `dotnet build Rukbat.sln` and configure the absolute DLL pat
 ```json
 {
     "rukbat.server.command": "dotnet",
-    "rukbat.server.arguments": ["C:/path/to/Auvil/src/Rukbat/bin/Debug/net8.0/rukbat.dll"]
+    "rukbat.server.arguments": ["C:/path/to/rukbat/src/Rukbat/bin/Debug/net8.0/rukbat.dll"]
 }
 ```
 

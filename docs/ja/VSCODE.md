@@ -61,7 +61,7 @@ check/build/run/testの出力はタスクターミナル、デバッグの出力
 ```json
 {
     "rukbat.server.command": "dotnet",
-    "rukbat.server.arguments": ["C:/path/to/Auvil/src/Rukbat/bin/Debug/net8.0/rukbat.dll"]
+    "rukbat.server.arguments": ["C:/path/to/rukbat/src/Rukbat/bin/Debug/net8.0/rukbat.dll"]
 }
 ```
 
