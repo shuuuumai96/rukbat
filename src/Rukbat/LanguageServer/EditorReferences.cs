@@ -26,11 +26,8 @@ internal sealed partial class LanguageAnalysis
     {
         foreach (var module in Modules.Where(m => m.StandardName is null))
         {
-            var texts = module.Documentation.Comments.Values.AsEnumerable();
-            if (module.Documentation.Overview is { } overview)
-                texts = texts.Prepend(overview);
             var index = 0;
-            foreach (var text in texts)
+            foreach (var text in module.Documentation.Texts)
             {
                 foreach (var code in DocumentationMarkdown.Parse(text).Descendants<FencedCodeBlock>().Where(DocumentationMarkdown.IsChecked))
                 {
@@ -92,10 +89,7 @@ internal sealed partial class LanguageAnalysis
     {
         foreach (var module in Modules.Where(m => m.StandardName is null))
         {
-            var texts = module.Documentation.Comments.Values.AsEnumerable();
-            if (module.Documentation.Overview is { } overview)
-                texts = texts.Prepend(overview);
-            foreach (var text in texts)
+            foreach (var text in module.Documentation.Texts)
             {
                 foreach (var reference in DocumentationMarkdown.Parse(text).Descendants<DocumentationReference>())
                 {

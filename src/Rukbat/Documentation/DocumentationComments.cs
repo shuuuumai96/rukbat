@@ -55,6 +55,16 @@ internal sealed class ModuleDocumentation
     public Dictionary<Node, DocumentationText> Comments { get; } = new(ReferenceEqualityComparer.Instance);
     public List<Diagnostic> Diagnostics { get; } = [];
     public string Text(Node node) => Comments.GetValueOrDefault(node)?.Markdown ?? "";
+    public IEnumerable<DocumentationText> Texts
+    {
+        get
+        {
+            if (Overview is { } overview)
+                yield return overview;
+            foreach (var text in Comments.Values)
+                yield return text;
+        }
+    }
 
     public ModuleDocumentation(Module module)
     {

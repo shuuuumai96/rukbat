@@ -33,6 +33,15 @@ internal sealed class DocumentationCatalog
     }
     public string ModuleId(Module module) => moduleIds[module];
     public DocumentationEntry? Find(Node node) => entriesByNode.GetValueOrDefault(node);
+    public IEnumerable<Diagnostic> ValidateReferences(Module module, DocumentationText text, MarkdownDocument document)
+    {
+        foreach (var reference in document.Descendants<DocumentationReference>())
+        {
+            if (Resolve(module, reference.Name) is null)
+                yield return text.Error("RUK6001", $"Unknown documentation reference '{reference.Name}'.", reference.Span.Start);
+        }
+    }
+
     public DocumentationEntry? Resolve(Module module, string name)
     {
         var parts = name.Split('.');
@@ -80,15 +89,11 @@ internal static class Documentation
             foreach (var module in modules)
             {
                 diagnostics.AddRange(module.Documentation.Diagnostics);
-                foreach (var text in Texts(module))
+                foreach (var text in module.Documentation.Texts)
                 {
                     var document = DocumentationMarkdown.Parse(text);
                     documents.Add(text, document);
-                    foreach (var reference in document.Descendants<DocumentationReference>())
-                    {
-                        if (catalog.Resolve(module, reference.Name) is null)
-                            diagnostics.Add(text.Error("RUK6001", $"Unknown documentation reference '{reference.Name}'.", reference.Span.Start));
-                    }
+                    diagnostics.AddRange(catalog.ValidateReferences(module, text, document));
                     foreach (var code in document.Descendants<FencedCodeBlock>().Where(DocumentationMarkdown.IsChecked))
                         CheckExample(text, code, diagnostics);
                 }
@@ -118,14 +123,6 @@ internal static class Documentation
             if (stage is not null && File.Exists(stage))
                 File.Delete(stage);
         }
-    }
-
-    private static IEnumerable<DocumentationText> Texts(Module module)
-    {
-        if (module.Documentation.Overview is { } overview)
-            yield return overview;
-        foreach (var text in module.Documentation.Comments.Values)
-            yield return text;
     }
 
     private static void CheckExample(DocumentationText text, FencedCodeBlock code, List<Diagnostic> diagnostics)

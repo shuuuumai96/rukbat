@@ -151,6 +151,68 @@ public sealed partial class LanguageServerTests : TestBase
     }
 
     [Fact]
+    public void DocumentationLinkDiagnosticsAgreeBetweenCommandAndEditor()
+    {
+        using var project = new Project();
+        project.Write("helper.rukbat", "fn number(): int { return 1 }");
+        string[] lines =
+        [
+            "//! 日本語 [`missing_overview`].",
+            "//! [`shared`]",
+            "//!",
+            "//! [`shared`]: https://example.org/",
+            "import './helper.rukbat' as helper",
+            "/// See [`helper.number`] and [`missing_function`].",
+            "fn number(): int { return helper.number() }",
+            "/// See [`missing_variable`].",
+            "value := number()"
+        ];
+        var source = string.Join("\r\n", lines);
+        project.Write("main.rukbat", source);
+        using var errors = new StringWriter();
+        Assert.Equal(1, Cli.Run(["doc", project.PathFor("main.rukbat"), "--check"], TextWriter.Null, errors));
+        var uri = UriFor(project);
+        var diagnostics = LastDiagnostics(Session(Open(uri, source)), uri).GetProperty("diagnostics").EnumerateArray().ToArray();
+        (int Line, string Name)[] expected = [(0, "missing_overview"), (5, "missing_function"), (7, "missing_variable")];
+        Assert.Equal(expected.Length, diagnostics.Length);
+        var commandDiagnostics = errors.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(expected.Length, commandDiagnostics.Length);
+        for (var index = 0; index < expected.Length; index++)
+        {
+            var (line, name) = expected[index];
+            var character = lines[line].IndexOf("[`" + name + "`]", StringComparison.Ordinal);
+            var message = $"Unknown documentation reference '{name}'.";
+            Assert.Equal($"{project.PathFor("main.rukbat")}({line + 1},{character + 1}): error RUK6001: {message}", commandDiagnostics[index]);
+            var diagnostic = diagnostics[index];
+            Assert.Equal("RUK6001", diagnostic.GetProperty("code").GetString());
+            Assert.Equal(message, diagnostic.GetProperty("message").GetString());
+            Assert.Equal(2, diagnostic.GetProperty("severity").GetInt32());
+            var range = diagnostic.GetProperty("range");
+            Assert.Equal(line, range.GetProperty("start").GetProperty("line").GetInt32());
+            Assert.Equal(character, range.GetProperty("start").GetProperty("character").GetInt32());
+            Assert.Equal(line, range.GetProperty("end").GetProperty("line").GetInt32());
+            Assert.Equal(character + 1, range.GetProperty("end").GetProperty("character").GetInt32());
+        }
+    }
+
+    [Theory]
+    [InlineData("value := missing")]
+    [InlineData("value :=")]
+    public void DocumentationLinksWaitForOrdinaryCompilerSuccess(string invalidStatement)
+    {
+        using var project = new Project();
+        var source = "/// See [`missing`].\nfn number(): int { return 1 }\n" + invalidStatement;
+        project.Write("main.rukbat", source);
+        using var errors = new StringWriter();
+        Assert.Equal(1, Cli.Run(["doc", project.PathFor("main.rukbat"), "--check"], TextWriter.Null, errors));
+        Assert.DoesNotContain("RUK6001", errors.ToString());
+        var uri = UriFor(project);
+        var diagnostics = LastDiagnostics(Session(Open(uri, source)), uri).GetProperty("diagnostics").EnumerateArray().ToArray();
+        Assert.NotEmpty(diagnostics);
+        Assert.DoesNotContain(diagnostics, diagnostic => diagnostic.GetProperty("code").GetString() == "RUK6001");
+    }
+
+    [Fact]
     public void InitializationAdvertisesImplementedFeatures()
     {
         var capabilities = Result(Session(), "1").GetProperty("capabilities");

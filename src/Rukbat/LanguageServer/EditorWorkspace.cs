@@ -98,11 +98,8 @@ internal sealed class EditorWorkspace(string[] roots, string entry, IReadOnlyDic
         if (source.Diagnostics.Count != 0)
             throw new InvalidOperationException($"Cannot determine imports in {path}: {source.Diagnostics[0].Message}");
         var module = Analyze(path).Modules.First(m => EditorPaths.Comparer.Equals(m.Source.Path, path));
-        var texts = module.Documentation.Comments.Values.AsEnumerable();
-        if (module.Documentation.Overview is { } overview)
-            texts = texts.Prepend(overview);
         var scans = new List<List<Token>> { tokens };
-        foreach (var text in texts)
+        foreach (var text in module.Documentation.Texts)
             foreach (var code in DocumentationMarkdown.Parse(text).Descendants<Markdig.Syntax.FencedCodeBlock>().Where(DocumentationMarkdown.IsChecked))
             {
                 var snippet = new Source(string.Join("\n", code.Lines.Lines.Take(code.Lines.Count).Select(l => l.ToString())), path);

@@ -52,13 +52,8 @@ internal sealed partial class LanguageAnalysis
                 documentationDiagnostics.AddRange(module.Documentation.Diagnostics);
             if (program.Diagnostics.Count == 0)
             {
-                var texts = module.Documentation.Comments.Values.AsEnumerable();
-                if (module.Documentation.Overview is { } overview)
-                    texts = texts.Prepend(overview);
-                foreach (var docText in texts)
-                    foreach (var reference in DocumentationMarkdown.Parse(docText).Descendants<DocumentationReference>())
-                        if (documentation.Resolve(module, reference.Name) is null)
-                            documentationDiagnostics.Add(docText.Error("RUK6001", $"Unknown documentation reference '{reference.Name}'.", reference.Span.Start));
+                foreach (var docText in module.Documentation.Texts)
+                    documentationDiagnostics.AddRange(documentation.ValidateReferences(module, docText, DocumentationMarkdown.Parse(docText)));
             }
         }
         DocumentationDiagnostics = documentationDiagnostics;
