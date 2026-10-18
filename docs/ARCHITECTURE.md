@@ -45,14 +45,16 @@ For a fixed standard API, keep parameter and result types together in
 operation definitions. Generic array and JSON operations need context-dependent checking and
 remain in Semantics. Module declarations and implicit dependencies belong to StandardModules;
 dependency traversal belongs to ModuleLoader. Editor documentation still comes from STDLIB.md.
+StandardValueTypes classifies tagged and opaque standard values; recursive boundary checks
+and diagnostic selection remain in Semantics.
 
 Edit fixed runtime code in its source language, not in C# raw string literals. PowerShell files
-are fragments (some are switch arms), not standalone scripts. RuntimeResources embeds and reads
-them without requiring loose files beside the compiler. CodeGeneration owns dynamic substitutions,
-bound field keys and emitted indentation. Native files retain the `.cs.txt` suffix so they are not
-accidentally compiled into the authoring tool; ProcessJob is explicitly compiled for the test runner
-as well as embedded for generated scripts. Moving these files must preserve both resource names and
-the operations toolkit's ProcessJob copy path.
+are fragments (some are switch arms), not standalone scripts. RuntimeResources reads embedded
+PowerShell and native sources without requiring loose files beside the compiler. CodeGeneration
+owns dynamic substitutions, bound field keys and emitted indentation. Native files retain the
+`.cs.txt` suffix so they are not accidentally compiled into the authoring tool; ProcessJob is
+explicitly compiled for the test runner as well as embedded for generated scripts. Moving these
+files must preserve both resource names and the operations toolkit's ProcessJob copy path.
 
 ## Shared tooling
 
@@ -60,7 +62,7 @@ the operations toolkit's ProcessJob copy path.
 |---|---|
 | `check` | Load and type-check; no emission or PowerShell parsing. |
 | `fmt` | Parse and normalize tokens; no binding. `FormattingSyntax` uses optional parser facts for grouping, continuations, braces, and comments. |
-| `doc` | Attach comments once with ModuleDocumentation; DocumentationCatalog resolves links/signatures. Check opt-in examples, then render CommonMark HTML without emission or execution. |
+| `doc` | ModuleDocumentation supplies attached comments in source order; DocumentationCatalog resolves links/signatures and validates references for both CLI and LSP. Check opt-in examples, then render CommonMark HTML without emission or execution. |
 | `lsp` | LanguageAnalysis reuses the front end with unsaved buffers. Bound symbols supply navigation and hover; the embedded STDLIB catalog supplies API documentation. |
 | `test` | Check signatures and generate all selected entrypoints before execution. Initialize modules, invoke one function, and write a private completion marker only after normal return. A process exit alone is not success. |
 
@@ -87,8 +89,9 @@ or .NET location changes. Runtime source labels are relative to the entry source
 compiler diagnostics retain actual source paths. See [path semantics](language.md#powershell-boundary).
 
 Fixed PowerShell fragments live in `Runtime/PowerShell`; native C# 5-compatible
-sources live in `Runtime/Native`. Lazy Add-Type loaders use the target's existing
-PowerShell/.NET facilities. Process containment is established during child creation.
+sources live in `Runtime/Native`. NativeEmission shares Add-Type loaders and Desktop
+assembly references; each module selects when to activate its loader using the target's
+existing PowerShell/.NET facilities. Process containment is established during child creation.
 Move journals flush before renames, and locked handles preserve file identity.
 
 ### Dictionaries

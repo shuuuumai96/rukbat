@@ -1614,7 +1614,8 @@ if response.status == http.status_200_ok {
 
 ## Runtime path resolution
 
-Direct `powershell -File` / `pwsh -File` execution, including `rukbat run`, captures the host process's current directory before initializing modules. A PowerShell statement invoking the script instead captures that session's filesystem location. These entry directories treat characters such as `[` and `]` literally; the script directory remains separate and is available through `path.script_dir()`.
+Entry working-directory capture and the separate script directory are defined by the
+[PowerShell boundary](language.md#powershell-boundary).
 
 Standard filesystem operations resolve nonempty relative paths against the captured entry working directory before calling PowerShell or .NET. Absolute paths stay absolute. A root-relative path such as `\data\file.txt` uses the captured directory's drive root. Drive-relative forms such as `C:file.txt` are rejected because they depend on implicit per-drive state; `fs.is_file` and `fs.is_dir` return `false` for them. Invalid/empty operation paths raise Error, except for these existence predicates. This does not change the Error contracts of read, write, list, copy, move, create, or remove.
 
