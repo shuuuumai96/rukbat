@@ -4,19 +4,7 @@ internal sealed partial class Emitter
 {
     private void EmitHttpLoader()
     {
-        Line("$__rukbat_load_Http = {");
-        Line("if ($null -eq ('RukbatHttp' -as [type])) {");
-        Line("Add-Type -AssemblyName System.Net.Http");
-        Line("$source = @'");
-        using var stream = typeof(Emitter).Assembly.GetManifestResourceStream("Rukbat.Runtime.Http.cs.txt")!;
-        using var reader = new StreamReader(stream);
-        RawLine(reader.ReadToEnd());
-        RawLine("'@");
-        Line("if ($PSVersionTable.PSEdition -ceq 'Desktop') {");
-        Line("Add-Type -TypeDefinition $source -ReferencedAssemblies @('System.dll', 'System.Core.dll', 'System.Net.Http.dll') | Out-Null");
-        Line("} else { Add-Type -TypeDefinition $source | Out-Null }");
-        Line("}");
-        Line("}.GetNewClosure()");
+        EmitNativeLoader("Http", "System.Net.Http");
         // Function parameters may use Body before the first network operation.
         Line("& $__rukbat_load_Http");
     }

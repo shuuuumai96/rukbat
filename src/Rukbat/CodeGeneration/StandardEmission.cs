@@ -26,7 +26,7 @@ internal sealed partial class Emitter
         if (modules.Contains("hash")) EmitNativeLoader("Hash");
         if (modules.Contains("re")) EmitNativeLoader("Regex");
         if (modules.Contains("log")) EmitLogRuntime();
-        if (modules.Contains("zip")) EmitZipLoader();
+        if (modules.Contains("zip")) EmitNativeLoader("Zip", "System.IO.Compression");
         if (modules.Contains("http")) EmitHttpLoader();
         if (modules.Contains("csv")) EmitCsvRuntime();
         if (modules.Contains("cli")) EmitCliRuntime();
