@@ -78,6 +78,11 @@ VS Code into `.vscode-test` unless an executable is supplied.
 From the repository root, `tools/package.ps1` builds the VSIX and CLI ZIP together.
 `npm run package` requires a generated runtime with a matching version.
 
+The [style guide](https://github.com/shuuuumai96/rukbat/blob/main/docs/STYLE.md)
+covers naming, formatting and readable scripting conventions. English and Japanese
+guides are also included in the VSIX under `runtime/win-x64/docs/STYLE.md` and
+`runtime/win-x64/docs/ja/STYLE.md`, alongside the other source documentation.
+
 ## Preview and license
 
 Later 0.x versions may change syntax, standard-library APIs and tooling behavior.

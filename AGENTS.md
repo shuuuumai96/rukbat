@@ -15,6 +15,10 @@ Before making implementation or design changes, read and follow:
 
 Do not introduce behavior that conflicts with it unless explicitly instructed.
 
+When writing Rukbat source, examples, or documentation snippets, follow
+`docs/STYLE.md`. It defines source conventions, not additional language semantics
+or the implementation language's coding style.
+
 ### Source-of-Truth Hierarchy
 
 - Concrete language semantics → `docs/LANGUAGE.md`

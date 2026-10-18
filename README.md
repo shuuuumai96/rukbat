@@ -69,6 +69,7 @@ expected and actual results. Remove credentials and private paths before posting
 ## Documentation
 
 - [Language](docs/language.md) — syntax, types and command-line reference.
+- [Style guide](docs/STYLE.md) — naming, formatting and readable scripting conventions.
 - [Standard library](docs/STDLIB.md) — files, CSV, JSON, processes and other APIs.
 - [Examples](examples/) — runnable scripts, including [CSV filtering](examples/csv-filter/README.md),
   [category counting](examples/csv-count/README.md) and [JSON configuration](examples/json-config/README.md).

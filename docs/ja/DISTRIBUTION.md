@@ -90,6 +90,9 @@ VSIX、ZIP、`SHA256SUMS`を組織で認められた経路で転送します。
 Markdownパーサーも同梱しています。
 ソースコメントからの文書生成に追加インストールは不要です。
 
+CLIのZIPには、英語版の`docs/STYLE.md`と日本語版の`docs/ja/STYLE.md`を同梱します。
+VSIXでは、同じドキュメントを`extension/runtime/win-x64/docs/`に配置します。
+
 ### GitHubのリリースを準備する
 
 初回のタグは`v0.1.0`、タイトルは`Rukbat 0.1.0 preview`とします。

@@ -70,6 +70,7 @@ powershell -NoProfile -File .\example\hello.ps1
 ## ドキュメント
 
 - [言語仕様](language.md)：構文、型、コマンドライン。
+- [スタイルガイド](STYLE.md)：命名、整形、読みやすいスクリプトの書き方。
 - [標準ライブラリ](STDLIB.md)：ファイル、CSV、JSON、プロセスなどのAPI。
 - [サンプル（英語）](../../examples/)：[CSVの絞り込み](../../examples/csv-filter/README.md)、[カテゴリ別集計](../../examples/csv-count/README.md)、[JSON設定の更新](../../examples/json-config/README.md)。
 - [コマンドラインプログラム](CLI.md)、[テスト](TESTING.md)、[デバッグ](DEBUGGING.md)。

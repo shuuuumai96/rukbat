@@ -27,11 +27,11 @@ try {
     if ($LASTEXITCODE -ne 0 -or $actual -ne "rukbat $version") { throw "Compiler/extension version mismatch: $actual" }
     $manifest = [ordered]@{ version = $version; runtime = 'win-x64'; self_contained = $true }
     [IO.File]::WriteAllText((Join-Path $portable 'distribution.json'), ($manifest | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
+    Copy-Item -LiteralPath (Join-Path $repo 'docs') -Destination (Join-Path $portable 'docs') -Recurse
     if (Test-Path -LiteralPath $runtime) { Remove-Item -LiteralPath $expectedRuntime -Recurse -Force }
     New-Item -ItemType Directory -Path $runtime -Force | Out-Null
     Copy-Item -Path (Join-Path $portable '*') -Destination $runtime -Recurse
     Copy-Item -LiteralPath (Join-Path $repo 'docs\DISTRIBUTION.md') -Destination (Join-Path $portable 'README.md')
-    Copy-Item -LiteralPath (Join-Path $repo 'docs') -Destination (Join-Path $portable 'docs') -Recurse
     New-Item -ItemType Directory -Path (Join-Path $portable 'example') | Out-Null
     Copy-Item -LiteralPath (Join-Path $repo 'examples\distribution\hello.rukbat'), (Join-Path $repo 'examples\distribution\test_hello.rukbat') -Destination (Join-Path $portable 'example')
     Push-Location $extension

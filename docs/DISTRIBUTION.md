@@ -84,6 +84,10 @@ packages. The extension's root `LICENSE` is copied from the repository by its
 packaging script. The Markdown parser is also included; source documentation
 generation requires no additional installation.
 
+The English and Japanese style guides are included at `docs/STYLE.md` and
+`docs/ja/STYLE.md` in the CLI ZIP. In the VSIX, the same documentation is under
+`extension/runtime/win-x64/docs/`.
+
 ### Prepare the GitHub release
 
 Use `v0.1.0` as the first release tag and `Rukbat 0.1.0 preview` as its title.
