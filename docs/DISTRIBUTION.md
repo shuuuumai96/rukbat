@@ -1,5 +1,9 @@
 # Rukbat on Windows
 
+The first preview is being prepared as 0.1.0. Once published, download the VSIX,
+CLI ZIP and `SHA256SUMS` from [GitHub Releases](https://github.com/shuuuumai96/rukbat/releases).
+See the [release notes](releases/0.1.0.md) for preview compatibility and limitations.
+
 ## VS Code: install one extension
 
 Install `rukbat-<version>-win32-x64.vsix` using **Extensions: Install from VSIX**.
@@ -75,8 +79,24 @@ unless caches are complete. Existing destination directories are refused. A fail
 build may leave incomplete output; only a successful run produces a complete release.
 The extension runtime directory is generated and ignored by Git.
 
-The Markdown parser and its license are included in both packages; source
-documentation generation requires no additional installation.
+The MIT license for Rukbat and the third-party notices are included in both
+packages. The extension's root `LICENSE` is copied from the repository by its
+packaging script. The Markdown parser is also included; source documentation
+generation requires no additional installation.
+
+### Prepare the GitHub release
+
+Use `v0.1.0` as the first release tag and `Rukbat 0.1.0 preview` as its title.
+Create a draft GitHub release, mark it as a pre-release, and use
+`docs/releases/0.1.0.md` as the release body. Attach only the versioned CLI ZIP,
+VSIX and `SHA256SUMS` from one successful packaging run; do not attach the
+`portable` staging directory.
+
+Record the tested source revision and complete the release acceptance below
+before publishing the draft. When publishing, update the English and Japanese
+READMEs and distribution guides from preparation wording to the published
+release link. Building local packages does not publish a GitHub release or a
+VS Code Marketplace extension.
 
 ## Release acceptance
 

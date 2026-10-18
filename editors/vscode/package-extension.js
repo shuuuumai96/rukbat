@@ -12,7 +12,8 @@ const manifest = require(path.join(runtime, 'distribution.json'));
 const version = require('./package.json').version;
 if (manifest.version !== version || manifest.runtime !== 'win-x64') throw new Error('Extension and compiler distribution versions do not match.');
 fs.mkdirSync(path.join(__dirname, 'artifacts'), { recursive: true });
+fs.copyFileSync(path.join(__dirname, '../../LICENSE'), path.join(__dirname, 'LICENSE'));
 const result = spawnSync(process.execPath, [require.resolve('@vscode/vsce/vsce'), 'package', '--target', 'win32-x64',
-    '--allow-missing-repository', '--skip-license', '--out', `artifacts/rukbat-${version}-win32-x64.vsix`], { cwd: __dirname, stdio: 'inherit' });
+    '--out', `artifacts/rukbat-${version}-win32-x64.vsix`], { cwd: __dirname, stdio: 'inherit' });
 if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;

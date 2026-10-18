@@ -6,6 +6,7 @@ TestResults/
 node_modules/
 .vscode-test/
 editors/vscode/runtime/
+editors/vscode/LICENSE
 examples/*.ps1
 examples/**/*.ps1
 .rukbat-debug-*.ps1

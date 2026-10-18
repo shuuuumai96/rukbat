@@ -2,10 +2,18 @@
   "name": "rukbat",
   "displayName": "Rukbat",
   "description": "Language support for Rukbat Windows system scripts.",
-  "version": "0.1.5",
+  "version": "0.1.0",
   "publisher": "rukbat",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shuuuumai96/rukbat.git"
+  },
+  "homepage": "https://github.com/shuuuumai96/rukbat#readme",
+  "bugs": {
+    "url": "https://github.com/shuuuumai96/rukbat/issues"
+  },
   "engines": {
     "vscode": "^1.82.0"
   },

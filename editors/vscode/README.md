@@ -6,6 +6,11 @@ and canonical formatting.
 
 ## Install and run
 
+The first preview is being prepared as 0.1.0. Once published, download
+`rukbat-0.1.0-win32-x64.vsix` from
+[GitHub Releases](https://github.com/shuuuumai96/rukbat/releases).
+Requires VS Code 1.82 or later on Windows x64.
+
 1. Install the Windows x64 VSIX using **Extensions: Install from VSIX**.
 2. Open a trusted folder and save a `.rukbat` file.
 3. Run **Rukbat: Run File**. Enter arguments as a JSON string array, or accept `[]`.
@@ -72,3 +77,15 @@ VS Code into `.vscode-test` unless an executable is supplied.
 
 From the repository root, `tools/package.ps1` builds the VSIX and CLI ZIP together.
 `npm run package` requires a generated runtime with a matching version.
+
+## Preview and license
+
+Later 0.x versions may change syntax, standard-library APIs and tooling behavior.
+Pin the compiler version used by automation and recheck, rebuild and test before
+upgrading. See the repository's
+[release notes](https://github.com/shuuuumai96/rukbat/blob/main/docs/releases/0.1.0.md)
+for requirements and limitations.
+
+Rukbat is available under the MIT License. The packaged extension includes
+`LICENSE`; bundled dependencies retain their own licenses.
+Report problems through [GitHub Issues](https://github.com/shuuuumai96/rukbat/issues).
