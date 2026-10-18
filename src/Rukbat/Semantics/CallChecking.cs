@@ -60,7 +60,7 @@ internal sealed partial class TypeChecker
                 var argument = call.Arguments[i];
                 if (ContainsType(arguments[i], value => value.DictionaryKey is not null))
                     Error("RUK2010", "Dictionaries cannot be passed directly to PowerShell. Pass primitive values.", argument);
-                if (ContainsTaggedStandardValue(arguments[i]) || ContainsDateTime(arguments[i]) || ContainsType(arguments[i], value => value == ValueType.RegexPattern || value == ValueType.FileLines || HttpValues.Contains(value)))
+                if (ContainsType(arguments[i], StandardValueTypes.IsOpaqueScalar))
                     Error("RUK2010", "Use explicit standard-library conversions before passing opaque values to PowerShell.", argument);
                 if (ContainsStruct(arguments[i]))
                 {
@@ -93,7 +93,7 @@ internal sealed partial class TypeChecker
             {
                 Error("RUK2005", $"{call.Name} requires one positional argument.", call);
             }
-            else if (arguments[0] == ValueType.FileLines || arguments[0] == ValueType.Encoding || arguments[0] == HashValues.Algorithm || ContainsType(arguments[0], value => value == ValueType.RegexPattern || value == LogValues.Level) || DateTimeValues.Contains(arguments[0]) || HttpValues.Contains(arguments[0]))
+            else if (StandardValueTypes.IsOpaqueScalar(arguments[0]) || ContainsType(arguments[0], value => value == ValueType.RegexPattern || value == LogValues.Level))
             {
                 Error("RUK2010", "Use an explicit standard-library conversion before printing this value.", call);
             }

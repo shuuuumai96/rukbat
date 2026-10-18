@@ -42,7 +42,7 @@ internal sealed partial class Emitter(TypeChecker checker, DebugMap? debugMap = 
         if (type.IsCliResult) return "object";
         if (type == ValueType.FileLines) return "object";
         if (type == ValueType.RegexPattern) return "object";
-        if (type == ValueType.Encoding || type == HashValues.Algorithm || type == LogValues.Level) return "string";
+        if (StandardValueTypes.IsTagged(type)) return "string";
         if (type == HttpValues.Method) return "string";
         if (type == HttpValues.Body) return "RukbatHttpBody";
         if (DateTimeValues.Contains(type)) return DateTimeValues.RuntimeName(type);
