@@ -78,9 +78,9 @@ internal sealed partial class TypeChecker
     }
 
     private static bool ContainsNonJsonStandardValue(ValueType type) =>
-        ContainsType(type, value => value == ValueType.FileLines || DateTimeValues.Contains(value) || HttpValues.Contains(value) || (value == ValueType.Encoding || value == HashValues.Algorithm || value == LogValues.Level) || value.IsCsvRow || value.IsCliResult);
+        ContainsType(type, value => value == ValueType.RegexPattern || value == ValueType.FileLines || DateTimeValues.Contains(value) || HttpValues.Contains(value) || (value == ValueType.Encoding || value == HashValues.Algorithm || value == LogValues.Level) || value.IsCsvRow || value.IsCliResult);
     private static bool ContainsOpaqueStandardValue(ValueType type) =>
-        ContainsType(type, value => value == ValueType.FileLines || DateTimeValues.Contains(value) || HttpValues.Contains(value) || (value == ValueType.Encoding || value == HashValues.Algorithm || value == LogValues.Level) || value.IsCsvRow || value.IsJsonValue || value.IsCliResult);
+        ContainsType(type, value => value == ValueType.RegexPattern || value == ValueType.FileLines || DateTimeValues.Contains(value) || HttpValues.Contains(value) || (value == ValueType.Encoding || value == HashValues.Algorithm || value == LogValues.Level) || value.IsCsvRow || value.IsJsonValue || value.IsCliResult);
     private static bool ContainsDateTime(ValueType type) => ContainsType(type, DateTimeValues.Contains);
     private static bool ContainsTaggedStandardValue(ValueType type) => ContainsType(type, value => (value == ValueType.Encoding || value == HashValues.Algorithm || value == LogValues.Level));
 

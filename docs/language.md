@@ -110,9 +110,10 @@ rules are defined in [STDLIB.md](STDLIB.md).
 | `log.Level` | Validated severity constants and non-null same-type equality; no ordering, arithmetic, fields, struct literal, or implicit conversion. `log.Logger` is an ordinary struct with copyable configuration fields. |
 | `http.Body`, `http.Method` | Immutable response bytes and validated method constants. Only Method has equality. HTTP request/options/result types are ordinary structs; status constants are read-only ints. |
 | `fs.Lines` | Immutable file-line descriptor; for owns each independent traversal. No equality, direct printing, or exposed fields. |
+| `re.Pattern` | Validated immutable regular expression with an explicit match timeout. No equality, direct printing, or exposed fields. `re.Match` is an ordinary struct with value, code-point range, and nullable capture strings. |
 | `datetime.Timestamp`, `datetime.Date`, `datetime.Duration`, `datetime.Zone` | Explicit conversions/arithmetic; same-type equality, and ordering except for Zone. Named zones are read-only constants. |
 
-Encoding, hash, log.Level, HTTP opaque types, fs.Lines, and datetime types are recursively rejected at
+Encoding, hash, log.Level, HTTP opaque types, fs.Lines, re.Pattern, and datetime types are recursively rejected at
 printing, JSON, and PowerShell boundaries. JSON/CSV updates preserve originals; ordinary container copies remain
 independent. ZIP exports ordinary `zip.Options` and `zip.Entry` structs.
 
@@ -271,7 +272,7 @@ defined in STDLIB.md.
 `powershell<T>(command, ...)` is the explicit escape hatch for a PowerShell operation not covered by Rukbat. It checks the returned value against `T`; a scalar result requires exactly one value and `T[]` collects values into an array. PowerShell failures and incompatible results are runtime errors.
 
 PowerShell arguments and result types cannot contain dictionaries or opaque standard-library values such as
-`json.Value`, `csv.Row`, `cli.Result`, `encoding.Encoding`, `hash.Algorithm`, `log.Level`/`log.Logger`, datetime types or HTTP Body/Method.
+`json.Value`, `csv.Row`, `cli.Result`, `encoding.Encoding`, `hash.Algorithm`, `log.Level`/`log.Logger`, `re.Pattern`, datetime types or HTTP Body/Method.
 Request a string and use `json.parse` to read a JSON document from an external command.
 For encodings, pass `encoding.name(value)` and parse returned text with `encoding.parse`.
 

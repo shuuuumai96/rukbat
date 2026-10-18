@@ -357,6 +357,8 @@ internal sealed partial class LanguageAnalysis
                 Add(module, token, EditorCatalog.EncodingType);
             else if (bound == ValueType.FileLines)
                 Add(module, token, EditorCatalog.FileLinesType);
+            else if (bound == ValueType.RegexPattern)
+                Add(module, token, EditorCatalog.RegexPatternType);
         }
     }
 
@@ -407,6 +409,8 @@ internal sealed partial class LanguageAnalysis
                     candidates = candidates.Append(EditorCatalog.EncodingType);
                 if (imported.StandardName == "fs")
                     candidates = candidates.Append(EditorCatalog.FileLinesType);
+                if (imported.StandardName == "re")
+                    candidates = candidates.Append(EditorCatalog.RegexPatternType);
                 if (imported.StandardName == "datetime")
                     candidates = candidates.Concat(DateTimeValues.All.Select(EditorCatalog.DateTimeType));
             }

@@ -8,7 +8,7 @@ internal sealed partial class TypeChecker
             module.Imports.TryGetValue(standardAlias.Token.Text, out var standardModule) &&
             standardModule.StandardName is { } standardName)
         {
-            if (call.IsStructLiteral && (standardName is "process" or "zip" or "http" or "cli" or "log") && standardModule.Structs.TryGetValue(call.Name, out var structure) && !structure.IsCliResult)
+            if (call.IsStructLiteral && (standardName is "process" or "zip" or "http" or "cli" or "log" or "re") && standardModule.Structs.TryGetValue(call.Name, out var structure) && !structure.IsCliResult)
                 return Construct(call, structure, scope);
             return StandardCallType(call, scope, standardModule, standardName);
         }
@@ -41,7 +41,7 @@ internal sealed partial class TypeChecker
                 Error("RUK2010", "Dictionaries cannot be returned directly from PowerShell. Convert primitive results explicitly.", call);
             if (ContainsOpaqueStandardValue(powerShellType))
             {
-                Error("RUK2010", "PowerShell result types cannot contain fs.Lines, json.Value, csv.Row, cli.Result, encoding.Encoding, hash.Algorithm, log.Level, datetime types, http.Method or http.Body. Read text and use the corresponding parser.", call);
+                Error("RUK2010", "PowerShell result types cannot contain re.Pattern, fs.Lines, json.Value, csv.Row, cli.Result, encoding.Encoding, hash.Algorithm, log.Level, datetime types, http.Method or http.Body. Read text and use the corresponding parser.", call);
             }
 
             if (arguments.Length == 0 || call.Arguments[0].Name is not null)
@@ -60,7 +60,7 @@ internal sealed partial class TypeChecker
                 var argument = call.Arguments[i];
                 if (ContainsType(arguments[i], value => value.DictionaryKey is not null))
                     Error("RUK2010", "Dictionaries cannot be passed directly to PowerShell. Pass primitive values.", argument);
-                if (ContainsTaggedStandardValue(arguments[i]) || ContainsDateTime(arguments[i]) || ContainsType(arguments[i], value => value == ValueType.FileLines || HttpValues.Contains(value)))
+                if (ContainsTaggedStandardValue(arguments[i]) || ContainsDateTime(arguments[i]) || ContainsType(arguments[i], value => value == ValueType.RegexPattern || value == ValueType.FileLines || HttpValues.Contains(value)))
                     Error("RUK2010", "Use explicit standard-library conversions before passing opaque values to PowerShell.", argument);
                 if (ContainsStruct(arguments[i]))
                 {
@@ -93,7 +93,7 @@ internal sealed partial class TypeChecker
             {
                 Error("RUK2005", $"{call.Name} requires one positional argument.", call);
             }
-            else if (arguments[0] == ValueType.FileLines || arguments[0] == ValueType.Encoding || arguments[0] == HashValues.Algorithm || ContainsType(arguments[0], value => value == LogValues.Level) || DateTimeValues.Contains(arguments[0]) || HttpValues.Contains(arguments[0]))
+            else if (arguments[0] == ValueType.FileLines || arguments[0] == ValueType.Encoding || arguments[0] == HashValues.Algorithm || ContainsType(arguments[0], value => value == ValueType.RegexPattern || value == LogValues.Level) || DateTimeValues.Contains(arguments[0]) || HttpValues.Contains(arguments[0]))
             {
                 Error("RUK2010", "Use an explicit standard-library conversion before printing this value.", call);
             }

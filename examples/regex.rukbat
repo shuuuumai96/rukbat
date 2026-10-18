@@ -1,0 +1,19 @@
+import re
+
+const regex_timeout_ms := 1000
+
+fields := re.compile("(?<key>[a-z]+)=(?<value>[^ ]+)", regex_timeout_ms)
+line := "host=web-01 port=443"
+
+for found in re.find_all(line, fields) {
+    key := found.groups["key"]
+    value := found.groups["value"]
+
+    if key != null {
+        if value != null {
+            print(key + ": " + value)
+        }
+    }
+}
+
+print(re.replace_all_template(line, fields, "${key}:${value}"))

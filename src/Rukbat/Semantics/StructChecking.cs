@@ -4,7 +4,7 @@ internal sealed class StructSymbol(Module module, StructDeclaration declaration)
 {
     public Module Module { get; } = module;
     public StructDeclaration Declaration { get; } = declaration;
-    public ValueType Type { get; } = new(module.StandardName is "json" or "csv" or "test" or "cli" or "log"
+    public ValueType Type { get; } = new(module.StandardName is "json" or "csv" or "test" or "cli" or "log" or "re"
         ? module.StandardName + "." + declaration.Token.Text : declaration.Token.Text);
     public bool IsCsvRow => Module.StandardName == "csv" && Declaration.Token.Text == "Row";
     public bool IsJsonValue => Module.StandardName == "json" && Declaration.Token.Text == "Value";
@@ -187,6 +187,8 @@ internal sealed partial class TypeChecker
         var owner = parts.Length == 1 ? module : module.Imports.GetValueOrDefault(parts[0]);
         if (owner?.StandardName == "fs" && parts[^1] == "Lines")
             return DeclaredTypes[node] = ValueType.FileLines;
+        if (owner?.StandardName == "re" && parts[^1] == "Pattern")
+            return DeclaredTypes[node] = ValueType.RegexPattern;
         if (owner?.StandardName == "http" && HttpValues.OpaqueType(parts[^1]) is { } httpType)
             return DeclaredTypes[node] = httpType;
         if (owner?.StandardName == "datetime" && DateTimeValues.All.FirstOrDefault(value => value.Name == "datetime." + parts[^1]) is { } dateTimeType)

@@ -1,0 +1,240 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Text;
+using System.Text.RegularExpressions;
+
+// The compiled engine and its metadata are private to the runtime. Ordinary
+// Rukbat value copies can share this immutable object.
+public sealed class RukbatRegexPattern {
+    internal readonly Regex Engine;
+    internal readonly int[] Numbers;
+    internal readonly string[] Keys;
+    internal readonly int[] KeyNumbers;
+
+    internal RukbatRegexPattern(Regex engine) {
+        Engine = engine;
+        Numbers = engine.GetGroupNumbers();
+        var keys = new List<string>();
+        var keyNumbers = new List<int>();
+        foreach (int number in Numbers) {
+            keys.Add(number.ToString(CultureInfo.InvariantCulture));
+            keyNumbers.Add(number);
+        }
+        foreach (string name in engine.GetGroupNames()) {
+            int number = engine.GroupNumberFromName(name);
+            if (String.Equals(name, number.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal)) continue;
+            keys.Add(name);
+            keyNumbers.Add(number);
+        }
+        Keys = keys.ToArray();
+        KeyNumbers = keyNumbers.ToArray();
+    }
+}
+
+public static class RukbatRegex {
+    private const long MinimumTimeoutMilliseconds = 1;
+    private const long MaximumTimeoutMilliseconds = 2147483646;
+
+    private static int NextIndex(string value, int index) {
+        if (Char.IsHighSurrogate(value[index])) {
+            if (index + 1 == value.Length || !Char.IsLowSurrogate(value[index + 1]))
+                throw new ArgumentException("Regular-expression text contains an unpaired UTF-16 surrogate.");
+            return index + 2;
+        }
+        if (Char.IsLowSurrogate(value[index]))
+            throw new ArgumentException("Regular-expression text contains an unpaired UTF-16 surrogate.");
+        return index + 1;
+    }
+
+    private static void ValidateText(string value) {
+        for (int index = 0; index < value.Length; index = NextIndex(value, index)) { }
+    }
+
+    private static List<int> Boundaries(string value) {
+        var positions = new List<int>();
+        for (int index = 0; index < value.Length; index = NextIndex(value, index)) positions.Add(index);
+        positions.Add(value.Length);
+        return positions;
+    }
+
+    private static bool IsBoundary(string value, int index) {
+        return index == 0 || index == value.Length ||
+            !Char.IsHighSurrogate(value[index - 1]) || !Char.IsLowSurrogate(value[index]);
+    }
+
+    private static void ValidateMatch(string value, RukbatRegexPattern pattern, Match match) {
+        // Validate the last (public) capture of every group, including group 0.
+        // Earlier captures of a repeated group are not part of re.Match.
+        foreach (int number in pattern.Numbers) {
+            Group group = match.Groups[number];
+            if (group.Success && (!IsBoundary(value, group.Index) ||
+                !IsBoundary(value, group.Index + group.Length)))
+                throw new ArgumentException("Regular-expression match or group splits a UTF-16 surrogate pair.");
+        }
+    }
+
+    private static Match Search(string value, RukbatRegexPattern pattern, int start) {
+        Match match = pattern.Engine.Match(value, start);
+        if (match.Success) ValidateMatch(value, pattern, match);
+        return match;
+    }
+
+    private static IEnumerable<Match> Matches(string value, RukbatRegexPattern pattern) {
+        int start = 0;
+        while (true) {
+            Match match = Search(value, pattern, start);
+            if (!match.Success) yield break;
+            yield return match;
+            start = match.Index + match.Length;
+            if (match.Length == 0) {
+                // .NET's NextMatch bumps by one UTF-16 code unit. Rukbat bumps
+                // by one complete code point and includes the terminal match once.
+                if (start == value.Length) yield break;
+                start = NextIndex(value, start);
+            }
+        }
+    }
+
+    private static object[] Result(Match match, RukbatRegexPattern pattern, List<int> positions) {
+        int start = positions.BinarySearch(match.Index);
+        int end = positions.BinarySearch(match.Index + match.Length);
+        var values = new object[pattern.Keys.Length];
+        for (int index = 0; index < values.Length; index++) {
+            Group group = match.Groups[pattern.KeyNumbers[index]];
+            values[index] = group.Success ? group.Value : null;
+        }
+        return new object[] { match.Value, (long)start, (long)(end - start), pattern.Keys, values };
+    }
+
+    public static RukbatRegexPattern Compile(object[] values) {
+        string pattern = (string)values[0];
+        long timeout = Convert.ToInt64(values[1], CultureInfo.InvariantCulture);
+        if (timeout < MinimumTimeoutMilliseconds || timeout > MaximumTimeoutMilliseconds)
+            throw new ArgumentOutOfRangeException("timeout_ms", "re.compile: timeout_ms must be between 1 and 2147483646.");
+        ValidateText(pattern);
+        return new RukbatRegexPattern(new Regex(pattern, RegexOptions.CultureInvariant,
+            TimeSpan.FromMilliseconds(timeout)));
+    }
+
+    public static bool IsMatch(object[] values) {
+        string value = (string)values[0];
+        var pattern = (RukbatRegexPattern)values[1];
+        ValidateText(value);
+        return Search(value, pattern, 0).Success;
+    }
+
+    public static object[] Find(object[] values) {
+        string value = (string)values[0];
+        var pattern = (RukbatRegexPattern)values[1];
+        var positions = Boundaries(value);
+        Match match = Search(value, pattern, 0);
+        return match.Success ? Result(match, pattern, positions) : null;
+    }
+
+    public static object[][] FindAll(object[] values) {
+        string value = (string)values[0];
+        var pattern = (RukbatRegexPattern)values[1];
+        var positions = Boundaries(value);
+        var result = new List<object[]>();
+        foreach (Match match in Matches(value, pattern)) result.Add(Result(match, pattern, positions));
+        return result.ToArray();
+    }
+
+    public static string ReplaceAll(object[] values) {
+        string value = (string)values[0];
+        var pattern = (RukbatRegexPattern)values[1];
+        string replacement = (string)values[2];
+        ValidateText(value);
+        ValidateText(replacement);
+        var result = new StringBuilder();
+        int copied = 0;
+        foreach (Match match in Matches(value, pattern)) {
+            result.Append(value, copied, match.Index - copied);
+            result.Append(replacement);
+            copied = match.Index + match.Length;
+        }
+        result.Append(value, copied, value.Length - copied);
+        return result.ToString();
+    }
+
+    private sealed class TemplatePart {
+        public readonly string Literal;
+        public readonly int Number;
+        public TemplatePart(string literal, int number) { Literal = literal; Number = number; }
+    }
+
+    private static List<TemplatePart> ParseTemplate(string template, RukbatRegexPattern pattern) {
+        ValidateText(template);
+        var parts = new List<TemplatePart>();
+        var literal = new StringBuilder();
+        int index = 0;
+        while (index < template.Length) {
+            char character = template[index++];
+            if (character != '$') { literal.Append(character); continue; }
+            if (index < template.Length && template[index] == '$') {
+                literal.Append('$');
+                index++;
+                continue;
+            }
+            if (index == template.Length || template[index] != '{')
+                throw new ArgumentException("re.replace_all_template: use ${name}, ${1}, or $$ in templates.");
+            int first = ++index;
+            while (index < template.Length && template[index] != '}') index++;
+            if (index == template.Length || index == first)
+                throw new ArgumentException("re.replace_all_template: invalid group reference.");
+            string key = template.Substring(first, index - first);
+            index++;
+            int keyIndex = Array.IndexOf(pattern.Keys, key);
+            if (keyIndex < 0)
+                throw new ArgumentException("re.replace_all_template: undefined group '" + key + "'.");
+            if (literal.Length != 0) {
+                parts.Add(new TemplatePart(literal.ToString(), -1));
+                literal.Length = 0;
+            }
+            parts.Add(new TemplatePart(null, pattern.KeyNumbers[keyIndex]));
+        }
+        if (literal.Length != 0) parts.Add(new TemplatePart(literal.ToString(), -1));
+        return parts;
+    }
+
+    public static string ReplaceAllTemplate(object[] values) {
+        string value = (string)values[0];
+        var pattern = (RukbatRegexPattern)values[1];
+        ValidateText(value);
+        // Parse first so syntax and group errors are reported even with no matches.
+        var parts = ParseTemplate((string)values[2], pattern);
+        var result = new StringBuilder();
+        int copied = 0;
+        foreach (Match match in Matches(value, pattern)) {
+            result.Append(value, copied, match.Index - copied);
+            foreach (TemplatePart part in parts) {
+                if (part.Literal != null) result.Append(part.Literal);
+                else result.Append(match.Groups[part.Number].Value);
+            }
+            copied = match.Index + match.Length;
+        }
+        result.Append(value, copied, value.Length - copied);
+        return result.ToString();
+    }
+
+    public static string[] Split(object[] values) {
+        string value = (string)values[0];
+        var pattern = (RukbatRegexPattern)values[1];
+        ValidateText(value);
+        var result = new List<string>();
+        int copied = 0;
+        foreach (Match match in Matches(value, pattern)) {
+            result.Add(value.Substring(copied, match.Index - copied));
+            copied = match.Index + match.Length;
+        }
+        result.Add(value.Substring(copied));
+        return result.ToArray();
+    }
+
+    public static string Escape(object[] values) {
+        string value = (string)values[0];
+        ValidateText(value);
+        return Regex.Escape(value);
+    }
+}

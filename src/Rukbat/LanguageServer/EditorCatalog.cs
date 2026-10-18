@@ -27,6 +27,8 @@ internal static class EditorCatalog
         "A validated encoding type. Use predefined encoding values or encoding.from_code_page for an explicit Windows code page.", Type: ValueType.Encoding);
     public static readonly EditorSymbol FileLinesType = new("Lines", "fs.Lines", 13,
         "An immutable file-line descriptor. Each for opens an independent traversal and closes it on termination.", Type: ValueType.FileLines);
+    public static readonly EditorSymbol RegexPatternType = new("Pattern", "re.Pattern", 13,
+        "An immutable validated regular expression with an explicit finite match timeout. Create with re.compile.", Type: ValueType.RegexPattern);
     public static EditorSymbol EncodingValue(StandardEncoding value) => new(value.Name,
         $"encoding.{value.Name}: encoding.Encoding", 20, value.Documentation + " Read-only.", Type: ValueType.Encoding);
     public static EditorSymbol DateTimeType(ValueType value) => new(value.Name.Split('.')[1], value.Name, 13, DateTimeValues.Description(value), Type: value);

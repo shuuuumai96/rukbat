@@ -5,7 +5,7 @@ public class RuntimeResourceTests : TestBase
     public static TheoryData<string> StandardModules => new()
     {
         "fs", "path", "json", "csv", "env", "process", "text", "test",
-        "encoding", "math", "datetime", "array", "zip", "hash", "http", "cli", "log"
+        "encoding", "math", "datetime", "array", "zip", "hash", "http", "cli", "log", "re"
     };
 
     [Theory]
@@ -36,6 +36,7 @@ public class RuntimeResourceTests : TestBase
             logger.stderr_level = null
             test.assert(!log.enabled(logger, log.level_info))
             log.info(logger, "filtered")
+            test.assert(re.is_match("resource-test", re.compile("resource-[a-z]+", 1000)))
             print(text.upper("ok"))
             """);
         var result = windowsPowerShell

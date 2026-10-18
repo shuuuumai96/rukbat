@@ -292,6 +292,115 @@ Invalid input, overflow, and nonzero float input that underflows to zero cause E
 Representable subnormal floats are accepted. Float formatting preserves the numeric value on reparse;
 it does not promise to preserve the input spelling or the sign of zero.
 
+## `re`
+
+Regular expressions complement the literal operations in `text`. All arguments are
+required and positional, with no type arguments, flags argument, or regex literal syntax.
+Operations return new values and never change their arguments.
+
+| Signature | Meaning | Failure |
+|---|---|---|
+| `re.compile(pattern: string, timeout_ms: int): re.Pattern` | Validates a pattern and stores a finite timeout for each match search. | An invalid pattern, invalid UTF-16, or timeout outside 1 through 2147483646 milliseconds causes Error. |
+| `re.is_match(value: string, pattern: re.Pattern): bool` | Reports whether a first match exists anywhere in value. | Invalid UTF-16, a match/capture boundary inside a surrogate pair, or a match timeout causes Error. |
+| `re.find(value: string, pattern: re.Pattern): re.Match?` | Returns the first match or null. | Same match failures as is_match. |
+| `re.find_all(value: string, pattern: re.Pattern): re.Match[]` | Returns non-overlapping matches from left to right, or [] when none match. | Same match failures as is_match. No partial result is returned. |
+| `re.replace_all(value: string, pattern: re.Pattern, replacement: string): string` | Replaces every match with literal replacement text; $ has no special meaning. | Match failures or invalid UTF-16 replacement text cause Error. |
+| `re.replace_all_template(value: string, pattern: re.Pattern, template: string): string` | Replaces every match using explicit capture references. | Match failures, invalid UTF-16, malformed template syntax, or an undefined group causes Error, even when there are no matches. |
+| `re.split(value: string, pattern: re.Pattern): string[]` | Splits at matches, excludes captured separators, and preserves every empty field. | Same match failures as is_match. |
+| `re.escape(value: string): string` | Escapes literal text for an ordinary pattern position. | Invalid UTF-16 causes Error. |
+
+`re.Pattern` is opaque and immutable. It supports variables, fields, parameters, returns,
+arrays, dictionaries and nullable wrappers. It exposes no fields, indexing or struct
+literal. Equality, ordering, direct print/eprint, JSON conversion, and PowerShell
+arguments/results are rejected, including nested containers. Assigning or passing a
+pattern safely shares its immutable compiled state; no separate Rukbat runtime is needed.
+`compile` runs when execution reaches it. `rukbat check` checks the call and its types,
+not the pattern text or timeout value.
+
+`re.Match` is an ordinary mutable value struct:
+
+```rukbat
+struct Match {
+    value: string
+    start: int
+    count: int
+    groups: dict[string, string?]
+}
+```
+
+`value` is the matched substring. `start` is zero-based and `count` is its length,
+both in Unicode code points, consistent with `text.slice`. Combining marks count
+separately. Returned matches, arrays and group dictionaries follow ordinary recursive
+value-copy rules. Match literals and typed JSON conversion are supported.
+
+`groups` contains `"0"` for the whole match and canonical decimal keys for every
+defined numbered group, plus a key for each named group. Named groups also have
+their .NET group-number key; unnamed captures are numbered before named captures.
+A defined group that did not participate has value `null`; an empty participating
+capture has value `""`. A repeated group supplies its final capture. Missing keys
+raise the ordinary dictionary Error, rather than returning null. Dictionary keys are
+case-sensitive. Read a nullable group into a variable and narrow it before using it
+as a string.
+
+Patterns use the deployment host's .NET regular-expression syntax, with Windows
+PowerShell 5.1 / .NET Framework as the compatibility baseline. Matching is
+case-sensitive and uses CultureInvariant by default, independent of the current
+PowerShell culture. Inline options such as `(?i)` (ignore case), `(?m)` (line anchors)
+and `(?s)` (dot matches line endings) can be placed in the pattern. `is_match` and
+`find` search for a substring; use `\\A` and `\\z` to require the entire input.
+Ordinary Rukbat string escaping still applies: the regex `\d` is written `"\\d"`.
+`escape` is intended for an ordinary pattern position, not for constructing a
+character class, group name, or replacement template. There is no normalization.
+Unicode categories and case mappings can differ with the target .NET version.
+
+Empty matches are allowed. After an empty match, the next search begins one Unicode
+code point later; an empty match at the end is returned once and ends traversal.
+An empty pattern therefore finds `text.length(value) + 1` matches. Nonempty matches
+resume at their ending position. Replacement results are never searched again.
+With no matches, replacement returns value and splitting returns `[value]`.
+`re.split("a,,b,", re.compile("(,)", 1000))` returns `["a", "", "b", ""]`.
+An empty pattern splits `"ab"` into `["", "a", "b", ""]`.
+
+Templates accept only `${name}` or `${1}` capture references and `$$` for one literal
+dollar sign. `${0}` references the whole match. Other text is literal; a dollar sign
+that does not begin one of these forms is an Error. An unmatched defined group
+expands to an empty string. Template syntax and referenced group definitions are
+validated before searching, including when there are no matches. Use `replace_all`
+for replacement text received from outside the program when capture expansion is
+not intended.
+
+The engine operates on UTF-16 code units. Rukbat validates strings and every returned
+match/group boundary: an unpaired surrogate or a boundary inside a surrogate pair
+raises Error. `is_match` performs the same boundary checks as `find`. A pattern such
+as `.` can match half of an emoji in .NET and therefore raises Error on that match;
+it does not acquire code-point matching semantics. Each defined group's exposed
+final capture is checked, including lookaround captures outside the whole-match range.
+Pattern, input, replacement and template strings must all be valid UTF-16.
+
+The finite timeout applies separately to each engine match search. It does not bound
+the total duration of find_all/replacement/splitting, pattern construction, or result
+size. There is no unlimited timeout mode. Pattern errors, timeout failures, and other
+runtime failures use ordinary catchable Error with the operation's source location.
+The helper uses the .NET facilities supplied by the target PowerShell; it does not
+require a separately installed .NET runtime or Rukbat library.
+
+```rukbat
+import re
+
+const timeout_ms := 1000
+pattern := re.compile("\\A(?<key>[a-z]+)=(?<value>[0-9]+)\\z", timeout_ms)
+found := re.find("port=443", pattern)
+if found != null {
+    value := found.groups["value"]
+    if value != null {
+        print(value)
+    }
+}
+```
+
+See [the regular-expression example](../examples/regex.rukbat) for named extraction
+and capture-template replacement.
+
 ## `array`
 
 All operations return a new array with the input element type, preserving ordinary deep

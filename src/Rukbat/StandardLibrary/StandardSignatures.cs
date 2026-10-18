@@ -24,6 +24,13 @@ internal static class StandardSignatures
         }
         return (standardModule.StandardName, name) switch
         {
+            ("re", "compile") => new([ValueType.String, ValueType.Int], ValueType.RegexPattern),
+            ("re", "is_match") => new([ValueType.String, ValueType.RegexPattern], ValueType.Bool),
+            ("re", "find") => new([ValueType.String, ValueType.RegexPattern], ValueType.NullableOf(Structure("Match"))),
+            ("re", "find_all") => new([ValueType.String, ValueType.RegexPattern], ValueType.ArrayOf(Structure("Match"))),
+            ("re", "replace_all" or "replace_all_template") => new([ValueType.String, ValueType.RegexPattern, ValueType.String], ValueType.String),
+            ("re", "split") => new([ValueType.String, ValueType.RegexPattern], ValueType.ArrayOf(ValueType.String)),
+            ("re", "escape") => new([ValueType.String], ValueType.String),
             ("fs", "stat") => new([ValueType.String], Structure("Info")),
             ("fs", "list_files") => new([ValueType.String, ValueType.String], ValueType.ArrayOf(ValueType.String)),
             ("fs", "list_files_recursive") => new([ValueType.String, ValueType.String], ValueType.ArrayOf(ValueType.String)),

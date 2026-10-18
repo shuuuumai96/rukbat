@@ -6,6 +6,7 @@ internal sealed partial class Emitter
     {
         if (standardCall.StartsWith("http.", StringComparison.Ordinal)) return HttpCall(call, standardCall);
         if (standardCall.StartsWith("log.", StringComparison.Ordinal)) return LogCall(call, standardCall);
+        if (standardCall is "re.find" or "re.find_all") return RegexCall(call, standardCall);
         if (standardCall == "test.assert")
         {
             return TestAssertion(call);

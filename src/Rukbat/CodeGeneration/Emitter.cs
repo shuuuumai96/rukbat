@@ -41,6 +41,7 @@ internal sealed partial class Emitter(TypeChecker checker, DebugMap? debugMap = 
         if (type.IsCsvRow) return "RukbatCsvRow";
         if (type.IsCliResult) return "object";
         if (type == ValueType.FileLines) return "object";
+        if (type == ValueType.RegexPattern) return "object";
         if (type == ValueType.Encoding || type == HashValues.Algorithm || type == LogValues.Level) return "string";
         if (type == HttpValues.Method) return "string";
         if (type == HttpValues.Body) return "RukbatHttpBody";
@@ -95,7 +96,7 @@ internal sealed partial class Emitter(TypeChecker checker, DebugMap? debugMap = 
             EmitJsonRuntime();
         }
         var standardModules = modules
-            .Where(current => current.StandardName is "fs" or "path" or "csv" or "json" or "env" or "process" or "text" or "encoding" or "math" or "datetime" or "array" or "zip" or "hash" or "http" or "cli" or "log")
+            .Where(current => current.StandardName is "fs" or "path" or "csv" or "json" or "env" or "process" or "text" or "encoding" or "math" or "datetime" or "array" or "zip" or "hash" or "http" or "cli" or "log" or "re")
             .Select(current => current.StandardName!)
             .ToHashSet(StringComparer.Ordinal);
         if (standardModules.Count != 0)
