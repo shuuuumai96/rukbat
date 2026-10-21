@@ -16,8 +16,8 @@ greet("Rukbat")
 
 ## Getting started
 
-The first preview is being prepared as **0.1.0**. Download its Windows x64 packages
-from [GitHub Releases](https://github.com/shuuuumai96/rukbat/releases) once published:
+The first preview, **0.1.0**, is available. Download its Windows x64 packages
+from [GitHub Releases](https://github.com/shuuuumai96/rukbat/releases/tag/v0.1.0):
 
 | Package | Use |
 |---|---|
@@ -26,7 +26,7 @@ from [GitHub Releases](https://github.com/shuuuumai96/rukbat/releases) once publ
 | `SHA256SUMS` | SHA-256 hashes for both packages. |
 
 Use the [packaging instructions](docs/DISTRIBUTION.md#build-the-distribution-maintainers)
-to build these packages from source before the release is published.
+to build these packages from source.
 
 In VS Code, install the VSIX using **Extensions: Install from VSIX**.
 VS Code 1.82 or later is required.

@@ -18,8 +18,8 @@ greet("Rukbat")
 
 ## はじめに
 
-初回のプレビュー版を **0.1.0** として準備しています。
-公開後は[GitHub Releases](https://github.com/shuuuumai96/rukbat/releases)からWindows x64向けのパッケージをダウンロードしてください。
+初回のプレビュー版 **0.1.0** を公開しました。
+[GitHub Releases](https://github.com/shuuuumai96/rukbat/releases/tag/v0.1.0)からWindows x64向けのパッケージをダウンロードできます。
 
 | ファイル | 用途 |
 |---|---|
@@ -27,7 +27,7 @@ greet("Rukbat")
 | `rukbat-0.1.0-win-x64.zip` | 展開して使えるコマンドライン版。 |
 | `SHA256SUMS` | 両パッケージのSHA-256ハッシュ一覧。 |
 
-公開前に試す場合は、[パッケージ作成手順](DISTRIBUTION.md#build-the-distribution-maintainers)に沿ってソースからビルドできます。
+[パッケージ作成手順](DISTRIBUTION.md#build-the-distribution-maintainers)に沿って、ソースからビルドすることもできます。
 
 VS Codeの **Extensions: Install from VSIX** でVSIXをインストールします。
 VS Code 1.82以降が必要です。

@@ -2,8 +2,8 @@
 
 [English](../../docs/DISTRIBUTION.md) | [日本語目次](README.md)
 
-初回のプレビュー版を0.1.0として準備しています。
-公開後は[GitHub Releases](https://github.com/shuuuumai96/rukbat/releases)からVSIX、CLIのZIP、`SHA256SUMS`をダウンロードしてください。
+初回のプレビュー版0.1.0を公開しました。
+[GitHub Releases](https://github.com/shuuuumai96/rukbat/releases/tag/v0.1.0)からVSIX、CLIのZIP、`SHA256SUMS`をダウンロードできます。
 互換性と制約は[リリースノート（英語）](../releases/0.1.0.md)を参照してください。
 
 <a id="vs-code-install-one-extension"></a>

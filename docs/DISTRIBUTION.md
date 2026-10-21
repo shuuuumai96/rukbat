@@ -1,7 +1,7 @@
 # Rukbat on Windows
 
-The first preview is being prepared as 0.1.0. Once published, download the VSIX,
-CLI ZIP and `SHA256SUMS` from [GitHub Releases](https://github.com/shuuuumai96/rukbat/releases).
+The first preview, 0.1.0, is available. Download the VSIX,
+CLI ZIP and `SHA256SUMS` from [GitHub Releases](https://github.com/shuuuumai96/rukbat/releases/tag/v0.1.0).
 See the [release notes](releases/0.1.0.md) for preview compatibility and limitations.
 
 ## VS Code: install one extension
