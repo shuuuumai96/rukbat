@@ -43,7 +43,7 @@ Create the work and state directories, copy `tools/operations/job.example.json`,
 
 - `job_id` and `state_directory` identify the exclusive job across all releases. Keep them unchanged during upgrades and recovery.
 - `release_directory` pins a complete release. `powershell` is the absolute path of `powershell.exe` or `pwsh.exe`.
-- `working_directory` fixes relative business paths. `arguments` preserves individual strings, including empty values, Unicode, quotes and leading hyphens.
+- `working_directory` sets the base directory for relative paths used by the program. `arguments` preserves individual strings, including empty values, Unicode, quotes and leading hyphens.
 - `timeout_seconds` is a 1–86400 second budget across all attempts, including helper initialization after the start record. Child cleanup can take up to ten extra seconds. The scheduler adds a sixty-second backstop for wrapper setup/teardown.
 - `max_attempts` defaults to one in the example and is limited to ten. Only explicitly listed positive `retry_exit_codes` are retried, after `retry_delay_seconds`, within the same deadline. A timeout, capture failure or unknown result is never automatically retried.
 - `first_due_utc` is the first time at which absence of any run becomes an alert. Replace the example timestamp. `max_success_age_seconds` limits the age of the last successful completion; include the expected schedule, duration and tolerated delay.
@@ -117,7 +117,7 @@ Keep releases immutable and work/state directories separate. To upgrade or roll 
 3. Retain the old release/configuration; test the replacement on disposable inputs.
 4. Change the release path and re-register the task with the matching tool path.
 
-Monitoring reports a configuration change until it completes successfully. Code
+Monitoring reports a configuration change until a run with the new configuration succeeds. Code
 rollback does not restore data: verify that the old program accepts the current
 format. Never replace files inside an executing release.
 

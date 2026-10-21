@@ -5,8 +5,8 @@ This is the fixed public catalog for `datetime.Zone` constants, referenced by
 The catalog is fixed by the Rukbat version. `datetime.zone(id)` accepts additional
 IDs installed on the target Windows machine.
 
-Names remove the exact phrase ` Standard Time`, lowercase the remaining ID, and replace
-punctuation/space runs with `_`. Hyphens in region names act as separators.
+To derive a constant name, remove the exact phrase ` Standard Time`, lowercase the remaining
+ID, and replace runs of punctuation or spaces with `_`. Hyphens in region names act as separators.
 For numeric UTC IDs, `+` becomes `_plus_` and `-` becomes `_minus_`;
 leading zeroes are retained. Parenthesized region qualifiers are retained, so
 `Pacific Standard Time (Mexico)` is `datetime.pacific_mexico`.

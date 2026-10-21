@@ -6,7 +6,16 @@ under a `tests` directory.
 
 ## First test
 
-Create `test_math.rukbat`:
+Create `math.rukbat` and `test_math.rukbat` in the same directory.
+First, save the function to test in `math.rukbat`:
+
+```rukbat
+fn add(left: int, right: int): int {
+    return left + right
+}
+```
+
+Then write the test in `test_math.rukbat`:
 
 ```rukbat
 import test

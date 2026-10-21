@@ -7,7 +7,7 @@ The [language specification](language.md#dictionaries) owns syntax and semantics
 ## Why a language type
 
 CSV joins, ID lookup, counting, and in-memory indexes need dynamic keys with
-statically known values. Dictionaries store ordinary Rukbat values, including
+statically known value types. Dictionaries store ordinary Rukbat values, including
 structs, arrays, and opaque values, without converting them to JSON. Fixed records
 continue to use structs; unknown JSON documents use `json.Value`.
 

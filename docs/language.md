@@ -202,8 +202,9 @@ argument, return, field, or enclosing literal. Struct literals retain their expl
 
 Methods take exactly the positional arguments shown. String keys use ordinal, case-sensitive
 equality without normalization, trimming, or path comparison. Empty strings and the entire
-signed 64-bit int range are valid. Replacement preserves position; remove then reinsert moves
-the key last. This order agrees on PowerShell 5.1 and 7.
+signed 64-bit int range are valid. Replacing a value preserves the key's position.
+Removing and reinserting a key moves it to the end. This ordering is the same in
+PowerShell 5.1 and 7.
 
 Repeated string or signed-integer literal keys are compile-time errors. Other duplicates raise
 Error during construction. Each pair evaluates key then value in written order before the

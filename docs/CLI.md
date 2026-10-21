@@ -100,8 +100,9 @@ for tag in cli.get_all(parsed, "tag") {
 
 Set choices to restrict text (`format.choices = ["json", "csv"]`), required to require an option,
 or allow_empty to accept an explicit empty value. A default is only valid on an optional
-non-repeatable option. Use `text.parse_int(cli.get(parsed, "count"))` for numeric conversion;
-range constraints, filesystem checks and business combinations remain ordinary procedural code.
+non-repeatable option. Use `text.parse_int(cli.get(parsed, "count"))` for numeric conversion.
+Validate numeric ranges, filesystem conditions, and application-specific combinations of
+arguments in ordinary procedural code.
 Use `cli.get(parsed, output.name)` when sharing the definition's name avoids duplicate string literals.
 
 ## Parsing and errors
@@ -115,10 +116,11 @@ CLI does not evaluate, re-tokenize or expand strings.
 `--help`/`-h` before the option terminator wins over invalid user inputs and missing required
 arguments. `--name=--help` and `-- --help` remain data. Handle help before reading result values
 and before file/process/network operations. Move such operations out of imported modules'
-top-level initialization when help must have no business side effects.
+top-level initialization when requesting help must not perform those operations.
 
-`cli.parse` and `cli.help` do not print or exit. Conventional programs print help to stdout and
-exit 0, then print caught input Errors to stderr and exit 2. They may choose other exit policies
+`cli.parse` and `cli.help` do not print or exit. When help is requested, conventional programs
+print it to stdout and exit with code 0. For input errors, they print the caught Error to stderr
+and exit with code 2. They may choose other exit policies
 for operational failures. A Result has no fields and cannot be exported as JSON or PowerShell
 data: build an ordinary program-specific struct from get/get_all/has instead.
 Unknown result names are errors even for has, preventing typos from silently appearing absent.

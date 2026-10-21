@@ -35,7 +35,7 @@ APIは[標準ライブラリ](STDLIB.md)、使い方は[コマンドラインプ
 
 `exit(code: int): void`は、関数内やインポート先から呼んだ場合もプログラム全体を指定コードで終了します。
 指定できる値は0～2147483647です。引数は1回評価します。
-負のコードは通常のErrorになります。正しいexitは捕捉できない終端の制御移行であり、関数の「戻るか終了する」という条件を満たします。
+負のコードは通常のErrorになります。有効な終了コードで`exit`を呼び出すとプログラムが終了し、`catch`では捕捉できません。この呼び出しは、関数が値を返すか処理を終了しなければならない経路でも使えます。
 生成スクリプトは専用のPowerShellプロセスで実行してください。exitはそのホストプロセスを終了します。
 
 `eprint(value): void`は`print(value)`の標準エラー出力版の組み込み関数で、インポートは不要です。
@@ -113,9 +113,10 @@ APIと変換規則は[標準ライブラリ](STDLIB.md)で定義します。
 | `log.Level` | 検証済み重要度定数と、nullでない同型の等値比較。順序、算術、フィールド、構造体リテラル、暗黙変換は不可。`log.Logger`はコピー可能な設定フィールドを持つ通常の構造体。 |
 | `http.Body`, `http.Method` | 不変の応答バイト列と検証済みメソッド定数。等値比較はMethodのみ。HTTPの要求・オプション・結果は通常の構造体。ステータス定数は読み取り専用int。 |
 | `fs.Lines` | 不変のファイル行記述子。forが個々の走査を管理。等値比較、直接表示、公開フィールドは不可。 |
+| `re.Pattern` | 検証済みの不変の正規表現。検索のタイムアウトを明示する。等値比較、直接表示、公開フィールドは不可。`re.Match`は一致文字列、コードポイント単位の範囲、null許容のキャプチャ文字列を持つ通常の構造体。 |
 | `datetime.Timestamp`, `datetime.Date`, `datetime.Duration`, `datetime.Zone` | 明示的な変換・算術。同型の等値比較と、Zone以外の順序比較。名前付きゾーンは読み取り専用定数。 |
 
-encoding、hash、log.Level、HTTPの不透明型、fs.Lines、datetime型は、表示・JSON・PowerShellとの受け渡しで再帰的に拒否します。
+encoding、hash、log.Level、HTTPの不透明型、fs.Lines、re.Pattern、datetime型は、表示・JSON・PowerShellとの受け渡しで再帰的に拒否します。
 JSON/CSVの更新は元の値を維持し、通常のコンテナーのコピーも独立します。
 ZIPは通常の構造体`zip.Options`と`zip.Entry`を公開します。
 
@@ -154,7 +155,7 @@ floatリテラル、演算結果、外部値がNaNや正負のInfinityなら拒�
 整数演算は範囲を検査し、オーバーフロー時は桁の折り返しや型昇格をせずErrorにします。
 整数除算はゼロ方向に切り捨て、剰余の符号は被除数と同じです。最小整数を-1で割るとErrorですが、その剰余は0です。
 整数の範囲は-9223372036854775808～9223372036854775807です。
-その他のfloat演算はbinary64の最近接丸めを使い、中間値は偶数側に丸めます。非正規化数と、演算でゼロにアンダーフローすることを許可します。
+その他のfloat演算は、binary64で表現できる最も近い値に丸めます。ちょうど中間の場合は、仮数の最下位ビットが0になる側を選びます。非正規化数と、演算でゼロにアンダーフローすることを許可します。
 正と負のfloatのゼロは等しいと判定します。
 
 プリミティブ値の等値比較には、互換性のあるnullでない値が必要です。文字列は大文字小文字を区別します。
@@ -331,7 +332,7 @@ selfを更新するメソッドを呼べるのは、代入可能な対象だけ�
 戻り値をTに照らして検査します。単一値ならちょうど1値が必要で、T[]なら値を配列に集めます。
 PowerShellの失敗や互換性のない結果は実行時エラーです。
 
-PowerShellの引数・結果型には、辞書や、`json.Value`、`csv.Row`、`cli.Result`、`encoding.Encoding`、`hash.Algorithm`、`log.Level`/`log.Logger`、datetime型、HTTPのBody/Methodなどの不透明値を含められません。
+PowerShellの引数・結果型には、辞書や、`json.Value`、`csv.Row`、`cli.Result`、`encoding.Encoding`、`hash.Algorithm`、`log.Level`/`log.Logger`、`re.Pattern`、datetime型、HTTPのBody/Methodなどの不透明値を含められません。
 外部コマンドのJSONは文字列として受け取り、json.parseで読みます。
 文字コードはencoding.name(value)を渡し、返されたテキストはencoding.parseで解析します。
 

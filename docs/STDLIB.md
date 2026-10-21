@@ -260,8 +260,9 @@ elements. An empty array returns `""`; one element returns that element; an empt
 the elements directly. For a nonempty separator, joining the result of `split` with that same separator
 reconstructs the original input exactly.
 
-`length`, `slice`, and `index_of` count Unicode code points, starting at zero, rather than
-UTF-16 code units or user-perceived grapheme clusters. A supplementary character such as an
+`length`, `slice`, and `index_of` measure lengths and positions in Unicode code points,
+rather than UTF-16 code units or user-perceived grapheme clusters. Positions start at zero.
+A supplementary character such as an
 emoji counts once; a combining mark counts separately. `slice` takes a start and a count,
 not an ending index. Start may equal length only when count is zero. Negative values and
 ranges outside the string raise Error without clamping. `index_of` returns the first literal
@@ -649,11 +650,11 @@ Because `modified` is a `datetime.Timestamp`, `fs.Info` cannot be converted dire
 | `fs.lines(path: string, encoding: encoding.Encoding): fs.Lines` | Creates an immutable descriptor for sequential physical lines. Each for opens an independent traversal and closes it on termination. | Invalid paths or encodings cause Error during descriptor creation. Opening, reading, decoding, BOM conflicts, sharing conflicts, and cleanup failures cause Error during traversal. |
 | `fs.write_text(path: string, text: string, encoding: encoding.Encoding): void` | Replaces a file with one explicit encoding value, without a BOM or implicit newline. It does not create parent directories. Complete new contents are written to a temporary file in the destination directory before it is moved or used to replace the destination. | An inaccessible path, missing parent directory, or unencodable text causes Error. |
 | `fs.append_text(path: string, text: string, encoding: encoding.Encoding): void` | Appends strictly encoded text bytes to a file, without a BOM or implicit newline. Creates a missing file, including for empty text, and does not create parent directories. | An invalid/inaccessible path, missing parent, unencodable text, sharing conflict, or I/O failure causes Error. An I/O failure can leave a partial append. |
-| `fs.create_temp_file(directory: string): string` | Exclusively creates an empty temporary file in an existing directory and returns its absolute path. | An invalid/missing/inaccessible parent, a file passed as parent, exhausted name collisions, or an I/O failure causes Error. |
+| `fs.create_temp_file(directory: string): string` | Exclusively creates an empty temporary file in an existing directory and returns its absolute path. | An invalid/missing/inaccessible parent, a file passed as parent, failure to find an unused name within the retry limit, or an I/O failure causes Error. |
 | `fs.is_file(path: string): bool` | Returns `true` for an existing file. Missing files, directories, invalid paths, and access failures or other cases that File.Exists cannot determine return `false`. | This predicate returns `false` rather than raising Error when path resolution or existence checking fails. |
 | `fs.copy_file(source: string, destination: string): void` | Copies one file without overwriting an existing destination or creating its parent directory. | A missing, inaccessible, or directory source; an existing destination; a missing parent; identical source and destination; or an I/O failure causes Error. |
 | `fs.move_file(source: string, destination: string): void` | Moves one file. Moving within one directory renames it. It does not overwrite an existing destination or create its parent directory. On success the source no longer exists. | A missing or directory source; an existing destination; a missing parent; identical source and destination; or an I/O failure causes Error. Cross-volume moves are allowed but are not atomic; after an error, the destination may remain. |
-| `fs.remove_file(path: string): void` | Deletes one file. Removing a missing file succeeds. | A directory, readonly or in-use file, invalid path, or I/O failure causes Error. A file reparse point removes the entry, not its target. |
+| `fs.remove_file(path: string): void` | Deletes one file. Removing a missing file succeeds. | A directory, readonly or in-use file, invalid path, or I/O failure causes Error. If the path refers to a file reparse point, the operation removes the entry, not its target. |
 
 The encoding argument has type `encoding.Encoding`; strings are rejected during checking. Import `encoding` and pass a predefined value or a validated `encoding.from_code_page` / `encoding.parse` result. `encoding.utf8` accepts and removes only a leading UTF-8 BOM on read. UTF-16 and UTF-32 values accept and remove their matching leading BOM, accept no BOM, and reject the opposite-endian BOM. All writes are strict and BOM-free. `encoding.windows_932` means Windows code page 932 (CP932 / Windows Shift-JIS), for text commonly used by legacy Japanese Windows software. It is deliberately CP932 rather than a claim to implement every Shift_JIS variant, and it has no BOM handling. Every encoding rejects invalid input and unencodable output rather than replacing data.
 
@@ -669,8 +670,9 @@ The caller must select an encoding compatible with the existing contents. The op
 one append stream, permits readers and excludes other writers while that stream is open, then
 writes and flushes only the new bytes. Sharing conflicts cause Error rather than waiting or
 retrying. It is not a transactional replacement: write/flush failures or host termination may
-leave a partial suffix. Empty text creates a missing empty file and adds nothing to an existing
-file. Neither a BOM nor a newline is added; put the desired line ending in the text explicitly.
+leave a partial suffix. If the supplied text is empty, the operation creates an empty file
+when none exists and adds nothing to an existing file. Neither a BOM nor a newline is added;
+put the desired line ending in the text explicitly.
 
 ### Sequential line reads
 
@@ -713,9 +715,9 @@ independent calls to csv.parse on physical lines.
 | `fs.list_dirs(directory: string, pattern: string): string[]` | Returns absolute paths of directly contained ordinary directories matching a directory-name wildcard, including empty, Hidden and System directories. Does not recurse; child reparse points are excluded; order is unspecified. | An invalid/inaccessible/nonexistent root, a file passed as root, an invalid pattern, or an enumeration failure causes Error. |
 | `fs.move_dir(source: string, destination: string): void` | Moves an ordinary directory and its contents by a same-volume rename. Within one parent this renames the directory. Destination must not exist and its parent must exist. | A missing/file/reparse-point source, existing destination, missing parent, identical paths, destination beneath source, different drives/UNC shares or volumes, protected source, or I/O failure causes Error. |
 | `fs.create_dir_all(path: string): void` | Creates the directory and any missing parent directories. Creating an existing directory succeeds. | A file at the target path, an invalid path, or an I/O failure causes Error. |
-| `fs.create_temp_dir(directory: string): string` | Exclusively creates an empty temporary directory in an existing directory and returns its absolute path. | An invalid/missing/inaccessible parent, a file passed as parent, exhausted name collisions, or an I/O failure causes Error. |
+| `fs.create_temp_dir(directory: string): string` | Exclusively creates an empty temporary directory in an existing directory and returns its absolute path. | An invalid/missing/inaccessible parent, a file passed as parent, failure to find an unused name within the retry limit, or an I/O failure causes Error. |
 | `fs.is_dir(path: string): bool` | Returns `true` only for an existing reachable directory. Files, missing paths, invalid paths, inaccessible paths, and indeterminate checks return `false`. | This predicate returns `false` rather than raising Error. |
-| `fs.remove_dir(path: string): void` | Deletes an empty directory. Removing a missing directory succeeds. | A file, a non-empty directory, a filesystem root, the captured working directory or its ancestor, or an I/O failure causes Error. A directory reparse point removes the entry, not its target. |
+| `fs.remove_dir(path: string): void` | Deletes an empty directory. Removing a missing directory succeeds. | A file, a non-empty directory, a filesystem root, the captured working directory or its ancestor, or an I/O failure causes Error. If the path refers to a directory reparse point, the operation removes the entry, not its target. |
 | `fs.remove_dir_all(path: string): void` | Deletes a directory and its ordinary subtree. Removing a missing directory succeeds. | A file, a filesystem root, the captured working directory or its ancestor, or an I/O failure causes Error. Partial deletion is possible. Reparse points at the target or beneath it are removed as entries and are never traversed. |
 
 `fs.list_dirs` treats its root literally and resolves relative roots against the captured entry
@@ -978,7 +980,7 @@ Use raw records when input has no header or intentionally contains different rec
 | `csv.parse(text: string): string[][]` | Parses records as strings without interpreting headers or requiring a rectangular table. | Invalid CSV syntax causes Error. |
 | `csv.stringify(rows: string[][]): string` | Converts rows to CSV, escaping commas, quotes, and newlines. | A row with no fields causes Error and identifies its one-based record number. |
 
-The separator is comma. CRLF and LF separate records; a final separator is optional. Quoted fields preserve commas and newlines, and `""` inside a quoted field becomes `"`. Whitespace and Unicode are preserved. Empty fields, including quoted empty fields, return `""`. An empty input returns `[]`; a blank record returns `[""]` and is not discarded. A bare CR outside a quoted field, an unquoted quote, an unclosed quote, or non-separator content after a closing quote causes Error. `csv.parse` accepts a Rukbat string and does not decode text encodings or treat U+FEFF specially; select the file encoding with `fs.read_text`, for example `csv.parse(fs.read_text("legacy.csv", encoding.windows_932))`.
+Commas separate fields. CRLF and LF separate records; the final record need not end with a line ending. Quoted fields preserve commas and newlines, and `""` inside a quoted field becomes `"`. Whitespace and Unicode are preserved. Empty fields, including quoted empty fields, return `""`. An empty input returns `[]`; a blank record returns `[""]` and is not discarded. A bare CR outside a quoted field, an unquoted quote, an unclosed quote, or non-separator content after a closing quote causes Error. `csv.parse` accepts a Rukbat string and does not decode text encodings or treat U+FEFF specially; select the file encoding with `fs.read_text`, for example `csv.parse(fs.read_text("legacy.csv", encoding.windows_932))`.
 
 `stringify` uses commas between fields and CRLF after every record, including the last. Empty fields
 and fields containing a comma, quote, CR, or LF are quoted; a quote inside a quoted field becomes
