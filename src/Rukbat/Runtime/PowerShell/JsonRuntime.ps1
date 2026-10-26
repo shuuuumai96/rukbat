@@ -10,7 +10,7 @@
                     throw "${path}: JSON null is incompatible with $($type.name)."
                 }
                 if ($type.kind -eq 'nullable') {
-                    return (__rukbat_json_convert $value $type.element $path)
+                    return ,(__rukbat_json_convert $value $type.element $path)
                 }
                 switch ($type.kind) {
                     'json' { return [RukbatJsonValue]::new($value) }
@@ -78,7 +78,8 @@
                 }
                 throw "${path}: JSON value is incompatible with $($type.name)."
             }
-            return (__rukbat_json_convert $node $schema '$')
+            # Forward one value without enumerating empty or singleton arrays.
+            return ,(__rukbat_json_convert $node $schema '$')
         }
         $__rukbat_json_encode = {
             param([object]$value, [hashtable]$schema)

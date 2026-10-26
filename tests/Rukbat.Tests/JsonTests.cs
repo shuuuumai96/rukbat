@@ -3,6 +3,120 @@ namespace Rukbat.Tests;
 public class JsonTests : TestBase
 {
     [Trait("Category", "Runtime")]
+    [Trait("Category", "CrossVersion")]
+    [Theory]
+    [InlineData("powershell")]
+    [InlineData("pwsh")]
+    public async Task TypedJsonArraysKeepTheirShapeAndValueSemantics(string shell)
+    {
+        using var project = new Project();
+        project.Write("main.rukbat", """
+            import json
+
+            struct Job {
+                name: string
+            }
+
+            for payload in ["[]", "[{\"name\":\"only\"}]", "[{\"name\":\"one\"},{\"name\":\"two\"}]"] {
+                jobs := json.parse<Job[]>(payload)
+                print(jobs.length)
+
+                for job in jobs {
+                    print(job.name)
+                }
+
+                selected := json.as<Job[]>(json.parse(payload))
+                print(json.stringify(selected))
+                copied := jobs
+
+                if copied.length > 0 {
+                    copied[0].name = "changed"
+                }
+
+                copied.append(Job { name: "added" })
+                selected.append(Job { name: "added" })
+                print(json.stringify(jobs))
+                print(copied.length)
+                print(selected.length)
+            }
+            """);
+        var compiled = project.Compile();
+        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+        var result = shell == "powershell"
+            ? await project.RunOutputWithWindowsPowerShell(compiled.Output!)
+            : await project.RunOutput(compiled.Output!);
+
+        Assert.True(result.ExitCode == 0, result.Error);
+        Assert.Equal("", result.Error);
+        Assert.Equal("0\n[]\n[]\n1\n1\n" +
+            "1\nonly\n[{\"name\":\"only\"}]\n[{\"name\":\"only\"}]\n2\n2\n" +
+            "2\none\ntwo\n[{\"name\":\"one\"},{\"name\":\"two\"}]\n[{\"name\":\"one\"},{\"name\":\"two\"}]\n3\n3\n",
+            result.Output);
+    }
+
+    [Trait("Category", "Runtime")]
+    [Trait("Category", "CrossVersion")]
+    [Theory]
+    [InlineData("powershell")]
+    [InlineData("pwsh")]
+    public async Task TypedJsonConversionPreservesNullableAndNestedArrays(string shell)
+    {
+        using var project = new Project();
+        project.Write("main.rukbat", """
+            import json
+
+            for payload in ["null", "[]", "[7]", "[8,9]"] {
+                parsed := json.parse<int[]?>(payload)
+                selected := json.as<int[]?>(json.parse(payload))
+
+                if parsed != null {
+                    parsed.append(99)
+                }
+
+                if selected != null {
+                    selected.append(99)
+                }
+
+                print(json.stringify(parsed))
+                print(json.stringify(selected))
+            }
+
+            struct Config {
+                values: int[]?
+                groups: int[]?[]
+            }
+
+            config := json.parse<Config>("{\"values\":[],\"groups\":[null,[],[1],[2,3]]}")
+            print(json.stringify(config))
+            dictionary := json.as<dict[string, int[]?]>(json.parse("{\"empty\":[],\"one\":[1],\"two\":[2,3],\"missing\":null}"))
+            print(json.stringify(dictionary))
+            nested := json.parse<int[]?[]>("[null,[],[1],[2,3]]")
+            nested.append(null)
+            print(json.stringify(nested))
+            optional_items := json.parse<int?[]>("[null]")
+            print(optional_items.length)
+            print(optional_items[0] == null)
+            optional_items.append(7)
+            print(json.stringify(optional_items))
+            flags := json.as<bool[]>(json.parse("[false]"))
+            flags.append(true)
+            print(json.stringify(flags))
+            """);
+        var compiled = project.Compile();
+        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+        var result = shell == "powershell"
+            ? await project.RunOutputWithWindowsPowerShell(compiled.Output!)
+            : await project.RunOutput(compiled.Output!);
+
+        Assert.True(result.ExitCode == 0, result.Error);
+        Assert.Equal("", result.Error);
+        Assert.Equal("null\nnull\n[99]\n[99]\n[7,99]\n[7,99]\n[8,9,99]\n[8,9,99]\n" +
+            "{\"values\":[],\"groups\":[null,[],[1],[2,3]]}\n" +
+            "{\"empty\":[],\"missing\":null,\"one\":[1],\"two\":[2,3]}\n" +
+            "[null,[],[1],[2,3],null]\n1\nTrue\n[null,7]\n[false,true]\n", result.Output);
+    }
+
+    [Trait("Category", "Runtime")]
     [Trait("Category", "PowerShell51")]
     [Fact]
     public async Task TypedJsonRoundTripCompletesForTenThousandRecordsOnBothHosts()
