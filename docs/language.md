@@ -74,7 +74,7 @@ fn greet(person: string): void {
   A copy of a const value held by an ordinary variable or parameter is mutable.
   `const` is a restriction on a declared name, not a new type. Const module values
   remain module-local, like ordinary variables.
-- `fn` is the only function declaration syntax. Free functions are defined at module scope. Methods are defined inside a struct declaration.
+- `fn` is the only function declaration syntax. Free functions are defined at module scope. Methods are defined inside an `impl` declaration, separately from the struct's fields.
 
 Names are case-sensitive. Statements are separated by a newline or `;`. Blocks use braces.
 Line comments begin with `//` and continue to the end of the line. Block comments are not supported.
@@ -243,16 +243,21 @@ finally execution. Descriptor, decoding, and read-ahead behavior are defined in 
 struct User {
     name: string
     age: int
+}
 
+impl User {
     fn is_adult(): bool {
         return self.age >= 20
     }
 }
 
 user := User { name: "Taro", age: 30 }
+print(user.is_adult())
 ```
 
-Struct fields are data. A struct value is created with a struct literal: `StructName { field: value, ... }`. All fields must be initialized, including nullable fields. Fields are specified by name; order does not matter. Duplicate, missing, or unknown field names are compile-time errors. Field initializer expressions are evaluated left to right in written order.
+A `struct` declaration defines data using fields only. Methods inside a `struct` are rejected; define them in `impl StructName { ... }` instead. A struct value is created with a struct literal: `StructName { field: value, ... }`. All fields must be initialized, including nullable fields. Fields are specified by name; order does not matter. Duplicate, missing, or unknown field names are compile-time errors. Field initializer expressions are evaluated left to right in written order.
+
+An `impl` declaration contains only `fn` methods and must be at module scope. Its target is the unqualified name of a user-defined struct in the same module. It may appear before or after that struct; at most one `impl` is allowed for each struct. Imported types, built-in types, arrays, and dictionaries cannot be extended with `impl`. `impl` is a reserved word. Method names must be unique and cannot conflict with the struct's fields.
 
 Methods use `fn` and may read or update `self`. A method that updates `self` may only be called on a receiver that is assignable: a variable, or a chain of struct fields and array indexes rooted at a variable. Calling a mutating method on a temporary value, such as a function result, is a compile-time error. This matches the existing rule for `append`.
 
@@ -293,7 +298,7 @@ If both syntax and I/O failures occur, exit code 2 takes precedence.
 
 Formatting is canonical and has no configuration. `rukbat fmt` uses four-space indentation, one statement per line, spaces around binary operators and after commas/colons, no padding immediately inside delimiters, braces on the declaration or control-flow line, and `else` / `catch` on the same line as the preceding closing brace. It preserves comments and blank lines between statements or comments, collapsing consecutive blank lines to one. Leading blank lines and blank lines immediately inside block braces are removed. It writes UTF-8 without a BOM and LF line endings, and ends with one LF newline (`\n`) without an additional trailing blank line. An empty source becomes `\n`.
 
-The formatter also inserts one blank line between an import group and other statements, and before and after functions, struct declarations, and control-flow statements (`if`, `for`, `while`, and `try`) when another statement exists in the same block. Struct fields and methods are separated in the same way. Consecutive simple statements remain adjacent unless the source explicitly separates them. No blank line is inserted at a block's edges or between an `if` and its `else`, or a `try` and its `catch`. Leading comments stay with the following statement; trailing comments stay with the preceding statement.
+The formatter also inserts one blank line between an import group and other statements, and before and after functions, struct declarations, impl declarations, and control-flow statements (`if`, `for`, `while`, and `try`) when another statement exists in the same block. Methods within an `impl` are separated by one blank line. Consecutive struct fields and simple statements remain adjacent unless the source explicitly separates them. No blank line is inserted at a block's edges or between an `if` and its `else`, or a `try` and its `catch`. Leading comments stay with the following statement; trailing comments stay with the preceding statement.
 
 Struct literals use indented braces; their closing brace stays attached to any following comma, member access, index, or closing expression delimiter. Expression continuations normally join onto one line. When a line comment requires a continuation to remain on a new line, it receives one additional four-space indent. Closing delimiters align with the enclosing block. Comments can also require an opening brace, `else`, or `catch` to remain on a separate line. Physical CR and LF characters inside string literals become `\r` and `\n` escapes, preserving the string value while keeping source line endings canonical. Formatting twice produces the same result as formatting once.
 

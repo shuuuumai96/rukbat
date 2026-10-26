@@ -80,7 +80,7 @@ public class InferenceTests : TestBase
     {
         using var project = new Project();
         project.Write("model.rukbat", """
-            struct Item { number: int; fn read(): int { return self.number } }
+            struct Item { number: int }; impl Item { fn read(): int { return self.number } }
             fn make(): Item { return Item {number: 42} }
             """);
         project.Write("service.rukbat", """

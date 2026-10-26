@@ -195,7 +195,7 @@ public class UserTestTests : TestBase
     {
         using var project = new Project();
         project.Write("helper.rukbat", "fn test_imported(): void { exit(99) }");
-        project.Write("test_empty.rukbat", "import './helper.rukbat' as helper; struct Example { fn test_method(): void {} }");
+        project.Write("test_empty.rukbat", "import './helper.rukbat' as helper; struct Example {}; impl Example { fn test_method(): void {} }");
         using var stdout = new StringWriter();
         using var stderr = new StringWriter();
         Assert.Equal(5, Cli.Run(["test", project.DirectoryPath], stdout, stderr));

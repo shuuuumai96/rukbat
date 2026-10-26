@@ -5,7 +5,9 @@
 
 struct Settings {
     paths: string[]
+}
 
+impl Settings {
     fn count(): int {
         return self.paths.length
     }

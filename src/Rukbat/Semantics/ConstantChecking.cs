@@ -72,7 +72,7 @@ internal sealed partial class TypeChecker
             var nested = statement switch
             {
                 Function function => function.Body,
-                StructDeclaration structure => structure.Methods.SelectMany(method => method.Body),
+                ImplDeclaration implementation => implementation.Methods.SelectMany(method => method.Body),
                 Conditional conditional => conditional.Then.Concat(conditional.Else),
                 For loop => loop.Body,
                 While loop => loop.Body,

@@ -71,7 +71,7 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
     }
 
     internal static bool IsReservedWord(string text) => text is
-        "fn" or "function" or "func" or "struct" or "self" or "class" or
+        "fn" or "function" or "func" or "struct" or "impl" or "self" or "class" or
         "return" or "if" or "else" or "import" or "true" or "false" or
         "powershell" or "print" or "eprint" or "args" or "exit" or "for" or "in" or "break" or "continue" or
         "try" or "catch" or "throw" or "null" or "const";
@@ -85,7 +85,7 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
             {
                 var start = Current.Offset;
                 var statement = Statement();
-                if (statement is Function or Rukbat.StructDeclaration or Variable)
+                if (statement is Function or Rukbat.StructDeclaration or ImplDeclaration or Variable)
                     source.DeclarationStarts[statement] = start;
                 formatting?.SeparateStatements(statements.LastOrDefault(), statement, start);
                 statements.Add(statement);
@@ -203,36 +203,43 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
         Expect("{");
         Separators();
         var fields = new List<Field>();
+        while (Current.Text is not ("}" or "<eof>"))
+        {
+            var start = Current.Offset;
+            if (Current.Text == "fn")
+                Fail($"Struct declarations contain only fields. Define methods in 'impl {name.Text} {{ ... }}'.");
+            var field = Identifier();
+            Expect(":");
+            var declaration = new Field(field, Type());
+            fields.Add(declaration);
+            source.DeclarationStarts[declaration] = start;
+            EndStatement();
+        }
+        Expect("}");
+        return new StructDeclaration(name, fields);
+    }
+
+    private ImplDeclaration ImplementationDeclaration()
+    {
+        var name = Identifier();
+        NewLines();
+        Expect("{");
+        Separators();
         var methods = new List<Function>();
         while (Current.Text is not ("}" or "<eof>"))
         {
             var start = Current.Offset;
-            if (Match("fn"))
-            {
-                if (fields.Count != 0 || methods.Count != 0)
-                {
-                    formatting?.RequiredBlankLines.Add(start);
-                }
-                var method = FunctionDeclaration();
-                methods.Add(method);
-                source.DeclarationStarts[method] = start;
-            }
-            else
-            {
-                if (methods.Count != 0)
-                {
-                    formatting?.RequiredBlankLines.Add(start);
-                }
-                var field = Identifier();
-                Expect(":");
-                var declaration = new Field(field, Type());
-                fields.Add(declaration);
-                source.DeclarationStarts[declaration] = start;
-            }
+            if (!Match("fn"))
+                Fail("An impl block contains only method declarations starting with 'fn'.");
+            if (methods.Count != 0)
+                formatting?.RequiredBlankLines.Add(start);
+            var method = FunctionDeclaration();
+            methods.Add(method);
+            source.DeclarationStarts[method] = start;
             EndStatement();
         }
         Expect("}");
-        return new StructDeclaration(name, fields, methods);
+        return new ImplDeclaration(name, methods);
     }
 
     private Statement Statement()
@@ -246,6 +253,11 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
         if (Match("struct"))
         {
             return StructDeclaration();
+        }
+
+        if (Match("impl"))
+        {
+            return ImplementationDeclaration();
         }
 
         if (Match("fn"))

@@ -25,7 +25,9 @@ import fs
 ```
 
 Use contiguous `///` lines immediately before a top-level function, struct,
-variable, struct field, or struct method. A blank line or ordinary comment breaks
+variable, struct field, or method inside an `impl`. An `impl` block itself is not
+a documentation target; document the data type before `struct` and each operation
+before its `fn`. A blank line or ordinary comment breaks
 the attachment. Documentation markers must start their own line; indentation is
 allowed. Local variables, imports, and executable statements cannot receive `///`.
 

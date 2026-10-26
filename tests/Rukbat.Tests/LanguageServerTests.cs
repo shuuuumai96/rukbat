@@ -116,10 +116,10 @@ public sealed partial class LanguageServerTests : TestBase
         using var project = new Project();
         project.Write("helper.rukbat", "//! Helper overview.\nfn f(): void {}");
         var uri = UriFor(project);
-        var source = "import './helper.rukbat' as helper\n/// Record description.\nstruct Record {\n/// Name description.\nname: string\n/// Method description.\nfn f(): void {}\n}\n/// Variable description.\nvalue := Record { name: 'one' }\nvalue.f()\nprint(value.name)\n";
+        var source = "import './helper.rukbat' as helper\n/// Record description.\nstruct Record {\n/// Name description.\nname: string\n}\nimpl Record {\n/// Method description.\nfn f(): void {}\n}\n/// Variable description.\nvalue := Record { name: 'one' }\nvalue.f()\nprint(value.name)\n";
         var messages = Session(Open(uri, source), Feature(uri, "hover", 0, 0, "import"),
-            Feature(uri, "hover", 9, 10, "struct"), Feature(uri, "hover", 9, 1, "variable"),
-            Feature(uri, "hover", 10, 6, "method"), Feature(uri, "hover", 11, 13, "field"));
+            Feature(uri, "hover", 11, 10, "struct"), Feature(uri, "hover", 11, 1, "variable"),
+            Feature(uri, "hover", 12, 6, "method"), Feature(uri, "hover", 13, 13, "field"));
         foreach (var (id, description) in new[] { ("import", "Helper overview."), ("struct", "Record description."),
             ("variable", "Variable description."), ("method", "Method description."), ("field", "Name description.") })
             Assert.Contains(description, Result(messages, id).GetProperty("contents").GetProperty("value").GetString());
@@ -446,7 +446,7 @@ public sealed partial class LanguageServerTests : TestBase
     {
         using var project = new Project();
         var uri = UriFor(project);
-        const string source = "struct User { name: string; fn label(): string { return self.name } }\nuser := User { name: \"Taro\" }\nuser.\n";
+        const string source = "struct User { name: string }; impl User { fn label(): string { return self.name } }\nuser := User { name: \"Taro\" }\nuser.\n";
         var result = Result(Session(Open(uri, source), Feature(uri, "completion", 2, 5)));
         Assert.Contains(result.EnumerateArray(), s => s.GetProperty("label").GetString() == "name");
         Assert.Contains(result.EnumerateArray(), s => s.GetProperty("label").GetString() == "label");

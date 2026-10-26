@@ -153,7 +153,7 @@ internal sealed partial class Emitter(TypeChecker checker, DebugMap? debugMap = 
         }
 
         var statements = current.Statements
-            .Where(statement => statement is not Function and not StructDeclaration)
+            .Where(statement => statement is not Function and not StructDeclaration and not ImplDeclaration)
             .ToList();
         DebugEnter(Path.GetFileName(current.Source.Path), []);
         EmitGuardedStatements(statements, Quote(SourceName(current) + ":1"));

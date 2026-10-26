@@ -39,6 +39,7 @@ internal static class EditorCatalog
     public static readonly string[] Keywords = ["import",
         "fn",
         "struct",
+        "impl",
         "return",
         "if",
         "else",

@@ -15,18 +15,18 @@ public class ArrayTests : TestBase
     [InlineData("fn empty(): int[] { return [] }; fn count(xs: int[]): int { return xs.length }; print(empty().length); print(count([]))", "0\n0")]
     [InlineData("fn one(): int[] { return [7] }; xs: int[] = one(); print(xs.length); print(xs[0])", "1\n7")]
     [InlineData("struct Box { xs: int[] }; a: Box = Box {xs: []}; b: Box = Box {xs: [1]}; a.xs = b.xs; b.xs[0] = 3; print(a.xs[0])", "1")]
-    [InlineData("struct C { n: int; fn grow(): void { self.n = self.n + 1 } }; xs: C[] = [C {n: 1}]; ys: C[] = xs; ys[0].grow(); print(xs[0].n); print(ys[0].n); ys[0].n = 8; print(ys[0].n)", "1\n2\n8")]
-    [InlineData("struct C { xs: int[]; fn grow(): void { self.xs[0] = self.xs[0] + 1 } }; a: C = C {xs: [2]}; b: C = a; b.grow(); print(a.xs[0]); print(b.xs[0])", "2\n3")]
+    [InlineData("struct C { n: int }; impl C { fn grow(): void { self.n = self.n + 1 } }; xs: C[] = [C {n: 1}]; ys: C[] = xs; ys[0].grow(); print(xs[0].n); print(ys[0].n); ys[0].n = 8; print(ys[0].n)", "1\n2\n8")]
+    [InlineData("struct C { xs: int[] }; impl C { fn grow(): void { self.xs[0] = self.xs[0] + 1 } }; a: C = C {xs: [2]}; b: C = a; b.grow(); print(a.xs[0]); print(b.xs[0])", "2\n3")]
     [InlineData("xs: int[] = [1,2,3,4]; sum: int = 0; for x in xs { if x == 2 { continue }; if x == 4 { break }; sum = sum + x }; print(sum)", "4")]
     [InlineData("for a in [1,2] { for b in [3,4] { print(a + b); break } }", "4\n5")]
     [InlineData("xs: int[] = []; for x in xs { print(x) }; print('done')", "done")]
     [InlineData("x: int = 9; for x in [1,2] { x = x + 10; print(x) }; print(x)", "11\n12\n9")]
     [InlineData("xs: int[] = [1,2]; for x in xs { xs[1] = 8; print(x) }; print(xs[1])", "1\n2\n8")]
-    [InlineData("struct C { n: int; fn grow(): void { self.n = self.n + 1 } }; xs: C[] = [C {n: 1}]; for c in xs { c.grow(); print(c.n) }; print(xs[0].n)", "2\n1")]
+    [InlineData("struct C { n: int }; impl C { fn grow(): void { self.n = self.n + 1 } }; xs: C[] = [C {n: 1}]; for c in xs { c.grow(); print(c.n) }; print(xs[0].n)", "2\n1")]
     [InlineData("fn first(xs: int[]): int { for x in xs { return x }; return 0 }; print(first([7,8])); print(first([]))", "7\n0")]
     [InlineData("calls: int = 0; fn values(): int[] { calls = calls + 1; return [1,2] }; for x in values() { print(x) }; print(calls)", "1\n2\n1")]
     [InlineData("fn echo(xs: int[][]): int[][] { return xs }; xs: int[][] = echo([[1], []]); for row in xs { print(row.length) }", "1\n0")]
-    [InlineData("struct C { xs: int[]; fn set(xs: int[]): int[] { self.xs = xs; return self.xs } }; c: C = C {xs: []}; a: int[] = [3]; b: int[] = c.set(a); b[0] = 4; a[0] = 5; print(c.xs[0]); print(b[0])", "3\n4")]
+    [InlineData("struct C { xs: int[] }; impl C { fn set(xs: int[]): int[] { self.xs = xs; return self.xs } }; c: C = C {xs: []}; a: int[] = [3]; b: int[] = c.set(a); b[0] = 4; a[0] = 5; print(c.xs[0]); print(b[0])", "3\n4")]
     [InlineData("xs: int[] = [1]; xs = []; print(xs.length)", "0")]
     [InlineData("xs: int[][] = [[1]]; xs[0] = []; print(xs[0].length)", "0")]
     [InlineData("calls: int = 0; fn index(): int { calls = calls + 1; return 0 }; xs: int[][] = [[1]]; xs[index()][index()] = 7; print(calls); print(xs[0][0])", "2\n7")]
@@ -102,7 +102,7 @@ public class ArrayTests : TestBase
     public async Task PreservesArrayValuesAcrossModules()
     {
         using var project = new Project();
-        project.Write("model.rukbat", "struct C { n: int; fn grow(): void { self.n = self.n + 1 } }; fn copy(xs: C[]): C[] { return xs }; fn empty(): C[] { return [] }; fn nested(xs: int[][]): int[][] { return xs }");
+        project.Write("model.rukbat", "struct C { n: int }; impl C { fn grow(): void { self.n = self.n + 1 } }; fn copy(xs: C[]): C[] { return xs }; fn empty(): C[] { return [] }; fn nested(xs: int[][]): int[][] { return xs }");
         project.Write("main.rukbat", "import './model.rukbat' as model\na: model.C[] = [model.C {n: 1}]; b: model.C[] = model.copy(a); b[0].grow(); print(a[0].n); print(b[0].n); print(model.empty().length); xs: int[][] = model.nested([[], [5]]); print(xs.length); print(xs[0].length); print(xs[1][0])");
         var result = await project.Run();
         Assert.True(result.ExitCode == 0, result.Error);

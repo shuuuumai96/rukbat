@@ -14,6 +14,11 @@ Prefer explicit control flow that can be read from top to bottom. Model programs
 as data and procedures: structs hold data, functions perform operations, and
 abstractions earn their place by reducing repeated work or complexity.
 
+Make each declaration's role clear at a glance. A `struct` defines the shape of
+data using fields only; an `impl` defines that type's methods. Keeping these
+declarations separate lets readers understand the data before following its
+operations, without switching between the two inside one block.
+
 Choose one conventional syntax and API for each operation. Avoid stylistic
 alternatives, hidden control flow, inheritance-heavy designs, and cleverness that
 makes ordinary scripts harder to follow. Formatting is canonical, not configurable.

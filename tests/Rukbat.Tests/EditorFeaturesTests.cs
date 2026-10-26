@@ -221,16 +221,45 @@ public sealed partial class LanguageServerTests
     [Theory]
     [InlineData("User", "Person", 0, 8)]
     [InlineData("name", "label", 0, 15)]
-    [InlineData("get", "read", 0, 32)]
+    [InlineData("User", "Person", 0, 36)]
+    [InlineData("get", "read", 0, 46)]
     public void RenameStructFieldAndMethodUseBoundOccurrences(string oldName, string newName, int line, int character)
     {
         using var project = new Project();
-        const string source = "struct User { name: string; fn get(): string { return self.name } }\nu: User = User { name: 'A' }\nprint(u.get())\n";
+        const string source = "struct User { name: string }; impl User { fn get(): string { return self.name } }\nu: User = User { name: 'A' }\nprint(u.get())\n";
         var uri = UriFor(project);
         var answer = Answer(EditorSession(project, Open(uri, source), Rename(uri, line, character, newName)));
         Assert.True(answer.TryGetProperty("result", out var result), answer.ToString());
         var change = Assert.Single(result.GetProperty("documentChanges").EnumerateArray());
         Assert.Equal(source.Replace(oldName, newName), ApplyEdits(source, change.GetProperty("edits")));
+    }
+
+    [Fact]
+    public void ImplBeforeStructKeepsTypeNavigationMethodDocumentationAndRename()
+    {
+        using var project = new Project();
+        var uri = UriFor(project);
+        const string source = "impl User {\n/// Reads the name.\nfn read(): string { return self.name }\n}\n/// User record.\nstruct User { name: string }\nuser := User { name: 'A' }\nprint(user.read())\n";
+        var messages = EditorSession(project, Open(uri, source),
+            Feature(uri, "definition", 0, 6, "type"),
+            Feature(uri, "definition", 7, 12, "method"),
+            Feature(uri, "hover", 7, 12, "hover"));
+        Assert.Equal(5, Result(messages, "type").GetProperty("range").GetProperty("start").GetProperty("line").GetInt32());
+        Assert.Equal(2, Result(messages, "method").GetProperty("range").GetProperty("start").GetProperty("line").GetInt32());
+        Assert.Contains("Reads the name.", Result(messages, "hover").GetProperty("contents").GetProperty("value").GetString());
+        var change = Assert.Single(Result(EditorSession(project, Open(uri, source), Rename(uri, 2, 4, "label")))
+            .GetProperty("documentChanges").EnumerateArray());
+        Assert.Equal(source.Replace("read", "label"), ApplyEdits(source, change.GetProperty("edits")));
+    }
+
+    [Fact]
+    public void ImplIsOfferedAsAKeywordAndCannotBeUsedAsARenameTarget()
+    {
+        using var project = new Project();
+        var uri = UriFor(project);
+        var completions = Result(EditorSession(project, Open(uri, "imp"), Feature(uri, "completion", 0, 3)));
+        Assert.Contains(completions.EnumerateArray(), item => item.GetProperty("label").GetString() == "impl");
+        Assert.True(Answer(EditorSession(project, Open(uri, "value := 1"), Rename(uri, 0, 1, "impl"))).TryGetProperty("error", out _));
     }
 
     [Fact]
@@ -284,7 +313,7 @@ public sealed partial class LanguageServerTests
     [InlineData("import fs\nfs.create_temp_dir(", 0, "fs.create_temp_dir(directory: string): string")]
     [InlineData("import process\nprocess.run('x', ['a,b', 'c'], ", 2, "process.run(executable: string, arguments: string[], options: process.Options): process.Result")]
     [InlineData("items: int[] = []\nitems.append(", 0, "append(value: int): void")]
-    [InlineData("struct S { fn get(a: int): int { return a } }\ns := S {}\ns.get(", 0, "fn get(a: int): int")]
+    [InlineData("struct S {}; impl S { fn get(a: int): int { return a } }\ns := S {}\ns.get(", 0, "fn get(a: int): int")]
     [InlineData("import json\njson.parse<int>(", 0, "json.parse<T>(text: string): T")]
     [InlineData("import array\narray.sort(", 0, "array.sort(values: T[]): T[]")]
     [InlineData("import path\npath.resolve('C:/work', ", 1, "path.resolve(base_dir: string, value: string): string")]
@@ -426,7 +455,7 @@ public sealed partial class LanguageServerTests
     {
         using var project = new Project();
         var uri = UriFor(project);
-        const string source = "struct S {\nfn first(): int { return self.add(1, ) }\nfn add(a: int, b: int): int { return a + b }\n}\n";
+        const string source = "struct S {}; impl S {\nfn first(): int { return self.add(1, ) }\nfn add(a: int, b: int): int { return a + b }\n}\n";
         var result = Result(EditorSession(project, Open(uri, source), Feature(uri, "signatureHelp", 1, 36)));
         Assert.NotEqual(JsonValueKind.Null, result.ValueKind);
         Assert.Equal("fn add(a: int, b: int): int", result.GetProperty("signatures")[0].GetProperty("label").GetString());

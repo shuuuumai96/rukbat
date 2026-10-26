@@ -37,6 +37,12 @@ Use `:=` when the initializer gives a clear type. Use `: Type =` when an explici
 type is needed or helps explain an interface, including empty arrays and nullable
 initialization. Use `=` to update an existing binding.
 
+## Keep data and methods adjacent
+
+Put a struct's `impl` immediately after its `struct` declaration in the same file.
+Read the fields as the data's shape, then the methods as its operations. A struct
+with no methods needs no `impl` block.
+
 ## Let the formatter define the layout
 
 Run `rukbat fmt` on source files before submitting changes. Its output is the

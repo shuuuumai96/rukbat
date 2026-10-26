@@ -42,6 +42,8 @@ public sealed class ConstantTests : TestBase
         struct Counter {
             value: int
             values: int[]
+        }
+        impl Counter {
             fn increment(): void { self.value = self.value + 1 }
             fn forward(): void { self.increment() }
             fn append(): void { self.values.append(1) }
@@ -85,7 +87,7 @@ public sealed class ConstantTests : TestBase
     [InlineData("try { self.items[0].forward() } catch err {}")]
     public void TracksNestedReceiversAndControlFlow(string body)
     {
-        var source = Counter + "\nstruct Container { inner: Counter; items: Counter[]; fn change(): void { " + body + " } }\n" +
+        var source = Counter + "\nstruct Container { inner: Counter; items: Counter[] }; impl Container { fn change(): void { " + body + " } }\n" +
             "const container := Container { inner: Counter { value: 1, values: [] }, items: [Counter { value: 1, values: [] }] }; container.change()";
         Assert.Contains(Compile(source).Diagnostics, diagnostic => diagnostic.Code == "RUK2011");
     }
@@ -93,7 +95,7 @@ public sealed class ConstantTests : TestBase
     [Fact]
     public void PropagatesMutationAcrossMutuallyRecursiveMethods()
     {
-        var source = "struct Item { value: int; fn first(): void { self.second() }; fn second(): void { self.first(); self.value = 2 } }; const item := Item { value: 1 }; item.first()";
+        var source = "struct Item { value: int }; impl Item { fn first(): void { self.second() }; fn second(): void { self.first(); self.value = 2 } }; const item := Item { value: 1 }; item.first()";
         Assert.Contains(Compile(source).Diagnostics, diagnostic => diagnostic.Code == "RUK2011");
     }
 

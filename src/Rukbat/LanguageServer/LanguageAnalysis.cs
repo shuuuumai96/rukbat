@@ -77,8 +77,8 @@ internal sealed partial class LanguageAnalysis
                     // Preserve the existing module hover on the import keyword, but never edit it.
                     occurrences.Add(new(module, import.Token, symbol, Searchable: false));
                 }
-                WalkStatements(module.Statements.Where(s => s is not Function and not StructDeclaration).ToList(), root);
-                WalkStatements(module.Statements.Where(s => s is Function or StructDeclaration).ToList(), root);
+                WalkStatements(module.Statements.Where(s => s is not Function and not StructDeclaration and not ImplDeclaration).ToList(), root);
+                WalkStatements(module.Statements.Where(s => s is Function or StructDeclaration or ImplDeclaration).ToList(), root);
                 AddTypeReferences(module);
             }
             if (program.Diagnostics.Count == 0)
@@ -177,7 +177,12 @@ internal sealed partial class LanguageAnalysis
                     Add(scope.Module, structure.Token, symbols[bound]);
                     foreach (var field in bound.Fields.Values)
                         Add(scope.Module, field.Field.Token, symbols[field]);
-                    WalkStatements(structure.Methods.Cast<Statement>().ToList(), scope);
+                    break;
+                case ImplDeclaration implementation:
+                    if (!checker!.Implementations.TryGetValue(implementation, out var implemented))
+                        break;
+                    Add(scope.Module, implementation.Token, symbols[implemented]);
+                    WalkStatements(implementation.Methods.Cast<Statement>().ToList(), scope);
                     break;
                 case Variable variable:
                     Walk(variable.Value, scope);

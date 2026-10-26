@@ -14,6 +14,9 @@ internal sealed partial class TypeChecker
                 case StructDeclaration structure:
                     Error("RUK1002", "Structs are allowed only at module level.", structure);
                     break;
+                case ImplDeclaration implementation:
+                    Error("RUK1002", "Impl blocks are allowed only at module level.", implementation);
+                    break;
                 case Function function:
                     Error("RUK1002", "Nested functions are not supported yet.", function);
                     break;

@@ -9,7 +9,7 @@ public sealed class FormatterTests : TestBase
     public void DocumentationFormattingPreservesMarkdownAndDeclarationAttachment()
     {
         using var project = new Project();
-        var source = "//! Module overview.  \r\n//! Second line.\r\nimport fs\r\n/// Function overview.  \r\n/// Second line.\r\n///\r\n/// ```rukbat check\r\n///     x := 1\r\n///     print(x)\r\n/// ```\r\nfn f():void{}\r\nstruct S{\r\n/// Field overview.\r\nvalue:int\r\n/// Method overview.\r\nfn method():void{}\r\n}\r\n";
+        var source = "//! Module overview.  \r\n//! Second line.\r\nimport fs\r\n/// Function overview.  \r\n/// Second line.\r\n///\r\n/// ```rukbat check\r\n///     x := 1\r\n///     print(x)\r\n/// ```\r\nfn f():void{}\r\nstruct S{\r\n/// Field overview.\r\nvalue:int\r\n}\r\nimpl S{\r\n/// Method overview.\r\nfn method():void{}\r\n}\r\n";
         project.Write("main.rukbat", source);
         Assert.Equal(0, Cli.Run(["doc", project.PathFor("main.rukbat")], TextWriter.Null, TextWriter.Null));
         var before = File.ReadAllText(project.PathFor("main.html"));
@@ -45,7 +45,8 @@ public sealed class FormatterTests : TestBase
         { "conditional header", "if true\n{print(1)}\nelse\n{print(2)}", "if true {\n    print(1)\n} else {\n    print(2)\n}\n" },
         { "loops", "for x in [1,2]\n{while x>0\n{if x==1{break}else{continue}}}", "for x in [1, 2] {\n    while x > 0 {\n        if x == 1 {\n            break\n        } else {\n            continue\n        }\n    }\n}\n" },
         { "errors", "try\n{throw Error{message:'bad'}}\ncatch error\n{eprint(error.message)}", "try {\n    throw Error {\n        message: 'bad'\n    }\n} catch error {\n    eprint(error.message)\n}\n" },
-        { "struct fields and methods", "struct User\n{name:string;age:int;fn set(age:int):void{self.age=age;return}}", "struct User {\n    name: string\n    age: int\n\n    fn set(age: int): void {\n        self.age = age\n        return\n    }\n}\n" },
+        { "struct fields and impl methods", "struct User\n{name:string;age:int};impl User\n{fn set(age:int):void{self.age=age;return}}", "struct User {\n    name: string\n    age: int\n}\n\nimpl User {\n    fn set(age: int): void {\n        self.age = age\n        return\n    }\n}\n" },
+        { "impl method comments and separation", "struct S{value:int};impl S{\n/// Reads the value.\nfn read():int{return self.value}\n// Updates the value.\nfn set(value:int):void{self.value=value}\n}", "struct S {\n    value: int\n}\n\nimpl S {\n    /// Reads the value.\n    fn read(): int {\n        return self.value\n    }\n\n    // Updates the value.\n    fn set(value: int): void {\n        self.value = value\n    }\n}\n" },
         { "struct literal", "user:=mod.User{name:'Taro',age:30}", "user := mod.User {\n    name: 'Taro', age: 30\n}\n" },
         { "nested struct literals", "user:=User{address:Address{city:'Tokyo'},age:30}", "user := User {\n    address: Address {\n        city: 'Tokyo'\n    }, age: 30\n}\n" },
         { "struct literal in call", "print(Error{message:'bad'})", "print(Error {\n    message: 'bad'\n})\n" },
@@ -188,7 +189,7 @@ public sealed class FormatterTests : TestBase
         project.Write("data.rukbat", "struct Item{value:int};fn get():Item{return Item{value:42}}");
         project.Write("main.rukbat", """
             import './data.rukbat' as data;import json
-            struct Box{items:int[];fn add(value:int):void{self.items.append(value);return}}
+            struct Box{items:int[]};impl Box{fn add(value:int):void{self.items.append(value);return}}
             fn sum(values:int[]):int
             {total:=0;for value in values{total=total+value};return (total)}
             box:=Box{items:[1,2]};box.add(3);box.items[0]=4

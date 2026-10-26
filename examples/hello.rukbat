@@ -3,7 +3,9 @@ import "./math.rukbat" as arithmetic
 struct User {
     name: string
     age: int
+}
 
+impl User {
     fn is_adult(): bool {
         return self.age >= 20
     }

@@ -10,7 +10,7 @@ public class PowerShellBoundaryTests : TestBase
     [InlineData("xs: int[] = powershell<int[]>('ConvertFrom-Json', '[1,2]'); print(xs[0]); print(xs[1])", "1\n2")]
     [InlineData("xs: int[] = powershell<int[]>('ConvertFrom-Json', '[]'); print(xs.length)", "0")]
     [InlineData("struct U { name: string; age: int }; u: U = powershell<U>('ConvertFrom-Json', '{\"name\":\"Taro\",\"age\":30,\"extra\":true}'); print(u.name); print(u.age)", "Taro\n30")]
-    [InlineData("struct U { name: string; age: int; fn grow(): void { self.age = self.age + 1 } }; xs: U[] = powershell<U[]>('ConvertFrom-Json', '[{\"name\":\"Taro\",\"age\":30}]'); xs[0].grow(); print(xs.length); print(xs[0].age)", "1\n31")]
+    [InlineData("struct U { name: string; age: int }; impl U { fn grow(): void { self.age = self.age + 1 } }; xs: U[] = powershell<U[]>('ConvertFrom-Json', '[{\"name\":\"Taro\",\"age\":30}]'); xs[0].grow(); print(xs.length); print(xs[0].age)", "1\n31")]
     [InlineData("struct U { age: int }; struct B { users: U[]; flags: bool[] }; b: B = powershell<B>('ConvertFrom-Json', '{\"users\":[{\"age\":30},{\"age\":40}],\"flags\":[]}'); print(b.users[1].age); print(b.flags.length)", "40\n0")]
     [InlineData("struct U { name: string }; u: U = powershell<U>('ConvertFrom-Json', '{\"name\":\"Taro\"}', AsHashtable: true); print(u.name)", "Taro")]
     [InlineData("struct U { Age: int; age: int }; u: U = powershell<U>('ConvertFrom-Json', '{\"Age\":1,\"age\":2}', AsHashtable: true); print(u.Age); print(u.age)", "1\n2")]

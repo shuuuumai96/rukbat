@@ -27,10 +27,38 @@ public sealed class DocumentationTests : TestBase
     }
 
     [Fact]
+    public void MethodLinksKeepStructQualifiedNamesWhenImplPrecedesTheStruct()
+    {
+        using var project = new Project();
+        project.Write("main.rukbat", """
+            //! Read a [`Record`] with [`Record.read`].
+            impl Record {
+                /// Reads the [`Record.value`] field.
+                fn read(): int { return self.value }
+            }
+            /// A data record.
+            struct Record {
+                /// Stored value.
+                value: int
+            }
+            """);
+        var result = Doc(project);
+        Assert.True(result.Code == 0, result.Errors);
+        var html = File.ReadAllText(project.PathFor("main.html"));
+        Assert.Contains("Reads the", html);
+        var methodId = System.Text.RegularExpressions.Regex.Match(html, "<article id=\"([^\"]+)\"><h3>Record\\.read</h3>").Groups[1].Value;
+        var fieldId = System.Text.RegularExpressions.Regex.Match(html, "<article id=\"([^\"]+)\"><h3>Record\\.value</h3>").Groups[1].Value;
+        Assert.NotEmpty(methodId);
+        Assert.NotEmpty(fieldId);
+        Assert.Contains($"<a href=\"#{methodId}\"><code>Record.read</code>", html);
+        Assert.Contains($"<a href=\"#{fieldId}\"><code>Record.value</code>", html);
+    }
+
+    [Fact]
     public void GeneratesOfflineDocumentationInSourceOrderAndLinksBoundTypes()
     {
         using var project = new Project();
-        project.Write("models.rukbat", "//! Shared records.\n/// A person.\nstruct Person {\n    /// Display name.\n    name: string\n    /// Changes the display name.\n    fn rename(name: string): void { self.name = name }\n}\n");
+        project.Write("models.rukbat", "//! Shared records.\n/// A person.\nstruct Person {\n    /// Display name.\n    name: string\n}\nimpl Person {\n    /// Changes the display name.\n    fn rename(name: string): void { self.name = name }\n}\n");
         project.Write("main.rukbat", "//! # Usage\n//! Creates a report without changing input.\nimport './models.rukbat' as model\nimport './models.rukbat' as again\n/// Creates a [`model.Person`].\nfn make(): model.Person { return model.Person { name: 'Taro' } }\nworking := 'not documentation'\n/// Configured report title.\ntitle := 'Report'\nfn undocumented(): void {}\n");
         var result = Doc(project);
         Assert.True(result.Code == 0, result.Errors);

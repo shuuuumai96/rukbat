@@ -67,3 +67,11 @@ test('dictionary type constructor is highlighted without reserving a variable na
     const snippet = require('../snippets/rukbat.json').Dictionary.body.join('\n');
     assert.match(snippet, /dict\[/);
 });
+
+test('impl is a declaration keyword and has a matching method-block snippet', () => {
+    assert.ok(scopesAt('impl Counter {', 0).includes('keyword.control.rukbat'));
+    assert.ok(!scopesAt('implementation := 1', 0).includes('keyword.control.rukbat'));
+    const snippet = require('../snippets/rukbat.json').Implementation;
+    assert.equal(snippet.prefix, 'impl');
+    assert.match(snippet.body.join('\n'), /^impl \$\{1:Data\} \{\n    \$0\n\}$/);
+});

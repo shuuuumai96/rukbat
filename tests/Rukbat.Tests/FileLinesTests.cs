@@ -131,6 +131,8 @@ public class FileLinesTests : TestBase
             }
             struct Counter {
                 number: int
+            }
+            impl Counter {
                 fn read(source: fs.Lines): int { for line in source { self.number = self.number + 1; return self.number }; return 0 }
                 fn copy(source: fs.Lines): Counter { for line in source { return self }; return self }
             }

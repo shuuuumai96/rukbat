@@ -22,7 +22,7 @@ public class ErrorTests : TestBase
     [InlineData("try { powershell<void>('Missing-Rukbat-Command') }\ncatch err { print('missing') }", "missing")]
     [InlineData("try { print(9223372036854775807 + 1) } catch err { print('overflow') }", "overflow")]
     [InlineData("try { powershell<void>('pwsh', '-NoLogo', '-NoProfile', '-Command', 'exit 0'); print('success') } catch err { print('wrong') }", "success")]
-    [InlineData("struct S { n: int; fn fail(): void { self.n = 2; throw Error {message: 'failure'} } }; s: S = S {n: 1}; try { s.fail() } catch err { print(s.n) }", "2")]
+    [InlineData("struct S { n: int }; impl S { fn fail(): void { self.n = 2; throw Error {message: 'failure'} } }; s: S = S {n: 1}; try { s.fail() } catch err { print(s.n) }", "2")]
     [InlineData("fn message(err: Error): string { err.message = 'local'; return err.message }; try { throw Error {message: 'original'} } catch err { print(message(err)); print(err.message) }", "local\noriginal")]
     public async Task ExecutesErrorHandling(string source, string expected)
     {

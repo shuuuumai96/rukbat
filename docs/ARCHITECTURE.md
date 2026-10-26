@@ -19,6 +19,12 @@ Const analysis propagates receiver mutations through calls to a fixed point,
 including recursion. Copied arguments and locals do not forward mutations.
 `BoundTypes` retains resolved identities inside containers for editor references.
 
+Struct and impl declarations are separate AST nodes: structs contain fields,
+and impls contain methods. Binding associates each impl with its same-module
+struct after registering type names, so declaration order does not affect lookup.
+Methods retain that struct as their semantic owner for checking, generation,
+documentation, and editor references.
+
 ## Source layout
 
 The compiler is one project. Directories separate responsibilities; partial files

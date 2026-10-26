@@ -15,7 +15,7 @@ public class AppendTests : TestBase
     [InlineData("items: string[] = ['a', 'b']; count: int = 0; for item in items { count = count + 1; items.append('x') }; print(count); print(items.length)", "2\n4")]
     [InlineData("values: string?[] = [null]; values.append('x'); values.append(null); item: string? = values[1]; print(values.length); print(values[0] == null); if item != null { print(item) }; print(values[2] == null)", "3\nTrue\nx\nTrue")]
     [InlineData("values: int[]? = []; if values != null { values.append(1); print(values[0]) }", "1")]
-    [InlineData("struct Box { values: int[]; fn add(): void { self.values.append(1) } }; box: Box = Box {values: []}; box.add(); print(box.values[0])", "1")]
+    [InlineData("struct Box { values: int[] }; impl Box { fn add(): void { self.values.append(1) } }; box: Box = Box {values: []}; box.add(); print(box.values[0])", "1")]
     public async Task AppendsToMutableValueArrays(string source, string expected)
     {
         using var project = new Project();

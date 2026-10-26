@@ -21,7 +21,7 @@ internal sealed partial class TypeChecker
 
     private static StructSymbol CreateErrorStructure()
     {
-        var declaration = new StructDeclaration(new("Error", 0), [], []);
+        var declaration = new StructDeclaration(new("Error", 0), []);
         var owner = new Module(new Source("", "<builtin>"), "builtin", []);
         var structure = new StructSymbol(owner, declaration);
         var field = new Field(new("message", 0), ValueType.String);
@@ -33,6 +33,7 @@ internal sealed partial class TypeChecker
     public Dictionary<Member, FieldSymbol> Fields { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Call, StructSymbol> Constructions { get; } = new(ReferenceEqualityComparer.Instance);
     public Dictionary<Argument, FieldSymbol> ConstructionFields { get; } = new(ReferenceEqualityComparer.Instance);
+    public Dictionary<ImplDeclaration, StructSymbol> Implementations { get; } = new(ReferenceEqualityComparer.Instance);
 
     private void RegisterDefinitions(List<Module> modules)
     {
@@ -97,7 +98,19 @@ internal sealed partial class TypeChecker
                         Error("RUK2002", $"Duplicate field '{field.Token.Text}'.", field);
                     }
                 }
-                foreach (var method in structure.Declaration.Methods)
+            }
+            var implemented = new HashSet<StructSymbol>();
+            foreach (var implementation in current.Statements.OfType<ImplDeclaration>())
+            {
+                if (!current.Structs.TryGetValue(implementation.Token.Text, out var structure))
+                {
+                    Error("RUK2004", $"Impl target '{implementation.Token.Text}' must be a struct declared in the same module.", implementation);
+                    continue;
+                }
+                if (!implemented.Add(structure))
+                    Error("RUK2002", $"Duplicate impl for struct '{implementation.Token.Text}'. Define its methods in one impl block.", implementation);
+                Implementations[implementation] = structure;
+                foreach (var method in implementation.Methods)
                 {
                     var symbol = new FunctionSymbol(current, method, $"__rukbat_f{Functions.Count}", structure);
                     Functions[method] = symbol;

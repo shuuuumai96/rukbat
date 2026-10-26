@@ -1,7 +1,9 @@
 struct User {
     name: string
     age: int
+}
 
+impl User {
     fn birthday(): void {
         self.age = self.age + 1
     }

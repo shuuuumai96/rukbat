@@ -80,8 +80,12 @@ internal sealed class ModuleDocumentation
                 Add(structure, structure.Token.Text, "struct");
                 foreach (var field in structure.Fields)
                     Add(field, structure.Token.Text + "." + field.Token.Text, "field", structure);
-                foreach (var method in structure.Methods)
-                    Add(method, structure.Token.Text + "." + method.Name, "method", structure);
+            }
+            else if (statement is ImplDeclaration implementation)
+            {
+                var owner = module.Statements.OfType<StructDeclaration>().FirstOrDefault(structure => structure.Token.Text == implementation.Token.Text);
+                foreach (var method in implementation.Methods)
+                    Add(method, implementation.Token.Text + "." + method.Name, "method", owner);
             }
         }
         Declarations.Sort((left, right) => left.Start.CompareTo(right.Start));

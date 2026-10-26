@@ -115,7 +115,7 @@ internal static class SignatureHelp
             if (closing is null)
             {
                 // Top-level declarations after an unfinished call remain available during authoring.
-                var laterDeclaration = tokens.FirstOrDefault(t => t.Offset >= offset && t.StringValue is null && t.Text is "fn" or "struct");
+                var laterDeclaration = tokens.FirstOrDefault(t => t.Offset >= offset && t.StringValue is null && t.Text is "fn" or "struct" or "impl");
                 if (laterDeclaration is not null)
                     repaired += "\n" + text[laterDeclaration.Offset..];
             }

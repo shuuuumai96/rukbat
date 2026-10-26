@@ -27,7 +27,8 @@ internal sealed record Variable(Token Token, ValueType Type, Expression Value, b
 internal sealed record Assignment(Token Token, Expression Value) : Statement(Token);
 internal sealed record FieldAssignment(Member Target, Expression Value) : Statement(Target.Token);
 internal sealed record Field(Token Token, ValueType Type) : Node(Token);
-internal sealed record StructDeclaration(Token Token, List<Field> Fields, List<Function> Methods) : Statement(Token);
+internal sealed record StructDeclaration(Token Token, List<Field> Fields) : Statement(Token);
+internal sealed record ImplDeclaration(Token Token, List<Function> Methods) : Statement(Token);
 internal sealed record Member(Token Token, Expression Receiver, string Name) : Expression(Token);
 internal sealed record ArrayLiteral(Token Token, List<Expression> Items) : Expression(Token);
 internal sealed record DictionaryEntry(Expression Key, Expression Value);

@@ -259,6 +259,8 @@ test('methods, shadowed bindings, nullable arrays and breakpoint interruption of
     const main = write('main.rukbat', [
         'struct Counter {',
         '    count: int',
+        '}',
+        'impl Counter {',
         '    fn increment(): void {',
         '        self.count = self.count + 1',
         '        print(self.count)',
@@ -274,7 +276,7 @@ test('methods, shadowed bindings, nullable arrays and breakpoint interruption of
         'print(value.count)'
     ].join('\n'));
     await s.start(main, { stopOnEntry: false });
-    await s.request('setBreakpoints', { source: { path: main }, breakpoints: [{ line: 10 }, { line: 5 }, { line: 13 }, { line: 15 }] });
+    await s.request('setBreakpoints', { source: { path: main }, breakpoints: [{ line: 12 }, { line: 7 }, { line: 15 }, { line: 17 }] });
     await s.request('configurationDone');
     await s.event('stopped');
     assert.equal((await s.request('evaluate', { expression: 'optional[0]' })).result, 'null');
