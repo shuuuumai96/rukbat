@@ -293,6 +293,14 @@ Invalid input, overflow, and nonzero float input that underflows to zero cause E
 Representable subnormal floats are accepted. Float formatting preserves the numeric value on reparse;
 it does not promise to preserve the input spelling or the sign of zero.
 
+Parse errors include a quoted preview of the original input, before whitespace trimming.
+Quotes, backslashes, control characters and non-ASCII whitespace are escaped. The preview
+contains at most 80 UTF-16 code units without splitting a surrogate pair; longer inputs
+are marked `(truncated)`. For example: `text.parse_int: invalid format or value outside
+the supported range. Input: "three".`
+The conversion does not know a value's file, CSV record or column. Add that context to
+the caught Error's message at the call site, then rethrow the same Error.
+
 ## `re`
 
 Regular expressions complement the literal operations in `text`. All arguments are

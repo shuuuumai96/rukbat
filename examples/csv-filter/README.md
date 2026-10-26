@@ -30,3 +30,13 @@ Taro,true,checked
 An invalid header, record width, boolean, or missing column exits with code 2 before saving output.
 Existing output is untouched on input/validation failure. Output uses CRLF and UTF-8 without BOM.
 The entire file is held in memory. Choose separate input and output paths to retain the input.
+
+Boolean errors identify the CSV record, column and rejected input. For example, an `enabled`
+cell containing `maybe` in the second data record reports `CSV record 3, column enabled:`
+followed by the conversion error and `Input: "maybe"`. The header counts as record 1.
+Quoted cells may contain newlines, so a CSV record number is not necessarily a text line number.
+
+The local `parse_bool_cell` helper adds this context to the caught Error and rethrows it,
+preserving the conversion's source location. Reuse this pattern around `text.parse_int` or
+`text.parse_float` when validating other columns. Keep the record counter in input order,
+before filtering or sorting rows.

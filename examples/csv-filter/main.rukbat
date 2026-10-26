@@ -3,6 +3,15 @@ import encoding
 import fs
 import text
 
+fn parse_bool_cell(row: csv.Row, column: string, record_number: int): bool {
+    try {
+        return text.parse_bool(csv.get(row, column))
+    } catch err {
+        err.message = "CSV record " + text.from_int(record_number) + ", column " + column + ": " + err.message
+        throw err
+    }
+}
+
 fn main(): void {
     arguments := args()
 
@@ -21,9 +30,12 @@ fn main(): void {
     }
 
     kept: csv.Row[] = []
+    record_number := 1
 
     for person in people.rows {
-        if text.parse_bool(csv.get(person, "enabled")) {
+        record_number = record_number + 1
+
+        if parse_bool_cell(person, "enabled", record_number) {
             kept.append(csv.set(person, "note", "checked"))
         }
     }
@@ -36,5 +48,6 @@ try {
     main()
 } catch err {
     eprint(err.message)
-    exit(2)
+    const invalid_input_or_operation := 2
+    exit(invalid_input_or_operation)
 }

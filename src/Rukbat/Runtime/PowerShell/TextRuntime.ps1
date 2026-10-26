@@ -95,5 +95,27 @@
             if ($number -ne 0 -or $significand -cnotmatch '[1-9]') { return $number }
         }
     }
-    throw "${operation}: invalid format or value outside the supported range."
+    # Show the original input, keeping diagnostics bounded and on one line.
+    $inputText = [string]$values[0]
+    $previewMaxCodeUnits = 80
+    $previewLength = [Math]::Min($inputText.Length, $previewMaxCodeUnits)
+    if ($previewLength -lt $inputText.Length -and $previewLength -gt 0 -and
+        [char]::IsHighSurrogate($inputText[$previewLength - 1]) -and
+        [char]::IsLowSurrogate($inputText[$previewLength])) {
+        $previewLength--
+    }
+    $preview = [regex]::Replace($inputText.Substring(0, $previewLength), '["\\\p{C}\s]', {
+        param($match)
+        switch -CaseSensitive ($match.Value) {
+            '"' { return '\"' }
+            '\' { return '\\' }
+            "`t" { return '\t' }
+            "`r" { return '\r' }
+            "`n" { return '\n' }
+            ' ' { return ' ' }
+            default { return '\u' + ([int][char]$match.Value).ToString('x4') }
+        }
+    })
+    $suffix = if ($previewLength -lt $inputText.Length) { ' (truncated)' } else { '' }
+    throw ('{0}: invalid format or value outside the supported range. Input: "{1}"{2}.' -f $operation, $preview, $suffix)
 }

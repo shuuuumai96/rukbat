@@ -87,7 +87,8 @@ public abstract class TestBase
             var info = new ProcessStartInfo("pwsh")
             {
                 UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
-                WorkingDirectory = Path.GetTempPath(), CreateNoWindow = true
+                WorkingDirectory = Path.GetTempPath(), CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8
             };
             foreach (var argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-File", PathFor("main.ps1") }) info.ArgumentList.Add(argument);
             foreach (var argument in arguments) info.ArgumentList.Add(argument);
@@ -105,7 +106,8 @@ public abstract class TestBase
             var info = new ProcessStartInfo("powershell")
             {
                 UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
-                WorkingDirectory = Path.GetTempPath(), CreateNoWindow = true
+                WorkingDirectory = Path.GetTempPath(), CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8
             };
             foreach (var argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-File", PathFor("main.ps1") }) info.ArgumentList.Add(argument);
             foreach (var argument in arguments) info.ArgumentList.Add(argument);
