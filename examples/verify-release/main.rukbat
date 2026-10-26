@@ -1,0 +1,83 @@
+import encoding
+import fs
+import hash
+import path
+import re
+import text
+
+const success := 0
+const mismatch := 1
+const invalid_input := 2
+const digest_timeout_ms := 1000
+
+arguments := args()
+
+if arguments.length != 1 {
+    eprint("Usage: rukbat run examples/verify-release/main.rukbat -- <release-directory>")
+    exit(invalid_input)
+}
+
+try {
+    directory := arguments[0]
+    manifest := fs.read_text(path.join([directory, "SHA256SUMS"]), encoding.utf8)
+    digest_pattern := re.compile("^[0-9a-f]{64}$", digest_timeout_ms)
+    checked := 0
+    failed := 0
+
+    for line in text.split_lines(manifest) {
+        if line == "" {
+            continue
+        }
+
+        fields := text.split(line, "  ")
+
+        if fields.length != 2 {
+            throw Error {
+                message: "Expected SHA-256, two spaces, and a filename: " + line
+            }
+        }
+
+        expected := fields[0]
+        filename := fields[1]
+
+        if !re.is_match(expected, digest_pattern) {
+            throw Error {
+                message: "Invalid SHA-256: " + expected
+            }
+        }
+
+        if filename == "" || filename == "." || filename == ".." || path.filename(filename) != filename {
+            throw Error {
+                message: "Expected a filename without directories: " + filename
+            }
+        }
+
+        actual := hash.file(path.join([directory, filename]), hash.sha256)
+        checked = checked + 1
+
+        if actual == expected {
+            print("OK    " + filename)
+        } else {
+            failed = failed + 1
+            eprint("FAIL  " + filename)
+            eprint("  expected: " + expected)
+            eprint("  actual:   " + actual)
+        }
+    }
+
+    if checked == 0 {
+        throw Error {
+            message: "SHA256SUMS contains no files."
+        }
+    }
+
+    if failed > 0 {
+        exit(mismatch)
+    }
+
+    print("All listed files match SHA256SUMS.")
+    exit(success)
+} catch err {
+    eprint(err.message)
+    exit(invalid_input)
+}
