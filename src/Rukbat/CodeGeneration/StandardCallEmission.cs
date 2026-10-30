@@ -105,7 +105,7 @@ internal sealed partial class Emitter
         {
             var fields = checker.Types[call].Struct!.Fields;
             return $"(& {{ $result = {invocation}; return @{{" +
-                $"{Quote(fields["exit_code"].Key)} = [int]$result[0]; " +
+                $"{Quote(fields["exit_code"].Key)} = [long]$result[0]; " +
                 $"{Quote(fields["stdout"].Key)} = [string]$result[1]; " +
                 $"{Quote(fields["stderr"].Key)} = [string]$result[2]" + "}})";
         }

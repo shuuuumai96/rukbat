@@ -91,6 +91,51 @@ public class ArrayOperationsTests : TestBase
     [Theory]
     [InlineData("powershell")]
     [InlineData("pwsh")]
+    public async Task ProcessExitCodesRemainIntegerSortKeysAcrossValueBoundaries(string shell)
+    {
+        await RunVerified(shell, """
+            import array
+            import encoding
+            import json
+            import process
+            import test
+
+            fn exit_code(result: process.Result): int {
+                return result.exit_code
+            }
+
+            fn copy_values(values: int[]): int[] {
+                return values
+            }
+
+            const timeout_ms := 10000
+            const expected_exit_code := 3
+            options := process.options(timeout_ms, encoding.utf8)
+            result := process.run("powershell.exe", ["-NoProfile", "-Command", "exit 3"], options)
+            test.assert(result.exit_code == expected_exit_code)
+
+            values := [result.exit_code, 1, 2]
+            test.assert(json.stringify(array.sort(values)) == "[1,2,3]")
+            test.assert(json.stringify(array.sort_descending(values)) == "[3,2,1]")
+            labels := ["exit", "one", "two"]
+            test.assert(json.stringify(array.sort_by(labels, values)) == '["one","two","exit"]')
+            test.assert(json.stringify(array.sort_by_descending(labels, values)) == '["exit","two","one"]')
+            test.assert(array.sort([exit_code(result), 1])[0] == 1)
+            test.assert(json.stringify(array.sort(copy_values(values))) == "[1,2,3]")
+
+            copied := values
+            values[0] = 0
+            test.assert(array.sort(copied)[2] == expected_exit_code)
+            test.assert(values[0] == 0)
+            test.assert(result.exit_code == expected_exit_code)
+            print("passed")
+            """);
+    }
+
+    [Trait("Category", "CrossVersion")]
+    [Theory]
+    [InlineData("powershell")]
+    [InlineData("pwsh")]
     public async Task RejectsOutOfRangeAndMismatchedKeysBeforeChangingInputs(string shell)
     {
         string[] expressions = [ "array.slice(values, -1, 0)", "array.slice(values, 2, 1)", "array.slice(values, 0, -1)",
