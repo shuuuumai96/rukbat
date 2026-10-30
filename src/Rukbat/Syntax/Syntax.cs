@@ -23,7 +23,10 @@ internal sealed record Function(
     ValueType Type,
     List<Statement> Body) : Statement(Token);
 
-internal sealed record Variable(Token Token, ValueType Type, Expression Value, bool IsInferred = false, bool IsConst = false) : Statement(Token);
+internal sealed record Variable(Token Token, ValueType Type, Expression Value, bool IsInferred = false, bool IsConst = false) : Statement(Token)
+{
+    public int InitializerEndOffset { get; init; }
+}
 internal sealed record Assignment(Token Token, Expression Value) : Statement(Token);
 internal sealed record FieldAssignment(Member Target, Expression Value) : Statement(Target.Token);
 internal sealed record Field(Token Token, ValueType Type) : Node(Token);

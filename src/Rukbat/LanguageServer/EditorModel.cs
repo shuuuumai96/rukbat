@@ -33,6 +33,7 @@ internal sealed class EditorText(string text)
 internal sealed record EditorSymbol(string Name, string Detail, int Kind, string Documentation = "",
     Module? Module = null, Token? Declaration = null, ValueType? Type = null, bool IsFixed = false, bool IsModuleVariable = false)
 {
+    public int AvailableFrom { get; init; } = Declaration?.Offset ?? 0;
     public EditorSymbolId Identity => Module is not null && Declaration is not null
         ? new(EditorPaths.Key(Module.Source.Path), Declaration.Offset, Kind)
         : new("<builtin:" + Detail.Split('(', '<', ':')[0].Trim() + ">", 0, Kind);

@@ -311,14 +311,16 @@ internal sealed class Parser(Source source, List<Token> tokens, FormattingSyntax
             var type = Type();
             Expect("=");
             NewLines();
-            return new Variable(name, type, Expression(), IsConst: isConst);
+            var value = Expression();
+            return new Variable(name, type, value, IsConst: isConst) { InitializerEndOffset = Current.Offset };
         }
         if (Next.Text == ":=")
         {
             var name = Identifier();
             Expect(":=");
             NewLines();
-            return new Variable(name, ValueType.Error, Expression(), true, isConst);
+            var value = Expression();
+            return new Variable(name, ValueType.Error, value, true, isConst) { InitializerEndOffset = Current.Offset };
         }
         if (isConst)
             Fail("A const declaration requires 'name := value' or 'name: Type = value'.");

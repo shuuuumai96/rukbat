@@ -15,7 +15,7 @@ internal sealed partial class LanguageAnalysis
         public IEnumerable<EditorSymbol> Visible(int offset, bool insideFunction = false)
         {
             insideFunction |= Function;
-            var own = Symbols.Where(s => s.Kind != 6 || s.Declaration!.Offset < offset || Parent is null && insideFunction).ToList();
+            var own = Symbols.Where(s => s.Kind is not (6 or 21) || s.AvailableFrom < offset || Parent is null && insideFunction).ToList();
             return own.Concat(Parent?.Visible(offset, insideFunction) ?? []).DistinctBy(s => s.Name);
         }
     }
@@ -149,7 +149,8 @@ internal sealed partial class LanguageAnalysis
         var symbol = symbols[variable] with
         {
             Module = scope.Module,
-            Documentation = Description(scope.Module, node)
+            Documentation = Description(scope.Module, node),
+            AvailableFrom = node is Variable declaration ? declaration.InitializerEndOffset : node.Token.Offset
         };
         symbols[variable] = symbol;
         scope.Symbols.Add(symbol);
