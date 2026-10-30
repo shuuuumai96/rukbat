@@ -4,8 +4,13 @@ internal sealed partial class TypeChecker
 {
     private void CheckStatements(List<Statement> statements, Symbols scope, ValueType? returnType, bool topLevel)
     {
+        FlowState? terminalState = null;
         foreach (var statement in statements)
         {
+            // Continue binding unreachable code for diagnostics and const analysis,
+            // but do not let it change a reachable exit's nullable state.
+            if (!reachable)
+                terminalState ??= SnapshotFlow();
             switch (statement)
             {
                 case Import import when !topLevel:
@@ -88,60 +93,50 @@ internal sealed partial class TypeChecker
                         Error("RUK2001", "for ... in requires an array or fs.Lines.", loop.Items);
                     }
 
-                    var beforeLoop = SnapshotRefinements();
-                    foreach (var name in AssignedNames(loop.Body))
-                    {
-                        var assigned = scope.Find(name);
-                        if (assigned is not null)
-                        {
-                            refinements.Remove(assigned);
-                        }
-                    }
+                    var beforeLoop = SnapshotFlow();
+                    InvalidateAssignedRefinements(loop.Body, scope);
                     if (ContainsUnqualifiedUserCall(loop.Body))
                     {
                         InvalidateGlobalRefinements();
                     }
 
-                    var loopScope = new Symbols(scope);
-                    DeclaredTypes[loop] = iteration.ElementType;
-                    Declare(loop, DeclaredTypes[loop], loopScope, false);
-                    loopDepth++;
-                    CheckStatements(loop.Body, loopScope, returnType, false);
-                    loopDepth--;
-                    MergeRefinements(beforeLoop, refinements);
+                    var forFlow = CheckLoopBody(loop.Body, scope, returnType, SnapshotFlow(), loop);
+                    // A for loop may execute zero times. Normal completion, continue,
+                    // and break all reach the statement after an exhausted loop.
+                    MergeFlows([beforeLoop, forFlow.End, .. forFlow.Breaks, .. forFlow.Continues]);
                     break;
                 case While loop:
+                    var loopDiagnosticCount = module.Source.Diagnostics.Count;
+                    var beforeCondition = SnapshotFlow();
                     Match(ValueType.Bool, TypeOf(loop.Condition, scope), loop.Condition);
-                    var beforeWhile = SnapshotRefinements();
-                    foreach (var name in AssignedNames(loop.Body))
-                    {
-                        var assigned = scope.Find(name);
-                        if (assigned is not null)
-                        {
-                            refinements.Remove(assigned);
-                        }
-                    }
+                    InvalidateAssignedRefinements(loop.Body, scope);
                     if (ContainsUnqualifiedUserCall(loop.Body))
                     {
                         InvalidateGlobalRefinements();
                     }
 
                     var (whileSymbol, nonNullWhileTrue) = NullTestRefinement(loop.Condition);
-                    if (whileSymbol is not null && nonNullWhileTrue)
-                    {
-                        refinements[whileSymbol] = whileSymbol.Type.NonNullable;
-                    }
-                    loopDepth++;
-                    CheckStatements(loop.Body, new Symbols(scope), returnType, false);
-                    loopDepth--;
-                    MergeRefinements(beforeWhile, refinements);
+                    var whileFlow = CheckLoopBody(loop.Body, scope, returnType, SnapshotFlow(),
+                        nonNullCondition: nonNullWhileTrue ? whileSymbol : null);
+                    // Only fallthrough and continue evaluate the condition again.
+                    // Preserve initial narrowing when all returning paths restore it,
+                    // or when a nullable write is followed by break/return instead.
+                    MergeFlows([beforeCondition, whileFlow.End, .. whileFlow.Continues]);
+                    if (module.Source.Diagnostics.Count == loopDiagnosticCount)
+                        Match(ValueType.Bool, TypeOf(loop.Condition, scope), loop.Condition);
+                    MergeFlows([SnapshotFlow(), .. whileFlow.Breaks]);
                     break;
                 case LoopControl control:
-                    if (loopDepth == 0)
+                    if (loops.Count == 0)
                     {
                         Error("RUK2010", $"{control.Token.Text} is allowed only inside a loop.", control);
                     }
-
+                    else if (reachable)
+                    {
+                        var states = control.Token.Text == "break" ? loops.Peek().Breaks : loops.Peek().Continues;
+                        states.Add(SnapshotFlow());
+                    }
+                    reachable = false;
                     break;
                 case Return result:
                     var resultType = result.Value is null ? ValueType.Void : TypeOf(result.Value, scope, returnType);
@@ -153,32 +148,26 @@ internal sealed partial class TypeChecker
                     {
                         Match(returnType, resultType, (Node?)result.Value ?? result);
                     }
-
+                    reachable = false;
                     break;
                 case Throw failure:
                     Match(ErrorStructure.BoundType, TypeOf(failure.Value, scope), failure.Value, "throw");
+                    reachable = false;
                     break;
                 case TryCatch guarded:
-                    var beforeTry = SnapshotRefinements();
+                    var beforeTry = SnapshotFlow();
                     CheckStatements(guarded.Body, new Symbols(scope), returnType, false);
-                    var afterTry = SnapshotRefinements();
-                    refinements = SnapshotRefinements(beforeTry);
-                    foreach (var name in AssignedNames(guarded.Body))
-                    {
-                        var assigned = scope.Find(name);
-                        if (assigned is not null)
-                        {
-                            refinements.Remove(assigned);
-                        }
-                    }
-                    if (ContainsUnqualifiedUserCall(guarded.Body))
+                    var afterTry = SnapshotFlow();
+                    RestoreFlow(beforeTry);
+                    InvalidateAssignedRefinements(guarded.Body, scope);
+                    if (ContainsCurrentModuleCall(guarded.Body))
                     {
                         InvalidateGlobalRefinements();
                     }
                     var handlerScope = new Symbols(scope);
                     Declare(guarded.Handler, ErrorStructure.BoundType, handlerScope, false);
                     CheckStatements(guarded.Handler.Body, handlerScope, returnType, false);
-                    MergeRefinements(afterTry, refinements);
+                    MergeFlows(afterTry, SnapshotFlow());
                     break;
                 case Conditional conditional:
                     Match(ValueType.Bool, TypeOf(conditional.Condition, scope), conditional.Condition);
@@ -186,8 +175,12 @@ internal sealed partial class TypeChecker
                     break;
                 case ExpressionStatement expression:
                     TypeOf(expression.Value, scope);
+                    if (expression.Value is Call { Receiver: null, Name: "exit", PowerShellType: null })
+                        reachable = false;
                     break;
             }
         }
+        if (terminalState is not null)
+            RestoreFlow(terminalState);
     }
 }

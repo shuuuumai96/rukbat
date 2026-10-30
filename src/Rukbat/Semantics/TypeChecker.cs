@@ -16,7 +16,9 @@ internal sealed partial class TypeChecker
     public Dictionary<Member, StandardEncoding> EncodingConstants { get; } = new(ReferenceEqualityComparer.Instance);
     private Dictionary<VariableSymbol, ValueType> refinements = [];
     private int variableId;
-    private int loopDepth;
+    private bool reachable = true;
+    private readonly Stack<LoopFlow> loops = new();
+    private readonly HashSet<List<Statement>> reboundLoopBodies = new(ReferenceEqualityComparer.Instance);
     private Module module = null!;
 
     public void Check(List<Module> modules)
@@ -25,6 +27,7 @@ internal sealed partial class TypeChecker
         foreach (var current in modules)
         {
             module = current;
+            reachable = true;
             var globals = new Symbols();
             var statements = current.Statements
                 .Where(statement => statement is not Function and not StructDeclaration and not ImplDeclaration)
@@ -33,6 +36,7 @@ internal sealed partial class TypeChecker
             foreach (var symbol in Functions.Values.Where(f => f.Module == current))
             {
                 refinements.Clear();
+                reachable = true;
                 var function = symbol.Function;
                 if (symbol.Owner is null && current.Imports.ContainsKey(function.Name))
                 {
@@ -52,7 +56,7 @@ internal sealed partial class TypeChecker
                 }
 
                 CheckStatements(function.Body, locals, symbol.ReturnType, false);
-                if (symbol.ReturnType != ValueType.Void && !AlwaysExits(function.Body))
+                if (symbol.ReturnType != ValueType.Void && reachable)
                 {
                     Error("RUK2003", $"Function '{function.Name}' must return a value or throw on every path.", function);
                 }

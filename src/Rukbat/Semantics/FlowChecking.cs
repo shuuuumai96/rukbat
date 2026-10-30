@@ -2,49 +2,109 @@ namespace Rukbat;
 
 internal sealed partial class TypeChecker
 {
-    // A loop may execute zero times. Both paths of a try/catch must return or throw.
-    private static bool AlwaysExits(List<Statement> body) => body.Any(statement =>
-        statement is Return or Throw ||
-        statement is ExpressionStatement { Value: Call { Receiver: null, Name: "exit", PowerShellType: null } } ||
-        statement is Conditional condition &&
-            AlwaysExits(condition.Then) && AlwaysExits(condition.Else) ||
-        statement is TryCatch guarded &&
-            AlwaysExits(guarded.Body) && AlwaysExits(guarded.Handler.Body));
+    private sealed record FlowState(bool Reachable, Dictionary<VariableSymbol, ValueType> Refinements);
+
+    private sealed class LoopFlow
+    {
+        public List<FlowState> Breaks { get; } = [];
+        public List<FlowState> Continues { get; } = [];
+        public FlowState End { get; set; } = null!;
+    }
+
+    private FlowState SnapshotFlow() => new(reachable, SnapshotRefinements());
+
+    private void RestoreFlow(FlowState state)
+    {
+        reachable = state.Reachable;
+        refinements = SnapshotRefinements(state.Refinements);
+    }
+
+    private void MergeFlows(params FlowState[] states)
+    {
+        var continuing = states.Where(state => state.Reachable).ToArray();
+        reachable = continuing.Length != 0;
+        // Retain useful types for diagnostics in unreachable code without making
+        // any terminated path reachable again.
+        var checkedStates = reachable ? continuing : states;
+        MergeRefinements(checkedStates.Select(state => state.Refinements).ToArray());
+    }
 
     private void CheckConditional(Conditional conditional, Symbols scope, ValueType? returnType)
     {
-        var baseline = SnapshotRefinements();
+        var baseline = SnapshotFlow();
         var (symbol, nonNullWhenTrue) = NullTestRefinement(conditional.Condition);
 
-        refinements = SnapshotRefinements(baseline);
+        RestoreFlow(baseline);
         if (symbol is not null && nonNullWhenTrue)
         {
             refinements[symbol] = symbol.Type.NonNullable;
         }
         CheckStatements(conditional.Then, new Symbols(scope), returnType, false);
-        var afterThen = SnapshotRefinements();
+        var afterThen = SnapshotFlow();
 
-        refinements = SnapshotRefinements(baseline);
+        RestoreFlow(baseline);
         if (symbol is not null && !nonNullWhenTrue)
         {
             refinements[symbol] = symbol.Type.NonNullable;
         }
         CheckStatements(conditional.Else, new Symbols(scope), returnType, false);
-        var afterElse = SnapshotRefinements();
+        MergeFlows(afterThen, SnapshotFlow());
+    }
 
-        var thenExits = AlwaysExits(conditional.Then);
-        var elseExits = conditional.Else.Count != 0 && AlwaysExits(conditional.Else);
-        if (thenExits && !elseExits)
+    private void InvalidateAssignedRefinements(List<Statement> body, Symbols scope)
+    {
+        foreach (var name in AssignedNames(body))
+            if (scope.Find(name) is { } assigned)
+                refinements.Remove(assigned);
+    }
+
+    private bool ContainsCurrentModuleCall(List<Statement> body) => NestedStatements(body)
+        .SelectMany(StatementExpressions).SelectMany(Expressions).OfType<Call>()
+        .Any(call => Calls.TryGetValue(call, out var target) && target.Module == module);
+
+    private LoopFlow CheckLoopBody(List<Statement> body, Symbols scope, ValueType? returnType,
+        FlowState baseline, For? iteration = null, VariableSymbol? nonNullCondition = null)
+    {
+        if (reboundLoopBodies.Contains(body))
         {
-            refinements = afterElse;
+            // An enclosing loop may bind this body again. Its bound calls and
+            // backedge already required global invalidation, so start there
+            // instead of recursively repeating nested loop bodies once more.
+            RestoreFlow(baseline);
+            InvalidateGlobalRefinements();
+            baseline = SnapshotFlow();
         }
-        else if (elseExits && !thenExits)
+        var diagnosticCount = module.Source.Diagnostics.Count;
+        var result = CheckBody(baseline);
+        if (module.Source.Diagnostics.Count == diagnosticCount &&
+            (result.End.Reachable || result.Continues.Count != 0) &&
+            baseline.Refinements.Keys.Any(symbol => symbol.IsGlobal && !symbol.IsConst) &&
+            ContainsCurrentModuleCall(body))
         {
-            refinements = afterThen;
+            // Binding the first pass identifies method owners without duplicating type
+            // inference in a syntax pre-scan. One repeat suffices: all mutable global
+            // refinements are absent at the next iteration's entry, regardless of calls.
+            reboundLoopBodies.Add(body);
+            RestoreFlow(baseline);
+            InvalidateGlobalRefinements();
+            result = CheckBody(SnapshotFlow());
         }
-        else
+        return result;
+
+        LoopFlow CheckBody(FlowState entry)
         {
-            MergeRefinements(afterThen, afterElse);
+            RestoreFlow(entry);
+            if (nonNullCondition is not null)
+                refinements[nonNullCondition] = nonNullCondition.Type.NonNullable;
+            var locals = new Symbols(scope);
+            if (iteration is not null)
+                Declare(iteration, Iterations[iteration].ElementType, locals, false);
+            var flow = new LoopFlow();
+            loops.Push(flow);
+            CheckStatements(body, locals, returnType, false);
+            loops.Pop();
+            flow.End = SnapshotFlow();
+            return flow;
         }
     }
 

@@ -443,7 +443,7 @@ internal sealed partial class TypeChecker
             Match(DeclaredTypes[signature[i]], arguments[i], call.Arguments[i].Value, $"argument '{signature[i].Token.Text}'");
         }
 
-        if (function.Module == module && function.Owner is null)
+        if (function.Module == module)
         {
             InvalidateGlobalRefinements();
         }

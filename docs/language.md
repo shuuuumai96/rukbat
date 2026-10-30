@@ -129,7 +129,7 @@ optional_values: string[]? = null
 
 A nullable variable or parameter can be narrowed by a direct `== null` or `!= null` check. An early `return` or `throw` from the null branch also narrows the following path. Assignment recalculates the variable's narrowed state. Struct fields, array elements, and other complex expressions are not narrowed.
 
-Module variables can also be narrowed. A call to an ordinary function in the same module invalidates their narrowing because that function may modify them. `print`, standard built-ins, and functions in another module do not invalidate current-module narrowing.
+Module variables can also be narrowed. A call to a function or method defined in the same module invalidates their narrowing because it may modify them. `print`, standard built-ins, and functions or methods defined in another module do not invalidate current-module narrowing.
 
 Before narrowing, a `T?` value can only be compared directly with the `null` literal, stored in a compatible nullable location, passed or returned as a nullable value, encoded as JSON when its type supports JSON, or passed through a supported nullable-aware external boundary. General equality between two nullable expressions is not defined.
 
