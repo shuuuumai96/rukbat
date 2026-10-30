@@ -1,0 +1,6 @@
+*.cs text eol=crlf
+*.cs.txt text eol=crlf
+*.ps1 text eol=crlf
+*.js text eol=crlf
+*.rukbat text eol=crlf
+*.cmd text eol=crlf
