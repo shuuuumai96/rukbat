@@ -1,14 +1,14 @@
 using System.Text;
 
-namespace Rukbat.Tests;
-
-public sealed class PathApiTests : TestBase
+namespace Rukbat.Tests
 {
-    [Trait("Category", "Unit")]
-    [Fact]
-    public void PathOperationsHaveFixedTypesAndNeedOnlyThePathRuntime()
+    public sealed class PathApiTests : TestBase
     {
-        var output = Success("""
+        [Trait("Category", "Unit")]
+        [Fact]
+        public void PathOperationsHaveFixedTypesAndNeedOnlyThePathRuntime()
+        {
+            var output = Success("""
             import path
             working: string = path.working_dir()
             absolute: string = path.resolve(working, 'data.csv')
@@ -17,37 +17,37 @@ public sealed class PathApiTests : TestBase
             stem: string = path.stem(relative)
             output: string = path.change_extension(relative, '.json')
             """);
-        Assert.DoesNotContain("'fs.copy_file'", output);
-        Assert.DoesNotContain("class RukbatMoveBatch", output);
-        Assert.DoesNotContain("Add-Type", output);
-    }
+            Assert.DoesNotContain("'fs.copy_file'", output);
+            Assert.DoesNotContain("class RukbatMoveBatch", output);
+            Assert.DoesNotContain("Add-Type", output);
+        }
 
-    [Trait("Category", "Unit")]
-    [Theory]
-    [InlineData("path.working_dir('x')")]
-    [InlineData("path.resolve('C:/work')")]
-    [InlineData("path.resolve(1, 'x')")]
-    [InlineData("path.resolve('C:/work', null)")]
-    [InlineData("path.relative('C:/work', 1)")]
-    [InlineData("path.relative('C:/work', 'C:/work/x', 'x')")]
-    [InlineData("path.is_absolute()")]
-    [InlineData("path.is_absolute(1)")]
-    [InlineData("path.stem(['x'])")]
-    [InlineData("path.change_extension('x')")]
-    [InlineData("path.change_extension('x', null)")]
-    [InlineData("value: int = path.resolve('C:/work', 'x')")]
-    [InlineData("value: string = path.is_absolute('C:/work')")]
-    public void InvalidPathCallsAreRejectedBeforeEmission(string source)
-        => Assert.NotEmpty(new Compiler().Check("import path\n" + source));
+        [Trait("Category", "Unit")]
+        [Theory]
+        [InlineData("path.working_dir('x')")]
+        [InlineData("path.resolve('C:/work')")]
+        [InlineData("path.resolve(1, 'x')")]
+        [InlineData("path.resolve('C:/work', null)")]
+        [InlineData("path.relative('C:/work', 1)")]
+        [InlineData("path.relative('C:/work', 'C:/work/x', 'x')")]
+        [InlineData("path.is_absolute()")]
+        [InlineData("path.is_absolute(1)")]
+        [InlineData("path.stem(['x'])")]
+        [InlineData("path.change_extension('x')")]
+        [InlineData("path.change_extension('x', null)")]
+        [InlineData("value: int = path.resolve('C:/work', 'x')")]
+        [InlineData("value: string = path.is_absolute('C:/work')")]
+        public void InvalidPathCallsAreRejectedBeforeEmission(string source)
+            => Assert.NotEmpty(new Compiler().Check("import path\n" + source));
 
-    [Trait("Category", "CrossVersion")]
-    [Trait("Category", "Runtime")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task ResolveAndRelativeUseExplicitBasesAndWindowsPathComponents(string shell)
-    {
-        await AssertProgram(shell, """
+        [Trait("Category", "CrossVersion")]
+        [Trait("Category", "Runtime")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task ResolveAndRelativeUseExplicitBasesAndWindowsPathComponents(string shell)
+        {
+            await AssertProgram(shell, """
             import path
             import test
             test.assert(path.resolve('C:/work', 'data/../missing/a.csv') == 'C:\\work\\missing\\a.csv')
@@ -70,16 +70,16 @@ public sealed class PathApiTests : TestBase
             test.assert(path.extension('.env') == '.env')
             print('passed')
             """);
-    }
+        }
 
-    [Trait("Category", "CrossVersion")]
-    [Trait("Category", "Runtime")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task AbsolutePredicatesAndConversionsRejectUnsupportedPaths(string shell)
-    {
-        await AssertProgram(shell, """
+        [Trait("Category", "CrossVersion")]
+        [Trait("Category", "Runtime")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task AbsolutePredicatesAndConversionsRejectUnsupportedPaths(string shell)
+        {
+            await AssertProgram(shell, """
             import path
             import test
             fn reject(value: string): void {
@@ -112,16 +112,16 @@ public sealed class PathApiTests : TestBase
             reject_relative('C:/work', 'C:/file:stream')
             print('passed')
             """);
-    }
+        }
 
-    [Trait("Category", "CrossVersion")]
-    [Trait("Category", "Runtime")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task FilenameOperationsPreservePathSpellingAndExistingExtensionRules(string shell)
-    {
-        await AssertProgram(shell, """
+        [Trait("Category", "CrossVersion")]
+        [Trait("Category", "Runtime")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task FilenameOperationsPreservePathSpellingAndExistingExtensionRules(string shell)
+        {
+            await AssertProgram(shell, """
             import path
             import test
             test.assert(path.stem('dir/report.csv') == 'report')
@@ -157,19 +157,19 @@ public sealed class PathApiTests : TestBase
             }
             print('passed')
             """);
-    }
+        }
 
-    [Trait("Category", "CrossVersion")]
-    [Trait("Category", "Runtime")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task RecursiveFileCopiesPreserveTheInputDirectoryTree(string shell)
-    {
-        using var project = new Project();
-        project.Write("input/direct.csv", "direct");
-        project.Write("input/nested/日本語.csv", "nested");
-        project.Write("main.rukbat", """
+        [Trait("Category", "CrossVersion")]
+        [Trait("Category", "Runtime")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task RecursiveFileCopiesPreserveTheInputDirectoryTree(string shell)
+        {
+            using var project = new Project();
+            project.Write("input/direct.csv", "direct");
+            project.Write("input/nested/日本語.csv", "nested");
+            project.Write("main.rukbat", """
             import path
             import fs
             root := path.resolve(path.working_dir(), 'input')
@@ -182,28 +182,29 @@ public sealed class PathApiTests : TestBase
             }
             print('passed')
             """);
-        await AssertProgram(shell, project);
-        Assert.Equal("direct", File.ReadAllText(project.PathFor("output/direct.csv")));
-        Assert.Equal("nested", File.ReadAllText(project.PathFor("output/nested/日本語.csv")));
-        Assert.Equal(2, Directory.GetFiles(project.PathFor("output"), "*", SearchOption.AllDirectories).Length);
-    }
+            await AssertProgram(shell, project);
+            Assert.Equal("direct", File.ReadAllText(project.PathFor("output/direct.csv")));
+            Assert.Equal("nested", File.ReadAllText(project.PathFor("output/nested/日本語.csv")));
+            Assert.Equal(2, Directory.GetFiles(project.PathFor("output"), "*", SearchOption.AllDirectories).Length);
+        }
 
-    private static async Task AssertProgram(string shell, string source)
-    {
-        using var project = new Project();
-        project.Write("main.rukbat", source);
-        await AssertProgram(shell, project);
-    }
+        private static async Task AssertProgram(string shell, string source)
+        {
+            using var project = new Project();
+            project.Write("main.rukbat", source);
+            await AssertProgram(shell, project);
+        }
 
-    private static async Task AssertProgram(string shell, Project project)
-    {
-        var compiled = project.Compile();
-        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
-        var script = project.PathFor("job.ps1");
-        File.WriteAllText(script, compiled.Output, new UTF8Encoding(true));
-        var result = await RunDeployed(shell, script, project.DirectoryPath, project.DirectoryPath);
-        Assert.True(result.ExitCode == 0, result.Error);
-        Assert.Equal("", result.Error);
-        Assert.Equal("passed\n", result.Output);
+        private static async Task AssertProgram(string shell, Project project)
+        {
+            var compiled = project.Compile();
+            Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+            var script = project.PathFor("job.ps1");
+            File.WriteAllText(script, compiled.Output, new UTF8Encoding(true));
+            var result = await RunDeployed(shell, script, project.DirectoryPath, project.DirectoryPath);
+            Assert.True(result.ExitCode == 0, result.Error);
+            Assert.Equal("", result.Error);
+            Assert.Equal("passed\n", result.Output);
+        }
     }
 }

@@ -1,11 +1,12 @@
-namespace Rukbat;
-
-internal sealed partial class Emitter
+namespace Rukbat
 {
-    private void EmitJsonRuntime()
+    internal sealed partial class Emitter
     {
-        // Preserve the existing JSON helper indentation in generated scripts/debug maps.
-        EmitNativeDefinition("Json", "        ");
-        EmitLines(RuntimeResources.ReadPowerShell("JsonRuntime"));
+        private void EmitJsonRuntime()
+        {
+            // Preserve the existing JSON helper indentation in generated scripts/debug maps.
+            EmitNativeDefinition("Json", "        ");
+            EmitLines(RuntimeResources.ReadPowerShell("JsonRuntime"));
+        }
     }
 }

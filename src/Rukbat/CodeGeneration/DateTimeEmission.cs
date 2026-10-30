@@ -1,15 +1,18 @@
-namespace Rukbat;
-
-internal sealed partial class Emitter
+namespace Rukbat
 {
-    private void EmitDateTimeOperations()
+    internal sealed partial class Emitter
     {
-        foreach (var operation in DateTimeValues.Operations)
-            Line($"'datetime.{operation.Name}' {{ return {operation.Expression} }}");
-    }
+        private void EmitDateTimeOperations()
+        {
+            foreach (var operation in DateTimeValues.Operations)
+            {
+                Line($"'datetime.{operation.Name}' {{ return {operation.Expression} }}");
+            }
+        }
 
-    private static string Comparison(string left, string right, string operation, ValueType type) =>
-        DateTimeValues.Ordered(type)
-            ? $"([RukbatDateTime]::Compare(({left}), ({right})) {operation} 0)"
-            : $"({left} {operation} {right})";
+        private static string Comparison(string left, string right, string operation, ValueType type) =>
+            DateTimeValues.Ordered(type)
+                ? $"([RukbatDateTime]::Compare(({left}), ({right})) {operation} 0)"
+                : $"({left} {operation} {right})";
+    }
 }

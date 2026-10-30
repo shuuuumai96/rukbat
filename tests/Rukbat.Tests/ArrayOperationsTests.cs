@@ -1,29 +1,29 @@
-namespace Rukbat.Tests;
-
-public class ArrayOperationsTests : TestBase
+namespace Rukbat.Tests
 {
-    [Trait("Category", "Unit")]
-    [Theory]
-    [InlineData("array.sort([true, false])")]
-    [InlineData("values: int?[] = [1, null]; array.sort(values)")]
-    [InlineData("array.sort([[1]])")]
-    [InlineData("array.slice([1], 0.0, 1)")]
-    [InlineData("array.remove_at([1], index: 0)")]
-    [InlineData("array.sort<int>([1])")]
-    [InlineData("array.sort_by([1], [true])")]
-    [InlineData("array.sort_by([1], 1)")]
-    [InlineData("array.slice([] , 0, 0)")]
-    [InlineData("array.sort(1)")]
-    [InlineData("array.unknown([1])")]
-    public void RejectsInvalidCallsAndUnorderableKeys(string source) => Assert.False(Compile("import array\n" + source).Success);
-
-    [Trait("Category", "CrossVersion")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task PreservesTypesCopiesStableOrderingAndExactIntegers(string shell)
+    public class ArrayOperationsTests : TestBase
     {
-        await RunVerified(shell, """
+        [Trait("Category", "Unit")]
+        [Theory]
+        [InlineData("array.sort([true, false])")]
+        [InlineData("values: int?[] = [1, null]; array.sort(values)")]
+        [InlineData("array.sort([[1]])")]
+        [InlineData("array.slice([1], 0.0, 1)")]
+        [InlineData("array.remove_at([1], index: 0)")]
+        [InlineData("array.sort<int>([1])")]
+        [InlineData("array.sort_by([1], [true])")]
+        [InlineData("array.sort_by([1], 1)")]
+        [InlineData("array.slice([] , 0, 0)")]
+        [InlineData("array.sort(1)")]
+        [InlineData("array.unknown([1])")]
+        public void RejectsInvalidCallsAndUnorderableKeys(string source) => Assert.False(Compile("import array\n" + source).Success);
+
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task PreservesTypesCopiesStableOrderingAndExactIntegers(string shell)
+        {
+            await RunVerified(shell, """
             import array; import test; import json; import datetime; import csv
             values := [9223372036854775807, 9007199254740993, -9223372036854775808, 9007199254740992]
             sorted := array.sort(values)
@@ -85,15 +85,15 @@ public class ArrayOperationsTests : TestBase
             test.assert(calls == 2)
             print('passed')
             """);
-    }
+        }
 
-    [Trait("Category", "CrossVersion")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task ProcessExitCodesRemainIntegerSortKeysAcrossValueBoundaries(string shell)
-    {
-        await RunVerified(shell, """
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task ProcessExitCodesRemainIntegerSortKeysAcrossValueBoundaries(string shell)
+        {
+            await RunVerified(shell, """
             import array
             import encoding
             import json
@@ -130,34 +130,38 @@ public class ArrayOperationsTests : TestBase
             test.assert(result.exit_code == expected_exit_code)
             print("passed")
             """);
-    }
+        }
 
-    [Trait("Category", "CrossVersion")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task RejectsOutOfRangeAndMismatchedKeysBeforeChangingInputs(string shell)
-    {
-        string[] expressions = [ "array.slice(values, -1, 0)", "array.slice(values, 2, 1)", "array.slice(values, 0, -1)",
-            "array.slice(values, 1, 9223372036854775807)", "array.slice(values, 9223372036854775807, 0)",
-            "array.remove_at(values, -1)", "array.remove_at(values, 2)", "array.remove_at(values, 9223372036854775807)",
-            "array.remove_at(empty, 0)", "array.sort_by(values, empty)", "array.sort_by_descending(values, [1])" ];
-        var source = "import array; import test\nvalues := [2, 1]\nempty: int[] = []\n";
-        for (int i = 0; i < expressions.Length; i++)
-            source += $"rejected{i} := false\ntry {{ {expressions[i]} }} catch err {{ rejected{i} = true }}\ntest.assert(rejected{i})\ntest.assert(values[0] == 2)\n";
-        await RunVerified(shell, source + "print('passed')\n");
-    }
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task RejectsOutOfRangeAndMismatchedKeysBeforeChangingInputs(string shell)
+        {
+            string[] expressions = [ "array.slice(values, -1, 0)", "array.slice(values, 2, 1)", "array.slice(values, 0, -1)",
+                "array.slice(values, 1, 9223372036854775807)", "array.slice(values, 9223372036854775807, 0)",
+                "array.remove_at(values, -1)", "array.remove_at(values, 2)", "array.remove_at(values, 9223372036854775807)",
+                "array.remove_at(empty, 0)", "array.sort_by(values, empty)", "array.sort_by_descending(values, [1])" ];
+            var source = "import array; import test\nvalues := [2, 1]\nempty: int[] = []\n";
+            for (int i = 0; i < expressions.Length; i++)
+            {
+                source += $"rejected{i} := false\ntry {{ {expressions[i]} }} catch err {{ rejected{i} = true }}\ntest.assert(rejected{i})\ntest.assert(values[0] == 2)\n";
+            }
 
-    private static async Task RunVerified(string shell, string source)
-    {
-        using var project = new Project();
-        project.Write("main.rukbat", source);
-        var compiled = project.Compile();
-        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
-        var output = "[Threading.Thread]::CurrentThread.CurrentCulture = [Globalization.CultureInfo]::GetCultureInfo('tr-TR')\n" + compiled.Output!;
-        var result = shell == "powershell" ? await project.RunOutputWithWindowsPowerShell(output) : await project.RunOutput(output);
-        Assert.True(result.ExitCode == 0, result.Error);
-        Assert.Empty(result.Error);
-        Assert.Equal("passed\n", result.Output);
+            await RunVerified(shell, source + "print('passed')\n");
+        }
+
+        private static async Task RunVerified(string shell, string source)
+        {
+            using var project = new Project();
+            project.Write("main.rukbat", source);
+            var compiled = project.Compile();
+            Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+            var output = "[Threading.Thread]::CurrentThread.CurrentCulture = [Globalization.CultureInfo]::GetCultureInfo('tr-TR')\n" + compiled.Output!;
+            var result = shell == "powershell" ? await project.RunOutputWithWindowsPowerShell(output) : await project.RunOutput(output);
+            Assert.True(result.ExitCode == 0, result.Error);
+            Assert.Empty(result.Error);
+            Assert.Equal("passed\n", result.Output);
+        }
     }
 }

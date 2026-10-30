@@ -2,334 +2,338 @@ using System.Diagnostics;
 using Rukbat;
 using PowerShellParser = System.Management.Automation.Language.Parser;
 
-namespace Rukbat.Tests;
-
-public class CompilerTests
+namespace Rukbat.Tests
 {
-    private static CompilationResult Compile(string source) => new Compiler().Compile(source);
-    private static string Success(string source)
+    public class CompilerTests
     {
-        var result = Compile(source);
-        Assert.True(result.Success, string.Join("\n", result.Diagnostics));
-        PowerShellParser.ParseInput(result.Output!, out _, out var errors);
-        Assert.Empty(errors);
-        return result.Output!;
-    }
+        private static CompilationResult Compile(string source) => new Compiler().Compile(source);
+        private static string Success(string source)
+        {
+            var result = Compile(source);
+            Assert.True(result.Success, string.Join("\n", result.Diagnostics));
+            PowerShellParser.ParseInput(result.Output!, out _, out var errors);
+            Assert.Empty(errors);
+            return result.Output!;
+        }
 
-    [Trait("Category", "Unit")]
-    [Theory]
-    [InlineData("name: string = 'Taro'\nage: int = 30")]
-    [InlineData("name := 'Taro'\nage := 30\nactive := true")]
-    [InlineData("items := [1, 2]\nprint(items.length)")]
-    [InlineData("fn add(a: int, b: int): int { return a + b }\nprint(add(2, 3))")]
-    [InlineData("flag: bool = true && !false\nif flag { print('ok') } else { print('no') }")]
-    [InlineData("fn f(): void { print('ok'); return }")]
-    [InlineData("fn f(x: int): int { if x > 0 { return x } else { return -x } }")]
-    [InlineData("x: int = -9223372036854775808\ny: int = 2147483647")]
-    [InlineData("fn f(): string { return 'line\\nquote\\\" apostrophe\\\' slash\\\\' }")]
-    [InlineData("// return fake(): int {\n// name: int = 'bad'\ns: string = '$x: int; $(throw); { return }'")]
-    [InlineData("year: string = powershell<string>('Get-Date', Format: 'yyyy')")]
-    [InlineData("fn f(\n a: int,\n b: int\n): int { return a +\n b }\nprint(f(\n1,\n2\n))")]
-    [InlineData("fn f(): int { return 1 }\nfn F(): int { return 2 }\nprint(f() + F())")]
-    [InlineData("x: int = 1\nfn f(x: string): string { return x }")]
-    public void AcceptsModernSyntax(string source) => Success(source);
+        [Trait("Category", "Unit")]
+        [Theory]
+        [InlineData("name: string = 'Taro'\nage: int = 30")]
+        [InlineData("name := 'Taro'\nage := 30\nactive := true")]
+        [InlineData("items := [1, 2]\nprint(items.length)")]
+        [InlineData("fn add(a: int, b: int): int { return a + b }\nprint(add(2, 3))")]
+        [InlineData("flag: bool = true && !false\nif flag { print('ok') } else { print('no') }")]
+        [InlineData("fn f(): void { print('ok'); return }")]
+        [InlineData("fn f(x: int): int { if x > 0 { return x } else { return -x } }")]
+        [InlineData("x: int = -9223372036854775808\ny: int = 2147483647")]
+        [InlineData("fn f(): string { return 'line\\nquote\\\" apostrophe\\\' slash\\\\' }")]
+        [InlineData("// return fake(): int {\n// name: int = 'bad'\ns: string = '$x: int; $(throw); { return }'")]
+        [InlineData("year: string = powershell<string>('Get-Date', Format: 'yyyy')")]
+        [InlineData("fn f(\n a: int,\n b: int\n): int { return a +\n b }\nprint(f(\n1,\n2\n))")]
+        [InlineData("fn f(): int { return 1 }\nfn F(): int { return 2 }\nprint(f() + F())")]
+        [InlineData("x: int = 1\nfn f(x: string): string { return x }")]
+        public void AcceptsModernSyntax(string source) => Success(source);
 
-    [Trait("Category", "Unit")]
-    [Theory]
-    [InlineData("x: int = '30'")]
-    [InlineData("x: string = 30")]
-    [InlineData("x: bool = 1")]
-    [InlineData("x: int = 1\nx = 'bad'")]
-    [InlineData("x: int = 1\nX = 2")]
-    [InlineData("x = 1")]
-    [InlineData("x: int = missing")]
-    [InlineData("x: int = x")]
-    [InlineData("x: int = 1\nx: int = 2")]
-    [InlineData("x := 1\nx := 2")]
-    [InlineData("items := []")]
-    [InlineData("x: void = print('hello')")]
-    [InlineData("x: int = true + 1")]
-    [InlineData("x: int = 'hello' - 'world'")]
-    [InlineData("x: bool = 1 == '1'")]
-    [InlineData("x: bool = 1 && 2")]
-    [InlineData("x: bool = !1")]
-    [InlineData("x: int = -true")]
-    [InlineData("if 1 { print('bad') }")]
-    [InlineData("if true { x: int = 1 }\nprint(x)")]
-    [InlineData("fn f(): int { return 'bad' }")]
-    [InlineData("fn f(): int { return }")]
-    [InlineData("fn f(): int { 1 }")]
-    [InlineData("fn f(x: bool): int { if x { return 1 } }")]
-    [InlineData("fn f(): void { return 1 }")]
-    [InlineData("fn f(x: void): void {}")]
-    [InlineData("fn f(x: int, x: int): int { return x }")]
-    [InlineData("fn f(): int { return 1 }; fn f(): int { return 2 }")]
-    [InlineData("fn f(x: int): int { return x }\nf('bad')")]
-    [InlineData("fn f(x: int): int { return x }\nf()")]
-    [InlineData("fn f(x: int): int { return x }\nf(1, 2)")]
-    [InlineData("fn f(x: int): int { return x }\nf(x: 1)")]
-    [InlineData("return 1")]
-    [InlineData("missing()")]
-    [InlineData("missing.f()")]
-    [InlineData("print()")]
-    [InlineData("print(1, 2)")]
-    [InlineData("print(print(1))")]
-    [InlineData("powershell<int>()")]
-    [InlineData("powershell<int>(1)")]
-    [InlineData("powershell<int>('x', Name: 1, name: 2)")]
-    [InlineData("powershell<int>('x', Name: 1, 2)")]
-    [InlineData("powershell<int>('x', print(1))")]
-    public void RejectsTypeAndBindingErrors(string source)
-    {
-        var result = Compile(source);
-        Assert.False(result.Success);
-        Assert.Null(result.Output);
-        Assert.Contains(result.Diagnostics, d => d.Code.StartsWith("RUK2"));
-    }
+        [Trait("Category", "Unit")]
+        [Theory]
+        [InlineData("x: int = '30'")]
+        [InlineData("x: string = 30")]
+        [InlineData("x: bool = 1")]
+        [InlineData("x: int = 1\nx = 'bad'")]
+        [InlineData("x: int = 1\nX = 2")]
+        [InlineData("x = 1")]
+        [InlineData("x: int = missing")]
+        [InlineData("x: int = x")]
+        [InlineData("x: int = 1\nx: int = 2")]
+        [InlineData("x := 1\nx := 2")]
+        [InlineData("items := []")]
+        [InlineData("x: void = print('hello')")]
+        [InlineData("x: int = true + 1")]
+        [InlineData("x: int = 'hello' - 'world'")]
+        [InlineData("x: bool = 1 == '1'")]
+        [InlineData("x: bool = 1 && 2")]
+        [InlineData("x: bool = !1")]
+        [InlineData("x: int = -true")]
+        [InlineData("if 1 { print('bad') }")]
+        [InlineData("if true { x: int = 1 }\nprint(x)")]
+        [InlineData("fn f(): int { return 'bad' }")]
+        [InlineData("fn f(): int { return }")]
+        [InlineData("fn f(): int { 1 }")]
+        [InlineData("fn f(x: bool): int { if x { return 1 } }")]
+        [InlineData("fn f(): void { return 1 }")]
+        [InlineData("fn f(x: void): void {}")]
+        [InlineData("fn f(x: int, x: int): int { return x }")]
+        [InlineData("fn f(): int { return 1 }; fn f(): int { return 2 }")]
+        [InlineData("fn f(x: int): int { return x }\nf('bad')")]
+        [InlineData("fn f(x: int): int { return x }\nf()")]
+        [InlineData("fn f(x: int): int { return x }\nf(1, 2)")]
+        [InlineData("fn f(x: int): int { return x }\nf(x: 1)")]
+        [InlineData("return 1")]
+        [InlineData("missing()")]
+        [InlineData("missing.f()")]
+        [InlineData("print()")]
+        [InlineData("print(1, 2)")]
+        [InlineData("print(print(1))")]
+        [InlineData("powershell<int>()")]
+        [InlineData("powershell<int>(1)")]
+        [InlineData("powershell<int>('x', Name: 1, name: 2)")]
+        [InlineData("powershell<int>('x', Name: 1, 2)")]
+        [InlineData("powershell<int>('x', print(1))")]
+        public void RejectsTypeAndBindingErrors(string source)
+        {
+            var result = Compile(source);
+            Assert.False(result.Success);
+            Assert.Null(result.Output);
+            Assert.Contains(result.Diagnostics, d => d.Code.StartsWith("RUK2"));
+        }
 
-    [Trait("Category", "Unit")]
-    [Fact]
-    public void InferredDeclarationIsADeclarationRatherThanAssignment()
-    {
-        var result = Compile("x: int = 1\nx := 2");
-        var error = Assert.Single(result.Diagnostics);
-        Assert.Equal("RUK2002", error.Code);
-        Assert.Contains("Duplicate declaration 'x'", error.Message);
-    }
+        [Trait("Category", "Unit")]
+        [Fact]
+        public void InferredDeclarationIsADeclarationRatherThanAssignment()
+        {
+            var result = Compile("x: int = 1\nx := 2");
+            var error = Assert.Single(result.Diagnostics);
+            Assert.Equal("RUK2002", error.Code);
+            Assert.Contains("Duplicate declaration 'x'", error.Message);
+        }
 
-    [Trait("Category", "Unit")]
-    [Theory]
-    [InlineData("$name: string = 'Taro'")]
-    [InlineData("fn f() { return 1 }")]
-    [InlineData("fn f(): int { return 1")]
-    [InlineData("fn f(): void { function g(): void {} }")]
-    [InlineData("func value(): int { return 1 }")]
-    [InlineData("function value(): int { return 1 }")]
-    [InlineData("x: object = 'bad'")]
-    [InlineData("x: int = 9223372036854775808")]
-    [InlineData("x: string = 'not closed")]
-    [InlineData("x: string = 'bad\\q'")]
-    [InlineData("x: int = 1 y: int = 2")]
-    [InlineData("import '../outside'")]
-    [InlineData("fn print(): void {}")]
-    public void RejectsUnsupportedSyntax(string source)
-    {
-        var result = Compile(source);
-        Assert.False(result.Success);
-        Assert.Null(result.Output);
-        Assert.All(result.Diagnostics, d => { Assert.True(d.Line > 0); Assert.True(d.Column > 0); });
-    }
+        [Trait("Category", "Unit")]
+        [Theory]
+        [InlineData("$name: string = 'Taro'")]
+        [InlineData("fn f() { return 1 }")]
+        [InlineData("fn f(): int { return 1")]
+        [InlineData("fn f(): void { function g(): void {} }")]
+        [InlineData("func value(): int { return 1 }")]
+        [InlineData("function value(): int { return 1 }")]
+        [InlineData("x: object = 'bad'")]
+        [InlineData("x: int = 9223372036854775808")]
+        [InlineData("x: string = 'not closed")]
+        [InlineData("x: string = 'bad\\q'")]
+        [InlineData("x: int = 1 y: int = 2")]
+        [InlineData("import '../outside'")]
+        [InlineData("fn print(): void {}")]
+        public void RejectsUnsupportedSyntax(string source)
+        {
+            var result = Compile(source);
+            Assert.False(result.Success);
+            Assert.Null(result.Output);
+            Assert.All(result.Diagnostics, d => { Assert.True(d.Line > 0); Assert.True(d.Column > 0); });
+        }
 
-    [Trait("Category", "Unit")]
-    [Fact]
-    public void ReportsSourcePosition()
-    {
-        var result = Compile("// comment\r\nx: int = 'bad'");
-        var error = Assert.Single(result.Diagnostics);
-        Assert.Equal(2, error.Line);
-        Assert.Equal(10, error.Column);
-        Assert.Equal("<input>", error.FilePath);
-    }
+        [Trait("Category", "Unit")]
+        [Fact]
+        public void ReportsSourcePosition()
+        {
+            var result = Compile("// comment\r\nx: int = 'bad'");
+            var error = Assert.Single(result.Diagnostics);
+            Assert.Equal(2, error.Line);
+            Assert.Equal(10, error.Column);
+            Assert.Equal("<input>", error.FilePath);
+        }
 
-    [Trait("Category", "Unit")]
-    [Fact]
-    public void ImportedErrorsReferToImportedFile()
-    {
-        using var project = new Project();
-        project.Write("main.rukbat", "import './math.rukbat' as arithmetic\nprint(arithmetic.add(1, 2))");
-        project.Write("math.rukbat", "fn add(a: int, b: int): int { return 'bad' }");
-        var result = project.Compile();
-        var error = Assert.Single(result.Diagnostics);
-        Assert.Equal(project.PathFor("math.rukbat"), error.FilePath);
-        Assert.Equal("RUK2001", error.Code);
-    }
+        [Trait("Category", "Unit")]
+        [Fact]
+        public void ImportedErrorsReferToImportedFile()
+        {
+            using var project = new Project();
+            project.Write("main.rukbat", "import './math.rukbat' as arithmetic\nprint(arithmetic.add(1, 2))");
+            project.Write("math.rukbat", "fn add(a: int, b: int): int { return 'bad' }");
+            var result = project.Compile();
+            var error = Assert.Single(result.Diagnostics);
+            Assert.Equal(project.PathFor("math.rukbat"), error.FilePath);
+            Assert.Equal("RUK2001", error.Code);
+        }
 
-    [Trait("Category", "Unit")]
-    [Fact]
-    public void ChecksImportedFunctionSignatures()
-    {
-        using var project = new Project();
-        project.Write("main.rukbat", "import './math.rukbat' as arithmetic\nprint(arithmetic.add('bad', 2))");
-        project.Write("math.rukbat", "fn add(a: int, b: int): int { return a + b }");
-        Assert.Contains(project.Compile().Diagnostics, d => d.Code == "RUK2001");
-    }
+        [Trait("Category", "Unit")]
+        [Fact]
+        public void ChecksImportedFunctionSignatures()
+        {
+            using var project = new Project();
+            project.Write("main.rukbat", "import './math.rukbat' as arithmetic\nprint(arithmetic.add('bad', 2))");
+            project.Write("math.rukbat", "fn add(a: int, b: int): int { return a + b }");
+            Assert.Contains(project.Compile().Diagnostics, d => d.Code == "RUK2001");
+        }
 
-    [Trait("Category", "Unit")]
-    [Fact]
-    public void RejectsCyclesMissingAndDuplicateImports()
-    {
-        using var project = new Project();
-        project.Write("main.rukbat", "import './missing.rukbat' as missing");
-        Assert.Contains(project.Compile().Diagnostics, d => d.Code == "RUK3002");
-        project.Write("main.rukbat", "import './other.rukbat' as other");
-        project.Write("other.rukbat", "import './main.rukbat' as main");
-        Assert.Contains(project.Compile().Diagnostics, d => d.Code == "RUK3001");
-        project.Write("other.rukbat", "fn f(): int { return 1 }");
-        project.Write("main.rukbat", "import './other.rukbat' as other\nimport './other.rukbat' as other");
-        Assert.Contains(project.Compile().Diagnostics, d => d.Code == "RUK3000");
-        project.Write("main.rukbat", "fn f(): void { import './other.rukbat' as other }");
-        Assert.Contains(project.Compile().Diagnostics, d => d.Code == "RUK3000");
-        Assert.Contains(Compile("import './other.rukbat' as other").Diagnostics, d => d.Code == "RUK3000");
-    }
+        [Trait("Category", "Unit")]
+        [Fact]
+        public void RejectsCyclesMissingAndDuplicateImports()
+        {
+            using var project = new Project();
+            project.Write("main.rukbat", "import './missing.rukbat' as missing");
+            Assert.Contains(project.Compile().Diagnostics, d => d.Code == "RUK3002");
+            project.Write("main.rukbat", "import './other.rukbat' as other");
+            project.Write("other.rukbat", "import './main.rukbat' as main");
+            Assert.Contains(project.Compile().Diagnostics, d => d.Code == "RUK3001");
+            project.Write("other.rukbat", "fn f(): int { return 1 }");
+            project.Write("main.rukbat", "import './other.rukbat' as other\nimport './other.rukbat' as other");
+            Assert.Contains(project.Compile().Diagnostics, d => d.Code == "RUK3000");
+            project.Write("main.rukbat", "fn f(): void { import './other.rukbat' as other }");
+            Assert.Contains(project.Compile().Diagnostics, d => d.Code == "RUK3000");
+            Assert.Contains(Compile("import './other.rukbat' as other").Diagnostics, d => d.Code == "RUK3000");
+        }
 
-    [Trait("Category", "Runtime")]
-    [Theory]
-    [InlineData("fn f(): int { 99; powershell<int>('Write-Output', 88); print('log'); return 7 }\nx: int = f(); print(x)", "log\n7")]
-    [InlineData("fn f(): void { 99; powershell<int>('Write-Output', 88) }; f(); print('done')", "done")]
-    [InlineData("x: int = 1\nfn f(): int { x: int = 2; return x }\nprint(f()); print(x)", "2\n1")]
-    [InlineData("x: int = 1\nif true { x: int = 2; print(x) }; print(x)", "2\n1")]
-    [InlineData("x: int = 1\nX: int = 2\nprint(x + X)", "3")]
-    [InlineData("fn f(): int { return 1 }; fn F(): int { return 2 }; print(f() + F())", "3")]
-    [InlineData("fn f(n: int): int { if n <= 1 { return 1 } else { return n * f(n - 1) } }; print(f(5))", "120")]
-    [InlineData("print(2 + 3 * 4); print(-7 / 2); print('A' == 'a'); print(true && !false)", "14\n-3\nFalse\nTrue")]
-    [InlineData("print('$x; $(throw) `n'); print('it\\'s fine')", "$x; $(throw) `n\nit's fine")]
-    [InlineData("print(powershell<string>('Write-Output', 'hello')); print(powershell<int>('Write-Output', 42)); print(powershell<bool>('Write-Output', false))", "hello\n42\nFalse")]
-    [InlineData("powershell<void>('Write-Output', 'discard'); print('done')", "done")]
-    [InlineData("print(powershell<string>('Get-Date', Year: 2000, Format: 'yyyy'))", "2000")]
-    [InlineData("print(false && powershell<bool>('Missing-Rukbat-Command')); print(true || powershell<bool>('Missing-Rukbat-Command'))", "False\nTrue")]
-    public async Task RunsModernPrograms(string source, string expected)
-    {
-        using var project = new Project();
-        project.Write("main.rukbat", source);
-        var result = await project.Run();
-        Assert.True(result.ExitCode == 0, result.Error);
-        Assert.Equal(expected, result.Output.TrimEnd('\n'));
-    }
+        [Trait("Category", "Runtime")]
+        [Theory]
+        [InlineData("fn f(): int { 99; powershell<int>('Write-Output', 88); print('log'); return 7 }\nx: int = f(); print(x)", "log\n7")]
+        [InlineData("fn f(): void { 99; powershell<int>('Write-Output', 88) }; f(); print('done')", "done")]
+        [InlineData("x: int = 1\nfn f(): int { x: int = 2; return x }\nprint(f()); print(x)", "2\n1")]
+        [InlineData("x: int = 1\nif true { x: int = 2; print(x) }; print(x)", "2\n1")]
+        [InlineData("x: int = 1\nX: int = 2\nprint(x + X)", "3")]
+        [InlineData("fn f(): int { return 1 }; fn F(): int { return 2 }; print(f() + F())", "3")]
+        [InlineData("fn f(n: int): int { if n <= 1 { return 1 } else { return n * f(n - 1) } }; print(f(5))", "120")]
+        [InlineData("print(2 + 3 * 4); print(-7 / 2); print('A' == 'a'); print(true && !false)", "14\n-3\nFalse\nTrue")]
+        [InlineData("print('$x; $(throw) `n'); print('it\\'s fine')", "$x; $(throw) `n\nit's fine")]
+        [InlineData("print(powershell<string>('Write-Output', 'hello')); print(powershell<int>('Write-Output', 42)); print(powershell<bool>('Write-Output', false))", "hello\n42\nFalse")]
+        [InlineData("powershell<void>('Write-Output', 'discard'); print('done')", "done")]
+        [InlineData("print(powershell<string>('Get-Date', Year: 2000, Format: 'yyyy'))", "2000")]
+        [InlineData("print(false && powershell<bool>('Missing-Rukbat-Command')); print(true || powershell<bool>('Missing-Rukbat-Command'))", "False\nTrue")]
+        public async Task RunsModernPrograms(string source, string expected)
+        {
+            using var project = new Project();
+            project.Write("main.rukbat", source);
+            var result = await project.Run();
+            Assert.True(result.ExitCode == 0, result.Error);
+            Assert.Equal(expected, result.Output.TrimEnd('\n'));
+        }
 
-    [Trait("Category", "Runtime")]
-    [Theory]
-    [InlineData("print(powershell<int>('Write-Output', '42'))", "incompatible with int")]
-    [InlineData("print(powershell<string>('Write-Output', 42))", "incompatible with string")]
-    [InlineData("print(powershell<int>('Write-Output', 1, 2))", "expected one int result")]
-    [InlineData("print(powershell<string>('Write-Output', powershell<void>('Write-Output', 1)))", null)]
-    [InlineData("print(powershell<int>('Write-Error', 'failed'))", "failed")]
-    [InlineData("x: int = 9223372036854775807 + 1; print(x)", "")]
-    public async Task RejectsRuntimeBoundaryAndArithmeticErrors(string source, string? expected)
-    {
-        using var project = new Project(); project.Write("main.rukbat", source);
-        if (expected is null) { Assert.False(project.Compile().Success); return; }
-        var result = await project.Run();
-        Assert.NotEqual(0, result.ExitCode);
-        Assert.Contains(expected, result.Error);
-    }
+        [Trait("Category", "Runtime")]
+        [Theory]
+        [InlineData("print(powershell<int>('Write-Output', '42'))", "incompatible with int")]
+        [InlineData("print(powershell<string>('Write-Output', 42))", "incompatible with string")]
+        [InlineData("print(powershell<int>('Write-Output', 1, 2))", "expected one int result")]
+        [InlineData("print(powershell<string>('Write-Output', powershell<void>('Write-Output', 1)))", null)]
+        [InlineData("print(powershell<int>('Write-Error', 'failed'))", "failed")]
+        [InlineData("x: int = 9223372036854775807 + 1; print(x)", "")]
+        public async Task RejectsRuntimeBoundaryAndArithmeticErrors(string source, string? expected)
+        {
+            using var project = new Project(); project.Write("main.rukbat", source);
+            if (expected is null) { Assert.False(project.Compile().Success); return; }
+            var result = await project.Run();
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Contains(expected, result.Error);
+        }
 
-    [Trait("Category", "Runtime")]
-    [Fact]
-    public async Task CallsAnExistingPowerShellModule()
-    {
-        using var project = new Project();
-        project.Write("native.psm1", "function Get-RukbatGreeting { param([string]$Name) return ('Hello, ' + $Name) }; Export-ModuleMember -Function Get-RukbatGreeting");
-        var modulePath = project.PathFor("native.psm1").Replace("\\", "\\\\").Replace("'", "\\'");
-        project.Write("main.rukbat", $"powershell<void>('Import-Module', '{modulePath}', Global: true)\nprint(powershell<string>('Get-RukbatGreeting', Name: 'Taro'))");
-        var result = await project.Run();
-        Assert.True(result.ExitCode == 0, result.Error);
-        Assert.Equal("Hello, Taro", result.Output.TrimEnd('\n'));
-    }
+        [Trait("Category", "Runtime")]
+        [Fact]
+        public async Task CallsAnExistingPowerShellModule()
+        {
+            using var project = new Project();
+            project.Write("native.psm1", "function Get-RukbatGreeting { param([string]$Name) return ('Hello, ' + $Name) }; Export-ModuleMember -Function Get-RukbatGreeting");
+            var modulePath = project.PathFor("native.psm1").Replace("\\", "\\\\").Replace("'", "\\'");
+            project.Write("main.rukbat", $"powershell<void>('Import-Module', '{modulePath}', Global: true)\nprint(powershell<string>('Get-RukbatGreeting', Name: 'Taro'))");
+            var result = await project.Run();
+            Assert.True(result.ExitCode == 0, result.Error);
+            Assert.Equal("Hello, Taro", result.Output.TrimEnd('\n'));
+        }
 
-    [Trait("Category", "Runtime")]
-    [Fact]
-    public async Task RejectsMissingPowerShellScalarResult()
-    {
-        using var project = new Project();
-        project.Write("main.rukbat", "x: int = powershell<int>('Out-Null', 1)");
-        var result = await project.Run();
-        Assert.NotEqual(0, result.ExitCode);
-        var message = string.Join(" ", result.Error.Split('\n').Select(line => line.Trim().TrimStart('|').Trim()));
-        Assert.Contains("expected one int result, got 0", message);
-        Assert.Contains("main.rukbat:1", result.Error);
-    }
+        [Trait("Category", "Runtime")]
+        [Fact]
+        public async Task RejectsMissingPowerShellScalarResult()
+        {
+            using var project = new Project();
+            project.Write("main.rukbat", "x: int = powershell<int>('Out-Null', 1)");
+            var result = await project.Run();
+            Assert.NotEqual(0, result.ExitCode);
+            var message = string.Join(" ", result.Error.Split('\n').Select(line => line.Trim().TrimStart('|').Trim()));
+            Assert.Contains("expected one int result, got 0", message);
+            Assert.Contains("main.rukbat:1", result.Error);
+        }
 
-    [Trait("Category", "Runtime")]
-    [Fact]
-    public async Task PersistsModuleStateAcrossCalls()
-    {
-        using var project = new Project();
-        project.Write("counter.rukbat", "count: int = 0\nfn next(): int { count = count + 1; return count }");
-        project.Write("main.rukbat", "import './counter.rukbat' as counter\nprint(counter.next()); print(counter.next())");
-        var result = await project.Run();
-        Assert.True(result.ExitCode == 0, result.Error);
-        Assert.Equal("1\n2", result.Output.TrimEnd('\n'));
-    }
+        [Trait("Category", "Runtime")]
+        [Fact]
+        public async Task PersistsModuleStateAcrossCalls()
+        {
+            using var project = new Project();
+            project.Write("counter.rukbat", "count: int = 0\nfn next(): int { count = count + 1; return count }");
+            project.Write("main.rukbat", "import './counter.rukbat' as counter\nprint(counter.next()); print(counter.next())");
+            var result = await project.Run();
+            Assert.True(result.ExitCode == 0, result.Error);
+            Assert.Equal("1\n2", result.Output.TrimEnd('\n'));
+        }
 
-    [Trait("Category", "Runtime")]
-    [Fact]
-    public async Task BundlesDiamondImportsOnceAndIsolatesModuleState()
-    {
-        using var project = new Project();
-        project.Write("shared.rukbat", "print('init'); value: int = 10\nfn get(): int { return value }");
-        project.Write("left.rukbat", "import './shared.rukbat' as shared\nvalue: int = 20\nfn get(): int { return shared.get() + value }");
-        project.Write("right.rukbat", "import './shared.rukbat' as shared\nvalue: int = 30\nfn get(): int { return shared.get() + value }");
-        project.Write("main.rukbat", "import './left.rukbat' as left\nimport './right.rukbat' as right\nvalue: int = 100\nprint(left.get()); print(right.get()); print(value)");
-        var compiled = project.Compile();
-        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
-        // Execute the bundle after removing every source module, from a different working directory.
-        foreach (var file in Directory.EnumerateFiles(project.DirectoryPath, "*.rukbat")) File.Delete(file);
-        var result = await project.RunOutput(compiled.Output!);
-        Assert.True(result.ExitCode == 0, result.Error);
-        Assert.Equal("init\n30\n40\n100", result.Output.TrimEnd('\n'));
-    }
+        [Trait("Category", "Runtime")]
+        [Fact]
+        public async Task BundlesDiamondImportsOnceAndIsolatesModuleState()
+        {
+            using var project = new Project();
+            project.Write("shared.rukbat", "print('init'); value: int = 10\nfn get(): int { return value }");
+            project.Write("left.rukbat", "import './shared.rukbat' as shared\nvalue: int = 20\nfn get(): int { return shared.get() + value }");
+            project.Write("right.rukbat", "import './shared.rukbat' as shared\nvalue: int = 30\nfn get(): int { return shared.get() + value }");
+            project.Write("main.rukbat", "import './left.rukbat' as left\nimport './right.rukbat' as right\nvalue: int = 100\nprint(left.get()); print(right.get()); print(value)");
+            var compiled = project.Compile();
+            Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+            // Execute the bundle after removing every source module, from a different working directory.
+            foreach (var file in Directory.EnumerateFiles(project.DirectoryPath, "*.rukbat"))
+            {
+                File.Delete(file);
+            }
 
-    [Trait("Category", "Runtime")]
-    [Fact]
-    public async Task ModuleGlobalsAreLexicalRatherThanCallerVariables()
-    {
-        using var project = new Project();
-        project.Write("main.rukbat", "x: int = 1\nfn read(): int { return x }\nfn caller(x: int): int { return read() }\nprint(caller(99))");
-        var result = await project.Run();
-        Assert.True(result.ExitCode == 0, result.Error);
-        Assert.Equal("1", result.Output.TrimEnd('\n'));
-    }
+            var result = await project.RunOutput(compiled.Output!);
+            Assert.True(result.ExitCode == 0, result.Error);
+            Assert.Equal("init\n30\n40\n100", result.Output.TrimEnd('\n'));
+        }
 
-    [Trait("Category", "Unit")]
-    [Fact]
-    public void CliPreservesExistingOutputOnFailure()
-    {
-        using var project = new Project(); var input = project.PathFor("main.rukbat");
-        var output = project.PathFor("main.ps1");
-        project.Write("main.rukbat", "x: int = 1");
-        Assert.Equal(0, Cli.Run(["build", input], TextWriter.Null, TextWriter.Null));
-        var previous = File.ReadAllText(output);
-        project.Write("main.rukbat", "import './missing.rukbat' as missing");
-        using var errors = new StringWriter();
-        Assert.Equal(1, Cli.Run(["build", input], TextWriter.Null, errors));
-        Assert.Contains("RUK3002", errors.ToString());
-        Assert.Equal(previous, File.ReadAllText(output));
-        File.Delete(output);
-        Assert.Equal(1, Cli.Run(["build", input], TextWriter.Null, TextWriter.Null));
-        Assert.False(File.Exists(output));
-        Assert.Equal(2, Cli.Run([], TextWriter.Null, TextWriter.Null));
-        Assert.Equal(2, Cli.Run(["build", output], TextWriter.Null, TextWriter.Null));
-        Assert.Equal(2, Cli.Run(["build", project.PathFor("missing.rukbat")], TextWriter.Null, TextWriter.Null));
-    }
+        [Trait("Category", "Runtime")]
+        [Fact]
+        public async Task ModuleGlobalsAreLexicalRatherThanCallerVariables()
+        {
+            using var project = new Project();
+            project.Write("main.rukbat", "x: int = 1\nfn read(): int { return x }\nfn caller(x: int): int { return read() }\nprint(caller(99))");
+            var result = await project.Run();
+            Assert.True(result.ExitCode == 0, result.Error);
+            Assert.Equal("1", result.Output.TrimEnd('\n'));
+        }
 
-    [Trait("Category", "Unit")]
-    [Fact]
-    public void CliCheckDoesNotCreateOrChangePowerShellOutput()
-    {
-        using var project = new Project();
-        var input = project.PathFor("main.rukbat");
-        var output = project.PathFor("main.ps1");
-        project.Write("main.rukbat", "value: int = 1");
-        Assert.Equal(0, Cli.Run(["check", input], TextWriter.Null, TextWriter.Null));
-        Assert.False(File.Exists(output));
+        [Trait("Category", "Unit")]
+        [Fact]
+        public void CliPreservesExistingOutputOnFailure()
+        {
+            using var project = new Project(); var input = project.PathFor("main.rukbat");
+            var output = project.PathFor("main.ps1");
+            project.Write("main.rukbat", "x: int = 1");
+            Assert.Equal(0, Cli.Run(["build", input], TextWriter.Null, TextWriter.Null));
+            var previous = File.ReadAllText(output);
+            project.Write("main.rukbat", "import './missing.rukbat' as missing");
+            using var errors = new StringWriter();
+            Assert.Equal(1, Cli.Run(["build", input], TextWriter.Null, errors));
+            Assert.Contains("RUK3002", errors.ToString());
+            Assert.Equal(previous, File.ReadAllText(output));
+            File.Delete(output);
+            Assert.Equal(1, Cli.Run(["build", input], TextWriter.Null, TextWriter.Null));
+            Assert.False(File.Exists(output));
+            Assert.Equal(2, Cli.Run([], TextWriter.Null, TextWriter.Null));
+            Assert.Equal(2, Cli.Run(["build", output], TextWriter.Null, TextWriter.Null));
+            Assert.Equal(2, Cli.Run(["build", project.PathFor("missing.rukbat")], TextWriter.Null, TextWriter.Null));
+        }
 
-        project.Write("main.ps1", "preserve");
-        project.Write("main.rukbat", "value: int = 'bad'");
-        using var errors = new StringWriter();
-        Assert.Equal(1, Cli.Run(["check", input], TextWriter.Null, errors));
-        Assert.Contains("RUK2001", errors.ToString());
-        Assert.Equal("preserve", File.ReadAllText(output));
-    }
+        [Trait("Category", "Unit")]
+        [Fact]
+        public void CliCheckDoesNotCreateOrChangePowerShellOutput()
+        {
+            using var project = new Project();
+            var input = project.PathFor("main.rukbat");
+            var output = project.PathFor("main.ps1");
+            project.Write("main.rukbat", "value: int = 1");
+            Assert.Equal(0, Cli.Run(["check", input], TextWriter.Null, TextWriter.Null));
+            Assert.False(File.Exists(output));
 
-    [Trait("Category", "Unit")]
-    [Fact]
-    public void CliFmtUsesCanonicalLayoutPreservesCommentsAndIsIdempotent()
-    {
-        using var project = new Project();
-        var input = project.PathFor("main.rukbat");
-        project.Write("main.rukbat", "// add values\nfn add( a:int,b:int):int{\nreturn a+b // result\n}\nif true{print(add(1,2))}\nelse{print('no')}\n");
-        Assert.Equal(0, Cli.Run(["fmt", input], TextWriter.Null, TextWriter.Null));
-        var expected = """
+            project.Write("main.ps1", "preserve");
+            project.Write("main.rukbat", "value: int = 'bad'");
+            using var errors = new StringWriter();
+            Assert.Equal(1, Cli.Run(["check", input], TextWriter.Null, errors));
+            Assert.Contains("RUK2001", errors.ToString());
+            Assert.Equal("preserve", File.ReadAllText(output));
+        }
+
+        [Trait("Category", "Unit")]
+        [Fact]
+        public void CliFmtUsesCanonicalLayoutPreservesCommentsAndIsIdempotent()
+        {
+            using var project = new Project();
+            var input = project.PathFor("main.rukbat");
+            project.Write("main.rukbat", "// add values\nfn add( a:int,b:int):int{\nreturn a+b // result\n}\nif true{print(add(1,2))}\nelse{print('no')}\n");
+            Assert.Equal(0, Cli.Run(["fmt", input], TextWriter.Null, TextWriter.Null));
+            var expected = """
             // add values
             fn add(a: int, b: int): int {
                 return a + b  // result
@@ -342,95 +346,116 @@ public class CompilerTests
             }
 
             """;
-        Assert.Equal(expected.Replace("\r\n", "\n"), File.ReadAllText(input));
-        var bytes = File.ReadAllBytes(input);
-        Assert.False(bytes.Length >= 3 && bytes[0] == 0xef && bytes[1] == 0xbb && bytes[2] == 0xbf);
-        Assert.Empty(new Compiler().CheckFile(input));
-        Assert.Equal(0, Cli.Run(["fmt", input], TextWriter.Null, TextWriter.Null));
-        Assert.Equal(expected.Replace("\r\n", "\n"), File.ReadAllText(input));
-    }
+            Assert.Equal(expected.Replace("\r\n", "\n"), File.ReadAllText(input));
+            var bytes = File.ReadAllBytes(input);
+            Assert.False(bytes.Length >= 3 && bytes[0] == 0xef && bytes[1] == 0xbb && bytes[2] == 0xbf);
+            Assert.Empty(new Compiler().CheckFile(input));
+            Assert.Equal(0, Cli.Run(["fmt", input], TextWriter.Null, TextWriter.Null));
+            Assert.Equal(expected.Replace("\r\n", "\n"), File.ReadAllText(input));
+        }
 
-    [Trait("Category", "Unit")]
-    [Fact]
-    public void CliFmtLeavesInvalidSourceUnchanged()
-    {
-        using var project = new Project();
-        var input = project.PathFor("main.rukbat");
-        const string source = "value:int='bad";
-        project.Write("main.rukbat", source);
-        Assert.Equal(1, Cli.Run(["fmt", input], TextWriter.Null, TextWriter.Null));
-        Assert.Equal(source, File.ReadAllText(input));
-    }
+        [Trait("Category", "Unit")]
+        [Fact]
+        public void CliFmtLeavesInvalidSourceUnchanged()
+        {
+            using var project = new Project();
+            var input = project.PathFor("main.rukbat");
+            const string source = "value:int='bad";
+            project.Write("main.rukbat", source);
+            Assert.Equal(1, Cli.Run(["fmt", input], TextWriter.Null, TextWriter.Null));
+            Assert.Equal(source, File.ReadAllText(input));
+        }
 
-    private sealed class Project : IDisposable
-    {
-        public string DirectoryPath { get; } = Path.Combine(Path.GetTempPath(), "rukbat-tests-" + Guid.NewGuid());
-        public Project() => Directory.CreateDirectory(DirectoryPath);
-        public string PathFor(string file) => Path.Combine(DirectoryPath, file);
-        public void Write(string file, string source)
+        private sealed class Project : IDisposable
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(PathFor(file))!);
-            File.WriteAllText(PathFor(file), source);
-        }
-        public CompilationResult Compile() => new Compiler().CompileFile(PathFor("main.rukbat"));
-        public Task<RunResult> Run()
-        {
-            var result = Compile(); Assert.True(result.Success, string.Join("\n", result.Diagnostics));
-            return RunOutput(result.Output!);
-        }
-        public async Task<RunResult> RunOutput(string output, params string[] arguments)
-        {
-            Write("main.ps1", output);
-            var info = new ProcessStartInfo("pwsh")
+            public string DirectoryPath { get; } = Path.Combine(Path.GetTempPath(), "rukbat-tests-" + Guid.NewGuid());
+            public Project() => Directory.CreateDirectory(DirectoryPath);
+            public string PathFor(string file) => Path.Combine(DirectoryPath, file);
+            public void Write(string file, string source)
             {
-                UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
-                WorkingDirectory = Path.GetTempPath(), CreateNoWindow = true
-            };
-            foreach (var argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-File", PathFor("main.ps1") }) info.ArgumentList.Add(argument);
-            foreach (var argument in arguments) info.ArgumentList.Add(argument);
-            using var process = Process.Start(info)!;
-            var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-            try { await process.WaitForExitAsync(timeout.Token); }
-            catch (OperationCanceledException) { process.Kill(true); throw new TimeoutException("Generated PowerShell did not finish in 20 seconds."); }
-            return new(process.ExitCode, (await stdout).Replace("\r\n", "\n"), await stderr);
-        }
-        public async Task<RunResult> RunOutputWithWindowsPowerShell(string output, params string[] arguments)
-        {
-            Write("main.ps1", output);
-            var info = new ProcessStartInfo("powershell")
+                Directory.CreateDirectory(Path.GetDirectoryName(PathFor(file))!);
+                File.WriteAllText(PathFor(file), source);
+            }
+            public CompilationResult Compile() => new Compiler().CompileFile(PathFor("main.rukbat"));
+            public Task<RunResult> Run()
             {
-                UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
-                WorkingDirectory = Path.GetTempPath(), CreateNoWindow = true
-            };
-            foreach (var argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-File", PathFor("main.ps1") }) info.ArgumentList.Add(argument);
-            foreach (var argument in arguments) info.ArgumentList.Add(argument);
-            using var process = Process.Start(info)!;
-            var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-            try { await process.WaitForExitAsync(timeout.Token); }
-            catch (OperationCanceledException) { process.Kill(true); throw new TimeoutException("Generated PowerShell did not finish in 20 seconds."); }
-            return new(process.ExitCode, (await stdout).Replace("\r\n", "\n"), await stderr);
-        }
-        public async Task<RunResult> RunOutputWithEnvironment(
-            string output, string executable, string variable, string value)
-        {
-            Write("main.ps1", output);
-            var info = new ProcessStartInfo(executable)
+                var result = Compile(); Assert.True(result.Success, string.Join("\n", result.Diagnostics));
+                return RunOutput(result.Output!);
+            }
+            public async Task<RunResult> RunOutput(string output, params string[] arguments)
             {
-                UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
-                WorkingDirectory = Path.GetTempPath(), CreateNoWindow = true
-            };
-            info.Environment[variable] = value;
-            foreach (var argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-File", PathFor("main.ps1") }) info.ArgumentList.Add(argument);
-            using var process = Process.Start(info)!;
-            var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-            try { await process.WaitForExitAsync(timeout.Token); }
-            catch (OperationCanceledException) { process.Kill(true); throw new TimeoutException("Generated PowerShell did not finish in 20 seconds."); }
-            return new(process.ExitCode, (await stdout).Replace("\r\n", "\n"), await stderr);
+                Write("main.ps1", output);
+                var info = new ProcessStartInfo("pwsh")
+                {
+                    UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
+                    WorkingDirectory = Path.GetTempPath(), CreateNoWindow = true
+                };
+                foreach (var argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-File", PathFor("main.ps1") })
+                {
+                    info.ArgumentList.Add(argument);
+                }
+
+                foreach (var argument in arguments)
+                {
+                    info.ArgumentList.Add(argument);
+                }
+
+                using var process = Process.Start(info)!;
+                var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+                try { await process.WaitForExitAsync(timeout.Token); }
+                catch (OperationCanceledException) { process.Kill(true); throw new TimeoutException("Generated PowerShell did not finish in 20 seconds."); }
+                return new(process.ExitCode, (await stdout).Replace("\r\n", "\n"), await stderr);
+            }
+            public async Task<RunResult> RunOutputWithWindowsPowerShell(string output, params string[] arguments)
+            {
+                Write("main.ps1", output);
+                var info = new ProcessStartInfo("powershell")
+                {
+                    UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
+                    WorkingDirectory = Path.GetTempPath(), CreateNoWindow = true
+                };
+                foreach (var argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-File", PathFor("main.ps1") })
+                {
+                    info.ArgumentList.Add(argument);
+                }
+
+                foreach (var argument in arguments)
+                {
+                    info.ArgumentList.Add(argument);
+                }
+
+                using var process = Process.Start(info)!;
+                var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+                try { await process.WaitForExitAsync(timeout.Token); }
+                catch (OperationCanceledException) { process.Kill(true); throw new TimeoutException("Generated PowerShell did not finish in 20 seconds."); }
+                return new(process.ExitCode, (await stdout).Replace("\r\n", "\n"), await stderr);
+            }
+            public async Task<RunResult> RunOutputWithEnvironment(
+                string output, string executable, string variable, string value)
+            {
+                Write("main.ps1", output);
+                var info = new ProcessStartInfo(executable)
+                {
+                    UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true,
+                    WorkingDirectory = Path.GetTempPath(), CreateNoWindow = true
+                };
+                info.Environment[variable] = value;
+                foreach (var argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-File", PathFor("main.ps1") })
+                {
+                    info.ArgumentList.Add(argument);
+                }
+
+                using var process = Process.Start(info)!;
+                var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+                try { await process.WaitForExitAsync(timeout.Token); }
+                catch (OperationCanceledException) { process.Kill(true); throw new TimeoutException("Generated PowerShell did not finish in 20 seconds."); }
+                return new(process.ExitCode, (await stdout).Replace("\r\n", "\n"), await stderr);
+            }
+            public void Dispose() => Directory.Delete(DirectoryPath, true);
         }
-        public void Dispose() => Directory.Delete(DirectoryPath, true);
+        private sealed record RunResult(int ExitCode, string Output, string Error);
     }
-    private sealed record RunResult(int ExitCode, string Output, string Error);
 }

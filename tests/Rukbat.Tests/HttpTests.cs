@@ -6,39 +6,39 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 
-namespace Rukbat.Tests;
-
-public sealed class HttpTests : TestBase
+namespace Rukbat.Tests
 {
-    [Trait("Category", "Unit")]
-    [Theory]
-    [InlineData("http.status_200_ok = 201")]
-    [InlineData("http.method_get = http.method_post")]
-    [InlineData("x := http.status_ok")]
-    [InlineData("x := http.status_999_unknown")]
-    [InlineData("http.request('GET', 'http://localhost')")]
-    [InlineData("http.options(null)")]
-    [InlineData("http.options(timeout_ms: 1000)")]
-    [InlineData("http.send<int>(http.request(http.method_get, 'http://localhost'), http.options(1))")]
-    [InlineData("x := http.Body {}")]
-    [InlineData("x := http.Method {}")]
-    [InlineData("print(http.method_get)")]
-    [InlineData("json.stringify([http.method_get])")]
-    [InlineData("powershell<http.Body>('Write-Output', 'x')")]
-    [InlineData("struct Wrapper { value: http.Body?[] }; powershell<Wrapper>('Write-Output', 'x')")]
-    [InlineData("fn f(r: http.Response): void { json.stringify(r) }")]
-    [InlineData("fn f(b: http.Body): void { powershell<void>('Write-Output', [b]) }")]
-    [InlineData("fn f(b: http.Body): bool { return b == b }")]
-    [InlineData("http.text('hello', encoding.utf8)")]
-    [InlineData("http.download(http.request(http.method_get, 'http://localhost'), 'out', 2.0, http.options(1))")]
-    public void InvalidTypesConstantsAndBoundariesAreRejected(string source) =>
-        Assert.False(Compile("import http; import encoding; import json\n" + source).Success);
-
-    [Trait("Category", "Unit")]
-    [Fact]
-    public void ConstantsOpaqueContainersAndDataCopiesHaveCheckedTypes()
+    public sealed class HttpTests : TestBase
     {
-        var output = Success("""
+        [Trait("Category", "Unit")]
+        [Theory]
+        [InlineData("http.status_200_ok = 201")]
+        [InlineData("http.method_get = http.method_post")]
+        [InlineData("x := http.status_ok")]
+        [InlineData("x := http.status_999_unknown")]
+        [InlineData("http.request('GET', 'http://localhost')")]
+        [InlineData("http.options(null)")]
+        [InlineData("http.options(timeout_ms: 1000)")]
+        [InlineData("http.send<int>(http.request(http.method_get, 'http://localhost'), http.options(1))")]
+        [InlineData("x := http.Body {}")]
+        [InlineData("x := http.Method {}")]
+        [InlineData("print(http.method_get)")]
+        [InlineData("json.stringify([http.method_get])")]
+        [InlineData("powershell<http.Body>('Write-Output', 'x')")]
+        [InlineData("struct Wrapper { value: http.Body?[] }; powershell<Wrapper>('Write-Output', 'x')")]
+        [InlineData("fn f(r: http.Response): void { json.stringify(r) }")]
+        [InlineData("fn f(b: http.Body): void { powershell<void>('Write-Output', [b]) }")]
+        [InlineData("fn f(b: http.Body): bool { return b == b }")]
+        [InlineData("http.text('hello', encoding.utf8)")]
+        [InlineData("http.download(http.request(http.method_get, 'http://localhost'), 'out', 2.0, http.options(1))")]
+        public void InvalidTypesConstantsAndBoundariesAreRejected(string source) =>
+            Assert.False(Compile("import http; import encoding; import json\n" + source).Success);
+
+        [Trait("Category", "Unit")]
+        [Fact]
+        public void ConstantsOpaqueContainersAndDataCopiesHaveCheckedTypes()
+        {
+            var output = Success("""
             import http; import test
             fn choose(method: http.Method): http.Method { return method }
             fn decode(body: http.Body): http.Body { return body }
@@ -50,31 +50,31 @@ public sealed class HttpTests : TestBase
             copy.headers.append(http.Header { name: 'Accept', value: 'application/json' })
             test.assert(request.headers.length == 0)
             """);
-        Assert.DoesNotContain("RukbatProcessJob", output);
-        Assert.DoesNotContain("RukbatZip", output);
-        Assert.DoesNotContain("RukbatMoveBatch", output);
-    }
+            Assert.DoesNotContain("RukbatProcessJob", output);
+            Assert.DoesNotContain("RukbatZip", output);
+            Assert.DoesNotContain("RukbatMoveBatch", output);
+        }
 
-    private static async Task Verify(Project project, string source, string shell)
-    {
-        project.Write("main.rukbat", source + "\nprint('passed')\n");
-        var compiled = project.Compile(); Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
-        project.Write("deploy.ps1", compiled.Output!);
-        File.Delete(project.PathFor("main.rukbat"));
-        var result = await RunDeployed(shell, project.PathFor("deploy.ps1"), project.DirectoryPath, Path.GetTempPath());
-        Assert.True(result.ExitCode == 0, result.Output + "\n" + result.Error);
-        Assert.Equal("passed\n", result.Output);
-        Assert.Equal("", result.Error);
-    }
+        private static async Task Verify(Project project, string source, string shell)
+        {
+            project.Write("main.rukbat", source + "\nprint('passed')\n");
+            var compiled = project.Compile(); Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+            project.Write("deploy.ps1", compiled.Output!);
+            File.Delete(project.PathFor("main.rukbat"));
+            var result = await RunDeployed(shell, project.PathFor("deploy.ps1"), project.DirectoryPath, Path.GetTempPath());
+            Assert.True(result.ExitCode == 0, result.Output + "\n" + result.Error);
+            Assert.Equal("passed\n", result.Output);
+            Assert.Equal("", result.Error);
+        }
 
-    [Trait("Category", "CrossVersion")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task ResponsesEncodingHeadersQueryAndExplicitBodies(string shell)
-    {
-        using var project = new Project(); await using var server = new Server();
-        await Verify(project, $$"""
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task ResponsesEncodingHeadersQueryAndExplicitBodies(string shell)
+        {
+            using var project = new Project(); await using var server = new Server();
+            await Verify(project, $$"""
             import http; import encoding; import json; import test
             fn decode(body: http.Body): string { return http.text(body, encoding.utf8) }
             options := http.options(5000)
@@ -129,17 +129,17 @@ public sealed class HttpTests : TestBase
             import text
             fn text_status(value: int): string { return text.from_int(value) }
             """, shell);
-    }
+        }
 
-    [Trait("Category", "CrossVersion")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task RedirectAndProxyPoliciesAreExplicit(string shell)
-    {
-        using var project = new Project(); await using var other = new Server(); await using var server = new Server();
-        server.OtherUrl = other.Url;
-        await Verify(project, $$"""
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task RedirectAndProxyPoliciesAreExplicit(string shell)
+        {
+            using var project = new Project(); await using var other = new Server(); await using var server = new Server();
+            server.OtherUrl = other.Url;
+            await Verify(project, $$"""
             import http; import encoding; import test
             options := http.options(5000)
             response := http.send(http.request(http.method_get, '{{server.Url}}redirect'), options)
@@ -161,20 +161,20 @@ public sealed class HttpTests : TestBase
             response = http.send(http.request(http.method_get, 'http://unresolvable.invalid/proxy'), options)
             test.assert(http.text(response.body, encoding.utf8) == 'http://unresolvable.invalid/proxy')
             """, shell);
-        Assert.DoesNotContain(other.Requests, value => value.Target == "/json");
-        Assert.Contains(other.Requests, value => value.Target == "http://unresolvable.invalid/proxy");
-    }
+            Assert.DoesNotContain(other.Requests, value => value.Target == "/json");
+            Assert.Contains(other.Requests, value => value.Target == "http://unresolvable.invalid/proxy");
+        }
 
-    [Trait("Category", "CrossVersion")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task DownloadsAreStreamedAndPublishedOnlyWhenComplete(string shell)
-    {
-        using var project = new Project(); await using var server = new Server();
-        project.Write("existing.bin", "original");
-        server.RacePath = project.PathFor("race.bin");
-        await Verify(project, $$"""
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task DownloadsAreStreamedAndPublishedOnlyWhenComplete(string shell)
+        {
+            using var project = new Project(); await using var server = new Server();
+            project.Write("existing.bin", "original");
+            server.RacePath = project.PathFor("race.bin");
+            await Verify(project, $$"""
             import http; import encoding; import fs; import test
             options := http.options(5000)
             options.max_response_bytes = 8
@@ -213,18 +213,18 @@ public sealed class HttpTests : TestBase
             test.assert(!fs.is_file('truncated.bin'))
             test.assert(fs.read_text('race.bin', encoding.utf8) == 'winner')
             """, shell);
-        Assert.Equal(Server.Binary, File.ReadAllBytes(project.PathFor("out.bin")));
-        Assert.Empty(Directory.GetFiles(project.DirectoryPath, ".rukbat-http-*.tmp"));
-    }
+            Assert.Equal(Server.Binary, File.ReadAllBytes(project.PathFor("out.bin")));
+            Assert.Empty(Directory.GetFiles(project.DirectoryPath, ".rukbat-http-*.tmp"));
+        }
 
-    [Trait("Category", "CrossVersion")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task DeadlinesLimitsAndInvalidInputsUseOrdinaryErrors(string shell)
-    {
-        using var project = new Project(); await using var server = new Server();
-        await Verify(project, $$"""
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task DeadlinesLimitsAndInvalidInputsUseOrdinaryErrors(string shell)
+        {
+            using var project = new Project(); await using var server = new Server();
+            await Verify(project, $$"""
             import http; import encoding; import test; import fs
             options := http.options(5000)
             options.max_response_bytes = 4
@@ -304,21 +304,21 @@ public sealed class HttpTests : TestBase
             test.assert(rejected)
             import json
             """, shell);
-        Assert.Empty(Directory.GetFiles(project.DirectoryPath, ".rukbat-http-*.tmp"));
-        Assert.DoesNotContain(server.Requests, r => r.Headers.ContainsKey("X-Test"));
-        Assert.DoesNotContain(server.Requests, r => r.Method == "POST");
-    }
+            Assert.Empty(Directory.GetFiles(project.DirectoryPath, ".rukbat-http-*.tmp"));
+            Assert.DoesNotContain(server.Requests, r => r.Headers.ContainsKey("X-Test"));
+            Assert.DoesNotContain(server.Requests, r => r.Method == "POST");
+        }
 
-    [Trait("Category", "CrossVersion")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task UntrustedCertificatesAndConnectionFailuresAreErrors(string shell)
-    {
-        using var project = new Project(); await using var tls = new Server(true);
-        var closed = new TcpListener(IPAddress.Loopback, 0); closed.Start();
-        var closedPort = ((IPEndPoint)closed.LocalEndpoint).Port; closed.Stop();
-        await Verify(project, $$"""
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task UntrustedCertificatesAndConnectionFailuresAreErrors(string shell)
+        {
+            using var project = new Project(); await using var tls = new Server(true);
+            var closed = new TcpListener(IPAddress.Loopback, 0); closed.Start();
+            var closedPort = ((IPEndPoint)closed.LocalEndpoint).Port; closed.Stop();
+            await Verify(project, $$"""
             import http; import test
             options := http.options(3000)
             for url in ['{{tls.Url}}json', 'http://127.0.0.1:{{closedPort}}/'] {
@@ -332,108 +332,189 @@ public sealed class HttpTests : TestBase
             try { http.send(http.request(http.method_get, '{{tls.Url}}json'), options) } catch err { rejected = true }
             test.assert(rejected)
             """, shell);
-        Assert.Empty(tls.Requests);
-    }
+            Assert.Empty(tls.Requests);
+        }
 
-    [Trait("Category", "CrossVersion")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task DocumentedExampleRunsAgainstAnActualResponse(string shell)
-    {
-        using var project = new Project(); await using var server = new Server();
-        project.Write("main.rukbat", File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "examples", "http-json.rukbat")));
-        var compiled = project.Compile(); Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
-        var result = shell == "powershell" ? await project.RunOutputWithWindowsPowerShell(compiled.Output!, server.Url + "json")
-            : await project.RunOutput(compiled.Output!, server.Url + "json");
-        Assert.Equal(0, result.ExitCode); Assert.Equal("{\"ready\":true}\n", result.Output); Assert.Empty(result.Error);
-        Assert.Equal("application/json", Assert.Single(server.Requests).Headers["Accept"]);
-    }
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task DocumentedExampleRunsAgainstAnActualResponse(string shell)
+        {
+            using var project = new Project(); await using var server = new Server();
+            project.Write("main.rukbat", File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "examples", "http-json.rukbat")));
+            var compiled = project.Compile(); Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+            var result = shell == "powershell" ? await project.RunOutputWithWindowsPowerShell(compiled.Output!, server.Url + "json")
+                : await project.RunOutput(compiled.Output!, server.Url + "json");
+            Assert.Equal(0, result.ExitCode); Assert.Equal("{\"ready\":true}\n", result.Output); Assert.Empty(result.Error);
+            Assert.Equal("application/json", Assert.Single(server.Requests).Headers["Accept"]);
+        }
 
-    private sealed record Received(string Method, string Target, Dictionary<string, string> Headers, byte[] Body);
-    private sealed class Server : IAsyncDisposable
-    {
-        private readonly TcpListener listener = new(IPAddress.Loopback, 0);
-        private readonly CancellationTokenSource cancellation = new();
-        private readonly List<Task> clients = [];
-        private readonly Task accepting;
-        private readonly X509Certificate2? certificate;
-        public readonly List<Received> Requests = [];
-        public string Url { get; }
-        public string? OtherUrl { get; set; }
-        public string? RacePath { get; set; }
-        public static readonly byte[] Binary = Enumerable.Range(0, 131073).Select(i => (byte)i).ToArray();
-        public Server(bool tls = false)
+        private sealed record Received(string Method, string Target, Dictionary<string, string> Headers, byte[] Body);
+        private sealed class Server : IAsyncDisposable
         {
-            if (tls)
+            private readonly TcpListener listener = new(IPAddress.Loopback, 0);
+            private readonly CancellationTokenSource cancellation = new();
+            private readonly List<Task> clients = [];
+            private readonly Task accepting;
+            private readonly X509Certificate2? certificate;
+            public readonly List<Received> Requests = [];
+            public string Url { get; }
+            public string? OtherUrl { get; set; }
+            public string? RacePath { get; set; }
+            public static readonly byte[] Binary = Enumerable.Range(0, 131073).Select(i => (byte)i).ToArray();
+            public Server(bool tls = false)
             {
-                using var key = RSA.Create(2048);
-                var request = new CertificateRequest("CN=localhost", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
-                var names = new SubjectAlternativeNameBuilder(); names.AddIpAddress(IPAddress.Loopback);
-                request.CertificateExtensions.Add(names.Build());
-                certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+                if (tls)
+                {
+                    using var key = RSA.Create(2048);
+                    var request = new CertificateRequest("CN=localhost", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+                    var names = new SubjectAlternativeNameBuilder(); names.AddIpAddress(IPAddress.Loopback);
+                    request.CertificateExtensions.Add(names.Build());
+                    certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+                }
+                listener.Start(); Url = $"{(tls ? "https" : "http")}://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}/";
+                accepting = Accept();
             }
-            listener.Start(); Url = $"{(tls ? "https" : "http")}://127.0.0.1:{((IPEndPoint)listener.LocalEndpoint).Port}/";
-            accepting = Accept();
-        }
-        private async Task Accept()
-        {
-            try { while (!cancellation.IsCancellationRequested) { var client = await listener.AcceptTcpClientAsync(cancellation.Token); lock (clients) clients.Add(Serve(client)); } }
-            catch (OperationCanceledException) { } catch (SocketException) when (cancellation.IsCancellationRequested) { }
-        }
-        private async Task Serve(TcpClient client)
-        {
-            using (client)
-            try
+            private async Task Accept()
             {
-                using Stream stream = certificate is null ? client.GetStream() : new SslStream(client.GetStream());
-                if (stream is SslStream secure)
-                    await secure.AuthenticateAsServerAsync(new SslServerAuthenticationOptions { ServerCertificate = certificate, EnabledSslProtocols = SslProtocols.Tls12 }, cancellation.Token);
-                var header = new List<byte>(); var one = new byte[1];
-                while (header.Count < 65536 && await stream.ReadAsync(one, cancellation.Token) != 0)
-                {
-                    header.Add(one[0]); if (header.Count >= 4 && header.TakeLast(4).SequenceEqual("\r\n\r\n"u8.ToArray())) break;
-                }
-                var lines = Encoding.ASCII.GetString(header.ToArray()).Split("\r\n"); var start = lines[0].Split(' ');
-                var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var line in lines.Skip(1)) { var colon = line.IndexOf(':'); if (colon > 0) headers[line[..colon]] = line[(colon + 1)..].Trim(); }
-                var body = new byte[headers.TryGetValue("Content-Length", out var length) ? int.Parse(length) : 0];
-                await stream.ReadExactlyAsync(body, cancellation.Token);
-                var received = new Received(start[0], start[1], headers, body); lock (Requests) Requests.Add(received);
-                var path = start[1].Split('?')[0];
-                int status = 200; byte[] data = "{\"ready\":true}"u8.ToArray(); string extra = "";
-                if (start[1].StartsWith("http://")) data = Encoding.UTF8.GetBytes(start[1]);
-                if (path == "/cp932") data = [0x93, 0xfa, 0x96, 0x7b];
-                if (path == "/echo") data = body;
-                if (path == "/query") data = Encoding.UTF8.GetBytes(start[1]);
-                if (path == "/cookie") data = Encoding.UTF8.GetBytes(headers.GetValueOrDefault("Cookie", "none"));
-                if (path == "/missing") { status = 404; data = "missing"u8.ToArray(); extra = "Set-Cookie: a=1\r\nSet-Cookie: b=2\r\n"; }
-                if (path == "/empty") { status = 204; data = []; }
-                if (path == "/zero") data = [];
-                if (path.StartsWith("/status/")) { status = int.Parse(path[8..]); data = []; }
-                if (path is "/binary" or "/race") data = Binary;
-                if (path == "/race") File.WriteAllText(RacePath!, "winner");
-                if (path is "/redirect" or "/loop" or "/foreign") { status = 302; data = []; extra = "Location: " + (path == "/loop" ? "/loop" : path == "/foreign" ? OtherUrl + "json" : "/json") + "\r\n"; }
-                if (path == "/slow-headers") await Task.Delay(2000, cancellation.Token);
-                if (path is "/chunked" or "/drip")
-                {
-                    await stream.WriteAsync(Encoding.ASCII.GetBytes("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n"), cancellation.Token);
-                    for (int i = 0; i < 20; i++) { await stream.WriteAsync("1\r\nx\r\n"u8.ToArray(), cancellation.Token); if (path == "/drip") await Task.Delay(50, cancellation.Token); }
-                    await stream.WriteAsync("0\r\n\r\n"u8.ToArray(), cancellation.Token); return;
-                }
-                if (path == "/coded") extra = "Content-Encoding: gzip\r\n";
-                if (path == "/large-headers") extra = "X-Large: " + new string('x', 65536) + "\r\n";
-                long declared = path == "/truncated" ? data.Length + 100 : path == "/head" ? 999999999 : data.Length;
-                await stream.WriteAsync(Encoding.ASCII.GetBytes($"HTTP/1.1 {status} Test\r\nContent-Length: {declared}\r\nConnection: close\r\n{extra}\r\n"), cancellation.Token);
-                if (path == "/slow-body") await Task.Delay(2000, cancellation.Token);
-                if (start[0] != "HEAD") await stream.WriteAsync(data, cancellation.Token);
+                try { while (!cancellation.IsCancellationRequested) { var client = await listener.AcceptTcpClientAsync(cancellation.Token); lock (clients)
+                        {
+                            clients.Add(Serve(client));
+                        }
+                    } }
+                catch (OperationCanceledException) { } catch (SocketException) when (cancellation.IsCancellationRequested) { }
             }
-            catch (IOException) { } catch (OperationCanceledException) { } catch (SocketException) { } catch (AuthenticationException) { }
-        }
-        public async ValueTask DisposeAsync()
-        {
-            cancellation.Cancel(); listener.Stop(); await accepting;
-            Task[] pending; lock (clients) pending = clients.ToArray(); await Task.WhenAll(pending); cancellation.Dispose(); certificate?.Dispose();
+            private async Task Serve(TcpClient client)
+            {
+                using (client)
+                {
+                    try
+                {
+                    using Stream stream = certificate is null ? client.GetStream() : new SslStream(client.GetStream());
+                    if (stream is SslStream secure)
+                        {
+                            await secure.AuthenticateAsServerAsync(new SslServerAuthenticationOptions { ServerCertificate = certificate, EnabledSslProtocols = SslProtocols.Tls12 }, cancellation.Token);
+                        }
+
+                        var header = new List<byte>(); var one = new byte[1];
+                    while (header.Count < 65536 && await stream.ReadAsync(one, cancellation.Token) != 0)
+                    {
+                        header.Add(one[0]); if (header.Count >= 4 && header.TakeLast(4).SequenceEqual("\r\n\r\n"u8.ToArray()))
+                            {
+                                break;
+                            }
+                        }
+                    var lines = Encoding.ASCII.GetString(header.ToArray()).Split("\r\n"); var start = lines[0].Split(' ');
+                    var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var line in lines.Skip(1)) { var colon = line.IndexOf(':'); if (colon > 0)
+                            {
+                                headers[line[..colon]] = line[(colon + 1)..].Trim();
+                            }
+                        }
+                    var body = new byte[headers.TryGetValue("Content-Length", out var length) ? int.Parse(length) : 0];
+                    await stream.ReadExactlyAsync(body, cancellation.Token);
+                    var received = new Received(start[0], start[1], headers, body); lock (Requests)
+                        {
+                            Requests.Add(received);
+                        }
+
+                        var path = start[1].Split('?')[0];
+                    int status = 200; byte[] data = "{\"ready\":true}"u8.ToArray(); string extra = "";
+                    if (start[1].StartsWith("http://"))
+                        {
+                            data = Encoding.UTF8.GetBytes(start[1]);
+                        }
+
+                        if (path == "/cp932")
+                        {
+                            data = [0x93, 0xfa, 0x96, 0x7b];
+                        }
+
+                        if (path == "/echo")
+                        {
+                            data = body;
+                        }
+
+                        if (path == "/query")
+                        {
+                            data = Encoding.UTF8.GetBytes(start[1]);
+                        }
+
+                        if (path == "/cookie")
+                        {
+                            data = Encoding.UTF8.GetBytes(headers.GetValueOrDefault("Cookie", "none"));
+                        }
+
+                        if (path == "/missing") { status = 404; data = "missing"u8.ToArray(); extra = "Set-Cookie: a=1\r\nSet-Cookie: b=2\r\n"; }
+                    if (path == "/empty") { status = 204; data = []; }
+                    if (path == "/zero")
+                        {
+                            data = [];
+                        }
+
+                        if (path.StartsWith("/status/")) { status = int.Parse(path[8..]); data = []; }
+                    if (path is "/binary" or "/race")
+                        {
+                            data = Binary;
+                        }
+
+                        if (path == "/race")
+                        {
+                            File.WriteAllText(RacePath!, "winner");
+                        }
+
+                        if (path is "/redirect" or "/loop" or "/foreign") { status = 302; data = []; extra = "Location: " + (path == "/loop" ? "/loop" : path == "/foreign" ? OtherUrl + "json" : "/json") + "\r\n"; }
+                    if (path == "/slow-headers")
+                        {
+                            await Task.Delay(2000, cancellation.Token);
+                        }
+
+                        if (path is "/chunked" or "/drip")
+                    {
+                        await stream.WriteAsync(Encoding.ASCII.GetBytes("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n"), cancellation.Token);
+                        for (int i = 0; i < 20; i++) { await stream.WriteAsync("1\r\nx\r\n"u8.ToArray(), cancellation.Token); if (path == "/drip")
+                                {
+                                    await Task.Delay(50, cancellation.Token);
+                                }
+                            }
+                        await stream.WriteAsync("0\r\n\r\n"u8.ToArray(), cancellation.Token); return;
+                    }
+                    if (path == "/coded")
+                        {
+                            extra = "Content-Encoding: gzip\r\n";
+                        }
+
+                        if (path == "/large-headers")
+                        {
+                            extra = "X-Large: " + new string('x', 65536) + "\r\n";
+                        }
+
+                        long declared = path == "/truncated" ? data.Length + 100 : path == "/head" ? 999999999 : data.Length;
+                    await stream.WriteAsync(Encoding.ASCII.GetBytes($"HTTP/1.1 {status} Test\r\nContent-Length: {declared}\r\nConnection: close\r\n{extra}\r\n"), cancellation.Token);
+                    if (path == "/slow-body")
+                        {
+                            await Task.Delay(2000, cancellation.Token);
+                        }
+
+                        if (start[0] != "HEAD")
+                        {
+                            await stream.WriteAsync(data, cancellation.Token);
+                        }
+                    }
+                catch (IOException) { } catch (OperationCanceledException) { } catch (SocketException) { } catch (AuthenticationException) { }
+                }
+            }
+            public async ValueTask DisposeAsync()
+            {
+                cancellation.Cancel(); listener.Stop(); await accepting;
+                Task[] pending; lock (clients)
+                {
+                    pending = clients.ToArray();
+                }
+
+                await Task.WhenAll(pending); cancellation.Dispose(); certificate?.Dispose();
+            }
         }
     }
 }

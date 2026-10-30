@@ -1,10 +1,11 @@
-namespace Rukbat;
-
-internal sealed partial class Emitter
+namespace Rukbat
 {
-    private void EmitCsvRuntime()
+    internal sealed partial class Emitter
     {
-        EmitNativeDefinition("Csv");
-        EmitLines(RuntimeResources.ReadPowerShell("CsvHelpers"));
+        private void EmitCsvRuntime()
+        {
+            EmitNativeDefinition("Csv");
+            EmitLines(RuntimeResources.ReadPowerShell("CsvHelpers"));
+        }
     }
 }

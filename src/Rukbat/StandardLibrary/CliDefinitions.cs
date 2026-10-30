@@ -1,9 +1,9 @@
-namespace Rukbat;
-
-internal static class CliDefinitions
+namespace Rukbat
 {
-    // The loader and ordinary struct binding own all public definition fields.
-    public const string Structures = """
+    internal static class CliDefinitions
+    {
+        // The loader and ordinary struct binding own all public definition fields.
+        public const string Structures = """
         struct Command {
             name: string; description: string
             arguments: Argument[]; options: Option[]; flags: Flag[]
@@ -19,4 +19,5 @@ internal static class CliDefinitions
         struct Flag { name: string; description: string; short_name: string? }
         struct Result {}
         """;
+    }
 }

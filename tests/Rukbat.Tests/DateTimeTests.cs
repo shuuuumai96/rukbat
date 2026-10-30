@@ -1,35 +1,35 @@
-namespace Rukbat.Tests;
-
-public class DateTimeTests : TestBase
+namespace Rukbat.Tests
 {
-    [Trait("Category", "Unit")]
-    [Theory]
-    [InlineData("datetime.utc = datetime.local_zone()")]
-    [InlineData("datetime.tokyo = datetime.utc")]
-    [InlineData("datetime.eastern = datetime.tokyo")]
-    [InlineData("value := datetime.Tokyo")]
-    [InlineData("value := datetime.tokoy")]
-    [InlineData("value: string = datetime.tokyo")]
-    [InlineData("datetime.format(datetime.now(), 'HH:mm', 'Tokyo Standard Time')")]
-    [InlineData("print(datetime.now())")]
-    [InlineData("json.stringify([datetime.now()])")]
-    [InlineData("powershell('Write-Output', datetime.now())")]
-    [InlineData("powershell<datetime.Date>('Get-Date')")]
-    [InlineData("datetime.now() + datetime.seconds(1)")]
-    [InlineData("datetime.now() < datetime.create_date(2024, 1, 1)")]
-    [InlineData("datetime.utc < datetime.local_zone()")]
-    [InlineData("datetime.seconds(1.0)")]
-    [InlineData("datetime.now().ticks")]
-    [InlineData("datetime.unknown()")]
-    [InlineData("struct Data { date: datetime.Date? }; json.parse<Data>('{}')")]
-    [InlineData("json.parse<datetime.Timestamp>('\"2024-01-01T00:00:00Z\"')")]
-    [InlineData("value: datetime.Timestamp? = null; print(value)")]
-    public void RejectsInvalidTypesAndImplicitBoundaries(string expression) =>
-        Assert.False(Compile("import datetime; import json\n" + expression).Success);
+    public class DateTimeTests : TestBase
+    {
+        [Trait("Category", "Unit")]
+        [Theory]
+        [InlineData("datetime.utc = datetime.local_zone()")]
+        [InlineData("datetime.tokyo = datetime.utc")]
+        [InlineData("datetime.eastern = datetime.tokyo")]
+        [InlineData("value := datetime.Tokyo")]
+        [InlineData("value := datetime.tokoy")]
+        [InlineData("value: string = datetime.tokyo")]
+        [InlineData("datetime.format(datetime.now(), 'HH:mm', 'Tokyo Standard Time')")]
+        [InlineData("print(datetime.now())")]
+        [InlineData("json.stringify([datetime.now()])")]
+        [InlineData("powershell('Write-Output', datetime.now())")]
+        [InlineData("powershell<datetime.Date>('Get-Date')")]
+        [InlineData("datetime.now() + datetime.seconds(1)")]
+        [InlineData("datetime.now() < datetime.create_date(2024, 1, 1)")]
+        [InlineData("datetime.utc < datetime.local_zone()")]
+        [InlineData("datetime.seconds(1.0)")]
+        [InlineData("datetime.now().ticks")]
+        [InlineData("datetime.unknown()")]
+        [InlineData("struct Data { date: datetime.Date? }; json.parse<Data>('{}')")]
+        [InlineData("json.parse<datetime.Timestamp>('\"2024-01-01T00:00:00Z\"')")]
+        [InlineData("value: datetime.Timestamp? = null; print(value)")]
+        public void RejectsInvalidTypesAndImplicitBoundaries(string expression) =>
+            Assert.False(Compile("import datetime; import json\n" + expression).Success);
 
-    [Trait("Category", "Unit")]
-    [Fact]
-    public void SupportsQualifiedOpaqueTypesAndComparisons() => Success("""
+        [Trait("Category", "Unit")]
+        [Fact]
+        public void SupportsQualifiedOpaqueTypesAndComparisons() => Success("""
         import datetime; import test
         struct Schedule { deadline: datetime.Timestamp; day: datetime.Date?; zones: datetime.Zone[] }
         fn identity(value: datetime.Duration): datetime.Duration { return value }
@@ -39,57 +39,57 @@ public class DateTimeTests : TestBase
         test.assert(identity(datetime.days(1)) >= datetime.hours(24))
         """);
 
-    [Trait("Category", "Unit")]
-    [Theory]
-    [InlineData("datetime.tokyo = datetime.utc", "RUK2010")]
-    [InlineData("datetime.pacific_mexico = datetime.pacific", "RUK2010")]
-    [InlineData("zone := datetime.tokoy", "RUK2004")]
-    [InlineData("zone := datetime.Tokyo", "RUK2004")]
-    [InlineData("zone: datetime.Zone = 'Tokyo Standard Time'", "RUK2001")]
-    public void NamedZonesPreserveConstantAndTypeDiagnostics(string expression, string code)
-    {
-        var diagnostics = new Compiler().Check("import datetime\n" + expression);
-        Assert.Contains(diagnostics, diagnostic => diagnostic.Code == code);
-    }
-
-    [Trait("Category", "Unit")]
-    [Fact]
-    public void NamedZonesSupportCanonicalFormattingWithoutResolvingUnusedZones()
-    {
-        using var project = new Project();
-        project.Write("main.rukbat", "import datetime\nzone:datetime.Zone=datetime.tokyo\n");
-        var path = project.PathFor("main.rukbat");
-        Assert.Equal(0, Cli.Run(["fmt", path], TextWriter.Null, TextWriter.Null));
-        var formatted = File.ReadAllText(path);
-        Assert.Contains("zone: datetime.Zone = datetime.tokyo", formatted);
-        Assert.Empty(new Compiler().CheckFile(path));
-        var compiled = project.Compile();
-        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
-        Assert.Contains("[RukbatDateTime]::Zone('Tokyo Standard Time')", compiled.Output!);
-        Assert.DoesNotContain("British Columbia Standard Time", compiled.Output!);
-        Assert.Equal(0, Cli.Run(["fmt", path], TextWriter.Null, TextWriter.Null));
-        Assert.Equal(formatted, File.ReadAllText(path));
-    }
-
-    [Trait("Category", "Runtime")]
-    [Trait("Category", "CrossVersion")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task NamedZonesCoverInstalledWindowsIdsAndPreserveTimeRules(string shell)
-    {
-        // Derive expected names from Windows data to catch missing catalog entries and wrong mappings.
-        var source = "import datetime; import test\n";
-        foreach (var zone in TimeZoneInfo.GetSystemTimeZones())
+        [Trait("Category", "Unit")]
+        [Theory]
+        [InlineData("datetime.tokyo = datetime.utc", "RUK2010")]
+        [InlineData("datetime.pacific_mexico = datetime.pacific", "RUK2010")]
+        [InlineData("zone := datetime.tokoy", "RUK2004")]
+        [InlineData("zone := datetime.Tokyo", "RUK2004")]
+        [InlineData("zone: datetime.Zone = 'Tokyo Standard Time'", "RUK2001")]
+        public void NamedZonesPreserveConstantAndTypeDiagnostics(string expression, string code)
         {
-            var name = zone.Id.Replace(" Standard Time", "");
-            name = zone.Id.StartsWith("UTC", StringComparison.Ordinal)
-                ? name.Replace("+", " plus ").Replace("-", " minus ") : name.Replace("-", " ");
-            name = System.Text.RegularExpressions.Regex.Replace(name.ToLowerInvariant(), "[^a-z0-9]+", "_").Trim('_');
-            source += $"test.assert(datetime.zone_id(datetime.{name}) == '{zone.Id}')\n";
-            source += $"test.assert(datetime.{name} == datetime.zone('{zone.Id}'))\n";
+            var diagnostics = new Compiler().Check("import datetime\n" + expression);
+            Assert.Contains(diagnostics, diagnostic => diagnostic.Code == code);
         }
-        source += """
+
+        [Trait("Category", "Unit")]
+        [Fact]
+        public void NamedZonesSupportCanonicalFormattingWithoutResolvingUnusedZones()
+        {
+            using var project = new Project();
+            project.Write("main.rukbat", "import datetime\nzone:datetime.Zone=datetime.tokyo\n");
+            var path = project.PathFor("main.rukbat");
+            Assert.Equal(0, Cli.Run(["fmt", path], TextWriter.Null, TextWriter.Null));
+            var formatted = File.ReadAllText(path);
+            Assert.Contains("zone: datetime.Zone = datetime.tokyo", formatted);
+            Assert.Empty(new Compiler().CheckFile(path));
+            var compiled = project.Compile();
+            Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+            Assert.Contains("[RukbatDateTime]::Zone('Tokyo Standard Time')", compiled.Output!);
+            Assert.DoesNotContain("British Columbia Standard Time", compiled.Output!);
+            Assert.Equal(0, Cli.Run(["fmt", path], TextWriter.Null, TextWriter.Null));
+            Assert.Equal(formatted, File.ReadAllText(path));
+        }
+
+        [Trait("Category", "Runtime")]
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task NamedZonesCoverInstalledWindowsIdsAndPreserveTimeRules(string shell)
+        {
+            // Derive expected names from Windows data to catch missing catalog entries and wrong mappings.
+            var source = "import datetime; import test\n";
+            foreach (var zone in TimeZoneInfo.GetSystemTimeZones())
+            {
+                var name = zone.Id.Replace(" Standard Time", "");
+                name = zone.Id.StartsWith("UTC", StringComparison.Ordinal)
+                    ? name.Replace("+", " plus ").Replace("-", " minus ") : name.Replace("-", " ");
+                name = System.Text.RegularExpressions.Regex.Replace(name.ToLowerInvariant(), "[^a-z0-9]+", "_").Trim('_');
+                source += $"test.assert(datetime.zone_id(datetime.{name}) == '{zone.Id}')\n";
+                source += $"test.assert(datetime.{name} == datetime.zone('{zone.Id}'))\n";
+            }
+            source += """
             t := datetime.parse('2024-02-29T18:30:00Z')
             test.assert(datetime.format(t, 'yyyy-MM-dd HH:mm zzz', datetime.tokyo) == '2024-03-01 03:30 +09:00')
             test.assert(datetime.date(t, datetime.tokyo) == datetime.parse_date('2024-03-01'))
@@ -105,17 +105,17 @@ public class DateTimeTests : TestBase
             test.assert(values[0] == datetime.tokyo)
             print('passed')
             """;
-        await RunVerified(shell, source);
-    }
+            await RunVerified(shell, source);
+        }
 
-    [Trait("Category", "Runtime")]
-    [Trait("Category", "CrossVersion")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task PreservesInstantsCalendarAndUnixConversions(string shell)
-    {
-        await RunVerified(shell, """
+        [Trait("Category", "Runtime")]
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task PreservesInstantsCalendarAndUnixConversions(string shell)
+        {
+            await RunVerified(shell, """
             import datetime; import json; import test; import text
             t := datetime.parse('2024-02-29T12:34:56.1234567+09:00')
             test.assert(datetime.stringify(t) == '2024-02-29T03:34:56.1234567Z')
@@ -175,16 +175,16 @@ public class DateTimeTests : TestBase
             test.assert(failed)
             print('passed')
             """);
-    }
+        }
 
-    [Trait("Category", "Runtime")]
-    [Trait("Category", "CrossVersion")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task ResolvesExplicitOffsetsAndDistinguishesCalendarDays(string shell)
-    {
-        await RunVerified(shell, """
+        [Trait("Category", "Runtime")]
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task ResolvesExplicitOffsetsAndDistinguishesCalendarDays(string shell)
+        {
+            await RunVerified(shell, """
             import datetime; import test
             eastern := datetime.eastern
             first := datetime.parse('2024-11-03T01:30:00-04:00')
@@ -201,57 +201,60 @@ public class DateTimeTests : TestBase
             test.assert(datetime.parse_local('2024-03-10T12:00:00.1234567', "yyyy-MM-dd'T'HH:mm:ss.fffffff", eastern) == datetime.parse('2024-03-10T12:00:00.1234567-04:00'))
             print('passed')
             """);
-    }
+        }
 
-    [Trait("Category", "Runtime")]
-    [Trait("Category", "CrossVersion")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task RejectsInvalidDatesPatternsDstAndOverflow(string shell)
-    {
-        string[] expressions = [
-            "datetime.parse('2024-01-01T00:00:00')", "datetime.parse('2024-01-01T00:00:00.12345678Z')",
-            "datetime.parse('2024-01-01T00:00:60Z')", "datetime.parse('2024-01-01T24:00:00Z')",
-            "datetime.parse('2024-01-01T00:00:00-00:00')", "datetime.parse('2024-01-01T00:00:00+14:01')",
-            "datetime.parse_date('2023-02-29')", "datetime.parse_date('2024-1-01')", "datetime.parse_date(' 2024-01-01')",
-            "datetime.create_date(0, 1, 1)", "datetime.create_date(2024, 13, 1)", "datetime.create_date(9223372036854775807, 1, 1)",
-            "datetime.zone('Unknown Zone')", "datetime.zone('utc')",
-            "datetime.at(datetime.parse_date('2024-03-10'), 2, 30, 0, eastern)",
-            "datetime.parse_local('2024-11-03 01:30', 'yyyy-MM-dd HH:mm', eastern)",
-            "datetime.parse_local('12:00', 'HH:mm', datetime.utc)",
-            "datetime.parse_local('2024-2024-01-01 12:00', 'yyyy-yyyy-MM-dd HH:mm', datetime.utc)",
-            "datetime.parse_local('2024-01-01 12:00 +00:00', 'yyyy-MM-dd HH:mm zzz', datetime.utc)",
-            "datetime.format(t, 'O', datetime.utc)", "datetime.format(t, 'MMMM', datetime.utc)",
-            "datetime.format(t, 'ffffffff', datetime.utc)", "datetime.format(t, \"yyyy 'unterminated\", datetime.utc)",
-            "datetime.format_date(d, 'yyyy-MM-dd HH:mm')",
-            "datetime.add_days(d, -1)", "datetime.add_days(d, 9223372036854775807)", "datetime.add_months(d, -1)",
-            "datetime.days(9223372036854775807)", "datetime.from_unix_seconds(9223372036854775807)",
-            "datetime.from_unix_milliseconds(-9223372036854775808)", "datetime.add(t, datetime.seconds(1))",
-            "datetime.at(d, 24, 0, 0, datetime.utc)", "datetime.format(t, 'yyyy', datetime.zone('Tokyo Standard Time'))"
-        ];
-        var source = "import datetime; import test\neastern := datetime.zone('Eastern Standard Time')\nt := datetime.parse('9999-12-31T23:59:59.9999999Z')\nd := datetime.parse_date('0001-01-01')\n";
-        for (var i = 0; i < expressions.Length; i++)
-            source += $"rejected{i} := false\ntry {{ {expressions[i]} }} catch err {{ rejected{i} = true }}\ntest.assert(rejected{i})\n";
-        await RunVerified(shell, source + "print('passed')\n");
-    }
+        [Trait("Category", "Runtime")]
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task RejectsInvalidDatesPatternsDstAndOverflow(string shell)
+        {
+            string[] expressions = [
+                "datetime.parse('2024-01-01T00:00:00')", "datetime.parse('2024-01-01T00:00:00.12345678Z')",
+                "datetime.parse('2024-01-01T00:00:60Z')", "datetime.parse('2024-01-01T24:00:00Z')",
+                "datetime.parse('2024-01-01T00:00:00-00:00')", "datetime.parse('2024-01-01T00:00:00+14:01')",
+                "datetime.parse_date('2023-02-29')", "datetime.parse_date('2024-1-01')", "datetime.parse_date(' 2024-01-01')",
+                "datetime.create_date(0, 1, 1)", "datetime.create_date(2024, 13, 1)", "datetime.create_date(9223372036854775807, 1, 1)",
+                "datetime.zone('Unknown Zone')", "datetime.zone('utc')",
+                "datetime.at(datetime.parse_date('2024-03-10'), 2, 30, 0, eastern)",
+                "datetime.parse_local('2024-11-03 01:30', 'yyyy-MM-dd HH:mm', eastern)",
+                "datetime.parse_local('12:00', 'HH:mm', datetime.utc)",
+                "datetime.parse_local('2024-2024-01-01 12:00', 'yyyy-yyyy-MM-dd HH:mm', datetime.utc)",
+                "datetime.parse_local('2024-01-01 12:00 +00:00', 'yyyy-MM-dd HH:mm zzz', datetime.utc)",
+                "datetime.format(t, 'O', datetime.utc)", "datetime.format(t, 'MMMM', datetime.utc)",
+                "datetime.format(t, 'ffffffff', datetime.utc)", "datetime.format(t, \"yyyy 'unterminated\", datetime.utc)",
+                "datetime.format_date(d, 'yyyy-MM-dd HH:mm')",
+                "datetime.add_days(d, -1)", "datetime.add_days(d, 9223372036854775807)", "datetime.add_months(d, -1)",
+                "datetime.days(9223372036854775807)", "datetime.from_unix_seconds(9223372036854775807)",
+                "datetime.from_unix_milliseconds(-9223372036854775808)", "datetime.add(t, datetime.seconds(1))",
+                "datetime.at(d, 24, 0, 0, datetime.utc)", "datetime.format(t, 'yyyy', datetime.zone('Tokyo Standard Time'))"
+            ];
+            var source = "import datetime; import test\neastern := datetime.zone('Eastern Standard Time')\nt := datetime.parse('9999-12-31T23:59:59.9999999Z')\nd := datetime.parse_date('0001-01-01')\n";
+            for (var i = 0; i < expressions.Length; i++)
+            {
+                source += $"rejected{i} := false\ntry {{ {expressions[i]} }} catch err {{ rejected{i} = true }}\ntest.assert(rejected{i})\n";
+            }
 
-    [Trait("Category", "Runtime")]
-    [Trait("Category", "CrossVersion")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task PreservesTypesAcrossImportedFunctionsAndSubMillisecondArithmetic(string shell)
-    {
-        using var project = new Project();
-        project.Write("clock.rukbat", """
+            await RunVerified(shell, source + "print('passed')\n");
+        }
+
+        [Trait("Category", "Runtime")]
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task PreservesTypesAcrossImportedFunctionsAndSubMillisecondArithmetic(string shell)
+        {
+            using var project = new Project();
+            project.Write("clock.rukbat", """
             import datetime
             initial := datetime.parse('2000-01-01T00:00:00Z')
             fn echo(value: datetime.Timestamp): datetime.Timestamp { return value }
             fn delta(): datetime.Duration { return datetime.between(initial, datetime.parse('2000-01-01T00:00:00.0000001Z')) }
             fn zone(): datetime.Zone { return datetime.tokyo }
             """);
-        project.Write("main.rukbat", """
+            project.Write("main.rukbat", """
             import datetime; import test; import './clock.rukbat' as clock
             t := datetime.parse('2000-01-01T00:00:00Z')
             test.assert(clock.echo(t) == t)
@@ -262,24 +265,25 @@ public class DateTimeTests : TestBase
             test.assert(datetime.total_seconds(clock.delta()) == 0.0000001)
             print('passed')
             """);
-        var compiled = project.Compile();
-        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
-        var result = shell == "powershell" ? await project.RunOutputWithWindowsPowerShell(compiled.Output!) : await project.RunOutput(compiled.Output!);
-        Assert.True(result.ExitCode == 0, result.Error);
-        Assert.Empty(result.Error);
-        Assert.Equal("passed\n", result.Output);
-    }
+            var compiled = project.Compile();
+            Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+            var result = shell == "powershell" ? await project.RunOutputWithWindowsPowerShell(compiled.Output!) : await project.RunOutput(compiled.Output!);
+            Assert.True(result.ExitCode == 0, result.Error);
+            Assert.Empty(result.Error);
+            Assert.Equal("passed\n", result.Output);
+        }
 
-    private static async Task RunVerified(string shell, string source)
-    {
-        using var project = new Project();
-        project.Write("main.rukbat", source);
-        var compiled = project.Compile();
-        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
-        var output = "[System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::GetCultureInfo('fr-FR')\n" + compiled.Output!;
-        var result = shell == "powershell" ? await project.RunOutputWithWindowsPowerShell(output) : await project.RunOutput(output);
-        Assert.True(result.ExitCode == 0, result.Error);
-        Assert.Empty(result.Error);
-        Assert.Equal("passed\n", result.Output);
+        private static async Task RunVerified(string shell, string source)
+        {
+            using var project = new Project();
+            project.Write("main.rukbat", source);
+            var compiled = project.Compile();
+            Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+            var output = "[System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::GetCultureInfo('fr-FR')\n" + compiled.Output!;
+            var result = shell == "powershell" ? await project.RunOutputWithWindowsPowerShell(output) : await project.RunOutput(output);
+            Assert.True(result.ExitCode == 0, result.Error);
+            Assert.Empty(result.Error);
+            Assert.Equal("passed\n", result.Output);
+        }
     }
 }

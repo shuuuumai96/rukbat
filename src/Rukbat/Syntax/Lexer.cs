@@ -1,147 +1,148 @@
 using System.Text;
 
-namespace Rukbat;
-
-internal sealed class Lexer(Source source)
+namespace Rukbat
 {
-    private int position;
-    public List<Token> Scan()
+    internal sealed class Lexer(Source source)
     {
-        var tokens = new List<Token>();
-        while (position < source.Text.Length)
+        private int position;
+        public List<Token> Scan()
         {
-            var start = position;
-            var c = source.Text[position++];
-            if (c == '\n')
+            var tokens = new List<Token>();
+            while (position < source.Text.Length)
             {
-                tokens.Add(new("\n", start));
-                continue;
-            }
-            if (char.IsWhiteSpace(c))
-            {
-                continue;
-            }
-
-            if (c == '/' && Peek() == '/')
-            {
-                while (position < source.Text.Length && Peek() != '\n')
+                var start = position;
+                var c = source.Text[position++];
+                if (c == '\n')
                 {
-                    position++;
+                    tokens.Add(new("\n", start));
+                    continue;
                 }
-                source.Comments.Add(new(start, position, source.Text[start..position].TrimEnd('\r')));
-                continue;
-            }
-            if (char.IsLetter(c) || c == '_')
-            {
-                while (char.IsLetterOrDigit(Peek()) || Peek() == '_')
+                if (char.IsWhiteSpace(c))
                 {
-                    position++;
+                    continue;
                 }
 
-                tokens.Add(new(source.Text[start..position], start));
-            }
-            else if (char.IsAsciiDigit(c))
-            {
-                while (char.IsAsciiDigit(Peek()))
+                if (c == '/' && Peek() == '/')
                 {
-                    position++;
+                    while (position < source.Text.Length && Peek() != '\n')
+                    {
+                        position++;
+                    }
+                    source.Comments.Add(new(start, position, source.Text[start..position].TrimEnd('\r')));
+                    continue;
                 }
-
-                if (Peek() == '.' && position + 1 < source.Text.Length &&
-                    char.IsAsciiDigit(source.Text[position + 1]))
+                if (char.IsLetter(c) || c == '_')
                 {
-                    position++;
+                    while (char.IsLetterOrDigit(Peek()) || Peek() == '_')
+                    {
+                        position++;
+                    }
+
+                    tokens.Add(new(source.Text[start..position], start));
+                }
+                else if (char.IsAsciiDigit(c))
+                {
                     while (char.IsAsciiDigit(Peek()))
                     {
                         position++;
                     }
-                }
 
-                if (Peek() is 'e' or 'E')
-                {
-                    position++;
-                    if (Peek() is '+' or '-')
+                    if (Peek() == '.' && position + 1 < source.Text.Length &&
+                        char.IsAsciiDigit(source.Text[position + 1]))
                     {
                         position++;
-                    }
-                    if (!char.IsAsciiDigit(Peek()))
-                    {
-                        source.Error("RUK1001", "Float exponent requires at least one digit.", new("", start));
-                    }
-                    while (char.IsAsciiDigit(Peek()))
-                    {
-                        position++;
-                    }
-                }
-
-                tokens.Add(new(source.Text[start..position], start));
-            }
-            else if (c is '\'' or '"')
-            {
-                var value = new StringBuilder();
-                var closed = false;
-                while (position < source.Text.Length)
-                {
-                    var next = source.Text[position++];
-                    if (next == c)
-                    {
-                        closed = true;
-                        break;
-                    }
-                    if (next == '\\')
-                    {
-                        if (position == source.Text.Length)
+                        while (char.IsAsciiDigit(Peek()))
                         {
+                            position++;
+                        }
+                    }
+
+                    if (Peek() is 'e' or 'E')
+                    {
+                        position++;
+                        if (Peek() is '+' or '-')
+                        {
+                            position++;
+                        }
+                        if (!char.IsAsciiDigit(Peek()))
+                        {
+                            source.Error("RUK1001", "Float exponent requires at least one digit.", new("", start));
+                        }
+                        while (char.IsAsciiDigit(Peek()))
+                        {
+                            position++;
+                        }
+                    }
+
+                    tokens.Add(new(source.Text[start..position], start));
+                }
+                else if (c is '\'' or '"')
+                {
+                    var value = new StringBuilder();
+                    var closed = false;
+                    while (position < source.Text.Length)
+                    {
+                        var next = source.Text[position++];
+                        if (next == c)
+                        {
+                            closed = true;
                             break;
                         }
-
-                        next = source.Text[position++];
-                        if (next is not ('n' or 'r' or 't' or '\\' or '\'' or '"'))
+                        if (next == '\\')
                         {
-                            source.Error("RUK1000", $"Unsupported escape '\\{next}'.", new("", position - 2));
+                            if (position == source.Text.Length)
+                            {
+                                break;
+                            }
+
+                            next = source.Text[position++];
+                            if (next is not ('n' or 'r' or 't' or '\\' or '\'' or '"'))
+                            {
+                                source.Error("RUK1000", $"Unsupported escape '\\{next}'.", new("", position - 2));
+                            }
+
+                            next = next switch
+                            {
+                                'n' => '\n',
+                                'r' => '\r',
+                                't' => '\t',
+                                _ => next
+                            };
                         }
-
-                        next = next switch
-                        {
-                            'n' => '\n',
-                            'r' => '\r',
-                            't' => '\t',
-                            _ => next
-                        };
+                        value.Append(next);
                     }
-                    value.Append(next);
-                }
-                if (!closed)
-                {
-                    source.Error("RUK1000", "Unterminated string.", new("", start));
-                }
+                    if (!closed)
+                    {
+                        source.Error("RUK1000", "Unterminated string.", new("", start));
+                    }
 
-                tokens.Add(new(source.Text[start..position], start, value.ToString()));
-            }
-            else
-            {
-                var pair = c.ToString() + Peek();
-                if (pair is ":=" or "==" or "!=" or "<=" or ">=" or "&&" or "||")
-                {
-                    position++;
-                    tokens.Add(new(pair, start));
-                }
-                else if ("(){}[]:,.=+-*/%!<>;?".Contains(c))
-                {
-                    tokens.Add(new(c.ToString(), start));
+                    tokens.Add(new(source.Text[start..position], start, value.ToString()));
                 }
                 else
                 {
-                    source.Error("RUK1000", c == '$'
-                    ? "Rukbat variables have no '$' prefix. Use 'name: string = ...'."
-                    : $"Unexpected character '{c}'.", new(c.ToString(), start));
+                    var pair = c.ToString() + Peek();
+                    if (pair is ":=" or "==" or "!=" or "<=" or ">=" or "&&" or "||")
+                    {
+                        position++;
+                        tokens.Add(new(pair, start));
+                    }
+                    else if ("(){}[]:,.=+-*/%!<>;?".Contains(c))
+                    {
+                        tokens.Add(new(c.ToString(), start));
+                    }
+                    else
+                    {
+                        source.Error("RUK1000", c == '$'
+                        ? "Rukbat variables have no '$' prefix. Use 'name: string = ...'."
+                        : $"Unexpected character '{c}'.", new(c.ToString(), start));
+                    }
                 }
             }
+            tokens.Add(new("<eof>", source.Text.Length));
+            source.FirstCodeOffset = tokens.FirstOrDefault(token => token.Text is not ("\n" or "<eof>"))?.Offset ?? source.Text.Length;
+            return tokens;
         }
-        tokens.Add(new("<eof>", source.Text.Length));
-        source.FirstCodeOffset = tokens.FirstOrDefault(token => token.Text is not ("\n" or "<eof>"))?.Offset ?? source.Text.Length;
-        return tokens;
-    }
 
-    private char Peek() => position < source.Text.Length ? source.Text[position] : '\0';
+        private char Peek() => position < source.Text.Length ? source.Text[position] : '\0';
+    }
 }

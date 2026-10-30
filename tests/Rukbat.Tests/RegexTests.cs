@@ -1,12 +1,12 @@
-namespace Rukbat.Tests;
-
-public sealed class RegexTests : TestBase
+namespace Rukbat.Tests
 {
-    [Trait("Category", "Unit")]
-    [Fact]
-    public void ChecksFixedOperationsAndOrdinaryMatchValues()
+    public sealed class RegexTests : TestBase
     {
-        Assert.Empty(new Compiler().Check("""
+        [Trait("Category", "Unit")]
+        [Fact]
+        public void ChecksFixedOperationsAndOrdinaryMatchValues()
+        {
+            Assert.Empty(new Compiler().Check("""
             import re
             struct Holder { pattern: re.Pattern; matches: re.Match[]; optional: re.Pattern? }
             fn pattern(value: re.Pattern): re.Pattern { return value }
@@ -30,106 +30,106 @@ public sealed class RegexTests : TestBase
             copied.matches[0].groups['0'] = null
             for item in all { print(item.value) }
             """));
-    }
+        }
 
-    [Trait("Category", "Unit")]
-    [Theory]
-    [InlineData("re.compile('a')", "RUK2005")]
-    [InlineData("re.compile('a', 1000, 1)", "RUK2005")]
-    [InlineData("re.compile<int>('a', 1000)", "RUK2005")]
-    [InlineData("re.compile(pattern: 'a', timeout_ms: 1000)", "RUK2005")]
-    [InlineData("re.compile(1, 1000)", "RUK2001")]
-    [InlineData("re.compile('a', 1.0)", "RUK2001")]
-    [InlineData("re.is_match('a', 'a')", "RUK2001")]
-    [InlineData("re.is_match(null, re.compile('a', 1000))", "RUK2001")]
-    [InlineData("re.find('a')", "RUK2005")]
-    [InlineData("re.find_all('a', null)", "RUK2001")]
-    [InlineData("re.replace_all('a', re.compile('a', 1000), 1)", "RUK2001")]
-    [InlineData("re.replace_all_template('a', re.compile('a', 1000), null)", "RUK2001")]
-    [InlineData("re.split('a', 'a')", "RUK2001")]
-    [InlineData("re.escape(1)", "RUK2001")]
-    [InlineData("re.match('a', re.compile('a', 1000))", "RUK2004")]
-    [InlineData("re.search('a', re.compile('a', 1000))", "RUK2004")]
-    [InlineData("value: re.Pattern = 'a'", "RUK2001")]
-    [InlineData("value := re.Pattern {}", "RUK2004")]
-    [InlineData("value := re.compile('a', 1000).value", "RUK2004")]
-    [InlineData("value := re.compile('a', 1000) == re.compile('a', 1000)", "RUK2001")]
-    [InlineData("value := re.compile('a', 1000) < re.compile('a', 1000)", "RUK2001")]
-    [InlineData("value: re.Match = re.find('a', re.compile('a', 1000))", "RUK2001")]
-    [InlineData("value := re.Match {}", "RUK2005")]
-    [InlineData("value := re.Match { value: 'a', start: 0, count: 1, groups: {'0': 1} }", "RUK2001")]
-    public void RejectsInvalidCallsAndOpaqueOperations(string body, string code)
-        => Assert.Contains(new Compiler().Check("import re\n" + body), diagnostic => diagnostic.Code == code);
+        [Trait("Category", "Unit")]
+        [Theory]
+        [InlineData("re.compile('a')", "RUK2005")]
+        [InlineData("re.compile('a', 1000, 1)", "RUK2005")]
+        [InlineData("re.compile<int>('a', 1000)", "RUK2005")]
+        [InlineData("re.compile(pattern: 'a', timeout_ms: 1000)", "RUK2005")]
+        [InlineData("re.compile(1, 1000)", "RUK2001")]
+        [InlineData("re.compile('a', 1.0)", "RUK2001")]
+        [InlineData("re.is_match('a', 'a')", "RUK2001")]
+        [InlineData("re.is_match(null, re.compile('a', 1000))", "RUK2001")]
+        [InlineData("re.find('a')", "RUK2005")]
+        [InlineData("re.find_all('a', null)", "RUK2001")]
+        [InlineData("re.replace_all('a', re.compile('a', 1000), 1)", "RUK2001")]
+        [InlineData("re.replace_all_template('a', re.compile('a', 1000), null)", "RUK2001")]
+        [InlineData("re.split('a', 'a')", "RUK2001")]
+        [InlineData("re.escape(1)", "RUK2001")]
+        [InlineData("re.match('a', re.compile('a', 1000))", "RUK2004")]
+        [InlineData("re.search('a', re.compile('a', 1000))", "RUK2004")]
+        [InlineData("value: re.Pattern = 'a'", "RUK2001")]
+        [InlineData("value := re.Pattern {}", "RUK2004")]
+        [InlineData("value := re.compile('a', 1000).value", "RUK2004")]
+        [InlineData("value := re.compile('a', 1000) == re.compile('a', 1000)", "RUK2001")]
+        [InlineData("value := re.compile('a', 1000) < re.compile('a', 1000)", "RUK2001")]
+        [InlineData("value: re.Match = re.find('a', re.compile('a', 1000))", "RUK2001")]
+        [InlineData("value := re.Match {}", "RUK2005")]
+        [InlineData("value := re.Match { value: 'a', start: 0, count: 1, groups: {'0': 1} }", "RUK2001")]
+        public void RejectsInvalidCallsAndOpaqueOperations(string body, string code)
+            => Assert.Contains(new Compiler().Check("import re\n" + body), diagnostic => diagnostic.Code == code);
 
-    [Trait("Category", "Unit")]
-    [Theory]
-    [InlineData("print(re.compile('a', 1000))")]
-    [InlineData("eprint(re.compile('a', 1000))")]
-    [InlineData("print([re.compile('a', 1000)])")]
-    [InlineData("value: re.Pattern? = null; print(value)")]
-    [InlineData("json.stringify(re.compile('a', 1000))")]
-    [InlineData("json.stringify({'pattern': re.compile('a', 1000)})")]
-    [InlineData("json.parse<re.Pattern>('\"a\"')")]
-    [InlineData("json.as<re.Pattern>(json.parse('\"a\"'))")]
-    [InlineData("json.set(json.parse('{}'), 'pattern', re.compile('a', 1000))")]
-    [InlineData("json.set_at(json.parse('[null]'), 0, re.compile('a', 1000))")]
-    [InlineData("struct Holder { values: dict[string, re.Pattern?[]] }; json.stringify(Holder { values: {'one': [re.compile('a', 1000), null]} })")]
-    [InlineData("struct Holder { values: dict[string, re.Pattern?[]] }; json.parse<Holder>('{}')")]
-    [InlineData("powershell<void>('Write-Output', re.compile('a', 1000))")]
-    [InlineData("powershell<void>('Write-Output', [re.compile('a', 1000)])")]
-    [InlineData("powershell<re.Pattern>('Write-Output', 'a')")]
-    [InlineData("powershell<re.Pattern?[]>('Write-Output', 'a')")]
-    [InlineData("struct Holder { values: re.Pattern?[] }; powershell<Holder>('Write-Output')")]
-    public void RejectsOpaqueValuesAtRecursiveExternalBoundaries(string body)
-        => Assert.Contains(new Compiler().Check("import re; import json\n" + body), diagnostic => diagnostic.Code == "RUK2010");
+        [Trait("Category", "Unit")]
+        [Theory]
+        [InlineData("print(re.compile('a', 1000))")]
+        [InlineData("eprint(re.compile('a', 1000))")]
+        [InlineData("print([re.compile('a', 1000)])")]
+        [InlineData("value: re.Pattern? = null; print(value)")]
+        [InlineData("json.stringify(re.compile('a', 1000))")]
+        [InlineData("json.stringify({'pattern': re.compile('a', 1000)})")]
+        [InlineData("json.parse<re.Pattern>('\"a\"')")]
+        [InlineData("json.as<re.Pattern>(json.parse('\"a\"'))")]
+        [InlineData("json.set(json.parse('{}'), 'pattern', re.compile('a', 1000))")]
+        [InlineData("json.set_at(json.parse('[null]'), 0, re.compile('a', 1000))")]
+        [InlineData("struct Holder { values: dict[string, re.Pattern?[]] }; json.stringify(Holder { values: {'one': [re.compile('a', 1000), null]} })")]
+        [InlineData("struct Holder { values: dict[string, re.Pattern?[]] }; json.parse<Holder>('{}')")]
+        [InlineData("powershell<void>('Write-Output', re.compile('a', 1000))")]
+        [InlineData("powershell<void>('Write-Output', [re.compile('a', 1000)])")]
+        [InlineData("powershell<re.Pattern>('Write-Output', 'a')")]
+        [InlineData("powershell<re.Pattern?[]>('Write-Output', 'a')")]
+        [InlineData("struct Holder { values: re.Pattern?[] }; powershell<Holder>('Write-Output')")]
+        public void RejectsOpaqueValuesAtRecursiveExternalBoundaries(string body)
+            => Assert.Contains(new Compiler().Check("import re; import json\n" + body), diagnostic => diagnostic.Code == "RUK2010");
 
-    [Trait("Category", "Unit")]
-    [Fact]
-    public void ReservesCanonicalImportNameAndFormatsExistingSyntax()
-    {
-        using var project = new Project();
-        project.Write("helper.rukbat", "fn value(): int { return 1 }");
-        project.Write("main.rukbat", "import './helper.rukbat' as re\n");
-        Assert.Contains(new Compiler().CheckFile(project.PathFor("main.rukbat")), diagnostic => diagnostic.Code == "RUK3002");
-        Assert.Contains(new Compiler().Check("import re as regex"), diagnostic => diagnostic.Code == "RUK3002");
-        Assert.Empty(new Compiler().Check("re := 1; print(re)"));
+        [Trait("Category", "Unit")]
+        [Fact]
+        public void ReservesCanonicalImportNameAndFormatsExistingSyntax()
+        {
+            using var project = new Project();
+            project.Write("helper.rukbat", "fn value(): int { return 1 }");
+            project.Write("main.rukbat", "import './helper.rukbat' as re\n");
+            Assert.Contains(new Compiler().CheckFile(project.PathFor("main.rukbat")), diagnostic => diagnostic.Code == "RUK3002");
+            Assert.Contains(new Compiler().Check("import re as regex"), diagnostic => diagnostic.Code == "RUK3002");
+            Assert.Empty(new Compiler().Check("re := 1; print(re)"));
 
-        project.Write("main.rukbat", "import re;fn keep(value:re.Pattern):re.Pattern{return value};pattern:=keep(re.compile('a',1000));matches:=re.find_all('a',pattern)");
-        var path = project.PathFor("main.rukbat");
-        Assert.Equal(0, Cli.Run(["fmt", path], TextWriter.Null, TextWriter.Null));
-        var formatted = File.ReadAllText(path);
-        Assert.Contains("fn keep(value: re.Pattern): re.Pattern {", formatted);
-        Assert.Contains("pattern := keep(re.compile('a', 1000))", formatted);
-        Assert.Empty(new Compiler().CheckFile(path));
-        Assert.Equal(0, Cli.Run(["fmt", path], TextWriter.Null, TextWriter.Null));
-        Assert.Equal(formatted, File.ReadAllText(path));
-    }
+            project.Write("main.rukbat", "import re;fn keep(value:re.Pattern):re.Pattern{return value};pattern:=keep(re.compile('a',1000));matches:=re.find_all('a',pattern)");
+            var path = project.PathFor("main.rukbat");
+            Assert.Equal(0, Cli.Run(["fmt", path], TextWriter.Null, TextWriter.Null));
+            var formatted = File.ReadAllText(path);
+            Assert.Contains("fn keep(value: re.Pattern): re.Pattern {", formatted);
+            Assert.Contains("pattern := keep(re.compile('a', 1000))", formatted);
+            Assert.Empty(new Compiler().CheckFile(path));
+            Assert.Equal(0, Cli.Run(["fmt", path], TextWriter.Null, TextWriter.Null));
+            Assert.Equal(formatted, File.ReadAllText(path));
+        }
 
-    [Trait("Category", "Unit")]
-    [Fact]
-    public void GeneratedScriptIncludesOnlyTheImportedRegexRuntime()
-    {
-        var output = Success("import re\npattern := re.compile('a', 1000)\nprint(re.is_match('a', pattern))");
-        Assert.Contains("$__rukbat_load_Regex", output);
-        Assert.Contains("public static class RukbatRegex", output);
-        Assert.Contains("'re.compile' {", output);
-        Assert.Contains("'re.is_match' {", output);
-        Assert.DoesNotContain("RukbatProcessJob", output);
-        Assert.DoesNotContain("RukbatFileText", output);
-        Assert.DoesNotContain("RukbatMoveBatch", output);
-        Assert.DoesNotContain("RukbatLog", output);
-        Assert.DoesNotContain("'fs.read_text'", output);
-        Assert.DoesNotContain("'process.run'", output);
-        Assert.DoesNotContain("'log.info'", output);
-    }
+        [Trait("Category", "Unit")]
+        [Fact]
+        public void GeneratedScriptIncludesOnlyTheImportedRegexRuntime()
+        {
+            var output = Success("import re\npattern := re.compile('a', 1000)\nprint(re.is_match('a', pattern))");
+            Assert.Contains("$__rukbat_load_Regex", output);
+            Assert.Contains("public static class RukbatRegex", output);
+            Assert.Contains("'re.compile' {", output);
+            Assert.Contains("'re.is_match' {", output);
+            Assert.DoesNotContain("RukbatProcessJob", output);
+            Assert.DoesNotContain("RukbatFileText", output);
+            Assert.DoesNotContain("RukbatMoveBatch", output);
+            Assert.DoesNotContain("RukbatLog", output);
+            Assert.DoesNotContain("'fs.read_text'", output);
+            Assert.DoesNotContain("'process.run'", output);
+            Assert.DoesNotContain("'log.info'", output);
+        }
 
-    [Trait("Category", "CrossVersion")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task MatchesCapturesAndUsesInvariantOptions(string shell)
-    {
-        await Verify(shell, """
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task MatchesCapturesAndUsesInvariantOptions(string shell)
+        {
+            await Verify(shell, """
             import re; import test
             fn expect_group(found: re.Match, key: string, expected: string): void {
                 value := found.groups[key]
@@ -176,15 +176,15 @@ public sealed class RegexTests : TestBase
             test.assert(!re.is_match('abc!', re.compile('\\A[a-z]+\\z', timeout_ms)))
             print('passed')
             """, "[Threading.Thread]::CurrentThread.CurrentCulture = [Globalization.CultureInfo]::GetCultureInfo('tr-TR')\n");
-    }
+        }
 
-    [Trait("Category", "CrossVersion")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task ReplacesSplitsAndEscapesLiterally(string shell)
-    {
-        await Verify(shell, """
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task ReplacesSplitsAndEscapesLiterally(string shell)
+        {
+            await Verify(shell, """
             import re; import test
             pattern := re.compile('(?<left>[a-z]+)=(?<right>[0-9]+)', 1000)
             test.assert(re.replace_all('x=1 y=2', pattern, '$1${left}$$') == '$1${left}$$ $1${left}$$')
@@ -209,15 +209,15 @@ public sealed class RegexTests : TestBase
             test.assert(re.escape('') == '')
             print('passed')
             """);
-    }
+        }
 
-    [Trait("Category", "CrossVersion")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task UsesCodePointOffsetsAndAdvancesEmptyMatchesByCodePoint(string shell)
-    {
-        await Verify(shell, """
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task UsesCodePointOffsetsAndAdvancesEmptyMatchesByCodePoint(string shell)
+        {
+            await Verify(shell, """
             import re; import json; import test
             emoji := json.parse<string>('"\\ud83d\\ude00"')
             value := 'A' + emoji + 'B'
@@ -248,44 +248,47 @@ public sealed class RegexTests : TestBase
             }
             print('passed')
             """);
-    }
+        }
 
-    [Trait("Category", "CrossVersion")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task RejectsInvalidPatternsTemplatesUnicodeAndTimeouts(string shell)
-    {
-        var source = """
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task RejectsInvalidPatternsTemplatesUnicodeAndTimeouts(string shell)
+        {
+            var source = """
             import re; import json; import test
             pattern := re.compile('(?<name>a)', 1000)
             emoji := json.parse<string>('"\\ud83d\\ude00"')
             invalid := powershell<string>('Invoke-Expression', '-join [char[]](0xD800)')
             invalid_low := powershell<string>('Invoke-Expression', '-join [char[]](0xDC00)')
             """ + "\n";
-        var expressions = new[]
-        {
-            "re.compile('[', 1000)", "re.compile('a', -1)", "re.compile('a', 0)",
-            "re.compile('a', 2147483647)", "re.compile('a', 9223372036854775807)",
-            "re.compile(invalid, 1000)", "re.escape(invalid)",
-            "re.compile(invalid_low, 1000)", "re.escape(invalid_low)", "re.find(invalid_low, pattern)",
-            "re.is_match(invalid, pattern)", "re.find(invalid, pattern)", "re.find_all(invalid, pattern)",
-            "re.replace_all(invalid, pattern, '')", "re.replace_all('none', pattern, invalid)",
-            "re.replace_all_template(invalid, pattern, '')", "re.replace_all_template('none', pattern, invalid)",
-            "re.split(invalid, pattern)",
-            "re.is_match(emoji, re.compile('.', 1000))", "re.find(emoji, re.compile('.', 1000))",
-            "re.find_all(emoji, re.compile('.', 1000))", "re.replace_all(emoji, re.compile('.', 1000), '')",
-            "re.replace_all_template(emoji, re.compile('.', 1000), '')", "re.split(emoji, re.compile('.', 1000))",
-            "re.is_match('A' + emoji, re.compile('(?=(?<part>..))', 1000))",
-            "re.find(emoji, re.compile('(?<part>.)*', 1000))"
-        };
-        for (var index = 0; index < expressions.Length; index++)
-            source += $"rejected{index} := false\ntry {{ {expressions[index]} }} catch error {{ rejected{index} = true }}\ntest.assert(rejected{index})\n";
-        foreach (var template in new[] { "$", "$1", "$name", "${}", "${name", "${missing}", "${2}", "${01}", "${00}" })
-        {
-            source += "if true {\nrejected := false\ntry { re.replace_all_template('zzz', pattern, '" + template + "') } catch error { rejected = true }\ntest.assert(rejected)\n}\n";
-        }
-        source += """
+            var expressions = new[]
+            {
+                "re.compile('[', 1000)", "re.compile('a', -1)", "re.compile('a', 0)",
+                "re.compile('a', 2147483647)", "re.compile('a', 9223372036854775807)",
+                "re.compile(invalid, 1000)", "re.escape(invalid)",
+                "re.compile(invalid_low, 1000)", "re.escape(invalid_low)", "re.find(invalid_low, pattern)",
+                "re.is_match(invalid, pattern)", "re.find(invalid, pattern)", "re.find_all(invalid, pattern)",
+                "re.replace_all(invalid, pattern, '')", "re.replace_all('none', pattern, invalid)",
+                "re.replace_all_template(invalid, pattern, '')", "re.replace_all_template('none', pattern, invalid)",
+                "re.split(invalid, pattern)",
+                "re.is_match(emoji, re.compile('.', 1000))", "re.find(emoji, re.compile('.', 1000))",
+                "re.find_all(emoji, re.compile('.', 1000))", "re.replace_all(emoji, re.compile('.', 1000), '')",
+                "re.replace_all_template(emoji, re.compile('.', 1000), '')", "re.split(emoji, re.compile('.', 1000))",
+                "re.is_match('A' + emoji, re.compile('(?=(?<part>..))', 1000))",
+                "re.find(emoji, re.compile('(?<part>.)*', 1000))"
+            };
+            for (var index = 0; index < expressions.Length; index++)
+            {
+                source += $"rejected{index} := false\ntry {{ {expressions[index]} }} catch error {{ rejected{index} = true }}\ntest.assert(rejected{index})\n";
+            }
+
+            foreach (var template in new[] { "$", "$1", "$name", "${}", "${name", "${missing}", "${2}", "${01}", "${00}" })
+            {
+                source += "if true {\nrejected := false\ntry { re.replace_all_template('zzz', pattern, '" + template + "') } catch error { rejected = true }\ntest.assert(rejected)\n}\n";
+            }
+            source += """
             pathological := powershell<string>('Invoke-Expression', "'a' * 20000 + '!'")
             timed_out := false
             try { re.is_match(pathological, re.compile('^(a+)+$', 1)) }
@@ -293,19 +296,19 @@ public sealed class RegexTests : TestBase
             test.assert(timed_out)
             print('passed')
             """;
-        await Verify(shell, source);
-    }
+            await Verify(shell, source);
+        }
 
-    [Trait("Category", "CrossVersion")]
-    [Theory]
-    [InlineData("powershell", false)]
-    [InlineData("powershell", true)]
-    [InlineData("pwsh", false)]
-    [InlineData("pwsh", true)]
-    public async Task PreservesIdentityCopiesAndArgumentEvaluationAcrossModules(string shell, bool debug)
-    {
-        using var project = new Project();
-        project.Write("helper.rukbat", """
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData("powershell", false)]
+        [InlineData("powershell", true)]
+        [InlineData("pwsh", false)]
+        [InlineData("pwsh", true)]
+        public async Task PreservesIdentityCopiesAndArgumentEvaluationAcrossModules(string shell, bool debug)
+        {
+            using var project = new Project();
+            project.Write("helper.rukbat", """
             import re
             fn timeout(): int { return 1000 }
             fn text(): string { return 'a' }
@@ -315,7 +318,7 @@ public sealed class RegexTests : TestBase
             fn matches(value: re.Pattern): re.Match[] { return re.find_all('a a', value) }
             fn copy(value: re.Match): re.Match { value.groups['word'] = 'argument'; return value }
             """);
-        project.Write("main.rukbat", """
+            project.Write("main.rukbat", """
             import re; import json; import test
             import './helper.rukbat' as helper
             struct Match { value: int }
@@ -360,63 +363,64 @@ public sealed class RegexTests : TestBase
             test.assert(restored.value == 'a' && restored.start == 0 && restored.count == 1)
             print('passed')
             """);
-        var compiled = new Compiler().CompileFile(project.PathFor("main.rukbat"), debug);
-        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
-        var result = shell == "powershell" ? await project.RunOutputWithWindowsPowerShell(compiled.Output!) : await project.RunOutput(compiled.Output!);
-        Assert.True(result.ExitCode == 0, result.Error);
-        Assert.Empty(result.Error);
-        Assert.Equal("passed\n", result.Output);
-    }
+            var compiled = new Compiler().CompileFile(project.PathFor("main.rukbat"), debug);
+            Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+            var result = shell == "powershell" ? await project.RunOutputWithWindowsPowerShell(compiled.Output!) : await project.RunOutput(compiled.Output!);
+            Assert.True(result.ExitCode == 0, result.Error);
+            Assert.Empty(result.Error);
+            Assert.Equal("passed\n", result.Output);
+        }
 
-    [Trait("Category", "CrossVersion")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task ExecutesTheStandaloneRegexExample(string shell)
-    {
-        using var project = new Project();
-        var fixture = Path.Combine(AppContext.BaseDirectory, "Fixtures", "examples", "regex.rukbat");
-        project.Write("main.rukbat", File.ReadAllText(fixture));
-        var compiled = project.Compile();
-        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
-        var result = shell == "powershell"
-            ? await project.RunOutputWithWindowsPowerShell(compiled.Output!)
-            : await project.RunOutput(compiled.Output!);
-        Assert.True(result.ExitCode == 0, result.Error);
-        Assert.Empty(result.Error);
-        Assert.Equal("host: web-01\nport: 443\nhost:web-01 port:443\n", result.Output);
-    }
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task ExecutesTheStandaloneRegexExample(string shell)
+        {
+            using var project = new Project();
+            var fixture = Path.Combine(AppContext.BaseDirectory, "Fixtures", "examples", "regex.rukbat");
+            project.Write("main.rukbat", File.ReadAllText(fixture));
+            var compiled = project.Compile();
+            Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+            var result = shell == "powershell"
+                ? await project.RunOutputWithWindowsPowerShell(compiled.Output!)
+                : await project.RunOutput(compiled.Output!);
+            Assert.True(result.ExitCode == 0, result.Error);
+            Assert.Empty(result.Error);
+            Assert.Equal("host: web-01\nport: 443\nhost:web-01 port:443\n", result.Output);
+        }
 
-    [Trait("Category", "CrossVersion")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task RuntimeErrorsRetainTheOperationSourceLocation(string shell)
-    {
-        using var project = new Project();
-        project.Write("main.rukbat", "import re\npattern := re.compile('a', 1000)\nre.replace_all_template('none', pattern, '${missing}')\n");
-        var compiled = project.Compile();
-        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
-        var result = shell == "powershell"
-            ? await project.RunOutputWithWindowsPowerShell(compiled.Output!)
-            : await project.RunOutput(compiled.Output!);
-        Assert.NotEqual(0, result.ExitCode);
-        Assert.Empty(result.Output);
-        Assert.Contains("main.rukbat:3", result.Error);
-        Assert.DoesNotContain(project.DirectoryPath, result.Error);
-    }
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task RuntimeErrorsRetainTheOperationSourceLocation(string shell)
+        {
+            using var project = new Project();
+            project.Write("main.rukbat", "import re\npattern := re.compile('a', 1000)\nre.replace_all_template('none', pattern, '${missing}')\n");
+            var compiled = project.Compile();
+            Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+            var result = shell == "powershell"
+                ? await project.RunOutputWithWindowsPowerShell(compiled.Output!)
+                : await project.RunOutput(compiled.Output!);
+            Assert.NotEqual(0, result.ExitCode);
+            Assert.Empty(result.Output);
+            Assert.Contains("main.rukbat:3", result.Error);
+            Assert.DoesNotContain(project.DirectoryPath, result.Error);
+        }
 
-    private static async Task Verify(string shell, string source, string prelude = "")
-    {
-        using var project = new Project();
-        project.Write("main.rukbat", source);
-        var compiled = project.Compile();
-        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
-        var result = shell == "powershell"
-            ? await project.RunOutputWithWindowsPowerShell(prelude + compiled.Output!)
-            : await project.RunOutput(prelude + compiled.Output!);
-        Assert.True(result.ExitCode == 0, result.Error);
-        Assert.Empty(result.Error);
-        Assert.Equal("passed\n", result.Output);
+        private static async Task Verify(string shell, string source, string prelude = "")
+        {
+            using var project = new Project();
+            project.Write("main.rukbat", source);
+            var compiled = project.Compile();
+            Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+            var result = shell == "powershell"
+                ? await project.RunOutputWithWindowsPowerShell(prelude + compiled.Output!)
+                : await project.RunOutput(prelude + compiled.Output!);
+            Assert.True(result.ExitCode == 0, result.Error);
+            Assert.Empty(result.Error);
+            Assert.Equal("passed\n", result.Output);
+        }
     }
 }

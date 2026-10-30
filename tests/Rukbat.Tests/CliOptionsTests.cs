@@ -2,11 +2,11 @@ using System.Diagnostics;
 using System.Text;
 using Rukbat;
 
-namespace Rukbat.Tests;
-
-public sealed class CliOptionsTests : TestBase
+namespace Rukbat.Tests
 {
-    private const string Definition = """
+    public sealed class CliOptionsTests : TestBase
+    {
+        private const string Definition = """
         import cli
         fn definition(): cli.Command {
             command := cli.command("demo.ps1", "ファイルを処理します。")
@@ -32,23 +32,23 @@ public sealed class CliOptionsTests : TestBase
         fn read(result: cli.Result): string { return cli.get(result, "directory") }
         """;
 
-    [Trait("Category", "Unit")]
-    [Fact]
-    public void ChecksAllDefinitionFieldsAndResultContainersWithoutRunningTheParser()
-    {
-        var output = Success(Definition + "\nparsed := cli.parse(definition(), args())\nvalues: cli.Result[] = [parsed]\nprint(read(values[0]))");
-        Assert.Contains("$__rukbat_cli_parse", output);
-        Assert.DoesNotContain("Add-Type", output);
-        Assert.DoesNotContain("Get-Command", output);
-        var checkedSource = new Compiler().Check(Definition + "\ncli.parse(definition(), ['--unknown'])");
-        Assert.Empty(checkedSource);
-    }
+        [Trait("Category", "Unit")]
+        [Fact]
+        public void ChecksAllDefinitionFieldsAndResultContainersWithoutRunningTheParser()
+        {
+            var output = Success(Definition + "\nparsed := cli.parse(definition(), args())\nvalues: cli.Result[] = [parsed]\nprint(read(values[0]))");
+            Assert.Contains("$__rukbat_cli_parse", output);
+            Assert.DoesNotContain("Add-Type", output);
+            Assert.DoesNotContain("Get-Command", output);
+            var checkedSource = new Compiler().Check(Definition + "\ncli.parse(definition(), ['--unknown'])");
+            Assert.Empty(checkedSource);
+        }
 
-    [Trait("Category", "Unit")]
-    [Fact]
-    public void SupportsOrdinaryDefinitionStructLiterals()
-    {
-        Success("""
+        [Trait("Category", "Unit")]
+        [Fact]
+        public void SupportsOrdinaryDefinitionStructLiterals()
+        {
+            Success("""
             import cli
             argument := cli.Argument {
                 name: "directory", description: "Directory", required: true,
@@ -65,63 +65,66 @@ public sealed class CliOptionsTests : TestBase
             parsed := cli.parse(command, args())
             print(cli.get(parsed, "directory"))
             """);
-    }
-
-    [Trait("Category", "Unit")]
-    [Theory]
-    [InlineData("cli.parse(cli.command('x', ''), [1])")]
-    [InlineData("cli.option('x')")]
-    [InlineData("cli.command(name: 'x', description: '')")]
-    [InlineData("cli.get(cli.command('x', ''), 'x')")]
-    [InlineData("cli.parse<int>(cli.command('x', ''), [])")]
-    [InlineData("cli.Result {}")]
-    [InlineData("cli.parse(cli.command('x', ''), []).help")]
-    [InlineData("print(cli.parse(cli.command('x', ''), []))")]
-    [InlineData("import json\njson.stringify([cli.parse(cli.command('x', ''), [])])")]
-    [InlineData("powershell<cli.Result>('Get-Date')")]
-    [InlineData("powershell<void>('Write-Output', cli.parse(cli.command('x', ''), []))")]
-    public void RejectsInvalidCallsAndOpaqueResultBoundaries(string source)
-    {
-        var result = Compile("import cli\n" + source);
-        Assert.False(result.Success);
-        Assert.DoesNotContain(result.Diagnostics, d => d.Code == "RUK9000");
-    }
-
-    private static async Task<RunResult> Execute(Project project, string output, string shell, params string[] arguments)
-    {
-        File.WriteAllText(project.PathFor("main.ps1"), output, new UTF8Encoding(true));
-        var start = new ProcessStartInfo(shell)
-        {
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
-            WorkingDirectory = project.DirectoryPath
-        };
-        foreach (var argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-File", project.PathFor("main.ps1") }.Concat(arguments))
-            start.ArgumentList.Add(argument);
-        using var process = Process.Start(start)!;
-        var stdout = process.StandardOutput.ReadToEndAsync();
-        var stderr = process.StandardError.ReadToEndAsync();
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
-        try
-        {
-            await process.WaitForExitAsync(timeout.Token);
         }
-        catch (OperationCanceledException) { process.Kill(true); throw new TimeoutException("CLI runtime did not finish."); }
-        return new(process.ExitCode, (await stdout).Replace("\r\n", "\n"), await stderr);
-    }
 
-    [Trait("Category", "Runtime")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task ParsesLiteralEntryArgumentsAndReturnsIndependentArrays(string shell)
-    {
-        using var project = new Project();
-        var output = Success(Definition + """
+        [Trait("Category", "Unit")]
+        [Theory]
+        [InlineData("cli.parse(cli.command('x', ''), [1])")]
+        [InlineData("cli.option('x')")]
+        [InlineData("cli.command(name: 'x', description: '')")]
+        [InlineData("cli.get(cli.command('x', ''), 'x')")]
+        [InlineData("cli.parse<int>(cli.command('x', ''), [])")]
+        [InlineData("cli.Result {}")]
+        [InlineData("cli.parse(cli.command('x', ''), []).help")]
+        [InlineData("print(cli.parse(cli.command('x', ''), []))")]
+        [InlineData("import json\njson.stringify([cli.parse(cli.command('x', ''), [])])")]
+        [InlineData("powershell<cli.Result>('Get-Date')")]
+        [InlineData("powershell<void>('Write-Output', cli.parse(cli.command('x', ''), []))")]
+        public void RejectsInvalidCallsAndOpaqueResultBoundaries(string source)
+        {
+            var result = Compile("import cli\n" + source);
+            Assert.False(result.Success);
+            Assert.DoesNotContain(result.Diagnostics, d => d.Code == "RUK9000");
+        }
+
+        private static async Task<RunResult> Execute(Project project, string output, string shell, params string[] arguments)
+        {
+            File.WriteAllText(project.PathFor("main.ps1"), output, new UTF8Encoding(true));
+            var start = new ProcessStartInfo(shell)
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8,
+                WorkingDirectory = project.DirectoryPath
+            };
+            foreach (var argument in new[] { "-NoLogo", "-NoProfile", "-NonInteractive", "-File", project.PathFor("main.ps1") }.Concat(arguments))
+            {
+                start.ArgumentList.Add(argument);
+            }
+
+            using var process = Process.Start(start)!;
+            var stdout = process.StandardOutput.ReadToEndAsync();
+            var stderr = process.StandardError.ReadToEndAsync();
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token);
+            }
+            catch (OperationCanceledException) { process.Kill(true); throw new TimeoutException("CLI runtime did not finish."); }
+            return new(process.ExitCode, (await stdout).Replace("\r\n", "\n"), await stderr);
+        }
+
+        [Trait("Category", "Runtime")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task ParsesLiteralEntryArgumentsAndReturnsIndependentArrays(string shell)
+        {
+            using var project = new Project();
+            var output = Success(Definition + """
 
             parsed := cli.parse(definition(), args())
             print(read(parsed))
@@ -137,20 +140,20 @@ public sealed class CliOptionsTests : TestBase
             tags[0] = "changed"
             for tag in cli.get_all(parsed, "tag") { print(tag) }
             """);
-        var result = await Execute(project, output, shell, "--tag=a=b", "日本語 path", "-p", "*.log", "-o=--help", "-r", "--tag", "$literal; $(not-code)", "--", "--help", "a\"b", @"C:\path with space\");
-        Assert.True(result.ExitCode == 0, result.Error);
-        Assert.Equal("日本語 path\n*.log\n--help\nTrue\nTrue\n3\n--help\na\"b\nC:\\path with space\\\n2\na=b\n$literal; $(not-code)\n", result.Output);
-        Assert.Equal("", result.Error);
-    }
+            var result = await Execute(project, output, shell, "--tag=a=b", "日本語 path", "-p", "*.log", "-o=--help", "-r", "--tag", "$literal; $(not-code)", "--", "--help", "a\"b", @"C:\path with space\");
+            Assert.True(result.ExitCode == 0, result.Error);
+            Assert.Equal("日本語 path\n*.log\n--help\nTrue\nTrue\n3\n--help\na\"b\nC:\\path with space\\\n2\na=b\n$literal; $(not-code)\n", result.Output);
+            Assert.Equal("", result.Error);
+        }
 
-    [Trait("Category", "Runtime")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task HandlesHelpDefaultsEmptyValuesAndValueCopies(string shell)
-    {
-        using var project = new Project();
-        var output = Success(Definition + """
+        [Trait("Category", "Runtime")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task HandlesHelpDefaultsEmptyValuesAndValueCopies(string shell)
+        {
+            using var project = new Project();
+            var output = Success(Definition + """
 
             import test
             command := definition()
@@ -177,49 +180,49 @@ public sealed class CliOptionsTests : TestBase
             test.assert(cli.get(parsed, "empty") == "")
             print("passed")
             """);
-        var result = await Execute(project, output, shell);
-        Assert.True(result.ExitCode == 0, result.Error);
-        Assert.Equal("passed\n", result.Output);
-    }
+            var result = await Execute(project, output, shell);
+            Assert.True(result.ExitCode == 0, result.Error);
+            Assert.Equal("passed\n", result.Output);
+        }
 
-    [Trait("Category", "Runtime")]
-    [Theory]
-    [InlineData("powershell", "['folder', '--unknown']", "Unknown option '--unknown'.")]
-    [InlineData("pwsh", "['folder', '--unknown']", "Unknown option '--unknown'.")]
-    [InlineData("powershell", "['folder', '--output', '--recursive']", "requires a value")]
-    [InlineData("pwsh", "['folder', '--output', '--recursive']", "requires a value")]
-    [InlineData("powershell", "['folder', '--pattern=a', '-p', 'a']", "may only be specified once")]
-    [InlineData("pwsh", "['folder', '--pattern=a', '-p', 'a']", "may only be specified once")]
-    [InlineData("powershell", "['folder', '-r', '--recursive']", "may only be specified once")]
-    [InlineData("pwsh", "['folder', '-r', '--recursive']", "may only be specified once")]
-    [InlineData("powershell", "['folder', '--recursive=false']", "does not take a value")]
-    [InlineData("pwsh", "['folder', '--recursive=false']", "does not take a value")]
-    [InlineData("powershell", "['folder', '--output=']", "requires a non-empty value")]
-    [InlineData("pwsh", "['folder', '--output=']", "requires a non-empty value")]
-    [InlineData("powershell", "[]", "Missing required argument 'directory'")]
-    [InlineData("pwsh", "[]", "Missing required argument 'directory'")]
-    [InlineData("powershell", "['folder', '-pr']", "Unknown option '-pr'")]
-    [InlineData("pwsh", "['folder', '-pr']", "Unknown option '-pr'")]
-    public async Task RejectsInputMistakesWithoutWritingToStreams(string shell, string arguments, string message)
-    {
-        using var project = new Project();
-        var output = Success(Definition + "\ntry { cli.parse(definition(), " + arguments + "); print('not rejected') } catch err { print(err.message) }");
-        var result = await Execute(project, output, shell);
-        Assert.Equal(0, result.ExitCode);
-        Assert.Contains(message, result.Output);
-        Assert.Contains("Usage: demo.ps1", result.Output);
-        Assert.Contains("Use --help for details.", result.Output);
-        Assert.Equal("", result.Error);
-    }
+        [Trait("Category", "Runtime")]
+        [Theory]
+        [InlineData("powershell", "['folder', '--unknown']", "Unknown option '--unknown'.")]
+        [InlineData("pwsh", "['folder', '--unknown']", "Unknown option '--unknown'.")]
+        [InlineData("powershell", "['folder', '--output', '--recursive']", "requires a value")]
+        [InlineData("pwsh", "['folder', '--output', '--recursive']", "requires a value")]
+        [InlineData("powershell", "['folder', '--pattern=a', '-p', 'a']", "may only be specified once")]
+        [InlineData("pwsh", "['folder', '--pattern=a', '-p', 'a']", "may only be specified once")]
+        [InlineData("powershell", "['folder', '-r', '--recursive']", "may only be specified once")]
+        [InlineData("pwsh", "['folder', '-r', '--recursive']", "may only be specified once")]
+        [InlineData("powershell", "['folder', '--recursive=false']", "does not take a value")]
+        [InlineData("pwsh", "['folder', '--recursive=false']", "does not take a value")]
+        [InlineData("powershell", "['folder', '--output=']", "requires a non-empty value")]
+        [InlineData("pwsh", "['folder', '--output=']", "requires a non-empty value")]
+        [InlineData("powershell", "[]", "Missing required argument 'directory'")]
+        [InlineData("pwsh", "[]", "Missing required argument 'directory'")]
+        [InlineData("powershell", "['folder', '-pr']", "Unknown option '-pr'")]
+        [InlineData("pwsh", "['folder', '-pr']", "Unknown option '-pr'")]
+        public async Task RejectsInputMistakesWithoutWritingToStreams(string shell, string arguments, string message)
+        {
+            using var project = new Project();
+            var output = Success(Definition + "\ntry { cli.parse(definition(), " + arguments + "); print('not rejected') } catch err { print(err.message) }");
+            var result = await Execute(project, output, shell);
+            Assert.Equal(0, result.ExitCode);
+            Assert.Contains(message, result.Output);
+            Assert.Contains("Usage: demo.ps1", result.Output);
+            Assert.Contains("Use --help for details.", result.Output);
+            Assert.Equal("", result.Error);
+        }
 
-    [Trait("Category", "Runtime")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task ValidatesDefinitionsEvenForHelpAndAfterFieldMutation(string shell)
-    {
-        using var project = new Project();
-        var output = Success(Definition + """
+        [Trait("Category", "Runtime")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task ValidatesDefinitionsEvenForHelpAndAfterFieldMutation(string shell)
+        {
+            using var project = new Project();
+            var output = Success(Definition + """
 
             import test
             import text
@@ -285,20 +288,20 @@ public sealed class CliOptionsTests : TestBase
             }
             print(cases.length)
             """);
-        var result = await Execute(project, output, shell);
-        Assert.True(result.ExitCode == 0, result.Error);
-        Assert.Equal("17\n", result.Output);
-        Assert.Equal("", result.Error);
-    }
+            var result = await Execute(project, output, shell);
+            Assert.True(result.ExitCode == 0, result.Error);
+            Assert.Equal("17\n", result.Output);
+            Assert.Equal("", result.Error);
+        }
 
-    [Trait("Category", "Runtime")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task EnforcesChoicesRequiredOptionsGetterKindsAndErrorOrder(string shell)
-    {
-        using var project = new Project();
-        var output = Success(Definition + """
+        [Trait("Category", "Runtime")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task EnforcesChoicesRequiredOptionsGetterKindsAndErrorOrder(string shell)
+        {
+            using var project = new Project();
+            var output = Success(Definition + """
 
             import test
             import text
@@ -341,20 +344,20 @@ public sealed class CliOptionsTests : TestBase
             catch err { test.assert(text.starts_with(err.message, "Option '--format' must be one of:")) }
             print("passed")
             """);
-        var result = await Execute(project, output, shell);
-        Assert.True(result.ExitCode == 0, result.Error);
-        Assert.Equal("passed\n", result.Output);
-        Assert.Equal("", result.Error);
-    }
+            var result = await Execute(project, output, shell);
+            Assert.True(result.ExitCode == 0, result.Error);
+            Assert.Equal("passed\n", result.Output);
+            Assert.Equal("", result.Error);
+        }
 
-    [Trait("Category", "Runtime")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task GeneratesDeterministicUnicodeHelpWithoutATrailingNewline(string shell)
-    {
-        using var project = new Project();
-        var output = Success("""
+        [Trait("Category", "Runtime")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task GeneratesDeterministicUnicodeHelpWithoutATrailingNewline(string shell)
+        {
+            using var project = new Project();
+            var output = Success("""
             import cli
             import text
             command := cli.command("demo.ps1", "ファイル一覧")
@@ -369,9 +372,9 @@ public sealed class CliOptionsTests : TestBase
             print(help)
             print(text.ends_with(help, "\n"))
             """);
-        var result = await Execute(project, output, shell);
-        Assert.True(result.ExitCode == 0, result.Error);
-        Assert.Equal("""
+            var result = await Execute(project, output, shell);
+            Assert.True(result.ExitCode == 0, result.Error);
+            Assert.Equal("""
             ファイル一覧
 
             Usage: demo.ps1 [options] DIRECTORY
@@ -394,18 +397,18 @@ public sealed class CliOptionsTests : TestBase
             False
 
             """, result.Output);
-        Assert.Equal("", result.Error);
-    }
+            Assert.Equal("", result.Error);
+        }
 
-    [Trait("Category", "Runtime")]
-    [Theory]
-    [InlineData("powershell")]
-    [InlineData("pwsh")]
-    public async Task HelpAndInvalidInputsLeaveAnExistingOutputUntouched(string shell)
-    {
-        using var project = new Project();
-        project.Write("report.txt", "preserved");
-        project.Write("main.rukbat", """
+        [Trait("Category", "Runtime")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task HelpAndInvalidInputsLeaveAnExistingOutputUntouched(string shell)
+        {
+            using var project = new Project();
+            project.Write("report.txt", "preserved");
+            project.Write("main.rukbat", """
             import cli
             import encoding
             import fs
@@ -417,18 +420,19 @@ public sealed class CliOptionsTests : TestBase
                 fs.write_text("report.txt", cli.get(parsed, "directory"), encoding.utf8)
             } catch err { eprint(err.message); exit(2) }
             """);
-        var compiled = project.Compile();
-        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
-        File.Delete(project.PathFor("main.rukbat"));
-        var help = await Execute(project, compiled.Output!, shell, "--unknown", "--help");
-        Assert.Equal(0, help.ExitCode);
-        Assert.Equal("", help.Error);
-        Assert.Contains("Usage: main.ps1", help.Output);
-        Assert.Equal("preserved", File.ReadAllText(project.PathFor("report.txt")));
-        var invalid = await Execute(project, compiled.Output!, shell, "--unknown");
-        Assert.Equal(2, invalid.ExitCode);
-        Assert.Equal("", invalid.Output);
-        Assert.Contains("Unknown option", invalid.Error);
-        Assert.Equal("preserved", File.ReadAllText(project.PathFor("report.txt")));
+            var compiled = project.Compile();
+            Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+            File.Delete(project.PathFor("main.rukbat"));
+            var help = await Execute(project, compiled.Output!, shell, "--unknown", "--help");
+            Assert.Equal(0, help.ExitCode);
+            Assert.Equal("", help.Error);
+            Assert.Contains("Usage: main.ps1", help.Output);
+            Assert.Equal("preserved", File.ReadAllText(project.PathFor("report.txt")));
+            var invalid = await Execute(project, compiled.Output!, shell, "--unknown");
+            Assert.Equal(2, invalid.ExitCode);
+            Assert.Equal("", invalid.Output);
+            Assert.Contains("Unknown option", invalid.Error);
+            Assert.Equal("preserved", File.ReadAllText(project.PathFor("report.txt")));
+        }
     }
 }

@@ -1,29 +1,29 @@
-namespace Rukbat.Tests;
-
-public class RuntimeResourceTests : TestBase
+namespace Rukbat.Tests
 {
-    public static TheoryData<string> StandardModules => new()
+    public class RuntimeResourceTests : TestBase
     {
-        "fs", "path", "json", "csv", "env", "process", "text", "test",
-        "encoding", "math", "datetime", "array", "zip", "hash", "http", "cli", "log", "re"
-    };
+        public static TheoryData<string> StandardModules => new()
+        {
+            "fs", "path", "json", "csv", "env", "process", "text", "test",
+            "encoding", "math", "datetime", "array", "zip", "hash", "http", "cli", "log", "re"
+        };
 
-    [Theory]
-    [MemberData(nameof(StandardModules))]
-    [Trait("Category", "Unit")]
-    public void EachStandardModuleCanEmitItsEmbeddedRuntime(string module)
-    {
-        Success($"import {module}\n");
-    }
+        [Theory]
+        [MemberData(nameof(StandardModules))]
+        [Trait("Category", "Unit")]
+        public void EachStandardModuleCanEmitItsEmbeddedRuntime(string module)
+        {
+            Success($"import {module}\n");
+        }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    [Trait("Category", "CrossVersion")]
-    public async Task AssemblyBackedHelpersPreserveTheirInitializationTiming(bool windowsPowerShell)
-    {
-        using var project = new Project();
-        var output = Success("""
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        [Trait("Category", "CrossVersion")]
+        public async Task AssemblyBackedHelpersPreserveTheirInitializationTiming(bool windowsPowerShell)
+        {
+            using var project = new Project();
+            var output = Success("""
             import http
             import zip
             import encoding
@@ -33,23 +33,23 @@ public class RuntimeResourceTests : TestBase
             options := zip.options(encoding.utf8)
             print(powershell<bool>('Invoke-Expression', "$null -ne ('RukbatZip' -as [type])"))
             """);
-        var result = windowsPowerShell
-            ? await project.RunOutputWithWindowsPowerShell(output)
-            : await project.RunOutput(output);
-        Assert.Equal(0, result.ExitCode);
-        Assert.Equal("True\nFalse\nTrue\n", result.Output);
-        Assert.Empty(result.Error);
-    }
+            var result = windowsPowerShell
+                ? await project.RunOutputWithWindowsPowerShell(output)
+                : await project.RunOutput(output);
+            Assert.Equal(0, result.ExitCode);
+            Assert.Equal("True\nFalse\nTrue\n", result.Output);
+            Assert.Empty(result.Error);
+        }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    [Trait("Category", "CrossVersion")]
-    public async Task CombinedRuntimeResourcesExecuteInAStandaloneScript(bool windowsPowerShell)
-    {
-        using var project = new Project();
-        var imports = string.Join('\n', StandardModules.Select(row => "import " + row[0]));
-        var output = Success(imports + "\n" + """
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        [Trait("Category", "CrossVersion")]
+        public async Task CombinedRuntimeResourcesExecuteInAStandaloneScript(bool windowsPowerShell)
+        {
+            using var project = new Project();
+            var imports = string.Join('\n', StandardModules.Select(row => "import " + row[0]));
+            var output = Success(imports + "\n" + """
             command := cli.command("resource-test", "")
             parsed := cli.parse(command, [])
             test.assert(!cli.help_requested(parsed))
@@ -64,11 +64,12 @@ public class RuntimeResourceTests : TestBase
             test.assert(re.is_match("resource-test", re.compile("resource-[a-z]+", 1000)))
             print(text.upper("ok"))
             """);
-        var result = windowsPowerShell
-            ? await project.RunOutputWithWindowsPowerShell(output)
-            : await project.RunOutput(output);
-        Assert.Equal(0, result.ExitCode);
-        Assert.Equal("OK\n", result.Output);
-        Assert.Empty(result.Error);
+            var result = windowsPowerShell
+                ? await project.RunOutputWithWindowsPowerShell(output)
+                : await project.RunOutput(output);
+            Assert.Equal(0, result.ExitCode);
+            Assert.Equal("OK\n", result.Output);
+            Assert.Empty(result.Error);
+        }
     }
 }

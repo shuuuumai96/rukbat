@@ -1,18 +1,18 @@
 using Rukbat;
 
-namespace Rukbat.Tests;
-
-[Trait("Category", "Runtime")]
-[Trait("Category", "PowerShell51")]
-[Trait("Category", "CrossVersion")]
-public sealed class ConstantRuntimeTests : TestBase
+namespace Rukbat.Tests
 {
-    [Fact]
-    [Trait("Smoke", "PowerShell51")]
-    public async Task ConstantsInitializeOnceAndCopiesStayMutableOnBothHosts()
+    [Trait("Category", "Runtime")]
+    [Trait("Category", "PowerShell51")]
+    [Trait("Category", "CrossVersion")]
+    public sealed class ConstantRuntimeTests : TestBase
     {
-        using var project = new Project();
-        project.Write("helper.rukbat", """
+        [Fact]
+        [Trait("Smoke", "PowerShell51")]
+        public async Task ConstantsInitializeOnceAndCopiesStayMutableOnBothHosts()
+        {
+            using var project = new Project();
+            project.Write("helper.rukbat", """
             struct Counter {
                 values: int[]
             }
@@ -24,7 +24,7 @@ public sealed class ConstantRuntimeTests : TestBase
             fn create(): Counter { print("initialize"); return Counter { values: [1] } }
             fn changed(counter: Counter): Counter { counter.add(); return counter }
             """);
-        project.Write("main.rukbat", """
+            project.Write("main.rukbat", """
             import "./helper.rukbat" as helper
             const original := helper.create()
             copy := original
@@ -43,16 +43,17 @@ public sealed class ConstantRuntimeTests : TestBase
             const arguments := args()
             print(arguments[0])
             """);
-        var compiled = project.Compile();
-        Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
-        File.Delete(project.PathFor("main.rukbat"));
-        File.Delete(project.PathFor("helper.rukbat"));
-        foreach (var result in new[] { await project.RunOutputWithWindowsPowerShell(compiled.Output!, "argument"),
-            await project.RunOutput(compiled.Output!, "argument") })
-        {
-            Assert.Equal(0, result.ExitCode);
-            Assert.Equal("initialize\n1\n2\n2\n2\n1\n1\n9\nargument\n", result.Output);
-            Assert.Equal("", result.Error);
+            var compiled = project.Compile();
+            Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+            File.Delete(project.PathFor("main.rukbat"));
+            File.Delete(project.PathFor("helper.rukbat"));
+            foreach (var result in new[] { await project.RunOutputWithWindowsPowerShell(compiled.Output!, "argument"),
+                await project.RunOutput(compiled.Output!, "argument") })
+            {
+                Assert.Equal(0, result.ExitCode);
+                Assert.Equal("initialize\n1\n2\n2\n2\n1\n1\n9\nargument\n", result.Output);
+                Assert.Equal("", result.Error);
+            }
         }
     }
 }

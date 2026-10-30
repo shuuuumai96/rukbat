@@ -95,8 +95,11 @@ public static class Cli
             // Windows PowerShell 5.1 identifies UTF-8 source reliably only when it has a BOM.
             File.WriteAllText(output, result.Output, new System.Text.UTF8Encoding(true));
             if (result.DebugMap is { } map)
+            {
                 File.WriteAllText(output + ".rukbat-map.json", JsonSerializer.Serialize(map,
                     new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }), new System.Text.UTF8Encoding(false));
+            }
+
             if (args[0] == "run")
             {
                 return Execute(output, args.Skip(ApplicationArgumentsOffset));
