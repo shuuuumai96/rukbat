@@ -8,7 +8,7 @@ using System.Text;
 
 namespace Rukbat.Tests
 {
-    public sealed class HttpTests : TestBase
+    public sealed partial class HttpTests : TestBase
     {
         [Trait("Category", "Unit")]
         [Theory]

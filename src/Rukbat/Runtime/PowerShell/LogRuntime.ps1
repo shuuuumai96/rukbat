@@ -6,6 +6,8 @@
     if (-not ($outputs[0] -or $outputs[1])) { return }
 
     & $__rukbat_load_Log
+    # Unwrap imported message values inside the existing argument array.
+    $values[1] = [string]$values[1]
     $prepared = [RukbatLog]::Prepare([object[]]@($__rukbat_log_levels[$level].label; $values[1]; $outputs[1]))
     $failures = [System.Collections.Generic.List[string]]::new()
     if ($outputs[0]) {

@@ -2,7 +2,10 @@ namespace Rukbat
 {
     internal sealed partial class Emitter
     {
-        private enum StandardFieldLayout { Named, Positional }
+        private enum StandardFieldLayout
+        {
+            Named, Positional
+        }
 
         private string AdaptedStandardCall(Call call, string operation, string prefix, StandardFieldLayout layout)
         {
@@ -36,7 +39,9 @@ namespace Rukbat
 
             if (type.Struct is not { } structure || type.IsCliResult)
             {
-                return expression;
+                // Native helpers cast their object-array slots directly. Unwrap imported
+                // scalar results before placing them in adapted arrays and struct fields.
+                return !result && type.Struct is null ? $"([{TypeName(type)}]({expression}))" : expression;
             }
 
             var fields = structure.Fields.ToArray();
