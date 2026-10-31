@@ -44,7 +44,7 @@ namespace Rukbat
         private static object? LiteralKey(Expression expression) => expression switch
         {
             Literal { Value: string or long } literal => literal.Value,
-            Unary { Token.Text: "-", Value: Literal { Value: long value } } => -value,
+            Unary { Token.Text: "-", Value: Literal { Value: long value } } when value != long.MinValue => -value,
             Unary { Token.Text: "+", Value: Literal { Value: long value } } => value,
             _ => null
         };
@@ -81,7 +81,12 @@ namespace Rukbat
                 }
             }
             DictionaryCalls.Add(call);
-            return call.Name switch { "keys" => ValueType.ArrayOf(receiver.DictionaryKey!), "has" => ValueType.Bool, _ => ValueType.Void };
+            return call.Name switch
+            {
+                "keys" => ValueType.ArrayOf(receiver.DictionaryKey!),
+                "has" => ValueType.Bool,
+                _ => ValueType.Void
+            };
         }
     }
 }
