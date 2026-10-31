@@ -133,8 +133,14 @@ public static class Cli
             return UsageOrIoFailure;
         }
 
-        var files = Directory.Exists(input) ? FormattingFiles(input) : [input];
         var result = Success;
+        void ReportError(string path, Exception error)
+        {
+            stderr.WriteLine($"error: {path}: {error.Message}");
+            result = UsageOrIoFailure;
+        }
+
+        var files = Directory.Exists(input) ? FormattingFiles(input, ReportError) : [input];
         foreach (var file in files)
         {
             try
@@ -151,34 +157,55 @@ public static class Cli
             }
             catch (Exception error) when (IsInputOutputError(error))
             {
-                stderr.WriteLine($"error: {file}: {error.Message}");
-                result = UsageOrIoFailure;
+                ReportError(file, error);
             }
         }
         return result;
     }
 
-    private static IEnumerable<string> FormattingFiles(string directory)
+    private static IEnumerable<string> FormattingFiles(string directory, Action<string, Exception> reportError)
     {
         var options = new EnumerationOptions
         {
             AttributesToSkip = FileAttributes.ReparsePoint,
             IgnoreInaccessible = false
         };
-        foreach (var file in Directory.EnumerateFiles(directory, "*", options).Order(StringComparer.Ordinal))
+        string[] files;
+        try
+        {
+            files = Directory.EnumerateFiles(directory, "*", options).Order(StringComparer.Ordinal).ToArray();
+        }
+        catch (Exception error) when (IsInputOutputError(error))
+        {
+            reportError(directory, error);
+            yield break;
+        }
+
+        foreach (var file in files)
         {
             if (Path.GetExtension(file).Equals(".rukbat", StringComparison.OrdinalIgnoreCase))
             {
                 yield return file;
             }
         }
-        foreach (var child in Directory.EnumerateDirectories(directory, "*", options).Order(StringComparer.Ordinal))
+        string[] children;
+        try
+        {
+            children = Directory.EnumerateDirectories(directory, "*", options).Order(StringComparer.Ordinal).ToArray();
+        }
+        catch (Exception error) when (IsInputOutputError(error))
+        {
+            reportError(directory, error);
+            yield break;
+        }
+
+        foreach (var child in children)
         {
             if (FormattingExcludedDirectories.Contains(Path.GetFileName(child)))
             {
                 continue;
             }
-            foreach (var file in FormattingFiles(child))
+            foreach (var file in FormattingFiles(child, reportError))
             {
                 yield return file;
             }

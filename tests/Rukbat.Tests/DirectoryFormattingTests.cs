@@ -1,3 +1,7 @@
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
+
 namespace Rukbat.Tests
 {
     public sealed class DirectoryFormattingTests : TestBase
@@ -57,6 +61,37 @@ namespace Rukbat.Tests
 
         [Fact]
         [Trait("Category", "Unit")]
+        public void ReportsLockedDirectoryAndContinuesWithSiblingDirectories()
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return;
+            }
+
+            using var project = new Project();
+            const string invalid = "value:='unterminated";
+            project.Write("a-before/first.rukbat", "first:=1");
+            project.Write("b-locked/blocked.rukbat", "blocked:=2");
+            project.Write("c-invalid/bad.rukbat", invalid);
+            project.Write("z-after/last.rukbat", "last:=3");
+            using var errors = new StringWriter();
+            using (var locked = OpenDirectory(project.PathFor("b-locked"), FileListDirectory, NoSharing,
+                IntPtr.Zero, OpenExisting, BackupSemantics, IntPtr.Zero))
+            {
+                Assert.False(locked.IsInvalid, new Win32Exception(Marshal.GetLastWin32Error()).Message);
+                Assert.Equal(2, Cli.Run(["fmt", project.DirectoryPath], TextWriter.Null, errors));
+            }
+
+            Assert.Contains(project.PathFor("b-locked"), errors.ToString());
+            Assert.Contains("bad.rukbat", errors.ToString());
+            Assert.Equal("first := 1\n", File.ReadAllText(project.PathFor("a-before/first.rukbat")));
+            Assert.Equal("blocked:=2", File.ReadAllText(project.PathFor("b-locked/blocked.rukbat")));
+            Assert.Equal(invalid, File.ReadAllText(project.PathFor("c-invalid/bad.rukbat")));
+            Assert.Equal("last := 3\n", File.ReadAllText(project.PathFor("z-after/last.rukbat")));
+        }
+
+        [Fact]
+        [Trait("Category", "Unit")]
         public void EmptyDirectorySucceeds()
         {
             using var project = new Project();
@@ -75,5 +110,14 @@ namespace Rukbat.Tests
             Assert.Equal(2, Cli.Run(["fmt", project.PathFor(path)], TextWriter.Null, TextWriter.Null));
             Assert.Equal("preserve", File.ReadAllText(project.PathFor("keep.txt")));
         }
+
+        private const uint FileListDirectory = 1;
+        private const uint NoSharing = 0;
+        private const uint OpenExisting = 3;
+        private const uint BackupSemantics = 0x02000000;
+
+        [DllImport("kernel32.dll", EntryPoint = "CreateFileW", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern SafeFileHandle OpenDirectory(string path, uint access, uint share,
+            IntPtr security, uint disposition, uint flags, IntPtr template);
     }
 }
