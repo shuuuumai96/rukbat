@@ -1,8 +1,28 @@
-'text.length' { return [RukbatText]::Length($values) }
-'text.slice' { return [RukbatText]::Slice($values) }
-'text.index_of' { return [RukbatText]::IndexOf($values) }
-'text.upper' { return [RukbatText]::Upper($values) }
-'text.lower' { return [RukbatText]::Lower($values) }
+# Unwrap imported results in the existing argument array before native casts,
+# keeping large strings out of scalar native-method argument binding.
+'text.length' {
+    $values[0] = [string]$values[0]
+    return [RukbatText]::Length($values)
+}
+'text.slice' {
+    $values[0] = [string]$values[0]
+    $values[1] = [long]$values[1]
+    $values[2] = [long]$values[2]
+    return [RukbatText]::Slice($values)
+}
+'text.index_of' {
+    $values[0] = [string]$values[0]
+    $values[1] = [string]$values[1]
+    return [RukbatText]::IndexOf($values)
+}
+'text.upper' {
+    $values[0] = [string]$values[0]
+    return [RukbatText]::Upper($values)
+}
+'text.lower' {
+    $values[0] = [string]$values[0]
+    return [RukbatText]::Lower($values)
+}
 'text.trim' {
     # Fixed Unicode White_Space set; independent of the host's Unicode tables.
     $value = [string]$values[0]
