@@ -68,6 +68,12 @@ namespace Rukbat
             foreach (var item in array.Items)
             {
                 var actual = TypeOf(item, scope, element);
+                if (element is null && actual == ValueType.Null)
+                {
+                    Error("RUK2001", "A null array element requires an explicit nullable element type.", item);
+                    element = ValueType.Error;
+                }
+
                 element ??= actual;
                 if (actual == ValueType.Void)
                 {
