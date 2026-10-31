@@ -9,6 +9,12 @@ namespace Rukbat
                 Error("RUK2004", $"Unknown standard-library function 'array.{call.Name}'.", call);
                 return ValueType.Error;
             }
+
+            if (!RequireCallParentheses(call))
+            {
+                return ValueType.Error;
+            }
+
             int count = call.Name == "slice" ? 3 : call.Name is "sort" or "sort_descending" ? 1 : 2;
             if (call.TypeArgument is not null || call.Arguments.Count != count || call.Arguments.Any(argument => argument.Name is not null))
             {

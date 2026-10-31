@@ -4,7 +4,10 @@ namespace Rukbat
     {
         public Module Module { get; } = module;
         public StructDeclaration Declaration { get; } = declaration;
-        public ValueType Type { get; } = new(module.StandardName is "json" or "csv" or "test" or "cli" or "log" or "re"
+        public ValueType Type
+        {
+            get;
+        } = new(module.StandardName is "json" or "csv" or "test" or "cli" or "log" or "re"
             ? module.StandardName + "." + declaration.Token.Text : declaration.Token.Text);
         public bool IsCsvRow => Module.StandardName == "csv" && Declaration.Token.Text == "Row";
         public bool IsJsonValue => Module.StandardName == "json" && Declaration.Token.Text == "Value";
@@ -333,6 +336,11 @@ namespace Rukbat
 
                 if (receiverType.Element is { } element && call.Name == "append")
                 {
+                    if (!RequireCallParentheses(call))
+                    {
+                        return ValueType.Error;
+                    }
+
                     RequireWritable(RootVariable(call.Receiver), call);
                     if (!IsVariablePath(call.Receiver))
                     {
@@ -375,6 +383,12 @@ namespace Rukbat
                 Error("RUK2004", $"Unknown function or struct '{call.Name}'.", call);
                 return ValueType.Error;
             }
+
+            if (!RequireCallParentheses(call))
+            {
+                return ValueType.Error;
+            }
+
             Calls[call] = function;
             var signature = function.Function.Parameters;
             var arguments = call.Arguments

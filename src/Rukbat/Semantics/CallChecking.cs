@@ -131,5 +131,16 @@ namespace Rukbat
             }
             return ValueType.Error;
         }
+
+        private bool RequireCallParentheses(Call call)
+        {
+            if (!call.IsStructLiteral)
+            {
+                return true;
+            }
+
+            Error("RUK2005", "Function and method calls use '(...)' syntax; braces are reserved for struct literals.", call);
+            return false;
+        }
     }
 }

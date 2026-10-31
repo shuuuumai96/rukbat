@@ -11,11 +11,21 @@ namespace Rukbat
 
             if (moduleName == "json" && call.Name is "stringify" or "parse" or "as")
             {
+                if (!RequireCallParentheses(call))
+                {
+                    return ValueType.Error;
+                }
+
                 return JsonCallType(call, scope, standardModule.Structs["Value"].BoundType);
             }
 
             if (moduleName == "json" && call.Name is "set" or "set_at" or "append")
             {
+                if (!RequireCallParentheses(call))
+                {
+                    return ValueType.Error;
+                }
+
                 return JsonUpdateCallType(call, scope, standardModule.Structs["Value"].BoundType);
             }
 
@@ -25,6 +35,12 @@ namespace Rukbat
                 Error("RUK2004", $"Unknown standard-library function '{moduleName}.{call.Name}'.", call);
                 return ValueType.Error;
             }
+
+            if (!RequireCallParentheses(call))
+            {
+                return ValueType.Error;
+            }
+
             if (call.TypeArgument is not null)
             {
                 Error("RUK2005", $"{moduleName}.{call.Name} does not accept a type argument.", call);

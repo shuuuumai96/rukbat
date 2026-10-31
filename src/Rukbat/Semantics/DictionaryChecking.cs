@@ -61,6 +61,12 @@ namespace Rukbat
                 Error("RUK2004", $"Unknown method '{call.Name}' on {receiver}.", call);
                 return ValueType.Error;
             }
+
+            if (!RequireCallParentheses(call))
+            {
+                return ValueType.Error;
+            }
+
             var count = call.Name == "keys" ? 0 : 1;
             if (call.Arguments.Count != count || call.Arguments.Any(argument => argument.Name is not null))
             {
