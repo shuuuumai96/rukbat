@@ -139,7 +139,7 @@ Float literals include `1.0`, `1e3`, `1E3`, and `1.5e-2`. The abbreviated forms 
 
 Integer or float division by zero is a runtime Error. A float literal, arithmetic result, or external value that is NaN or positive or negative Infinity is rejected. Integer arithmetic is checked: range overflow raises Error without wrapping or promotion. Division truncates toward zero; the remainder has the dividend's sign. The minimum integer divided by -1 raises Error, while its remainder is zero. The supported integer range is -9223372036854775808 through 9223372036854775807. Other float operations use binary64 round-to-nearest, ties-to-even behavior; subnormal values and arithmetic underflow to zero are allowed. Positive and negative float zero compare equal.
 
-Primitive equality requires compatible non-null values and string equality is case-sensitive. Mixed `int`/`float` equality is rejected. Struct, array, and dictionary equality are not defined. A nullable value may be compared directly with `null`.
+Primitive equality requires compatible non-null values. String `==` and `!=` use ordinal, case-sensitive comparison of the exact UTF-16 sequence, independent of locale and PowerShell version. No normalization is applied; composed/decomposed characters, ligatures, soft hyphens, and NUL characters remain distinct. Mixed `int`/`float` equality is rejected. Struct, array, and dictionary equality are not defined. A nullable value may be compared directly with `null`.
 
 ## Errors
 
