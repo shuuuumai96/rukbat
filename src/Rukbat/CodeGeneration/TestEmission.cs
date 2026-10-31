@@ -14,7 +14,7 @@ namespace Rukbat
                 var op = BinaryOperator(binary.Token.Text);
                 return "(& { " +
                     $"$left = {Expr(binary.Left)}; $right = {Expr(binary.Right)}; " +
-                    $"if (-not {Comparison("$left", "$right", op, checker.Types[binary.Left])}) {{ " +
+                    $"if (-not {Comparison("$left", "$right", op, checker.Types[binary.Left], checker.Types[binary.Right])}) {{ " +
                     $"$message = 'Assertion failed: ' + {label} + \"`nleft = \" + {AssertionValue(checker.Types[binary.Left], "$left")} + " +
                     $"\"`nright = \" + {AssertionValue(checker.Types[binary.Right], "$right")}; " +
                     $"& $script:__rukbat_raise @{{message = $message}} {Location(call)}" + " } })";

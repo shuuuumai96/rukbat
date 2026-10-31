@@ -87,18 +87,8 @@ namespace Rukbat
 
         private string Binary(Binary binary)
         {
-            if (binary.Token.Text is "==" or "!=" &&
-                (binary.Left is Literal { Value: NullValue } || binary.Right is Literal { Value: NullValue }))
-            {
-                var value = binary.Left is Literal { Value: NullValue } ? binary.Right : binary.Left;
-                var nullOperator = binary.Token.Text == "==" ? "-ceq" : "-cne";
-                // PowerShell filters when an array is on the left of -eq/-ne. Keep null on the left
-                // so nullable array comparison always produces one boolean, including for [].
-                return $"($null {nullOperator} {Expr(value)})";
-            }
-
             var op = BinaryOperator(binary.Token.Text);
-            var expression = Comparison(Expr(binary.Left), Expr(binary.Right), op, checker.Types[binary.Left]);
+            var expression = Comparison(Expr(binary.Left), Expr(binary.Right), op, checker.Types[binary.Left], checker.Types[binary.Right]);
             if (checker.Types[binary] == ValueType.Int)
             {
                 return $"([RukbatNumbers]::Integer({Quote(binary.Token.Text)}, ({Expr(binary.Left)}), ({Expr(binary.Right)})))";

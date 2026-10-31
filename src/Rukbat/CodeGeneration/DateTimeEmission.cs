@@ -10,8 +10,16 @@ namespace Rukbat
             }
         }
 
-        private static string Comparison(string left, string right, string operation, ValueType type)
+        private static string Comparison(string left, string right, string operation, ValueType type, ValueType rightType)
         {
+            if (operation is "-ceq" or "-cne" && (type == ValueType.Null || rightType == ValueType.Null))
+            {
+                // PowerShell filters arrays on the left of equality. Null comparisons
+                // must produce one boolean, including in assertions and for empty arrays.
+                var value = type == ValueType.Null ? right : left;
+                return $"($null {operation} ({value}))";
+            }
+
             if (type == ValueType.String && operation is "-ceq" or "-cne")
             {
                 var equality = $"[string]::Equals(({left}), ({right}), [System.StringComparison]::Ordinal)";
