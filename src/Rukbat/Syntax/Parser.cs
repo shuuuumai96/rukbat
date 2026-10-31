@@ -73,7 +73,7 @@ namespace Rukbat
         internal static bool IsReservedWord(string text) => text is
             "fn" or "function" or "func" or "struct" or "impl" or "self" or "class" or
             "return" or "if" or "else" or "import" or "true" or "false" or
-            "powershell" or "print" or "eprint" or "args" or "exit" or "for" or "in" or "break" or "continue" or
+            "powershell" or "print" or "eprint" or "args" or "exit" or "for" or "in" or "while" or "break" or "continue" or
             "try" or "catch" or "throw" or "null" or "const";
         public List<Statement> Parse()
         {
@@ -496,8 +496,16 @@ namespace Rukbat
                 }
                 while (index < tokens.Count)
                 {
-                    if (tokens[index].Text == "?") { index++; continue; }
-                    if (tokens[index].Text == "[" && index + 1 < tokens.Count && tokens[index + 1].Text == "]") { index += 2; continue; }
+                    if (tokens[index].Text == "?")
+                    {
+                        index++;
+                        continue;
+                    }
+                    if (tokens[index].Text == "[" && index + 1 < tokens.Count && tokens[index + 1].Text == "]")
+                    {
+                        index += 2;
+                        continue;
+                    }
                     break;
                 }
                 return true;
