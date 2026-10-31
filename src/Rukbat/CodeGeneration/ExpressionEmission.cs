@@ -60,11 +60,7 @@ namespace Rukbat
             Index index when checker.Types[index.Receiver].DictionaryKey is not null => $"(& $script:__rukbat_dictionary 'get' ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) $null {Location(index)} $script:__rukbat_raise)",
             Index index => $"(& $script:__rukbat_index ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) {Location(index)} $false $script:__rukbat_raise)",
             Name name => checker.Variables[name].PowerShellName,
-            Member member when checker.ZoneConstants.TryGetValue(member, out var zone) => "(" + zone.Expression + ")",
-            Member member when checker.HashConstants.TryGetValue(member, out var algorithm) => Quote(algorithm),
-            Member member when checker.LogConstants.TryGetValue(member, out var level) => Quote(level.Tag),
-            Member member when checker.EncodingConstants.TryGetValue(member, out var encoding) => Quote(encoding.Label),
-            Member member when checker.HttpConstants.TryGetValue(member, out var constant) => constant.Value is string method ? Quote(method) : "[long]" + constant.Value,
+            Member member when checker.Constants.TryGetValue(member, out var constant) => Constant(constant),
             Member member when checker.Types[member.Receiver].Element is not null => $"([long]({RawExpr(member.Receiver)}).Count)",
             Member member when checker.Types[member.Receiver].DictionaryKey is not null => $"([long]({RawExpr(member.Receiver)})['entries'].Count)",
             Member member => $"(({RawExpr(member.Receiver)})[{Quote(checker.Fields[member].Key)}])",
@@ -76,6 +72,17 @@ namespace Rukbat
             Binary binary => Binary(binary),
             Call call => Call(call),
             _ => throw new InvalidOperationException("Unbound expression.")
+        };
+
+        private static string Constant(StandardConstant constant) => constant.Definition switch
+        {
+            DateTimeValues.ZoneConstant zone => "(" + zone.Expression + ")",
+            StandardEncoding encoding => Quote(encoding.Label),
+            LogValues.LevelConstant level => Quote(level.Tag),
+            HttpConstant { Value: string method } => Quote(method),
+            HttpConstant { Value: long status } => "[long]" + status.ToString(CultureInfo.InvariantCulture),
+            string algorithm => Quote(algorithm),
+            _ => throw new InvalidOperationException($"Unsupported standard constant '{constant.Name}'.")
         };
 
         private string Binary(Binary binary)

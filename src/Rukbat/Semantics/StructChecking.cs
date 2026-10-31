@@ -207,39 +207,10 @@ namespace Rukbat
 
             var parts = type.Name.Split('.');
             var owner = parts.Length == 1 ? module : module.Imports.GetValueOrDefault(parts[0]);
-            if (owner?.StandardName == "fs" && parts[^1] == "Lines")
+            if (owner?.StandardName is { } standardName &&
+                StandardValueTypes.FindScalar(standardName, parts[^1]) is { } standardType)
             {
-                return DeclaredTypes[node] = ValueType.FileLines;
-            }
-
-            if (owner?.StandardName == "re" && parts[^1] == "Pattern")
-            {
-                return DeclaredTypes[node] = ValueType.RegexPattern;
-            }
-
-            if (owner?.StandardName == "http" && HttpValues.OpaqueType(parts[^1]) is { } httpType)
-            {
-                return DeclaredTypes[node] = httpType;
-            }
-
-            if (owner?.StandardName == "datetime" && DateTimeValues.All.FirstOrDefault(value => value.Name == "datetime." + parts[^1]) is { } dateTimeType)
-            {
-                return DeclaredTypes[node] = dateTimeType;
-            }
-
-            if (owner?.StandardName == "hash" && parts[^1] == "Algorithm")
-            {
-                return DeclaredTypes[node] = HashValues.Algorithm;
-            }
-
-            if (owner?.StandardName == "log" && parts[^1] == "Level")
-            {
-                return DeclaredTypes[node] = LogValues.Level;
-            }
-
-            if (owner?.StandardName == "encoding" && parts[^1] == "Encoding")
-            {
-                return DeclaredTypes[node] = ValueType.Encoding;
+                return DeclaredTypes[node] = standardType;
             }
             if (owner is not null && owner.Structs.TryGetValue(parts[^1], out var structure))
             {
@@ -286,61 +257,16 @@ namespace Rukbat
 
         private ValueType MemberType(Member member, Symbols scope)
         {
-            if (member.Receiver is Name logName && module.Imports.TryGetValue(logName.Token.Text, out var logModule) && logModule.StandardName == "log")
-            {
-                var value = LogValues.Levels.FirstOrDefault(value => value.Name == member.Name);
-                if (value is null)
-                {
-                    Error("RUK2004", $"Unknown logging level '{member.Name}'.", member);
-                    return ValueType.Error;
-                }
-                LogConstants[member] = value;
-                return LogValues.Level;
-            }
-            if (member.Receiver is Name httpName && module.Imports.TryGetValue(httpName.Token.Text, out var httpModule) && httpModule.StandardName == "http")
-            {
-                var value = HttpValues.Constants.FirstOrDefault(value => value.Name == member.Name);
-                if (value is null)
-                {
-                    Error("RUK2004", $"Unknown HTTP constant '{member.Name}'.", member);
-                    return ValueType.Error;
-                }
-                HttpConstants[member] = value;
-                return value.Type;
-            }
             if (member.Receiver is Name name && module.Imports.TryGetValue(name.Token.Text, out var imported) &&
-                imported.StandardName == "encoding")
+                imported.StandardName is { } standardName && StandardConstants.ForModule(standardName) is { } group)
             {
-                var value = EncodingValues.All.FirstOrDefault(value => value.Name == member.Name);
-                if (value is null)
+                if (!group.Values.TryGetValue(member.Name, out var constant))
                 {
-                    Error("RUK2004", $"Unknown encoding value '{member.Name}'.", member);
+                    Error("RUK2004", $"Unknown {group.Description} '{member.Name}'.", member);
                     return ValueType.Error;
                 }
-                EncodingConstants[member] = value;
-                return ValueType.Encoding;
-            }
-            if (member.Receiver is Name hashName && module.Imports.TryGetValue(hashName.Token.Text, out var hashModule) &&
-                hashModule.StandardName == "hash")
-            {
-                if (!HashValues.All.Contains(member.Name)) {
-                    Error("RUK2004", $"Unknown hash algorithm '{member.Name}'.", member);
-                    return ValueType.Error;
-                }
-                HashConstants[member] = member.Name;
-                return HashValues.Algorithm;
-            }
-            if (member.Receiver is Name dateTimeName && module.Imports.TryGetValue(dateTimeName.Token.Text, out var dateTimeModule) &&
-                dateTimeModule.StandardName == "datetime")
-            {
-                var value = DateTimeValues.Zones.FirstOrDefault(value => value.Name == member.Name);
-                if (value is null)
-                {
-                    Error("RUK2004", $"Unknown datetime constant '{member.Name}'.", member);
-                    return ValueType.Error;
-                }
-                ZoneConstants[member] = value;
-                return DateTimeValues.Zone;
+                Constants[member] = constant;
+                return constant.Type;
             }
             var type = TypeOf(member.Receiver, scope);
             if (type == ValueType.Error)

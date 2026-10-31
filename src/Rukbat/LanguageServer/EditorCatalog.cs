@@ -4,6 +4,16 @@ namespace Rukbat
 {
     internal static class EditorCatalog
     {
+        public static EditorSymbol Constant(StandardConstant constant) => constant.Definition switch
+        {
+            DateTimeValues.ZoneConstant zone => ZoneConstant(zone),
+            StandardEncoding encoding => EncodingValue(encoding),
+            LogValues.LevelConstant level => LogValue(level),
+            HttpConstant http => HttpConstant(http),
+            string algorithm => HashValue(algorithm),
+            _ => throw new InvalidOperationException($"Unsupported standard constant '{constant.Name}'.")
+        };
+
         public static IEnumerable<EditorSymbol> DictionaryMembers(ValueType type) =>
         [
             new("length", "length: int", 5, "The number of dictionary entries. Read-only."),
@@ -32,6 +42,20 @@ namespace Rukbat
         public static EditorSymbol EncodingValue(StandardEncoding value) => new(value.Name,
             $"encoding.{value.Name}: encoding.Encoding", 20, value.Documentation + " Read-only.", Type: ValueType.Encoding);
         public static EditorSymbol DateTimeType(ValueType value) => new(value.Name.Split('.')[1], value.Name, 13, DateTimeValues.Description(value), Type: value);
+        private static readonly EditorSymbol[] scalarTypes =
+        [
+            HashType, LogType, HttpType(HttpValues.Method), HttpType(HttpValues.Body),
+            EncodingType, FileLinesType, RegexPatternType,
+            .. DateTimeValues.All.Select(DateTimeType)
+        ];
+        private static readonly IReadOnlyDictionary<ValueType, EditorSymbol> scalarSymbols =
+            scalarTypes.ToDictionary(symbol => symbol.Type!);
+        private static readonly ILookup<string, EditorSymbol> moduleTypes =
+            scalarTypes.ToLookup(symbol => symbol.Type!.Name.Split('.')[0], StringComparer.Ordinal);
+
+        public static EditorSymbol? ScalarType(ValueType type) => scalarSymbols.GetValueOrDefault(type);
+        public static IEnumerable<EditorSymbol> TypesForModule(string moduleName) => moduleTypes[moduleName];
+
         public static EditorSymbol ZoneConstant(DateTimeValues.ZoneConstant value) => new(value.Name,
             $"datetime.{value.Name}: datetime.Zone", 21, value.Documentation, Type: DateTimeValues.Zone);
         public static readonly List<EditorSymbol> Standard = Load();

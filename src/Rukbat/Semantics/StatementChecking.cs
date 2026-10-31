@@ -58,7 +58,7 @@ namespace Rukbat
                     case FieldAssignment assignment:
                         var fieldType = TypeOf(assignment.Target, scope);
                         RequireWritable(RootVariable(assignment.Target), assignment);
-                        if (EncodingConstants.ContainsKey(assignment.Target) || HashConstants.ContainsKey(assignment.Target) || LogConstants.ContainsKey(assignment.Target) || HttpConstants.ContainsKey(assignment.Target) || ZoneConstants.ContainsKey(assignment.Target))
+                        if (Constants.ContainsKey(assignment.Target))
                         {
                             Error("RUK2010", "Standard-library constants are read-only.", assignment);
                         }

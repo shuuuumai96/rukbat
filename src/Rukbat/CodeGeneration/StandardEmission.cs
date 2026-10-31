@@ -2,6 +2,62 @@ namespace Rukbat
 {
     internal sealed partial class Emitter
     {
+        private static readonly string[] EncodingRuntimeModules =
+            ["encoding", "fs", "process", "zip", "hash", "http"];
+
+        // Order is intentional: preserve loader setup and generated operation order.
+        private static readonly (string Module, Action<Emitter> Emit)[] RuntimeInitializers =
+        [
+            ("datetime", static emitter =>
+            {
+                emitter.EmitNativeLoader("DateTime");
+                emitter.Line("& $__rukbat_load_DateTime");
+            }),
+            ("fs", static emitter =>
+            {
+                emitter.EmitNativeLoader("FileText");
+                emitter.EmitNativeLoader("MoveBatch");
+                emitter.EmitNativeLoader("TemporaryEntries");
+            }),
+            ("process", static emitter => emitter.EmitNativeLoader("ProcessJob")),
+            ("hash", static emitter => emitter.EmitNativeLoader("Hash")),
+            ("re", static emitter => emitter.EmitNativeLoader("Regex")),
+            ("log", static emitter => emitter.EmitLogRuntime()),
+            ("zip", static emitter => emitter.EmitNativeLoader("Zip", "System.IO.Compression")),
+            ("http", static emitter => emitter.EmitHttpLoader()),
+            ("csv", static emitter => emitter.EmitCsvRuntime()),
+            ("cli", static emitter => emitter.EmitCliRuntime()),
+            ("text", static emitter =>
+            {
+                emitter.EmitNativeLoader("Text");
+                emitter.Line("& $__rukbat_load_Text");
+            }),
+            ("array", static emitter =>
+            {
+                emitter.EmitNativeLoader("Array");
+                emitter.Line("& $__rukbat_load_Array");
+            })
+        ];
+
+        private static readonly (string Module, string[] Resources)[] RuntimeOperations =
+        [
+            ("fs", ["FilesRuntime", "DirectoriesRuntime"]),
+            ("path", ["PathRuntime"]),
+            ("csv", ["CsvRuntime"]),
+            ("cli", ["CliRuntime"]),
+            ("json", ["JsonValueRuntime"]),
+            ("env", ["EnvironmentRuntime"]),
+            ("process", ["ProcessRuntime"]),
+            ("hash", ["HashRuntime"]),
+            ("re", ["RegexRuntime"]),
+            ("log", ["LogRuntime"]),
+            ("zip", ["ZipRuntime"]),
+            ("http", ["HttpRuntime"]),
+            ("text", ["TextRuntime"]),
+            ("array", ["ArrayRuntime"]),
+            ("math", ["MathRuntime"])
+        ];
+
         private void EmitStandardRuntime(IReadOnlySet<string> modules)
         {
             EmitLines(RuntimeResources.ReadPowerShell("PathContextRuntime"));
@@ -10,71 +66,17 @@ namespace Rukbat
                 EmitLines(RuntimeResources.ReadPowerShell("PathValueRuntime"));
             }
 
-            if (modules.Contains("encoding") || modules.Contains("fs") || modules.Contains("process") || modules.Contains("zip") || modules.Contains("hash") || modules.Contains("http"))
+            if (modules.Overlaps(EncodingRuntimeModules))
             {
                 EmitNativeLoader("CodePageCodec");
                 EmitEncodingSelector();
             }
-            if (modules.Contains("datetime"))
+            foreach (var initializer in RuntimeInitializers)
             {
-                EmitNativeLoader("DateTime");
-                Line("& $__rukbat_load_DateTime");
-            }
-            if (modules.Contains("fs"))
-            {
-                EmitNativeLoader("FileText");
-                EmitNativeLoader("MoveBatch");
-                EmitNativeLoader("TemporaryEntries");
-            }
-            if (modules.Contains("process"))
-            {
-                EmitNativeLoader("ProcessJob");
-            }
-
-            if (modules.Contains("hash"))
-            {
-                EmitNativeLoader("Hash");
-            }
-
-            if (modules.Contains("re"))
-            {
-                EmitNativeLoader("Regex");
-            }
-
-            if (modules.Contains("log"))
-            {
-                EmitLogRuntime();
-            }
-
-            if (modules.Contains("zip"))
-            {
-                EmitNativeLoader("Zip", "System.IO.Compression");
-            }
-
-            if (modules.Contains("http"))
-            {
-                EmitHttpLoader();
-            }
-
-            if (modules.Contains("csv"))
-            {
-                EmitCsvRuntime();
-            }
-
-            if (modules.Contains("cli"))
-            {
-                EmitCliRuntime();
-            }
-
-            if (modules.Contains("text"))
-            {
-                EmitNativeLoader("Text");
-                Line("& $__rukbat_load_Text");
-            }
-            if (modules.Contains("array"))
-            {
-                EmitNativeLoader("Array");
-                Line("& $__rukbat_load_Array");
+                if (modules.Contains(initializer.Module))
+                {
+                    initializer.Emit(this);
+                }
             }
             Line("$__rukbat_standard = {");
             indentation++;
@@ -82,81 +84,16 @@ namespace Rukbat
             Line("$ErrorActionPreference = 'Stop'");
             Line("switch ($operation) {");
             indentation++;
-            if (modules.Contains("fs"))
+            foreach (var operation in RuntimeOperations)
             {
-                EmitLines(RuntimeResources.ReadPowerShell("FilesRuntime"));
-                EmitLines(RuntimeResources.ReadPowerShell("DirectoriesRuntime"));
+                if (modules.Contains(operation.Module))
+                {
+                    foreach (var resource in operation.Resources)
+                    {
+                        EmitLines(RuntimeResources.ReadPowerShell(resource));
+                    }
+                }
             }
-            if (modules.Contains("path"))
-            {
-                EmitLines(RuntimeResources.ReadPowerShell("PathRuntime"));
-            }
-
-            if (modules.Contains("csv"))
-            {
-                EmitLines(RuntimeResources.ReadPowerShell("CsvRuntime"));
-            }
-
-            if (modules.Contains("cli"))
-            {
-                EmitLines(RuntimeResources.ReadPowerShell("CliRuntime"));
-            }
-
-            if (modules.Contains("json"))
-            {
-                EmitLines(RuntimeResources.ReadPowerShell("JsonValueRuntime"));
-            }
-
-            if (modules.Contains("env"))
-            {
-                EmitLines(RuntimeResources.ReadPowerShell("EnvironmentRuntime"));
-            }
-
-            if (modules.Contains("process"))
-            {
-                EmitLines(RuntimeResources.ReadPowerShell("ProcessRuntime"));
-            }
-
-            if (modules.Contains("hash"))
-            {
-                EmitLines(RuntimeResources.ReadPowerShell("HashRuntime"));
-            }
-
-            if (modules.Contains("re"))
-            {
-                EmitLines(RuntimeResources.ReadPowerShell("RegexRuntime"));
-            }
-
-            if (modules.Contains("log"))
-            {
-                EmitLines(RuntimeResources.ReadPowerShell("LogRuntime"));
-            }
-
-            if (modules.Contains("zip"))
-            {
-                EmitLines(RuntimeResources.ReadPowerShell("ZipRuntime"));
-            }
-
-            if (modules.Contains("http"))
-            {
-                EmitLines(RuntimeResources.ReadPowerShell("HttpRuntime"));
-            }
-
-            if (modules.Contains("text"))
-            {
-                EmitLines(RuntimeResources.ReadPowerShell("TextRuntime"));
-            }
-
-            if (modules.Contains("array"))
-            {
-                EmitLines(RuntimeResources.ReadPowerShell("ArrayRuntime"));
-            }
-
-            if (modules.Contains("math"))
-            {
-                EmitLines(RuntimeResources.ReadPowerShell("MathRuntime"));
-            }
-
             if (modules.Contains("datetime"))
             {
                 EmitDateTimeOperations();

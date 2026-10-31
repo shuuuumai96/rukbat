@@ -306,25 +306,9 @@ namespace Rukbat
                     break;
                 case Member member:
                     Walk(member.Receiver, scope);
-                    if (checker!.ZoneConstants.TryGetValue(member, out var zone))
+                    if (checker!.Constants.TryGetValue(member, out var constant))
                     {
-                        Add(scope.Module, member.Token, EditorCatalog.ZoneConstant(zone));
-                    }
-                    else if (checker.EncodingConstants.TryGetValue(member, out var encoding))
-                    {
-                        Add(scope.Module, member.Token, EditorCatalog.EncodingValue(encoding));
-                    }
-                    else if (checker.HashConstants.TryGetValue(member, out var algorithm))
-                    {
-                        Add(scope.Module, member.Token, EditorCatalog.HashValue(algorithm));
-                    }
-                    else if (checker.LogConstants.TryGetValue(member, out var logLevel))
-                    {
-                        Add(scope.Module, member.Token, EditorCatalog.LogValue(logLevel));
-                    }
-                    else if (checker.HttpConstants.TryGetValue(member, out var httpConstant))
-                    {
-                        Add(scope.Module, member.Token, EditorCatalog.HttpConstant(httpConstant));
+                        Add(scope.Module, member.Token, EditorCatalog.Constant(constant));
                     }
                     else if (checker.Fields.TryGetValue(member, out var field))
                     {
@@ -442,33 +426,9 @@ namespace Rukbat
                 {
                     Add(module, token, symbols[structure]);
                 }
-                else if (bound is not null && DateTimeValues.Contains(bound))
+                else if (bound is not null && EditorCatalog.ScalarType(bound) is { } scalar)
                 {
-                    Add(module, token, EditorCatalog.DateTimeType(bound));
-                }
-                else if (bound == HashValues.Algorithm)
-                {
-                    Add(module, token, EditorCatalog.HashType);
-                }
-                else if (bound == LogValues.Level)
-                {
-                    Add(module, token, EditorCatalog.LogType);
-                }
-                else if (bound is not null && HttpValues.Contains(bound))
-                {
-                    Add(module, token, EditorCatalog.HttpType(bound));
-                }
-                else if (bound == ValueType.Encoding)
-                {
-                    Add(module, token, EditorCatalog.EncodingType);
-                }
-                else if (bound == ValueType.FileLines)
-                {
-                    Add(module, token, EditorCatalog.FileLinesType);
-                }
-                else if (bound == ValueType.RegexPattern)
-                {
-                    Add(module, token, EditorCatalog.RegexPatternType);
+                    Add(module, token, scalar);
                 }
             }
         }
@@ -512,39 +472,9 @@ namespace Rukbat
                     candidates = imported.StandardName is { } standard
                         ? EditorCatalog.Standard.Where(s => s.Detail.StartsWith(standard + ".", StringComparison.Ordinal)).Concat(imported.Structs.Values.Select(s => symbols[s]))
                         : imported.Functions.Values.Select(f => symbols[checker!.Functions[f]]).Concat(imported.Structs.Values.Select(s => symbols[s]));
-                    if (imported.StandardName == "hash")
+                    if (imported.StandardName is { } moduleName)
                     {
-                        candidates = candidates.Append(EditorCatalog.HashType);
-                    }
-
-                    if (imported.StandardName == "log")
-                    {
-                        candidates = candidates.Append(EditorCatalog.LogType);
-                    }
-
-                    if (imported.StandardName == "http")
-                    {
-                        candidates = candidates.Append(EditorCatalog.HttpType(HttpValues.Method)).Append(EditorCatalog.HttpType(HttpValues.Body));
-                    }
-
-                    if (imported.StandardName == "encoding")
-                    {
-                        candidates = candidates.Append(EditorCatalog.EncodingType);
-                    }
-
-                    if (imported.StandardName == "fs")
-                    {
-                        candidates = candidates.Append(EditorCatalog.FileLinesType);
-                    }
-
-                    if (imported.StandardName == "re")
-                    {
-                        candidates = candidates.Append(EditorCatalog.RegexPatternType);
-                    }
-
-                    if (imported.StandardName == "datetime")
-                    {
-                        candidates = candidates.Concat(DateTimeValues.All.Select(EditorCatalog.DateTimeType));
+                        candidates = candidates.Concat(EditorCatalog.TypesForModule(moduleName));
                     }
                 }
                 else

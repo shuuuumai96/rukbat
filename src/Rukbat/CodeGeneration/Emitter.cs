@@ -20,76 +20,44 @@ namespace Rukbat
         private string? returnLabel;
         private string? returnValue;
         private static string Quote(string value) => "'" + value.Replace("'", "''") + "'";
+        // Fixed scalar representations belong to the PowerShell backend, not ValueType.
+        private static readonly IReadOnlyDictionary<ValueType, string> PowerShellTypeNames =
+            new Dictionary<ValueType, string>
+            {
+                [ValueType.Int] = "long",
+                [ValueType.Float] = "double",
+                [ValueType.Encoding] = "string",
+                [ValueType.FileLines] = "object",
+                [ValueType.RegexPattern] = "object",
+                [HashValues.Algorithm] = "string",
+                [LogValues.Level] = "string",
+                [HttpValues.Method] = "string",
+                [HttpValues.Body] = "RukbatHttpBody",
+                [DateTimeValues.Timestamp] = "RukbatTimestamp",
+                [DateTimeValues.Date] = "RukbatDate",
+                [DateTimeValues.Duration] = "RukbatDuration",
+                [DateTimeValues.Zone] = "RukbatZone",
+            };
+
         private static string TypeName(ValueType type)
         {
-            if (type.IsNullable)
+            if (PowerShellTypeNames.TryGetValue(type, out var name))
             {
-                return "object";
-            }
-            if (type.Element is not null)
-            {
-                return "System.Collections.Generic.List[object]";
-            }
-            if (type.DictionaryKey is not null)
-            {
-                return "hashtable";
+                return name;
             }
 
-            if (type == ValueType.Int)
+            // These representations depend on the bound shape, including standard structs.
+            return type switch
             {
-                return "long";
-            }
-
-            if (type == ValueType.Float)
-            {
-                return "double";
-            }
-            if (type.IsJsonValue)
-            {
-                return "RukbatJsonValue";
-            }
-
-            if (type.IsCsvRow)
-            {
-                return "RukbatCsvRow";
-            }
-
-            if (type.IsCliResult)
-            {
-                return "object";
-            }
-
-            if (type == ValueType.FileLines)
-            {
-                return "object";
-            }
-
-            if (type == ValueType.RegexPattern)
-            {
-                return "object";
-            }
-
-            if (StandardValueTypes.IsTagged(type))
-            {
-                return "string";
-            }
-
-            if (type == HttpValues.Method)
-            {
-                return "string";
-            }
-
-            if (type == HttpValues.Body)
-            {
-                return "RukbatHttpBody";
-            }
-
-            if (DateTimeValues.Contains(type))
-            {
-                return DateTimeValues.RuntimeName(type);
-            }
-
-            return type.Struct is null ? type.Name : "hashtable";
+                { IsNullable: true } => "object",
+                { Element: not null } => "System.Collections.Generic.List[object]",
+                { DictionaryKey: not null } => "hashtable",
+                { IsJsonValue: true } => "RukbatJsonValue",
+                { IsCsvRow: true } => "RukbatCsvRow",
+                { IsCliResult: true } => "object",
+                { Struct: not null } => "hashtable",
+                _ => type.Name,
+            };
         }
 
         private void Line(string text)

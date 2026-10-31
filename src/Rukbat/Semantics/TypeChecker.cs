@@ -9,11 +9,7 @@ namespace Rukbat
         public Dictionary<Call, string> StandardCalls { get; } = new(ReferenceEqualityComparer.Instance);
         public Dictionary<Expression, ValueType> Types { get; } = new(ReferenceEqualityComparer.Instance);
         public Dictionary<For, BoundIteration> Iterations { get; } = new(ReferenceEqualityComparer.Instance);
-        public Dictionary<Member, DateTimeValues.ZoneConstant> ZoneConstants { get; } = new(ReferenceEqualityComparer.Instance);
-        public Dictionary<Member, string> HashConstants { get; } = new(ReferenceEqualityComparer.Instance);
-        public Dictionary<Member, LogValues.LevelConstant> LogConstants { get; } = new(ReferenceEqualityComparer.Instance);
-        public Dictionary<Member, HttpConstant> HttpConstants { get; } = new(ReferenceEqualityComparer.Instance);
-        public Dictionary<Member, StandardEncoding> EncodingConstants { get; } = new(ReferenceEqualityComparer.Instance);
+        public Dictionary<Member, StandardConstant> Constants { get; } = new(ReferenceEqualityComparer.Instance);
         private Dictionary<VariableSymbol, ValueType> refinements = [];
         private int variableId;
         private bool reachable = true;
