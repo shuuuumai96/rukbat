@@ -108,7 +108,7 @@ $__rukbat_runtime = {
             }
             switch ($type.kind) {
                 'nullable' {
-                    return (& $recurse $value $type.element $path $recurse)
+                    return ,(& $recurse $value $type.element $path $recurse)
                 }
                 'array' {
                     if ($value -isnot [array]) {
