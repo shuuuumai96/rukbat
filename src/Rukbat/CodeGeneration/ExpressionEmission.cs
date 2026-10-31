@@ -39,10 +39,17 @@ namespace Rukbat
         private string Address(Expression expression) => expression switch
         {
             Name name => checker.Variables[name].PowerShellName,
-            Member member => $"{Address(member.Receiver)}[{Quote(checker.Fields[member].Key)}]",
+            Member member => MemberAddress(member),
             Index index => IndexAddress(index),
             _ => throw new InvalidOperationException("Invalid field assignment target.")
         };
+
+        private string MemberAddress(Member member)
+        {
+            var receiver = "$__rukbat_receiver" + temporaryId++;
+            Line($"{receiver} = {RawExpr(member.Receiver)}");
+            return $"{receiver}[{Quote(checker.Fields[member].Key)}]";
+        }
 
         private string RawExpr(Expression expression) => expression switch
         {

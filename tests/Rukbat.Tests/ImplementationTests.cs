@@ -2,6 +2,35 @@ namespace Rukbat.Tests
 {
     public sealed class ImplementationTests : TestBase
     {
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public async Task CapturesUpdateReceiversBeforeEvaluatingValues(bool windowsPowerShell)
+        {
+            using var project = new Project();
+            project.Write("main.rukbat", """
+            struct Box { values: int[]; value: int }
+            box := Box { values: [1], value: 1 }
+            fn replace_box(): int {
+                box = Box { values: [9], value: 9 }
+                return 2
+            }
+            box.values.append(replace_box())
+            print(box.values[0])
+            print(box.values.length)
+            box.value = replace_box()
+            print(box.value)
+            """);
+            var compiled = project.Compile();
+            Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
+            var result = windowsPowerShell
+                ? await project.RunOutputWithWindowsPowerShell(compiled.Output!)
+                : await project.RunOutput(compiled.Output!);
+            Assert.True(result.ExitCode == 0, result.Error);
+            Assert.Equal("9\n1\n9\n", result.Output);
+        }
+
         [Trait("Category", "Unit")]
         [Theory]
         [InlineData("struct Data { value: int }; impl Data { fn read(): int { return self.value } }; data := Data { value: 1 }; print(data.read())")]

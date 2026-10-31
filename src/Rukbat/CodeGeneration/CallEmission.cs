@@ -18,7 +18,7 @@ namespace Rukbat
                     return "$null";
                 }
                 var value = Expr(call.Arguments[0].Value);
-                return $"({address} = (& $script:__rukbat_append ({address}) ({value})))";
+                return $"(& $script:__rukbat_append ({address}) ({value}))";
             }
             if (checker.StandardCalls.TryGetValue(call, out var standardCall))
             {
