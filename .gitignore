@@ -11,3 +11,4 @@ examples/*.ps1
 examples/**/*.ps1
 .rukbat-debug-*.ps1
 .rukbat-debug-*.ps1.rukbat-map.json
+.vs
