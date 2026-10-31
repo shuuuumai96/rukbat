@@ -18,6 +18,10 @@ greet("Rukbat")
 
 ## はじめに
 
+**0.2.0 previewは2026年11月14日（日本時間）の公開を目標に準備しています。**
+`impl`への構文変更と既存機能の修正を含みます。
+検証条件、延期条件、0.1.0の保守方針は[公開計画](releases/0.2.0-plan.md)を参照してください。
+
 初回のプレビュー版 **0.1.0** を公開しました。
 [GitHub Releases](https://github.com/shuuuumai96/rukbat/releases/tag/v0.1.0)からWindows x64向けのパッケージをダウンロードできます。
 

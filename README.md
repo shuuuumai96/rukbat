@@ -16,6 +16,10 @@ greet("Rukbat")
 
 ## Getting started
 
+**0.2.0 preview is planned for November 14, 2026 (Japan time).** It will include
+the `impl` syntax change and correctness fixes. See the [release plan](docs/releases/0.2.0-plan.md)
+for verification requirements, postponement conditions, and the 0.1.0 maintenance policy.
+
 The first preview, **0.1.0**, is available. Download its Windows x64 packages
 from [GitHub Releases](https://github.com/shuuuumai96/rukbat/releases/tag/v0.1.0):
 
