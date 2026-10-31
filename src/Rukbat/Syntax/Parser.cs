@@ -257,85 +257,66 @@ namespace Rukbat
             return new ImplDeclaration(name, methods);
         }
 
+        private static readonly IReadOnlyDictionary<string, Func<Parser, Token, Statement>> StatementParsers =
+            new Dictionary<string, Func<Parser, Token, Statement>>(StringComparer.Ordinal)
+            {
+                ["import"] = static (parser, token) => parser.ImportDeclaration(token),
+                ["struct"] = static (parser, _) => parser.StructDeclaration(),
+                ["impl"] = static (parser, _) => parser.ImplementationDeclaration(),
+                ["fn"] = static (parser, _) => parser.FunctionDeclaration(),
+                ["return"] = static (parser, token) => new Return(token,
+                    parser.Current.Text is "\n" or ";" or "}" or "<eof>" ? null : parser.Expression()),
+                ["throw"] = static (parser, token) => new Throw(token, parser.Expression()),
+                ["try"] = static (parser, token) => parser.TryStatement(token),
+                ["for"] = static (parser, _) => parser.ForStatement(),
+                ["while"] = static (parser, token) => new While(token, parser.Expression(allowStructLiteral: false), parser.Block()),
+                ["break"] = static (_, token) => new LoopControl(token),
+                ["continue"] = static (_, token) => new LoopControl(token),
+                ["if"] = static (parser, token) => parser.ConditionalStatement(token)
+            };
+
+        private TryCatch TryStatement(Token token)
+        {
+            var body = Block();
+            NewLines();
+            Expect("catch");
+            var name = Identifier();
+            return new TryCatch(token, body, new Catch(name, Block()));
+        }
+
+        private For ForStatement()
+        {
+            var item = Identifier();
+            Expect("in");
+            var items = Expression(allowStructLiteral: false);
+            return new For(item, items, Block());
+        }
+
+        private Variable VariableDeclaration(bool isConst)
+        {
+            var name = Identifier();
+            var inferred = Take().Text == ":=";
+            var type = inferred ? ValueType.Error : Type();
+            if (!inferred)
+            {
+                Expect("=");
+            }
+            NewLines();
+            var value = Expression();
+            return new Variable(name, type, value, inferred, isConst) { InitializerEndOffset = Current.Offset };
+        }
+
         private Statement Statement()
         {
-            var token = Current;
-            if (Match("import"))
+            if (StatementParsers.TryGetValue(Current.Text, out var parse))
             {
-                return ImportDeclaration(token);
+                return parse(this, Take());
             }
 
-            if (Match("struct"))
-            {
-                return StructDeclaration();
-            }
-
-            if (Match("impl"))
-            {
-                return ImplementationDeclaration();
-            }
-
-            if (Match("fn"))
-            {
-                return FunctionDeclaration();
-            }
-
-            if (Match("return"))
-            {
-                return new Return(token, Current.Text is "\n" or ";" or "}" or "<eof>" ? null : Expression());
-            }
-
-            if (Match("throw"))
-            {
-                return new Throw(token, Expression());
-            }
-            if (Match("try"))
-            {
-                var body = Block();
-                NewLines();
-                Expect("catch");
-                var name = Identifier();
-                return new TryCatch(token, body, new Catch(name, Block()));
-            }
-
-            if (Match("for"))
-            {
-                var item = Identifier();
-                Expect("in");
-                var items = Expression(allowStructLiteral: false);
-                return new For(item, items, Block());
-            }
-            if (Match("while"))
-            {
-                return new While(token, Expression(allowStructLiteral: false), Block());
-            }
-            if (Match("break") || Match("continue"))
-            {
-                return new LoopControl(token);
-            }
-
-            if (Match("if"))
-            {
-                return ConditionalStatement(token);
-            }
             var isConst = Match("const");
-            if (Next.Text == ":")
+            if (Next.Text is ":" or ":=")
             {
-                var name = Identifier();
-                Expect(":");
-                var type = Type();
-                Expect("=");
-                NewLines();
-                var value = Expression();
-                return new Variable(name, type, value, IsConst: isConst) { InitializerEndOffset = Current.Offset };
-            }
-            if (Next.Text == ":=")
-            {
-                var name = Identifier();
-                Expect(":=");
-                NewLines();
-                var value = Expression();
-                return new Variable(name, ValueType.Error, value, true, isConst) { InitializerEndOffset = Current.Offset };
+                return VariableDeclaration(isConst);
             }
             if (isConst)
             {
