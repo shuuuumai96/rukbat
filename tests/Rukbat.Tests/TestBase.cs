@@ -78,7 +78,25 @@ namespace Rukbat.Tests
 
         protected sealed class Project : IDisposable
         {
-            public string DirectoryPath { get; } = Path.Combine(Path.GetTempPath(), "rukbat-tests-" + Guid.NewGuid());
+            public string DirectoryPath { get; } = Path.Combine(ResolveLinks(Path.GetTempPath()), "rukbat-tests-" + Guid.NewGuid());
+
+            private static string ResolveLinks(string path)
+            {
+                var fullPath = Path.GetFullPath(path);
+                var root = Path.GetPathRoot(fullPath) ?? throw new IOException("The temporary directory has no filesystem root.");
+                var current = root;
+                foreach (var segment in fullPath[root.Length..].Split(
+                    [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+                    StringSplitOptions.RemoveEmptyEntries))
+                {
+                    current = Path.Combine(current, segment);
+                    FileSystemInfo entry = Directory.Exists(current) ? new DirectoryInfo(current) : new FileInfo(current);
+                    current = entry.ResolveLinkTarget(true)?.FullName ?? current;
+                }
+
+                return Path.GetFullPath(current);
+            }
+
             public Project() => Directory.CreateDirectory(DirectoryPath);
             public string PathFor(string file) => Path.Combine(DirectoryPath, file);
             public void Write(string file, string source)

@@ -5,6 +5,7 @@
     <AssemblyName>rukbat</AssemblyName>
     <RootNamespace>Rukbat</RootNamespace>
     <TargetFramework>net8.0</TargetFramework>
+    <RollForward>Major</RollForward>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <Version>0.1.0</Version>
