@@ -3,7 +3,7 @@ struct Counter {
 }
 
 impl Counter {
-    fn increment(): void {
+    fn increment() {
         self.value = self.value + 1
     }
 }

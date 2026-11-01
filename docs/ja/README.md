@@ -7,7 +7,7 @@ Windows PowerShell 5.1で単独実行できるスクリプトにコンパイル�
 実行先にRukbatをインストールする必要はありません。
 
 ```rukbat
-fn greet(name: string): void {
+fn greet(name: string) {
     print("Hello, " + name)
 }
 

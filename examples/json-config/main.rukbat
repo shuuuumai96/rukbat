@@ -2,7 +2,7 @@ import json
 import encoding
 import fs
 
-fn main(): void {
+fn main() {
     arguments := args()
 
     if arguments.length != 2 {

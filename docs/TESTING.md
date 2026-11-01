@@ -21,7 +21,7 @@ Then write the test in `test_math.rukbat`:
 import test
 import "./math.rukbat" as arithmetic
 
-fn test_add(): void {
+fn test_add() {
     test.assert(arithmetic.add(2, 3) == 5)
 }
 ```
@@ -93,7 +93,7 @@ import encoding
 import fs
 import path
 
-fn test_report(ctx: test.Context): void {
+fn test_report(ctx: test.Context) {
     input := path.join([ctx.source_dir, "fixtures", "input.txt"])
     output := path.join([ctx.temp_dir, "report.txt"])
     fs.write_text(output, fs.read_text(input, encoding.utf8), encoding.utf8)
@@ -131,7 +131,7 @@ struct Case {
     expected: int
 }
 
-fn test_parse_int(): void {
+fn test_parse_int() {
     cases: Case[] = [
         Case { input: "0", expected: 0 },
         Case { input: "-12", expected: -12 }
@@ -142,7 +142,7 @@ fn test_parse_int(): void {
     }
 }
 
-fn test_reject_invalid_int(): void {
+fn test_reject_invalid_int() {
     try {
         text.parse_int("invalid")
     } catch err {

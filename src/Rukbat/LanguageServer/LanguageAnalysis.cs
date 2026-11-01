@@ -109,7 +109,8 @@ namespace Rukbat
             foreach (var function in checker!.Functions.Values)
             {
                 var parameters = string.Join(", ", function.Function.Parameters.Select(p => $"{p.Token.Text}: {checker.DeclaredTypes[p]}"));
-                symbols[function] = new(function.Function.Name, $"fn {function.Function.Name}({parameters}): {function.ReturnType}", 3,
+                var result = function.ReturnType == ValueType.Void ? "" : $": {function.ReturnType}";
+                symbols[function] = new(function.Function.Name, $"fn {function.Function.Name}({parameters}){result}", 3,
                     Description(function.Module, function.Function),
                     Module: function.Module, Declaration: function.Function.Token);
             }

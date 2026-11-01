@@ -42,7 +42,7 @@ name := "Taro"
 age: int = 30
 age = 31
 
-fn greet(person: string): void {
+fn greet(person: string) {
     print("Hello, " + person)
 }
 ```
@@ -75,6 +75,22 @@ fn greet(person: string): void {
   `const` is a restriction on a declared name, not a new type. Const module values
   remain module-local, like ordinary variables.
 - `fn` is the only function declaration syntax. Free functions are defined at module scope. Methods are defined inside an `impl` declaration, separately from the struct's fields.
+
+A function or method with no return-type annotation has return type `void`.
+This is a fixed declaration rule, not inference from its body. A function that
+returns a value must declare `: Type`; `fn answer() { return 42 }` is a type error,
+not an inferred `int` function. The last expression is never returned implicitly.
+Explicit `: void` remains accepted for source compatibility, but canonical source
+omits it and `rukbat fmt` removes it from function and method declarations.
+
+This declaration compatibility is limited to 0.2.x. In 0.3.0, explicit `: void`
+declarations and their formatter conversion will be removed; migrate with the
+0.2.x formatter before upgrading. The compiler will still use void internally to
+represent the absence of a return value and reject uses such as assigning a call
+with no result to a variable. `powershell<void>` remains the explicit instruction
+to discard PowerShell output instead of receiving it as a Rukbat return value;
+failures still raise Error. Void is not a type of value that can be stored in a
+variable or field.
 
 Names are case-sensitive. Statements are separated by a newline or `;`. Blocks use braces.
 Line comments begin with `//` and continue to the end of the line. Block comments are not supported.

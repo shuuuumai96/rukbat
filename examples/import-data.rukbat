@@ -4,7 +4,7 @@ struct User {
 }
 
 impl User {
-    fn birthday(): void {
+    fn birthday() {
         self.age = self.age + 1
     }
 }

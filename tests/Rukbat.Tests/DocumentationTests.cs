@@ -69,6 +69,9 @@ namespace Rukbat.Tests
             Assert.Contains("Changes the display name.", html);
             Assert.Contains("Module-local variable", html);
             Assert.Contains("undocumented", html);
+            Assert.Contains("fn undocumented()", html);
+            Assert.Contains("fn rename(name: string)", html);
+            Assert.DoesNotContain("): void", html);
             Assert.DoesNotContain("not documentation", html);
             Assert.DoesNotContain("working", html);
             Assert.DoesNotContain(project.DirectoryPath, html);

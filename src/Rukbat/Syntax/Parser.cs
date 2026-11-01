@@ -197,8 +197,18 @@ namespace Rukbat
             }
 
             Expect(")");
-            Expect(":");
-            var type = Type();
+            var type = ValueType.Void;
+            if (Current.Text == ":")
+            {
+                var colon = Take();
+                var typeToken = Current;
+                type = Type();
+                if (type == ValueType.Void)
+                {
+                    formatting?.OmittedTokens.Add(colon.Offset);
+                    formatting?.OmittedTokens.Add(typeToken.Offset);
+                }
+            }
             return new Function(name, name.Text, parameters, type, Block());
         }
 

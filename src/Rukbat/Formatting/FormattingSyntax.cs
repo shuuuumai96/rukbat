@@ -10,6 +10,7 @@ namespace Rukbat
         public HashSet<int> UnaryOperators { get; } = [];
         public HashSet<int> ExpressionOpenings { get; } = [];
         public HashSet<int> RequiredBlankLines { get; } = [];
+        public HashSet<int> OmittedTokens { get; } = [];
 
         public void SeparateStatements(Statement? previous, Statement next, int offset)
         {

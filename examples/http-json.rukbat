@@ -3,7 +3,7 @@ import encoding
 import json
 import text
 
-fn main(): void {
+fn main() {
     arguments := args()
 
     if arguments.length != 1 {

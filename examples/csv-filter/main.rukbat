@@ -12,7 +12,7 @@ fn parse_bool_cell(row: csv.Row, column: string, record_number: int): bool {
     }
 }
 
-fn main(): void {
+fn main() {
     arguments := args()
 
     if arguments.length != 3 {

@@ -244,7 +244,8 @@ namespace Rukbat
             string Signature(DocumentationEntry entry) => entry.Declaration.Node switch
             {
                 Function function => "fn " + Escape(function.Name) + "(" + string.Join(", ", function.Parameters.Select(parameter =>
-                    Escape(parameter.Token.Text) + ": " + Type(checker.DeclaredTypes[parameter]))) + "): " + Type(checker.Functions[function].ReturnType),
+                    Escape(parameter.Token.Text) + ": " + Type(checker.DeclaredTypes[parameter]))) + ")" +
+                    (checker.Functions[function].ReturnType == ValueType.Void ? "" : ": " + Type(checker.Functions[function].ReturnType)),
                 StructDeclaration structure => "struct " + Escape(structure.Token.Text),
                 Field field => Escape(field.Token.Text) + ": " + Type(checker.DeclaredTypes[field]),
                 Variable variable => (variable.IsConst ? "const " : "") + Escape(variable.Token.Text) + ": " + Type(checker.Variables[variable].Type),

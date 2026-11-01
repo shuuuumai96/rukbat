@@ -402,7 +402,7 @@ async function run() {
     // Execute the actual editor tasks, including the bundled compiler and ProcessExecution.
     const commandUri = vscode.Uri.file(path.join(root, 'task.rukbat'));
     fs.writeFileSync(commandUri.fsPath, '//! Editor task documentation.\n//! ```rukbat check\n//! const example := "example"\n//! print(example)\n//! ```\n/// Task output.\nconst message := "task"\nprint(message)\n');
-    fs.writeFileSync(path.join(root, 'test_task.rukbat'), 'import test\nfn test_task(): void { test.assert(true) }\n');
+    fs.writeFileSync(path.join(root, 'test_task.rukbat'), 'import test\nfn test_task() { test.assert(true) }\n');
     await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(commandUri));
     for (const action of ['check', 'build', 'test', 'doc', 'doctor']) {
         const finished = new Promise((resolve, reject) => {

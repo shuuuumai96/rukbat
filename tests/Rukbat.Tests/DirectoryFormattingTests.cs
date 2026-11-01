@@ -21,7 +21,7 @@ namespace Rukbat.Tests
             var result = await RunCli(project, ["fmt", "."]);
             Assert.True(result.ExitCode == 0, result.Error);
             Assert.Equal("value := 1\n", File.ReadAllText(project.PathFor("main.rukbat")));
-            Assert.Equal("fn f(): void {\n    print(2)\n}\n", File.ReadAllText(project.PathFor("nested/deeper/module.RUKBAT")));
+            Assert.Equal("fn f() {\n    print(2)\n}\n", File.ReadAllText(project.PathFor("nested/deeper/module.RUKBAT")));
             Assert.Equal("value:=3", File.ReadAllText(project.PathFor("keep.txt")));
             foreach (var directory in new[] { ".git", "bin", "obj" })
             {

@@ -1,4 +1,4 @@
-fn require_directory(directory: string): void {
+fn require_directory(directory: string) {
     if directory == "" {
         throw Error {
             message: "Please specify a directory"

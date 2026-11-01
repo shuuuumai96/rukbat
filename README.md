@@ -7,7 +7,7 @@ It compiles to standalone Windows PowerShell 5.1 scripts. No Rukbat installation
 is needed on the target machine.
 
 ```rukbat
-fn greet(name: string): void {
+fn greet(name: string) {
     print("Hello, " + name)
 }
 

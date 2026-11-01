@@ -37,6 +37,14 @@ Use `:=` when the initializer gives a clear type. Use `: Type =` when an explici
 type is needed or helps explain an interface, including empty arrays and nullable
 initialization. Use `=` to update an existing binding.
 
+Omit the return-type annotation for functions and methods that return no value.
+Write `: Type` when returning a value. Explicit `: void` is accepted for compatibility;
+the formatter normalizes it to the omitted form. This does not infer a return type
+from the function body.
+
+The explicit declaration form is supported only in 0.2.x and will be removed in
+0.3.0. Run the 0.2.x formatter before upgrading.
+
 ## Keep data and methods adjacent
 
 Put a struct's `impl` immediately after its `struct` declaration in the same file.
@@ -86,7 +94,7 @@ Do not silently swallow errors or report success after a failed operation.
 ```rukbat
 const invalid_input := 2
 
-fn require_path(value: string): void {
+fn require_path(value: string) {
     if value == "" {
         throw Error {
             message: "Input path must not be empty."

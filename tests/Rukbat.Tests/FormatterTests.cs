@@ -33,7 +33,10 @@ namespace Rukbat.Tests
 
         public static TheoryData<string, string, string> SyntaxCases => new()
         {
-            { "const declarations", "const a:=1;const b:int=2;fn f():void{const items:int[]=[];print(items.length)}", "const a := 1\nconst b: int = 2\n\nfn f(): void {\n    const items: int[] = []\n    print(items.length)\n}\n" },
+            { "omitted void annotation", "fn f(){return}", "fn f() {\n    return\n}\n" },
+            { "void annotation trailing comment", "fn f():void // no result\n{}", "fn f()  // no result\n{\n}\n" },
+            { "void type argument remains explicit", "fn f():void{powershell<void>('Write-Output','ignored')}", "fn f() {\n    powershell<void>('Write-Output', 'ignored')\n}\n" },
+            { "const declarations", "const a:=1;const b:int=2;fn f():void{const items:int[]=[];print(items.length)}", "const a := 1\nconst b: int = 2\n\nfn f() {\n    const items: int[] = []\n    print(items.length)\n}\n" },
             { "datetime types", "import datetime;value:datetime.Timestamp?=null;zones:datetime.Zone[]=[datetime.utc]", "import datetime\n\nvalue: datetime.Timestamp? = null\nzones: datetime.Zone[] = [datetime.utc]\n" },
             { "imports", "import text as txt;import './missing.rukbat' as missing", "import text as txt\nimport './missing.rukbat' as missing\n" },
             { "declarations and assignments", "a:=1;b : int=2;a=\n b+1", "a := 1\nb: int = 2\na = b + 1\n" },
@@ -43,13 +46,13 @@ namespace Rukbat.Tests
             { "multiline string values", "value:=\"first\r\nsecond\nthird\rfinal\"", "value := \"first\\r\\nsecond\\nthird\\rfinal\"\n" },
             { "operators", "a:=1+2-3*4/5%6;b:=a==1||a!=2&&a<3&&a<=4&&a>5&&a>=6", "a := 1 + 2 - 3 * 4 / 5 % 6\nb := a == 1 || a != 2 && a < 3 && a <= 4 && a > 5 && a >= 6\n" },
             { "unary and grouping", "a:=-(1+2);b:=!!true;c:=1+-2;d:=+ +1", "a := -(1 + 2)\nb := !!true\nc := 1 + -2\nd := ++1\n" },
-            { "functions and bare return", "fn f(\na:int,\nb:string?[]\n):void\n{\nreturn;\n}", "fn f(a: int, b: string?[]): void {\n    return\n}\n" },
+            { "functions and bare return", "fn f(\na:int,\nb:string?[]\n):void\n{\nreturn;\n}", "fn f(a: int, b: string?[]) {\n    return\n}\n" },
             { "return continuations", "fn f():int{ return (\n1+\n2\n) }", "fn f(): int {\n    return (1 + 2)\n}\n" },
             { "conditional header", "if true\n{print(1)}\nelse\n{print(2)}", "if true {\n    print(1)\n} else {\n    print(2)\n}\n" },
             { "loops", "for x in [1,2]\n{while x>0\n{if x==1{break}else{continue}}}", "for x in [1, 2] {\n    while x > 0 {\n        if x == 1 {\n            break\n        } else {\n            continue\n        }\n    }\n}\n" },
             { "errors", "try\n{throw Error{message:'bad'}}\ncatch error\n{eprint(error.message)}", "try {\n    throw Error {\n        message: 'bad'\n    }\n} catch error {\n    eprint(error.message)\n}\n" },
-            { "struct fields and impl methods", "struct User\n{name:string;age:int};impl User\n{fn set(age:int):void{self.age=age;return}}", "struct User {\n    name: string\n    age: int\n}\n\nimpl User {\n    fn set(age: int): void {\n        self.age = age\n        return\n    }\n}\n" },
-            { "impl method comments and separation", "struct S{value:int};impl S{\n/// Reads the value.\nfn read():int{return self.value}\n// Updates the value.\nfn set(value:int):void{self.value=value}\n}", "struct S {\n    value: int\n}\n\nimpl S {\n    /// Reads the value.\n    fn read(): int {\n        return self.value\n    }\n\n    // Updates the value.\n    fn set(value: int): void {\n        self.value = value\n    }\n}\n" },
+            { "struct fields and impl methods", "struct User\n{name:string;age:int};impl User\n{fn set(age:int):void{self.age=age;return}}", "struct User {\n    name: string\n    age: int\n}\n\nimpl User {\n    fn set(age: int) {\n        self.age = age\n        return\n    }\n}\n" },
+            { "impl method comments and separation", "struct S{value:int};impl S{\n/// Reads the value.\nfn read():int{return self.value}\n// Updates the value.\nfn set(value:int):void{self.value=value}\n}", "struct S {\n    value: int\n}\n\nimpl S {\n    /// Reads the value.\n    fn read(): int {\n        return self.value\n    }\n\n    // Updates the value.\n    fn set(value: int) {\n        self.value = value\n    }\n}\n" },
             { "struct literal", "user:=mod.User{name:'Taro',age:30}", "user := mod.User {\n    name: 'Taro', age: 30\n}\n" },
             { "nested struct literals", "user:=User{address:Address{city:'Tokyo'},age:30}", "user := User {\n    address: Address {\n        city: 'Tokyo'\n    }, age: 30\n}\n" },
             { "struct literal in call", "print(Error{message:'bad'})", "print(Error {\n    message: 'bad'\n})\n" },
@@ -63,7 +66,7 @@ namespace Rukbat.Tests
             { "comparison using decode name", "value:=decode<other>(last)", "value := decode < other > (last)\n" },
             { "comments in expression", "value:=1+ // add\n2;other:=[1, // first\n2]", "value := 1 +  // add\n    2\nother := [1,  // first\n    2]\n" },
             { "comments in header", "if true // condition\n{print(1)}", "if true  // condition\n{\n    print(1)\n}\n" },
-            { "comments in arguments", "fn f():void{print( // value\n// explanation\n1 // done\n)}", "fn f(): void {\n    print(  // value\n        // explanation\n        1  // done\n    )\n}\n" },
+            { "comments in arguments", "fn f():void{print( // value\n// explanation\n1 // done\n)}", "fn f() {\n    print(  // value\n        // explanation\n        1  // done\n    )\n}\n" },
             { "empty struct literals", "struct Empty{};value:=Empty{};values:=[Empty{}]", "struct Empty {\n}\n\nvalue := Empty {\n}\nvalues := [Empty {\n}]\n" },
             { "array in return and throw grouping", "fn f():int[]{return [1,2]};throw (Error{message:'bad'})", "fn f(): int[] {\n    return [1, 2]\n}\n\nthrow (Error {\n    message: 'bad'\n})\n" },
             { "comments in block", "// top\nif true{ // block\n// inside\nprint(1) // end\n}\n// tail", "// top\nif true {\n    // block\n    // inside\n    print(1)  // end\n}\n// tail\n" },
@@ -96,7 +99,7 @@ namespace Rukbat.Tests
         [Theory]
         [InlineData("value := 'unterminated")]
         [InlineData("if true { print(1)")]
-        [InlineData("fn f(a: int,): void {}")]
+        [InlineData("fn f(a: int,) {}")]
         [InlineData("value := [1,,2]")]
         [InlineData("value := powershell<int('echo')")]
         [InlineData("value := 1e+")]

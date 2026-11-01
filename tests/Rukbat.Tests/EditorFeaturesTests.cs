@@ -428,6 +428,18 @@ namespace Rukbat.Tests
             Assert.Equal("fn add(a: int, b: int): int", result.GetProperty("signatures")[0].GetProperty("label").GetString());
         }
 
+        [Theory]
+        [InlineData("fn save(value: int) {}")]
+        [InlineData("fn save(value: int): void {}")]
+        public void VoidFunctionSignaturesUseCanonicalOmission(string declaration)
+        {
+            using var project = new Project();
+            var uri = UriFor(project);
+            var source = declaration + "\nsave(1)";
+            var result = Result(EditorSession(project, Open(uri, source), Feature(uri, "signatureHelp", 1, 5)));
+            Assert.Equal("fn save(value: int)", result.GetProperty("signatures")[0].GetProperty("label").GetString());
+        }
+
         [Fact]
         public void SignatureHelpIgnoresDeclarationParametersAndPreservesRealDiagnostics()
         {

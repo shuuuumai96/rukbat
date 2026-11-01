@@ -36,6 +36,12 @@ retry_count = retry_count + 1
 空配列やnull許容型の初期化など、型の指定が必要な場合や、型を示すと使い方が明確になる場合は`: Type =`を使います。
 既存の変数への代入には`=`を使います。
 
+値を返さない関数やメソッドでは、戻り値の型注釈を省略します。
+値を返す場合は`: Type`を書きます。互換性のため明示的な`: void`も受理しますが、
+フォーマッタは省略形へ統一します。本体から戻り値の型を推論する規則ではありません。
+
+明示的な宣言表記の互換期間は0.2.xだけです。0.3.0で削除するため、更新前に0.2.xのフォーマッタで移行してください。
+
 ## データ定義とメソッド定義を隣に置く
 
 `impl`は、同じファイルの対象となる`struct`宣言の直後に置きます。
@@ -81,7 +87,7 @@ importを先頭に置きます。実行開始時の処理はまとめ、上か�
 ```rukbat
 const invalid_input := 2
 
-fn require_path(value: string): void {
+fn require_path(value: string) {
     if value == "" {
         throw Error {
             message: "Input path must not be empty."

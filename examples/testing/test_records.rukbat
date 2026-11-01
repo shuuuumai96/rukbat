@@ -12,7 +12,7 @@ struct ParseCase {
     expected: int
 }
 
-fn test_filter_csv(ctx: test.Context): void {
+fn test_filter_csv(ctx: test.Context) {
     input := path.join([ctx.source_dir, "fixtures", "people.csv"])
     names := records.enabled_names(fs.read_text(input, encoding.utf8))
     test.assert(names.length == 2)
@@ -20,7 +20,7 @@ fn test_filter_csv(ctx: test.Context): void {
     test.assert(names[1] == "Suzuki, Ichiro")
 }
 
-fn test_update_json(): void {
+fn test_update_json() {
     document := json.parse('{"settings":{"enabled":false},"other":[1,2]}')
     settings := json.get(document, "settings")
     settings = json.set(settings, "enabled", true)
@@ -30,7 +30,7 @@ fn test_update_json(): void {
     test.assert(json.items(json.get(reloaded, "other")).length == 2)
 }
 
-fn test_write_report(ctx: test.Context): void {
+fn test_write_report(ctx: test.Context) {
     output := path.join([ctx.temp_dir, "report.csv"])
     table := csv.table(["name", "status"], [["Taro", "ok"]])
     fs.write_text(output, csv.stringify_table(table), encoding.utf8)
@@ -39,7 +39,7 @@ fn test_write_report(ctx: test.Context): void {
     test.assert(csv.get(reloaded.rows[0], "status") == "ok")
 }
 
-fn test_parse_int_cases(): void {
+fn test_parse_int_cases() {
     cases: ParseCase[] = [ParseCase {
         input: "0", expected: 0
     }, ParseCase {
@@ -53,7 +53,7 @@ fn test_parse_int_cases(): void {
     }
 }
 
-fn test_invalid_csv(): void {
+fn test_invalid_csv() {
     try {
         csv.parse('"unterminated')
     } catch err {

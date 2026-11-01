@@ -12,7 +12,7 @@ impl Settings {
         return self.paths.length
     }
 
-    fn add(path: string): void {
+    fn add(path: string) {
         self.paths.append(path)
     }
 }
