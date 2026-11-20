@@ -1377,6 +1377,7 @@ struct Options {
 |---|---|---|
 | `process.options(timeout_ms: int?, output_encoding: encoding.Encoding): process.Options` | 実行設定を作る。working_dirとstdinはnull、environmentは空。nullのタイムアウトは明示的に無制限。制限時間は1～2147483647ミリ秒。 | 不正タイムアウト、非対応文字コードはError。 |
 | `process.run(executable: string, arguments: string[], options: process.Options): process.Result` | 指定条件で封じ込めた実行ファイルを起動し、標準出力と標準エラー出力を取得。 | 不正条件、起動・入力送信・出力取得・デコードの失敗、期限内に終了しない場合はError。 |
+| `process.sleep(duration_ms: int): void` | 現在のスクリプトを指定したミリ秒だけ待機させる。0ならすぐに戻る。 | 0〜2147483647ミリ秒の範囲外はError。 |
 
 引数は必須の位置引数で、シェルコマンド文字列を解釈しません。
 実行ファイルと各引数は別々の文字列で、NULは起動前に拒否します。

@@ -1361,6 +1361,7 @@ struct Options {
 |---|---|---|
 | `process.options(timeout_ms: int?, output_encoding: encoding.Encoding): process.Options` | Creates explicit execution options. working_dir and stdin are null; environment is empty. Null timeout is deliberately unbounded; a deadline is 1 through 2147483647 milliseconds. | Invalid timeout or unsupported encoding causes Error. |
 | `process.run(executable: string, arguments: string[], options: process.Options): process.Result` | Starts a contained executable with the supplied execution conditions and captures stdout/stderr. | Invalid conditions or failure to launch, send input, capture, decode, or finish before the deadline causes Error. |
+| `process.sleep(duration_ms: int): void` | Pauses the current script for the supplied number of milliseconds. Zero returns immediately. | A duration outside 0 through 2147483647 milliseconds causes Error. |
 
 The API accepts required positional arguments only. It does not interpret a shell command string.
 The executable and each argument are separate strings; embedded NUL is rejected before launch.

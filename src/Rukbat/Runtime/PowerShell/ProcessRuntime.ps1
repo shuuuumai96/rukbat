@@ -1,3 +1,11 @@
+'process.sleep' {
+    $duration = [long]$values[0]
+    if ($duration -lt 0 -or $duration -gt [int]::MaxValue) {
+        throw 'process.sleep duration must be between 0 and 2147483647 milliseconds.'
+    }
+    if ($duration -gt 0) { Microsoft.PowerShell.Utility\Start-Sleep -Milliseconds ([int]$duration) }
+    return
+}
 { $_ -cin @('process.options', 'process.run') } {
     if ($operation -ceq 'process.options') {
         $timeout = $values[0]

@@ -87,6 +87,7 @@ namespace Rukbat
                 ("env", "set") => new([ValueType.String, ValueType.String], ValueType.Void),
                 ("process", "run") => new([ValueType.String, ValueType.ArrayOf(ValueType.String), Structure("Options")], Structure("Result")),
                 ("process", "options") => new([ValueType.NullableOf(ValueType.Int), ValueType.Encoding], Structure("Options")),
+                ("process", "sleep") => new([ValueType.Int], ValueType.Void),
                 ("encoding", "parse") => new([ValueType.String], ValueType.Encoding),
                 ("encoding", "from_code_page") => new([ValueType.Int], ValueType.Encoding),
                 ("encoding", "name") => new([ValueType.Encoding], ValueType.String),
