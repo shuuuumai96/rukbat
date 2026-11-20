@@ -16,17 +16,14 @@ greet("Rukbat")
 
 ## Getting started
 
-**0.2.0 preview is planned for November 14, 2026 (Japan time).** It will include
-the `impl` syntax change and correctness fixes. See the [release plan](docs/releases/0.2.0-plan.md)
-for verification requirements, postponement conditions, and the 0.1.0 maintenance policy.
-
-The first preview, **0.1.0**, is available. Download its Windows x64 packages
-from [GitHub Releases](https://github.com/shuuuumai96/rukbat/releases/tag/v0.1.0):
+Download the **0.2.0 preview** for Windows x64 from
+[GitHub Releases](https://github.com/shuuuumai96/rukbat/releases/tag/v0.2.0).
+When upgrading from 0.1.0, review the [migration instructions](docs/releases/0.2.0.md#migrating-from-010).
 
 | Package | Use |
 |---|---|
-| `rukbat-0.1.0-win32-x64.vsix` | VS Code extension with its compiler and language server. |
-| `rukbat-0.1.0-win-x64.zip` | Portable command-line compiler. |
+| `rukbat-0.2.0-win32-x64.vsix` | VS Code extension with its compiler and language server. |
+| `rukbat-0.2.0-win-x64.zip` | Portable command-line compiler. |
 | `SHA256SUMS` | SHA-256 hashes for both packages. |
 
 Use the [packaging instructions](docs/DISTRIBUTION.md#build-the-distribution-maintainers)
@@ -57,14 +54,16 @@ See the [distribution guide](docs/DISTRIBUTION.md) for environment requirements.
 
 ## Preview status and compatibility
 
-0.1.0 is intended for evaluation and feedback. Syntax, standard-library APIs and
+0.2.0 is intended for evaluation and feedback. Use it at your own risk. Offline
+operation on a clean Windows installation without a separate .NET SDK or runtime
+has not been verified. Syntax, standard-library APIs and
 tooling behavior may change in later 0.x releases. Pin the compiler version used
 by automation and recheck, rebuild and test sources before upgrading.
 
 Packages target Windows x64. Running programs requires Windows PowerShell 5.1;
 PowerShell 7 is optional. Process containment requires Windows 10 / Server 2016
 or later, and HTTP requires .NET Framework 4.7.1 or later on the target.
-See the [0.1.0 release notes](docs/releases/0.1.0.md) for scope and limitations.
+See the [0.2.0 release notes](docs/releases/0.2.0.md) for scope and limitations.
 
 Report problems through [GitHub Issues](https://github.com/shuuuumai96/rukbat/issues),
 including `rukbat --version`, `rukbat doctor`, a minimal source example, and the
