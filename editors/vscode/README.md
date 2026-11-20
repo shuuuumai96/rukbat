@@ -6,8 +6,7 @@ and canonical formatting.
 
 ## Install and run
 
-The first preview is being prepared as 0.1.0. Once published, download
-`rukbat-0.1.0-win32-x64.vsix` from
+Download the Windows x64 VSIX from
 [GitHub Releases](https://github.com/shuuuumai96/rukbat/releases).
 Requires VS Code 1.82 or later on Windows x64.
 
@@ -88,7 +87,7 @@ guides are also included in the VSIX under `runtime/win-x64/docs/STYLE.md` and
 Later 0.x versions may change syntax, standard-library APIs and tooling behavior.
 Pin the compiler version used by automation and recheck, rebuild and test before
 upgrading. See the repository's
-[release notes](https://github.com/shuuuumai96/rukbat/blob/main/docs/releases/0.1.0.md)
+[0.2.0 release notes](https://github.com/shuuuumai96/rukbat/blob/main/docs/releases/0.2.0.md)
 for requirements and limitations.
 
 Rukbat is available under the MIT License. The packaged extension includes

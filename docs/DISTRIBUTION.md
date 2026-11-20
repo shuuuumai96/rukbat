@@ -1,8 +1,8 @@
 # Rukbat on Windows
 
-The first preview, 0.1.0, is available. Download the VSIX,
-CLI ZIP and `SHA256SUMS` from [GitHub Releases](https://github.com/shuuuumai96/rukbat/releases/tag/v0.1.0).
-See the [release notes](releases/0.1.0.md) for preview compatibility and limitations.
+Download the Windows x64 VSIX, CLI ZIP, and `SHA256SUMS` from
+[GitHub Releases](https://github.com/shuuuumai96/rukbat/releases).
+See the [0.2.0 release notes](releases/0.2.0.md) for migration and limitations.
 
 ## VS Code: install one extension
 
@@ -90,9 +90,9 @@ The English and Japanese style guides are included at `docs/STYLE.md` and
 
 ### Prepare the GitHub release
 
-Use `v0.1.0` as the first release tag and `Rukbat 0.1.0 preview` as its title.
-Create a draft GitHub release, mark it as a pre-release, and use
-`docs/releases/0.1.0.md` as the release body. Attach only the versioned CLI ZIP,
+Create a draft GitHub release for the tested commit and mark it as a pre-release.
+Use the matching release notes under `docs/releases/` as the release body.
+Attach only the versioned CLI ZIP,
 VSIX and `SHA256SUMS` from one successful packaging run; do not attach the
 `portable` staging directory.
 
@@ -108,6 +108,7 @@ Before approving a release, exercise check/build/run/test/fmt/doc/LSP from the Z
 VSIX with no system .NET dependency. A clean Windows machine with no SDK/runtime
 and no network must also be used for final acceptance. Verify the generated `.ps1`
 on a separate target without the compiler and retain previous approved packages.
+For 0.2.0 preview, see the [offline acceptance exception](releases/0.2.0-plan.md).
 
 After extracting the ZIP to a fresh directory, `node tools/test-distribution.js
 <extracted-directory>` verifies the included runtime configuration, removes .NET

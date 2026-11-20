@@ -2,9 +2,8 @@
 
 [English](../../docs/DISTRIBUTION.md) | [日本語目次](README.md)
 
-初回のプレビュー版0.1.0を公開しました。
-[GitHub Releases](https://github.com/shuuuumai96/rukbat/releases/tag/v0.1.0)からVSIX、CLIのZIP、`SHA256SUMS`をダウンロードできます。
-互換性と制約は[リリースノート（英語）](../releases/0.1.0.md)を参照してください。
+[GitHub Releases](https://github.com/shuuuumai96/rukbat/releases)からWindows x64向けのVSIX、CLIのZIP、`SHA256SUMS`をダウンロードできます。
+0.2.0の互換性と制約は[リリースノート（英語）](../releases/0.2.0.md)を参照してください。
 
 <a id="vs-code-install-one-extension"></a>
 
@@ -95,9 +94,8 @@ VSIXでは、同じドキュメントを`extension/runtime/win-x64/docs/`に配�
 
 ### GitHubのリリースを準備する
 
-初回のタグは`v0.1.0`、タイトルは`Rukbat 0.1.0 preview`とします。
-GitHubでリリースの下書きを作り、プレリリースに設定してください。
-本文には`docs/releases/0.1.0.md`を使います。
+検証済みのコミットを対象に、GitHubでプレリリースの下書きを作成してください。
+本文には`docs/releases/`にある対象バージョンのリリースノートを使います。
 添付するファイルは、1回の成功したビルドで作ったバージョン付きのCLIのZIP、VSIX、`SHA256SUMS`です。作業用の`portable`ディレクトリは添付しません。
 
 検証したソースのリビジョンを記録し、下記の確認を終えてから下書きを公開します。
@@ -111,6 +109,7 @@ GitHubでリリースの下書きを作り、プレリリースに設定して�
 リリースを承認する前に、システムにインストールされた.NETに依存せず、ZIPとVSIXからcheck/build/run/test/fmt/doc/LSPが動作することを確認します。
 最終確認には、SDKもランタイムも別途インストールされておらず、ネットワークにも接続していないクリーンなWindows環境を使います。
 生成した`.ps1`はコンパイラのない別の実行先でも確認し、以前の承認済みパッケージを保管してください。
+0.2.0 previewに適用する例外は[公開計画](releases/0.2.0-plan.md)を参照してください。
 
 ZIPを新しいディレクトリに展開して`node tools/test-distribution.js <extracted-directory>`を実行すると、同梱ランタイムの設定を確認します。
 子プロセスのPATHから.NETを除き、DOTNET_ROOTを存在しないディレクトリに向けたうえで、全CLIコマンドとLSPを実行します。
