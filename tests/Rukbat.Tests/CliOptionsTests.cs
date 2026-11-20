@@ -369,12 +369,14 @@ namespace Rukbat.Tests
             recursive := cli.flag("recursive", "再帰検索")
             command.flags = [recursive]
             help := cli.help(command)
+            print(text.contains(help, "\r"))
             print(help)
             print(text.ends_with(help, "\n"))
             """);
             var result = await Execute(project, output, shell);
             Assert.True(result.ExitCode == 0, result.Error);
             Assert.Equal("""
+            False
             ファイル一覧
 
             Usage: demo.ps1 [options] DIRECTORY
@@ -396,7 +398,7 @@ namespace Rukbat.Tests
                 Show this help.
             False
 
-            """, result.Output);
+            """.Replace("\r\n", "\n"), result.Output);
             Assert.Equal("", result.Error);
         }
 

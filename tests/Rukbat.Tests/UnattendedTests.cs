@@ -311,7 +311,7 @@ namespace Rukbat.Tests
         {
             using var project = new Project();
             project.Write("first.txt", "first"); project.Write("second.txt", "second");
-            var generated = Build(project, TwoMoves);
+            var generated = Build(project, TwoMoves).Replace("\r\n", "\n");
             const string commitStart = "journal.Write(Commit, 0, Commit.Length);";
             var pausePoint = committed ? commitStart + "\n                journal.Flush(true);" : commitStart;
             Assert.Contains(pausePoint, generated);
