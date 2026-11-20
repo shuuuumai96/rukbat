@@ -29,5 +29,6 @@
     <Compile Include="../../src/Rukbat/Runtime/Native/Log.cs.txt" Link="Runtime/LogRuntime.cs" />
     <None Include="../../examples/**/*.rukbat" Link="Fixtures/examples/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../examples/testing/fixtures/*.csv" Link="Fixtures/examples/testing/fixtures/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../docs/TIME_ZONES.md" Link="Fixtures/TIME_ZONES.md" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

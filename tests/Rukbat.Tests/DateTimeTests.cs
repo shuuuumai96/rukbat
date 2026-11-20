@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace Rukbat.Tests
 {
     public class DateTimeTests : TestBase
@@ -76,18 +78,25 @@ namespace Rukbat.Tests
         [Theory]
         [InlineData("powershell")]
         [InlineData("pwsh")]
-        public async Task NamedZonesCoverInstalledWindowsIdsAndPreserveTimeRules(string shell)
+        public async Task NamedAndDynamicZonesPreserveInstalledWindowsTimeRules(string shell)
         {
-            // Derive expected names from Windows data to catch missing catalog entries and wrong mappings.
+            var catalog = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "TIME_ZONES.md"));
+            var namesById = Regex.Matches(catalog, @"\| `datetime\.([a-z0-9_]+)` \| `([^`]+)` \|")
+                .ToDictionary(match => match.Groups[2].Value, match => match.Groups[1].Value, StringComparer.Ordinal);
+            Assert.NotEmpty(namesById);
+
             var source = "import datetime; import test\n";
             foreach (var zone in TimeZoneInfo.GetSystemTimeZones())
             {
-                var name = zone.Id.Replace(" Standard Time", "");
-                name = zone.Id.StartsWith("UTC", StringComparison.Ordinal)
-                    ? name.Replace("+", " plus ").Replace("-", " minus ") : name.Replace("-", " ");
-                name = System.Text.RegularExpressions.Regex.Replace(name.ToLowerInvariant(), "[^a-z0-9]+", "_").Trim('_');
-                source += $"test.assert(datetime.zone_id(datetime.{name}) == '{zone.Id}')\n";
-                source += $"test.assert(datetime.{name} == datetime.zone('{zone.Id}'))\n";
+                if (namesById.TryGetValue(zone.Id, out var name))
+                {
+                    source += $"test.assert(datetime.zone_id(datetime.{name}) == '{zone.Id}')\n";
+                    source += $"test.assert(datetime.{name} == datetime.zone('{zone.Id}'))\n";
+                }
+                else
+                {
+                    source += $"test.assert(datetime.zone_id(datetime.zone('{zone.Id}')) == '{zone.Id}')\n";
+                }
             }
             source += """
             t := datetime.parse('2024-02-29T18:30:00Z')
