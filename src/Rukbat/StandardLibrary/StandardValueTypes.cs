@@ -6,7 +6,7 @@ namespace Rukbat
         // standard values must still come from the current compilation's modules.
         private static readonly IReadOnlyDictionary<string, ValueType> scalars = new[]
         {
-            ValueType.Encoding, ValueType.RegexPattern, ValueType.FileLines,
+            ValueType.Encoding, ValueType.RegexPattern, ValueType.FileLines, ValueType.CsvRecords,
             HashValues.Algorithm, LogValues.Level, HttpValues.Method, HttpValues.Body,
             DateTimeValues.Timestamp, DateTimeValues.Date, DateTimeValues.Duration, DateTimeValues.Zone
         }.ToDictionary(type => type.Name, StringComparer.Ordinal);

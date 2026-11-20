@@ -928,6 +928,7 @@ equalと同じ開始ディレクトリ基準の解決と、大文字小文字を
 |---|---|
 | ヘッダー付きCSVで列名からセルを読む | csv.parse_table(text)がcsv.Tableを返す。csv.get、csv.set、csv.stringify_tableを使う。 |
 | ヘッダーなしCSV、または列数が異なるレコード | csv.parse(text)がstring[][]を返す。書き込みはcsv.stringify(rows)。 |
+| CSVファイルを1レコードずつ処理する | `csv.records(path, encoding)`を`for`で走査する。 |
 | 構造が未知・混在するJSON | json.parse(text)がjson.Valueを返す。get / itemsで選び、`as<T>`で変換。 |
 | 固定スキーマのJSON | `json.parse<T>(text)`でその型を検証。 |
 | 未知のプロパティを保ったJSON更新 | json.set / remove、set_at / remove_at / appendを使い、返された値を代入。 |
@@ -1037,6 +1038,21 @@ fs.write_text("people.csv", csv.stringify(rows), encoding.utf8)
 loaded := csv.parse(fs.read_text("people.csv", encoding.utf8))
 print(loaded[1][0]) // Taro
 ```
+
+<a id="sequential-file-records"></a>
+
+### ファイルを1レコードずつ読む
+
+| シグネチャ | 意味 | 失敗 |
+|---|---|---|
+| `csv.records(path: string, encoding: encoding.Encoding): csv.Records` | CSVファイルを順に読むための不変の記述子を作る。`for`ごとにファイルを開き、ヘッダーを含めて1レコードずつ`string[]`で返す。 | パスや文字コードが無効なら記述子の作成時にError。ファイルのオープン・読み取り・デコード・クローズの失敗や不正なCSV構文は走査中にError。 |
+
+引用符、区切り、空フィールドの扱いは`csv.parse`と同じです。引用符で囲んだフィールド内の改行も保持します。
+パス解決、厳密なデコード、BOMの扱いは`fs.lines`と同じです。
+レコードごとに独立した配列を返します。ループが保持するのは現在のレコードと容量の決まったデコード用バッファです。
+後続レコードが不正でも、それまでに読み取ったレコードは処理されていることがあります。
+デコードは先読みするため、文字コードのエラーは該当レコードより前に発生することがあります。
+EOF、`break`、`return`、ループ外に伝わる`Error`でファイルを閉じます。
 
 <a id="json"></a>
 

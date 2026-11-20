@@ -1,4 +1,6 @@
 'csv.parse' { return ,(& $__rukbat_csv_parse ([string]$values[0])) }
+'csv.records' { return (& $__rukbat_describe_text_file $values[0] $values[1]) }
+'csv.__open_records' { return [RukbatCsvCursor]::new((& $__rukbat_open_text_file $values[0])) }
 'csv.stringify' { return (& $__rukbat_csv_stringify $values[0]) }
 'csv.parse_table' {
     $records = & $__rukbat_csv_parse ([string]$values[0])

@@ -27,7 +27,7 @@ namespace Rukbat.Tests
                     foreach (var width in new[] { 1, 2, 3, 5, 65536 })
                 {
                     var stream = new ShortReadStream(bytes, width);
-                    var cursor = new RukbatFileLineCursor(stream, name, RukbatFileText.CreateDecoder(encoding));
+                    var cursor = new RukbatFileLineCursor(new RukbatFileTextReader(stream, name, RukbatFileText.CreateDecoder(encoding)));
                     var actual = new List<string>();
                     while (cursor.MoveNext())
                         {
@@ -51,7 +51,7 @@ namespace Rukbat.Tests
             var flushes = 0;
             var stream = new ShortReadStream([65, 10, 66, 10, 255], 1) { FailDispose = true };
             var decode = RukbatFileText.CreateDecoder(new UTF8Encoding(false, true));
-            var cursor = new RukbatFileLineCursor(stream, "utf-8", (bytes, offset, count, final) =>
+            var cursor = new RukbatFileLineCursor(new RukbatFileTextReader(stream, "utf-8", (bytes, offset, count, final) =>
             {
                 if (final)
                 {
@@ -59,7 +59,7 @@ namespace Rukbat.Tests
                 }
 
                 return decode(bytes, offset, count, final);
-            });
+            }));
             Assert.True(cursor.MoveNext()); Assert.Equal("A", cursor.Current);
             Assert.Throws<IOException>(() => cursor.Close());
             cursor.Close();
@@ -72,7 +72,7 @@ namespace Rukbat.Tests
         {
             var encoding = new UnicodeEncoding(false, false, true);
             var stream = new ShortReadStream([255, 254, 255, 254, 0, 0], 1);
-            var cursor = new RukbatFileLineCursor(stream, "utf-16le", RukbatFileText.CreateDecoder(encoding));
+            var cursor = new RukbatFileLineCursor(new RukbatFileTextReader(stream, "utf-16le", RukbatFileText.CreateDecoder(encoding)));
             Assert.True(cursor.MoveNext()); Assert.Equal("\ufeff\0", cursor.Current);
             Assert.False(cursor.MoveNext()); cursor.Close();
             Assert.Equal(2, RukbatFileText.BomOffset("utf-16le", [255, 254, 0, 0], 4));

@@ -912,6 +912,7 @@ Choose the representation that matches the input:
 |---|---|
 | CSV with a header; access cells by name | `csv.parse_table(text)` returns `csv.Table`; use `csv.get`, `csv.set`, and `csv.stringify_table` |
 | CSV without a header, or records with different widths | `csv.parse(text)` returns `string[][]`; write with `csv.stringify(rows)` |
+| Process a CSV file one record at a time | Iterate over `csv.records(path, encoding)` with `for` |
 | JSON with unknown or mixed structure | `json.parse(text)` returns `json.Value`; select with `get` / `items`, convert with `as<T>` |
 | JSON with a fixed schema | `json.parse<T>(text)` validates that type |
 | Update JSON while retaining unknown properties | `json.set` / `remove`, `set_at` / `remove_at` / `append`; assign the returned value |
@@ -1015,6 +1016,29 @@ fs.write_text("people.csv", csv.stringify(rows), encoding.utf8)
 
 loaded := csv.parse(fs.read_text("people.csv", encoding.utf8))
 print(loaded[1][0]) // Taro
+```
+
+### Sequential file records
+
+| Signature | Meaning | Failure |
+|---|---|---|
+| `csv.records(path: string, encoding: encoding.Encoding): csv.Records` | Creates an immutable descriptor for sequential CSV records. Each `for` opens its own traversal and yields one `string[]` at a time, including the header if present. | Invalid paths or encodings cause Error when creating the descriptor. Opening, reading, decoding, invalid CSV syntax, and cleanup can cause Error during traversal. |
+
+Records follow the same quoting, separator, and empty-field rules as `csv.parse`,
+and use the same path resolution, strict decoding, and BOM handling as `fs.lines`.
+A quoted field may span physical lines. Each iteration yields an independent array.
+The loop holds the current record and a bounded decoding buffer. Earlier records may
+already have reached the loop body when a later record fails. Decoding can read ahead,
+so an encoding error may surface before the record that contains it. The file closes
+when the loop reaches EOF, breaks, returns, or propagates an Error.
+
+```rukbat
+import csv
+import encoding
+
+for record in csv.records("report.csv", encoding.utf8) {
+    print(record[0])
+}
 ```
 
 ## `json`

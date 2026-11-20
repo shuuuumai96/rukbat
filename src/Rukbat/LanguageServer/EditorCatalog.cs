@@ -37,6 +37,8 @@ namespace Rukbat
             "A validated encoding type. Use predefined encoding values or encoding.from_code_page for an explicit Windows code page.", Type: ValueType.Encoding);
         public static readonly EditorSymbol FileLinesType = new("Lines", "fs.Lines", 13,
             "An immutable file-line descriptor. Each for opens an independent traversal and closes it on termination.", Type: ValueType.FileLines);
+        public static readonly EditorSymbol CsvRecordsType = new("Records", "csv.Records", 13,
+            "An immutable CSV file descriptor. Each for opens an independent traversal of CSV records.", Type: ValueType.CsvRecords);
         public static readonly EditorSymbol RegexPatternType = new("Pattern", "re.Pattern", 13,
             "An immutable validated regular expression with an explicit finite match timeout. Create with re.compile.", Type: ValueType.RegexPattern);
         public static EditorSymbol EncodingValue(StandardEncoding value) => new(value.Name,
@@ -45,7 +47,7 @@ namespace Rukbat
         private static readonly EditorSymbol[] scalarTypes =
         [
             HashType, LogType, HttpType(HttpValues.Method), HttpType(HttpValues.Body),
-            EncodingType, FileLinesType, RegexPatternType,
+            EncodingType, FileLinesType, CsvRecordsType, RegexPatternType,
             .. DateTimeValues.All.Select(DateTimeType)
         ];
         private static readonly IReadOnlyDictionary<ValueType, EditorSymbol> scalarSymbols =

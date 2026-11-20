@@ -87,13 +87,16 @@ namespace Rukbat
                         break;
                     case For loop:
                         var collectionType = TypeOf(loop.Items, scope);
-                        var iteration = collectionType == ValueType.FileLines
-                            ? new BoundIteration(IterationKind.OwnedCursor, ValueType.String, "fs.__open_lines")
-                            : new BoundIteration(IterationKind.ArraySnapshot, collectionType.Element ?? ValueType.Error);
-                        Iterations[loop] = iteration;
-                        if (collectionType.Element is null && collectionType != ValueType.FileLines && collectionType != ValueType.Error)
+                        var iteration = collectionType switch
                         {
-                            Error("RUK2001", "for ... in requires an array or fs.Lines.", loop.Items);
+                            var type when type == ValueType.FileLines => new BoundIteration(IterationKind.OwnedCursor, ValueType.String, "fs.__open_lines"),
+                            var type when type == ValueType.CsvRecords => new BoundIteration(IterationKind.OwnedCursor, ValueType.ArrayOf(ValueType.String), "csv.__open_records"),
+                            _ => new BoundIteration(IterationKind.ArraySnapshot, collectionType.Element ?? ValueType.Error)
+                        };
+                        Iterations[loop] = iteration;
+                        if (iteration.Kind == IterationKind.ArraySnapshot && collectionType.Element is null && collectionType != ValueType.Error)
+                        {
+                            Error("RUK2001", "for ... in requires an array, fs.Lines, or csv.Records.", loop.Items);
                         }
 
                         var beforeLoop = SnapshotFlow();

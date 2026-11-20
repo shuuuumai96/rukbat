@@ -272,6 +272,18 @@ namespace Rukbat.Tests
             Assert.Empty(LastDiagnostics(messages, uri).GetProperty("diagnostics").EnumerateArray());
         }
 
+        [Fact]
+        public void CsvRecordsAndDescriptorAppearInModuleCompletion()
+        {
+            using var project = new Project();
+            var uri = UriFor(project);
+            var completion = Result(Session(Open(uri, "import csv\ncsv."), Feature(uri, "completion", 1, 4)));
+            var items = completion.EnumerateArray().ToDictionary(item => item.GetProperty("label").GetString()!);
+            Assert.Contains("csv.records(path: string, encoding: encoding.Encoding): csv.Records",
+                items["records"].GetProperty("detail").GetString());
+            Assert.Equal("csv.Records", items["Records"].GetProperty("detail").GetString());
+        }
+
         [Theory]
         [InlineData("value := missing", "RUK2004")]
         [InlineData("value: int = \"東京\"", "RUK2001")]

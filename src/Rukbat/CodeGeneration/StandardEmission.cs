@@ -3,7 +3,9 @@ namespace Rukbat
     internal sealed partial class Emitter
     {
         private static readonly string[] EncodingRuntimeModules =
-            ["encoding", "fs", "process", "zip", "hash", "http"];
+            ["encoding", "fs", "csv", "process", "zip", "hash", "http"];
+
+        private static readonly string[] FileTextRuntimeModules = ["fs", "csv"];
 
         // Order is intentional: preserve loader setup and generated operation order.
         private static readonly (string Module, Action<Emitter> Emit)[] RuntimeInitializers =
@@ -15,7 +17,6 @@ namespace Rukbat
             }),
             ("fs", static emitter =>
             {
-                emitter.EmitNativeLoader("FileText");
                 emitter.EmitNativeLoader("MoveBatch");
                 emitter.EmitNativeLoader("TemporaryEntries");
             }),
@@ -70,6 +71,11 @@ namespace Rukbat
             {
                 EmitNativeLoader("CodePageCodec");
                 EmitEncodingSelector();
+            }
+            if (modules.Overlaps(FileTextRuntimeModules))
+            {
+                EmitNativeLoader("FileText");
+                EmitLines(RuntimeResources.ReadPowerShell("FileTextHelpers"));
             }
             foreach (var initializer in RuntimeInitializers)
             {

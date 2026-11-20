@@ -1,6 +1,104 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Text;
+
+public static class RukbatCsv {
+    public static object[] Parse(string text) {
+        var records = new List<object>();
+        var cursor = new RukbatCsvCursor(new StringReader(text));
+        try {
+            while (cursor.MoveNext()) records.Add(cursor.Current);
+        } finally { cursor.Close(); }
+        return records.ToArray();
+    }
+}
+
+// A cursor yields complete records without PowerShell implicitly enumerating the input.
+public sealed class RukbatCsvCursor {
+    private enum FieldState { Start, Unquoted, Quoted, AfterQuote }
+    private TextReader reader;
+    private long offset;
+    private bool failed;
+    public List<object> Current { get; private set; }
+
+    public RukbatCsvCursor(TextReader reader) { this.reader = reader; }
+
+    public bool MoveNext() {
+        Current = null;
+        if (reader == null || failed) throw new InvalidOperationException("Traversal has closed or failed.");
+        try {
+            Current = ReadRecord();
+            return Current != null;
+        } catch { failed = true; throw; }
+    }
+
+    private List<object> ReadRecord() {
+        int character = Read();
+        if (character == -1) return null;
+
+        var fields = new List<object>();
+        var field = new StringBuilder();
+        var state = FieldState.Start;
+        for (; character != -1; character = Read()) {
+            if (state == FieldState.Quoted) {
+                if (character == '"') state = FieldState.AfterQuote;
+                else field.Append((char)character);
+                continue;
+            }
+            switch (character) {
+                case '"':
+                    if (state == FieldState.Unquoted)
+                        throw SyntaxError(offset - 1, "Quote is not allowed in an unquoted field.");
+                    if (state == FieldState.AfterQuote) field.Append('"');
+                    state = FieldState.Quoted;
+                    break;
+                case ',':
+                    fields.Add(field.ToString());
+                    field.Clear();
+                    state = FieldState.Start;
+                    break;
+                case '\r':
+                    long carriageReturn = offset - 1;
+                    if (Read() != '\n')
+                        throw SyntaxError(carriageReturn, "Bare carriage return outside a quoted field.");
+                    goto case '\n';
+                case '\n':
+                    fields.Add(field.ToString());
+                    return fields;
+                default:
+                    if (state == FieldState.AfterQuote)
+                        throw SyntaxError(offset - 1, "Expected a separator or record end after a closing quote.");
+                    field.Append((char)character);
+                    state = FieldState.Unquoted;
+                    break;
+            }
+        }
+        if (state == FieldState.Quoted) throw SyntaxError(offset, "Unclosed quoted field.");
+        fields.Add(field.ToString());
+        return fields;
+    }
+
+    private int Read() {
+        int character = reader.Read();
+        if (character != -1) offset++;
+        return character;
+    }
+
+    private static FormatException SyntaxError(long index, string message) {
+        return new FormatException("CSV at offset " + index.ToString(CultureInfo.InvariantCulture) + ": " + message);
+    }
+
+    public void Close() {
+        TextReader owned = reader;
+        reader = null;
+        Current = null;
+        if (owned != null) owned.Dispose();
+    }
+}
+
 public sealed class RukbatCsvRow {
     private sealed class Header {
         public readonly string[] Columns;

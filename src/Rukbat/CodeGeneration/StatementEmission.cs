@@ -192,7 +192,7 @@ namespace Rukbat
 
         private void EmitOwnedIteration(For loop)
         {
-            var source = "$__rukbat_lines" + temporaryId++;
+            var source = "$__rukbat_source" + temporaryId++;
             var cursor = "$__rukbat_cursor" + temporaryId++;
             var primary = "$__rukbat_primary" + temporaryId++;
             var cleanup = "$__rukbat_cleanup" + temporaryId++;
@@ -207,7 +207,7 @@ namespace Rukbat
             indentation++;
             Line($"$__rukbat_location = {Location(loop)}");
             Line($"if (-not {cursor}.MoveNext()) {{ break }}");
-            Line($"[string]{variable.PowerShellName} = {cursor}.Current");
+            Line($"[{TypeName(variable.Type)}]{variable.PowerShellName} = {cursor}.Current");
             var before = debugVariables;
             debugVariables = [variable, .. debugVariables];
             EmitStatements(loop.Body);
@@ -236,7 +236,7 @@ namespace Rukbat
             indentation--;
             Line("} finally {");
             Line($"    {cursor} = $null; {source} = $null; {primary} = $null; {cleanup} = $null");
-            Line($"    {variable.PowerShellName} = ''");
+            Line($"    {variable.PowerShellName} = $null");
             Line("}");
             indentation--;
             Line("}");

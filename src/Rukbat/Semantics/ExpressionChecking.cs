@@ -60,7 +60,7 @@ namespace Rukbat
             {
                 return ValueType.Bool;
             }
-            if (left == right && !left.IsNullable && !left.IsComposite && left != ValueType.Void && left != HttpValues.Body && left != ValueType.FileLines && left != ValueType.RegexPattern && op is "==" or "!=")
+            if (left == right && !left.IsNullable && !left.IsComposite && left != ValueType.Void && left != HttpValues.Body && left != ValueType.FileLines && left != ValueType.CsvRecords && left != ValueType.RegexPattern && op is "==" or "!=")
             {
                 return ValueType.Bool;
             }

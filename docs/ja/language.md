@@ -126,10 +126,11 @@ APIと変換規則は[標準ライブラリ](STDLIB.md)で定義します。
 | `log.Level` | 検証済み重要度定数と、nullでない同型の等値比較。順序、算術、フィールド、構造体リテラル、暗黙変換は不可。`log.Logger`はコピー可能な設定フィールドを持つ通常の構造体。 |
 | `http.Body`, `http.Method` | 不変の応答バイト列と検証済みメソッド定数。等値比較はMethodのみ。HTTPの要求・オプション・結果は通常の構造体。ステータス定数は読み取り専用int。 |
 | `fs.Lines` | 不変のファイル行記述子。forが個々の走査を管理。等値比較、直接表示、公開フィールドは不可。 |
+| `csv.Records` | 不変のCSVファイル記述子。forが個々の走査を管理。等値比較、直接表示、公開フィールドは不可。 |
 | `re.Pattern` | 検証済みの不変の正規表現。検索のタイムアウトを明示する。等値比較、直接表示、公開フィールドは不可。`re.Match`は一致文字列、コードポイント単位の範囲、null許容のキャプチャ文字列を持つ通常の構造体。 |
 | `datetime.Timestamp`, `datetime.Date`, `datetime.Duration`, `datetime.Zone` | 明示的な変換・算術。同型の等値比較と、Zone以外の順序比較。名前付きゾーンは読み取り専用定数。 |
 
-encoding、hash、log.Level、HTTPの不透明型、fs.Lines、re.Pattern、datetime型は、表示・JSON・PowerShellとの受け渡しで再帰的に拒否します。
+encoding、hash、log.Level、HTTPの不透明型、fs.Lines、csv.Records、re.Pattern、datetime型は、表示・JSON・PowerShellとの受け渡しで再帰的に拒否します。
 JSON/CSVの更新は元の値を維持し、通常のコンテナーのコピーも独立します。
 ZIPは通常の構造体`zip.Options`と`zip.Entry`を公開します。
 
@@ -285,7 +286,7 @@ forの走査対象式はループ開始時に1回だけ評価します。
 配列はその時点の値のスナップショットを走査します。ループ本体で元の配列変数を変更しても、appendによる追加を含め、走査する要素やその順序は変わりません。
 ループ変数には各要素をコピーします。その変数への代入は元の配列を変更しません。
 
-forはnullでない`fs.Lines`も受け取り、文字列を取り出します。
+forはnullでない`fs.Lines`と`csv.Records`も受け取ります。`fs.Lines`からは文字列を1行ずつ、`csv.Records`からは文字列の配列を1レコードずつ取り出します。
 各ループが独立したファイル走査を管理し、EOF、break、return、外へ伝播するErrorで閉じます。continueでは開いたままです。
 return式の評価とコピーはクローズ前に行い、戻り値の出力は後始末に成功した後です。
 後始末の失敗は通常のErrorになります。元のErrorと後始末の失敗が重なっても、catchしたErrorのソース位置は保持します。

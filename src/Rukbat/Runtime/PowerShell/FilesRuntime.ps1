@@ -59,18 +59,10 @@
     return ,([object[]]$paths)
 }
 'fs.lines' {
-    $path = & $__rukbat_resolve_path ([string]$values[0])
-    $selected = & $__rukbat_text_encoding ([string]$values[1]) 'file'
-    & $__rukbat_load_FileText
-    return [RukbatFileText]::Describe($path, $selected.name)
+    return (& $__rukbat_describe_text_file $values[0] $values[1])
 }
 'fs.__open_lines' {
-    $source = $values[0]
-    $selected = & $__rukbat_text_encoding $source.Encoding 'file'
-    $decoder = if ($selected.encoding -is [System.Text.Encoding]) {
-        [RukbatFileText]::CreateDecoder($selected.encoding)
-    } else { $selected.encoding.CreateDecoder() }
-    return [RukbatFileText]::Open($source, $decoder)
+    return [RukbatFileLineCursor]::new((& $__rukbat_open_text_file $values[0]))
 }
 'fs.read_text' {
     $selected = & $__rukbat_text_encoding ([string]$values[1]) 'file'

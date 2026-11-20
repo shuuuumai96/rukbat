@@ -66,6 +66,7 @@ namespace Rukbat
                 ("path", "parent") => new([ValueType.String], ValueType.String),
                 ("path", "equal") => new([ValueType.String, ValueType.String], ValueType.Bool),
                 ("csv", "parse") => new([ValueType.String], ValueType.ArrayOf(ValueType.ArrayOf(ValueType.String))),
+                ("csv", "records") => new([ValueType.String, ValueType.Encoding], ValueType.CsvRecords),
                 ("csv", "parse_table") => new([ValueType.String], Structure("Table")),
                 ("csv", "table") => new([ValueType.ArrayOf(ValueType.String), ValueType.ArrayOf(ValueType.ArrayOf(ValueType.String))], Structure("Table")),
                 ("csv", "row") => new([ValueType.ArrayOf(ValueType.String), ValueType.ArrayOf(ValueType.String)], Structure("Row")),

@@ -32,68 +32,87 @@ public static class RukbatFileText {
         };
     }
 
-    public static RukbatFileLines Describe(string path, string encoding) { return new RukbatFileLines(path, encoding); }
-    public static RukbatFileLineCursor Open(RukbatFileLines source, Func<byte[], int, int, bool, string> decode) {
+    public static RukbatTextFile Describe(string path, string encoding) { return new RukbatTextFile(path, encoding); }
+    public static TextReader Open(RukbatTextFile source, Func<byte[], int, int, bool, string> decode) {
         Stream stream = File.Open(source.Path, FileMode.Open, FileAccess.Read, FileShare.Read);
-        try { return new RukbatFileLineCursor(stream, source.Encoding, decode); }
+        try { return new RukbatFileTextReader(stream, source.Encoding, decode); }
         catch { stream.Dispose(); throw; }
     }
 }
 
-public sealed class RukbatFileLines {
+public sealed class RukbatTextFile {
     public readonly string Path;
     public readonly string Encoding;
-    internal RukbatFileLines(string path, string encoding) { Path = path; Encoding = encoding; }
+    internal RukbatTextFile(string path, string encoding) { Path = path; Encoding = encoding; }
 }
 
 // No IEnumerable: PowerShell must never enumerate a descriptor or cursor implicitly.
 public sealed class RukbatFileLineCursor {
+    private TextReader reader;
+    private bool failed;
+    public string Current { get; private set; }
+
+    public RukbatFileLineCursor(TextReader reader) { this.reader = reader; }
+
+    public bool MoveNext() {
+        Current = null;
+        if (reader == null || failed) throw new InvalidOperationException("Traversal has closed or failed.");
+        try {
+            Current = reader.ReadLine();
+            return Current != null;
+        } catch { failed = true; throw; }
+    }
+
+    public void Close() {
+        TextReader owned = reader;
+        reader = null;
+        Current = null;
+        if (owned != null) owned.Dispose();
+    }
+}
+
+public sealed class RukbatFileTextReader : TextReader {
     private const int BufferSize = 64 * 1024;
     private const int BomProbeSize = 4;
     private Stream stream;
     private Func<byte[], int, int, bool, string> decode;
     private readonly string encoding;
     private byte[] buffer = new byte[BufferSize];
-    private StringBuilder line = new StringBuilder();
     private string chunk = String.Empty;
     private int position;
-    private bool first = true, eof, ended, failed, skipLf;
-    public string Current { get; private set; }
+    private bool first = true, eof, skipLf;
 
-    public RukbatFileLineCursor(Stream stream, string encoding, Func<byte[], int, int, bool, string> decode) {
+    public RukbatFileTextReader(Stream stream, string encoding, Func<byte[], int, int, bool, string> decode) {
         if (stream == null || decode == null) throw new ArgumentNullException();
         this.stream = stream; this.encoding = encoding; this.decode = decode;
     }
 
-    public bool MoveNext() {
-        Current = null;
-        if (stream == null || failed) throw new InvalidOperationException("Traversal has closed or failed.");
-        if (ended) return false;
-        try {
-            while (true) {
-                if (position == chunk.Length) {
-                    if (eof) {
-                        ended = true;
-                        if (line.Length == 0) return false;
-                        Current = line.ToString(); line.Clear(); return true;
-                    }
-                    ReadChunk();
-                    continue;
-                }
-                if (skipLf) {
-                    if (chunk[position] == '\n') position++;
-                    skipLf = false;
-                    if (position == chunk.Length) continue;
-                }
-                int start = position;
-                while (position < chunk.Length && chunk[position] != '\r' && chunk[position] != '\n') position++;
-                line.Append(chunk, start, position - start);
-                if (position != chunk.Length) {
-                    skipLf = chunk[position++] == '\r';
-                    Current = line.ToString(); line.Clear(); return true;
-                }
+    private bool HasCharacter() {
+        if (stream == null) throw new ObjectDisposedException("RukbatFileTextReader");
+        while (position == chunk.Length && !eof) ReadChunk();
+        return position < chunk.Length;
+    }
+
+    public override int Read() { return HasCharacter() ? chunk[position++] : -1; }
+
+    public override string ReadLine() {
+        if (skipLf) {
+            if (HasCharacter() && chunk[position] == '\n') position++;
+            skipLf = false;
+        }
+        StringBuilder continued = null;
+        while (HasCharacter()) {
+            int start = position;
+            while (position < chunk.Length && chunk[position] != '\r' && chunk[position] != '\n') position++;
+            int length = position - start;
+            if (position != chunk.Length) {
+                skipLf = chunk[position++] == '\r';
+                return continued == null ? chunk.Substring(start, length) : continued.Append(chunk, start, length).ToString();
             }
-        } catch { failed = true; throw; }
+            if (continued == null) continued = new StringBuilder();
+            continued.Append(chunk, start, length);
+        }
+        return continued == null ? null : continued.ToString();
     }
 
     private void ReadChunk() {
@@ -115,9 +134,9 @@ public sealed class RukbatFileLineCursor {
         position = 0;
     }
 
-    public void Close() {
+    protected override void Dispose(bool disposing) {
         Stream owned = stream;
-        stream = null; decode = null; buffer = null; chunk = null; line = null; Current = null;
-        if (owned != null) owned.Dispose();
+        stream = null; decode = null; buffer = null; chunk = null;
+        if (disposing && owned != null) owned.Dispose();
     }
 }

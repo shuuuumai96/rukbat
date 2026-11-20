@@ -28,6 +28,7 @@ namespace Rukbat
                 [ValueType.Float] = "double",
                 [ValueType.Encoding] = "string",
                 [ValueType.FileLines] = "object",
+                [ValueType.CsvRecords] = "object",
                 [ValueType.RegexPattern] = "object",
                 [HashValues.Algorithm] = "string",
                 [LogValues.Level] = "string",
