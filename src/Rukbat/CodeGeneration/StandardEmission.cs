@@ -26,7 +26,7 @@ namespace Rukbat
             ("log", static emitter => emitter.EmitLogRuntime()),
             ("zip", static emitter => emitter.EmitNativeLoader("Zip", "System.IO.Compression")),
             ("http", static emitter => emitter.EmitHttpLoader()),
-            ("csv", static emitter => emitter.EmitCsvRuntime()),
+            ("csv", static emitter => emitter.EmitNativeDefinition("Csv")),
             ("cli", static emitter => emitter.EmitCliRuntime()),
             ("text", static emitter =>
             {

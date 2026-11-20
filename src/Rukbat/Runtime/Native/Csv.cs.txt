@@ -5,20 +5,78 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 
+internal static class RukbatCsvSyntax {
+    internal const int EndOfInput = -1;
+    internal const char Quote = '"';
+    internal const char Separator = ',';
+    internal const char CarriageReturn = '\r';
+    internal const char LineFeed = '\n';
+    internal const string RecordEnding = "\r\n";
+
+    internal static bool EndsField(int character) {
+        return character == Separator || character == CarriageReturn ||
+            character == LineFeed || character == EndOfInput;
+    }
+}
+
 public static class RukbatCsv {
-    public static object[] Parse(string text) {
+    private static readonly char[] QuotingCharacters = {
+        RukbatCsvSyntax.Quote, RukbatCsvSyntax.Separator, RukbatCsvSyntax.CarriageReturn, RukbatCsvSyntax.LineFeed
+    };
+
+    public static List<object> Parse(string text) {
         var records = new List<object>();
         var cursor = new RukbatCsvCursor(new StringReader(text));
         try {
             while (cursor.MoveNext()) records.Add(cursor.Current);
         } finally { cursor.Close(); }
-        return records.ToArray();
+        return records;
+    }
+
+    public static string Stringify(IList records) {
+        var output = new StringBuilder();
+        int recordNumber = 0;
+        foreach (IList fields in records) {
+            recordNumber++;
+            if (fields.Count == 0)
+                throw new FormatException("csv.stringify record " + recordNumber + " must contain at least one field.");
+            AppendRecord(output, fields);
+        }
+        return output.ToString();
+    }
+
+    internal static void AppendRecord(StringBuilder output, IList fields) {
+        for (int index = 0; index < fields.Count; index++) {
+            if (index != 0) output.Append(RukbatCsvSyntax.Separator);
+            AppendField(output, (string)fields[index]);
+        }
+        output.Append(RukbatCsvSyntax.RecordEnding);
+    }
+
+    private static void AppendField(StringBuilder output, string field) {
+        int special = field.IndexOfAny(QuotingCharacters);
+        if (special < 0 && field.Length != 0) {
+            output.Append(field);
+            return;
+        }
+
+        output.Append(RukbatCsvSyntax.Quote);
+        int start = 0;
+        for (int quote = special < 0 ? -1 : field.IndexOf(RukbatCsvSyntax.Quote, special);
+            quote >= 0; quote = field.IndexOf(RukbatCsvSyntax.Quote, start)) {
+            int end = quote + 1;
+            output.Append(field, start, end - start).Append(RukbatCsvSyntax.Quote);
+            start = end;
+        }
+        output.Append(field, start, field.Length - start).Append(RukbatCsvSyntax.Quote);
     }
 }
 
 // A cursor yields complete records without PowerShell implicitly enumerating the input.
 public sealed class RukbatCsvCursor {
-    private enum FieldState { Start, Unquoted, Quoted, AfterQuote }
+    // Prevent an unusually large field from retaining a large scratch buffer for the rest of the file.
+    private const int RetainedFieldCapacity = 4096;
+    private StringBuilder field = new StringBuilder();
     private TextReader reader;
     private long offset;
     private bool failed;
@@ -37,53 +95,52 @@ public sealed class RukbatCsvCursor {
 
     private List<object> ReadRecord() {
         int character = Read();
-        if (character == -1) return null;
+        if (character == RukbatCsvSyntax.EndOfInput) return null;
 
         var fields = new List<object>();
-        var field = new StringBuilder();
-        var state = FieldState.Start;
-        for (; character != -1; character = Read()) {
-            if (state == FieldState.Quoted) {
-                if (character == '"') state = FieldState.AfterQuote;
-                else field.Append((char)character);
-                continue;
-            }
-            switch (character) {
-                case '"':
-                    if (state == FieldState.Unquoted)
-                        throw SyntaxError(offset - 1, "Quote is not allowed in an unquoted field.");
-                    if (state == FieldState.AfterQuote) field.Append('"');
-                    state = FieldState.Quoted;
-                    break;
-                case ',':
-                    fields.Add(field.ToString());
-                    field.Clear();
-                    state = FieldState.Start;
-                    break;
-                case '\r':
-                    long carriageReturn = offset - 1;
-                    if (Read() != '\n')
-                        throw SyntaxError(carriageReturn, "Bare carriage return outside a quoted field.");
-                    goto case '\n';
-                case '\n':
-                    fields.Add(field.ToString());
-                    return fields;
-                default:
-                    if (state == FieldState.AfterQuote)
-                        throw SyntaxError(offset - 1, "Expected a separator or record end after a closing quote.");
-                    field.Append((char)character);
-                    state = FieldState.Unquoted;
-                    break;
-            }
+        while (true) {
+            character = character == RukbatCsvSyntax.Quote ? ReadQuotedField() : ReadUnquotedField(character);
+            fields.Add(field.ToString());
+            if (field.Capacity > RetainedFieldCapacity) field = new StringBuilder();
+            else field.Clear();
+
+            if (character != RukbatCsvSyntax.Separator) break;
+            character = Read();
         }
-        if (state == FieldState.Quoted) throw SyntaxError(offset, "Unclosed quoted field.");
-        fields.Add(field.ToString());
+        if (character == RukbatCsvSyntax.CarriageReturn) {
+            long carriageReturn = offset - 1;
+            if (Read() != RukbatCsvSyntax.LineFeed)
+                throw SyntaxError(carriageReturn, "Bare carriage return outside a quoted field.");
+        }
         return fields;
+    }
+
+    private int ReadUnquotedField(int character) {
+        while (!RukbatCsvSyntax.EndsField(character)) {
+            if (character == RukbatCsvSyntax.Quote)
+                throw SyntaxError(offset - 1, "Quote is not allowed in an unquoted field.");
+            field.Append((char)character);
+            character = Read();
+        }
+        return character;
+    }
+
+    private int ReadQuotedField() {
+        for (int character = Read(); character != RukbatCsvSyntax.EndOfInput; character = Read()) {
+            if (character == RukbatCsvSyntax.Quote) {
+                int following = Read();
+                if (RukbatCsvSyntax.EndsField(following)) return following;
+                if (following != RukbatCsvSyntax.Quote)
+                    throw SyntaxError(offset - 1, "Expected a separator or record end after a closing quote.");
+            }
+            field.Append((char)character);
+        }
+        throw SyntaxError(offset, "Unclosed quoted field.");
     }
 
     private int Read() {
         int character = reader.Read();
-        if (character != -1) offset++;
+        if (character != RukbatCsvSyntax.EndOfInput) offset++;
         return character;
     }
 
@@ -94,46 +151,112 @@ public sealed class RukbatCsvCursor {
     public void Close() {
         TextReader owned = reader;
         reader = null;
+        field = null;
         Current = null;
         if (owned != null) owned.Dispose();
     }
 }
 
 public sealed class RukbatCsvRow {
+    private const int FirstRecordNumber = 1;
+    private const int FirstDataRecordNumber = FirstRecordNumber + 1;
+
+    private sealed class LayoutException : FormatException {
+        public LayoutException(string message) : base(message) { }
+    }
+
     private sealed class Header {
         public readonly string[] Columns;
         public readonly Dictionary<string, int> Indices;
         public Header(string[] columns) {
-            if (columns.Length == 0) throw new Exception("CSV table requires at least one header column.");
+            if (columns.Length == 0) throw new LayoutException("CSV table requires at least one header column.");
             Columns = (string[])columns.Clone();
             Indices = new Dictionary<string, int>(StringComparer.Ordinal);
             for (int index = 0; index < columns.Length; index++) {
-                if (columns[index].Length == 0) throw new Exception("CSV header column " + (index + 1) + " is empty.");
-                if (Indices.ContainsKey(columns[index])) throw new Exception("Duplicate CSV header column '" + columns[index] + "'.");
+                if (columns[index].Length == 0) throw new LayoutException("CSV header column " + (index + 1) + " is empty.");
+                if (Indices.ContainsKey(columns[index])) throw new LayoutException("Duplicate CSV header column '" + columns[index] + "'.");
                 Indices.Add(columns[index], index);
             }
+        }
+
+        public void CheckWidth(int count, int recordNumber) {
+            if (count != Columns.Length)
+                throw new LayoutException("CSV record " + recordNumber + ": expected " + Columns.Length + " fields, got " + count + ".");
+        }
+
+        public void CheckLayout(string[] columns) {
+            if (columns.Length != Columns.Length) throw new LayoutException("CSV row columns do not match table columns.");
+            for (int index = 0; index < columns.Length; index++)
+                if (!String.Equals(columns[index], Columns[index], StringComparison.Ordinal))
+                    throw new LayoutException("CSV row columns do not match table columns at column " + (index + 1) + ".");
         }
     }
     private readonly Header header;
     private readonly string[] values;
-    private RukbatCsvRow(Header header, string[] values, int recordNumber) {
-        if (values.Length != header.Columns.Length) throw new Exception("CSV record " + recordNumber + ": expected " + header.Columns.Length + " fields, got " + values.Length + ".");
-        this.header = header; this.values = (string[])values.Clone();
+    private RukbatCsvRow(Header header, string[] ownedValues) {
+        this.header = header;
+        values = ownedValues;
     }
-    public static void ValidateColumns(string[] columns) { new Header(columns); }
+
     public static bool HasColumn(string[] columns, string column) { return new Header(columns).Indices.ContainsKey(column); }
-    public static RukbatCsvRow Create(string[] columns, string[] values) { return new RukbatCsvRow(new Header(columns), values, 1); }
-    public static RukbatCsvRow[] CreateRows(string[] columns, object[] records, int firstRecordNumber) {
-        // Validate headers even when no data rows exist, then share immutable lookup data.
+
+    public static RukbatCsvRow Create(string[] columns, IList values) {
+        return MakeRow(new Header(columns), values, FirstRecordNumber);
+    }
+
+    public static List<object> CreateRows(string[] columns, IList records) {
         var header = new Header(columns);
-        var rows = new RukbatCsvRow[records.Length];
-        for (int index = 0; index < records.Length; index++) {
-            var fields = new List<string>();
-            foreach (object field in (IEnumerable)records[index]) fields.Add((string)field);
-            rows[index] = new RukbatCsvRow(header, fields.ToArray(), firstRecordNumber + index);
+        var rows = new List<object>(records.Count);
+        for (int index = 0; index < records.Count; index++) {
+            rows.Add(MakeRow(header, (IList)records[index], FirstRecordNumber + index));
         }
         return rows;
     }
+
+    public static object[] ParseTable(string text) {
+        var cursor = new RukbatCsvCursor(new StringReader(text));
+        try {
+            if (!cursor.MoveNext()) throw new FormatException("CSV table requires a header record.");
+            var columns = CopyFields(cursor.Current);
+            var header = new Header(columns);
+            var rows = new List<object>();
+            for (int number = FirstDataRecordNumber; cursor.MoveNext(); number++) {
+                rows.Add(MakeRow(header, cursor.Current, number));
+            }
+            return new object[] { columns, rows };
+        } catch (LayoutException) {
+            // Preserve syntax-error priority even when the table layout has already failed.
+            while (cursor.MoveNext()) { }
+            throw;
+        } finally { cursor.Close(); }
+    }
+
+    private static RukbatCsvRow MakeRow(Header header, IList fields, int recordNumber) {
+        header.CheckWidth(fields.Count, recordNumber);
+        return new RukbatCsvRow(header, CopyFields(fields));
+    }
+
+    private static string[] CopyFields(IList fields) {
+        var copy = new string[fields.Count];
+        for (int index = 0; index < copy.Length; index++) copy[index] = (string)fields[index];
+        return copy;
+    }
+
+    public static string StringifyTable(string[] columns, IList rows) {
+        new Header(columns);
+        var output = new StringBuilder();
+        RukbatCsv.AppendRecord(output, columns);
+        Header checkedLayout = null;
+        foreach (RukbatCsvRow row in rows) {
+            if (!Object.ReferenceEquals(checkedLayout, row.header)) {
+                row.header.CheckLayout(columns);
+                checkedLayout = row.header;
+            }
+            RukbatCsv.AppendRecord(output, row.values);
+        }
+        return output.ToString();
+    }
+
     private int Index(string column) {
         int index;
         if (!header.Indices.TryGetValue(column, out index)) throw new Exception("CSV row has no column '" + column + "'.");
@@ -141,14 +264,9 @@ public sealed class RukbatCsvRow {
     }
     public string Get(string column) { return values[Index(column)]; }
     public RukbatCsvRow Set(string column, string value) {
-        var copy = (string[])values.Clone(); copy[Index(column)] = value;
-        return new RukbatCsvRow(header, copy, 1);
-    }
-    public string[] Fields(string[] columns) {
-        if (columns.Length != header.Columns.Length) throw new Exception("CSV row columns do not match table columns.");
-        for (int index = 0; index < columns.Length; index++)
-            if (!String.Equals(columns[index], header.Columns[index], StringComparison.Ordinal))
-                throw new Exception("CSV row columns do not match table columns at column " + (index + 1) + ".");
-        return (string[])values.Clone();
+        int index = Index(column);
+        var copy = (string[])values.Clone();
+        copy[index] = value;
+        return new RukbatCsvRow(header, copy);
     }
 }

@@ -189,7 +189,7 @@ namespace Rukbat.Tests
             table := csv.table(['x'], [['a']])
             table.columns[0] = 'y'
             try { csv.stringify_table(table) } catch err { print(err.message) }
-            table = csv.table(['x'], [])
+            table = csv.table(['x'], [['accepted']])
             table.rows.append(csv.row(['y'], ['a']))
             try { csv.stringify_table(table) } catch err { print(err.message) }
             try { json.set(json.parse('[]'), 'x', 1) } catch err { print(err.message) }
@@ -224,6 +224,28 @@ namespace Rukbat.Tests
             Assert.Contains("index", lines[15]);
             Assert.Contains("index", lines[16]);
             Assert.Equal("done", lines[17]);
+        }
+
+        [Trait("Category", "Runtime")]
+        [Trait("Category", "CrossVersion")]
+        [Theory]
+        [InlineData("powershell")]
+        [InlineData("pwsh")]
+        public async Task CsvTableReportsSyntaxErrorsBeforeEarlierLayoutErrors(string shell)
+        {
+            using var project = new Project();
+            project.Write("main.rukbat", """
+            import csv
+            try { csv.parse_table('x,x\n"unfinished') } catch err { print(err.message) }
+            try { csv.parse_table('x,y\nshort\n"closed"x') } catch err { print(err.message) }
+            """);
+            var result = await DeployAndRun(project, shell);
+            Assert.Equal(0, result.ExitCode);
+            Assert.Empty(result.Error);
+            Assert.Equal(
+                "CSV at offset 15: Unclosed quoted field.\n" +
+                "CSV at offset 18: Expected a separator or record end after a closing quote.\n",
+                result.Output);
         }
 
         [Trait("Category", "Runtime")]

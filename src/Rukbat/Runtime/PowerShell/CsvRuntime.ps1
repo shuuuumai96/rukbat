@@ -1,30 +1,26 @@
-'csv.parse' { return ,(& $__rukbat_csv_parse ([string]$values[0])) }
+'csv.parse' {
+    try { return ,([RukbatCsv]::Parse([string]$values[0])) }
+    catch [System.FormatException] { throw $_.Exception.GetBaseException().Message }
+}
 'csv.records' { return (& $__rukbat_describe_text_file $values[0] $values[1]) }
 'csv.__open_records' { return [RukbatCsvCursor]::new((& $__rukbat_open_text_file $values[0])) }
-'csv.stringify' { return (& $__rukbat_csv_stringify $values[0]) }
+'csv.stringify' {
+    try { return [RukbatCsv]::Stringify($values[0]) }
+    catch [System.FormatException] { throw $_.Exception.GetBaseException().Message }
+}
 'csv.parse_table' {
-    $records = & $__rukbat_csv_parse ([string]$values[0])
-    if ($records.Count -eq 0) { throw 'CSV table requires a header record.' }
-    $columns = [string[]]$records[0]
-    $data = [System.Collections.Generic.List[object]]::new()
-    for ($index = 1; $index -lt $records.Count; $index++) { $data.Add($records[$index]) }
-    $rows = [RukbatCsvRow]::CreateRows($columns, [object[]]$data, 2)
-    return ,@((,$columns); (,$rows))
+    try { return ,([RukbatCsvRow]::ParseTable([string]$values[0])) }
+    catch [System.FormatException] { throw $_.Exception.GetBaseException().Message }
 }
 'csv.table' {
     $columns = [string[]]$values[0]
-    $rows = [RukbatCsvRow]::CreateRows($columns, [object[]]$values[1], 1)
+    $rows = [RukbatCsvRow]::CreateRows($columns, $values[1])
     return ,@((,$columns); (,$rows))
 }
-'csv.row' { return [RukbatCsvRow]::Create([string[]]$values[0], [string[]]$values[1]) }
+'csv.row' { return [RukbatCsvRow]::Create([string[]]$values[0], $values[1]) }
 'csv.get' { return $values[0].Get([string]$values[1]) }
 'csv.has_column' { return [RukbatCsvRow]::HasColumn([string[]]$values[0], [string]$values[1]) }
 'csv.set' { return $values[0].Set([string]$values[1], [string]$values[2]) }
 'csv.stringify_table' {
-    $columns = [string[]]$values[0]
-    [RukbatCsvRow]::ValidateColumns($columns)
-    $records = [System.Collections.Generic.List[object]]::new()
-    $records.Add($columns)
-    foreach ($row in $values[1]) { $records.Add($row.Fields($columns)) }
-    return (& $__rukbat_csv_stringify $records)
+    return [RukbatCsvRow]::StringifyTable([string[]]$values[0], $values[1])
 }

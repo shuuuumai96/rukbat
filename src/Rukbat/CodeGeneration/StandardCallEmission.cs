@@ -5,7 +5,7 @@ namespace Rukbat
         private static readonly (string Name, string Value)[] CsvTableResultFields =
         [
             ("columns", "(& $script:__rukbat_array $result[0])"),
-            ("rows", "(& $script:__rukbat_array $result[1])")
+            ("rows", "$result[1]")
         ];
 
         // Standard helpers return positional storage. Adapt it to this compilation's
