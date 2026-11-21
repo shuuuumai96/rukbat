@@ -118,5 +118,5 @@ keep PowerShell escape hatches localized to operations that need them.
 
 Format sources, run `rukbat check` on each entry point, and run the relevant tests.
 Review names and intent separately: the formatter does not rename identifiers.
-Current tooling does not provide `rukbat fmt --check` or naming-style diagnostics.
+Use `rukbat fmt --check path` to check canonical formatting without writing files.
 These conventions do not make otherwise valid programs compiler errors.

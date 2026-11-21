@@ -34,6 +34,7 @@ public static class Cli
     public static int Run(string[] args, TextWriter stdout, TextWriter stderr)
     {
         var debugBuild = args is ["build", _, "--debug"] or ["build", _, "--debug", "--output", _];
+        var checkFormat = args is ["fmt", "--check", _];
         if (args is ["--version"])
         {
             stdout.WriteLine($"rukbat {Distribution.Version}");
@@ -54,10 +55,10 @@ public static class Cli
         if (args.Length < CompilerArgumentCount ||
             args[0] is not ("build" or "run" or "check" or "fmt") ||
             (args[0] != "fmt" && !Path.GetExtension(args[1]).Equals(".rukbat", StringComparison.OrdinalIgnoreCase)) ||
-            args.Length > CompilerArgumentCount && !debugBuild && (args[0] != "run" || args[CompilerArgumentCount] != "--"))
+            args.Length > CompilerArgumentCount && !debugBuild && !checkFormat && (args[0] != "run" || args[CompilerArgumentCount] != "--"))
         {
             stderr.WriteLine("Usage: rukbat <build|run|check|fmt> input.rukbat [-- arguments... (run only)]");
-            stderr.WriteLine("       rukbat fmt directory");
+            stderr.WriteLine("       rukbat fmt [--check] <file-or-directory>");
             stderr.WriteLine("       rukbat build input.rukbat --debug [--output debug.ps1]");
             stderr.WriteLine("       rukbat doc input.rukbat [--output reference.html | --check]");
             stderr.WriteLine("       rukbat test [path] [--filter text] [--timeout seconds] [--shell powershell|pwsh]");
@@ -67,7 +68,7 @@ public static class Cli
         }
         try
         {
-            var input = Path.GetFullPath(args[1]);
+            var input = Path.GetFullPath(checkFormat ? args[2] : args[1]);
             if (args[0] == "check")
             {
                 var diagnostics = new Compiler().CheckFile(input);
@@ -76,7 +77,7 @@ public static class Cli
             }
             if (args[0] == "fmt")
             {
-                return FormatPath(input, stderr);
+                return FormatPath(input, stderr, checkFormat);
             }
             var output = debugBuild && args.Length == 5 ? Path.GetFullPath(args[4]) : Path.ChangeExtension(input, ".ps1");
             if (debugBuild && !Path.GetExtension(output).Equals(".ps1", StringComparison.OrdinalIgnoreCase))
@@ -125,7 +126,7 @@ public static class Cli
     private static bool IsInputOutputError(Exception error) =>
         error is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException;
 
-    private static int FormatPath(string input, TextWriter stderr)
+    private static int FormatPath(string input, TextWriter stderr, bool check)
     {
         if (!Directory.Exists(input) && !Path.GetExtension(input).Equals(".rukbat", StringComparison.OrdinalIgnoreCase))
         {
@@ -145,7 +146,17 @@ public static class Cli
         {
             try
             {
-                var source = File.ReadAllText(file);
+                var original = check ? File.ReadAllBytes(file) : null;
+                string source;
+                if (original is null)
+                {
+                    source = File.ReadAllText(file);
+                }
+                else
+                {
+                    using var reader = new StreamReader(new MemoryStream(original));
+                    source = reader.ReadToEnd();
+                }
                 var formatted = Formatter.Format(source, file);
                 WriteDiagnostics(formatted.Diagnostics, stderr);
                 if (!formatted.Success)
@@ -153,7 +164,17 @@ public static class Cli
                     result = Math.Max(result, CompilationFailure);
                     continue;
                 }
-                File.WriteAllText(file, formatted.Output, new System.Text.UTF8Encoding(false));
+                var utf8 = new System.Text.UTF8Encoding(false);
+                if (check)
+                {
+                    if (!original.AsSpan().SequenceEqual(utf8.GetBytes(formatted.Output!)))
+                    {
+                        stderr.WriteLine(file);
+                        result = Math.Max(result, CompilationFailure);
+                    }
+                    continue;
+                }
+                File.WriteAllText(file, formatted.Output, utf8);
             }
             catch (Exception error) when (IsInputOutputError(error))
             {
