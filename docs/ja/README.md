@@ -2,17 +2,31 @@
 
 [English](../../README.md) · [言語仕様](language.md) · [標準ライブラリ](STDLIB.md) · [サンプル](../../examples/)
 
-Rukbatは、Windowsのシステムスクリプトを書くための小さな静的型付き言語です。
-Windows PowerShell 5.1で単独実行できるスクリプトにコンパイルします。
-実行先にRukbatをインストールする必要はありません。
+RukbatはWindowsの運用スクリプトを書くための、小さな静的型付き言語です。
+スクリプトを書いた人が、次の変更も担当するとは限りません。
+引き継いだ人がソースを上から読んで、どこを直せばよいか分かることを大切にしています。
+
+たとえば、[CSVを絞り込むサンプル](../../examples/csv-filter/main.rukbat)では、
+`enabled` が真の行だけを残し、その行の `note` に `checked` と書き込みます。
 
 ```rukbat
-fn greet(name: string) {
-    print("Hello, " + name)
-}
+kept: csv.Row[] = []
+record_number := 1
 
-greet("Rukbat")
+for person in people.rows {
+    record_number = record_number + 1
+
+    if parse_bool_cell(person, "enabled", record_number) {
+        kept.append(csv.set(person, "note", "checked"))
+    }
+}
 ```
+
+`record_number := 1` でレコード番号を宣言し、ループ内の `=` でその値を更新します。
+更新するときに左辺を `recrod_number` と書き間違えれば、`rukbat check` で未宣言の変数として見つかります。
+
+配布するのは、`rukbat build` で生成した `.ps1` ファイルです。
+Windows PowerShell 5.1で実行できるので、配布先にRukbatをインストールする必要はありません。
 
 <a id="getting-started"></a>
 
@@ -31,7 +45,17 @@ greet("Rukbat")
 
 VS Codeの **Extensions: Install from VSIX** でVSIXをインストールします。
 VS Code 1.82以降が必要です。
-信頼済みのフォルダーに上の例を`hello.rukbat`として保存し、コマンドパレットから **Rukbat: Run File** を実行します。引数がなければ`[]`のまま確定します。
+信頼済みのフォルダーを開き、次のコードを `hello.rukbat` として保存します。
+
+```rukbat
+fn greet(name: string) {
+    print("Hello, " + name)
+}
+
+greet("Rukbat")
+```
+
+コマンドパレットから **Rukbat: Run File** を実行します。引数がなければ`[]`のまま確定します。
 **Rukbat: Build PowerShell** で、ソースと同じ場所に`hello.ps1`を生成します。
 拡張機能にはコンパイラのほか、補完、診断、整形、デバッグが含まれます。
 

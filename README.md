@@ -3,16 +3,32 @@
 [日本語](docs/ja/README.md) · [Language](docs/language.md) · [Standard library](docs/STDLIB.md) · [Examples](examples/)
 
 Rukbat is a small, statically typed language for Windows system scripting.
-It compiles to standalone Windows PowerShell 5.1 scripts. No Rukbat installation
-is needed on the target machine.
+The person who writes a script may hand it over to someone else. Rukbat is
+designed so the next person can read the source from top to bottom and see
+where to make a change.
+
+In the [CSV filter example](examples/csv-filter/main.rukbat), the loop keeps
+rows whose `enabled` field is true and sets their `note` field to `checked`.
 
 ```rukbat
-fn greet(name: string) {
-    print("Hello, " + name)
-}
+kept: csv.Row[] = []
+record_number := 1
 
-greet("Rukbat")
+for person in people.rows {
+    record_number = record_number + 1
+
+    if parse_bool_cell(person, "enabled", record_number) {
+        kept.append(csv.set(person, "note", "checked"))
+    }
+}
 ```
+
+The line `record_number := 1` declares the record number. Inside the loop,
+`=` updates it. Mistype the name on the left as `recrod_number` and
+`rukbat check` reports the undeclared variable before you deploy the script.
+
+When you're ready to distribute the script, `rukbat build` produces a standalone
+`.ps1` file for Windows PowerShell 5.1. The target machine doesn't need Rukbat.
 
 ## Getting started
 
@@ -31,8 +47,17 @@ to build these packages from source.
 
 In VS Code, install the VSIX using **Extensions: Install from VSIX**.
 VS Code 1.82 or later is required.
-Open a trusted folder, save the example as `hello.rukbat`, then run
-**Rukbat: Run File** from the Command Palette (accept `[]` for no arguments).
+Open a trusted folder and save the following code as `hello.rukbat`:
+
+```rukbat
+fn greet(name: string) {
+    print("Hello, " + name)
+}
+
+greet("Rukbat")
+```
+
+Run **Rukbat: Run File** from the Command Palette (accept `[]` for no arguments).
 Use **Rukbat: Build PowerShell** to generate `hello.ps1` beside the source.
 The extension includes the compiler, completion, diagnostics, formatting and debugging.
 
