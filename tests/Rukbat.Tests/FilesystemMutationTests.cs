@@ -403,13 +403,18 @@ namespace Rukbat.Tests
         [Fact]
         public void GeneratedScriptIncludesFilesystemRuntimesOnlyWhenImported()
         {
-            var filesystem = Success("import fs\nfs.create_dir_all('x'); fs.remove_file('y')");
-            Assert.Contains("'fs.remove_dir_all'", filesystem);
-            Assert.Contains("'fs.copy_file'", filesystem);
-            Assert.Contains("class RukbatFileScopes", filesystem);
-            Assert.Contains("File.Replace(stage, destination, null)", filesystem);
-            Assert.Contains("FileMode.CreateNew", filesystem);
-            Assert.DoesNotContain("[System.IO.File]::WriteAllText($path", filesystem);
+            var directoryOnly = Success("import fs\nfs.create_dir_all('x'); fs.remove_file('y')");
+            Assert.Contains("'fs.remove_dir_all'", directoryOnly);
+            Assert.Contains("'fs.copy_file'", directoryOnly);
+            Assert.DoesNotContain("class RukbatFileScopes", directoryOnly);
+            Assert.DoesNotContain("class RukbatMoveBatch", directoryOnly);
+            Assert.DoesNotContain("[System.IO.File]::WriteAllText($path", directoryOnly);
+
+            var nativeOps = Success("import encoding; import fs\nfs.write_text('a', 'b', encoding.utf8); fs.move_files_batch(['a'], ['b'], 'j'); print(fs.create_temp_file('d'))");
+            Assert.Contains("class RukbatFileScopes", nativeOps);
+            Assert.Contains("File.Replace(stage, destination, null)", nativeOps);
+            Assert.Contains("FileMode.CreateNew", nativeOps);
+            Assert.DoesNotContain("[System.IO.File]::WriteAllText($path", nativeOps);
 
             var paths = Success("import path\nprint(path.filename('x'))");
             Assert.DoesNotContain("'fs.remove_dir_all'", paths);

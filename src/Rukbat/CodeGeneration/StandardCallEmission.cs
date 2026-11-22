@@ -13,29 +13,29 @@ namespace Rukbat
         private static readonly IReadOnlyDictionary<string, (string Name, string Value)[]> StandardResultFields =
             new Dictionary<string, (string Name, string Value)[]>(StringComparer.Ordinal)
             {
-                ["zip.options"] =
+                [RuntimeCatalog.Operations.ZipOptions] =
                 [
                     ("name_encoding", "$result[0]"),
                     ("max_entries", "$result[1]"),
                     ("max_total_bytes", "$result[2]")
                 ],
-                ["process.options"] =
+                [RuntimeCatalog.Operations.ProcessOptions] =
                 [
                     ("timeout_ms", "$result[0]"),
                     ("output_encoding", "$result[1]"),
                     ("working_dir", "$null"),
-                    ("environment", "(& $script:__rukbat_array @())"),
+                    ("environment", "([System.Collections.Generic.List[object]]::new())"),
                     ("stdin", "$null")
                 ],
-                ["csv.parse_table"] = CsvTableResultFields,
-                ["csv.table"] = CsvTableResultFields,
-                ["process.run"] =
+                [RuntimeCatalog.Operations.CsvParseTable] = CsvTableResultFields,
+                [RuntimeCatalog.Operations.CsvTable] = CsvTableResultFields,
+                [RuntimeCatalog.Operations.ProcessRun] =
                 [
                     ("exit_code", "[long]$result[0]"),
                     ("stdout", "[string]$result[1]"),
                     ("stderr", "[string]$result[2]")
                 ],
-                ["fs.stat"] =
+                [RuntimeCatalog.Operations.FsStat] =
                 [
                     ("is_dir", "$result[0]"),
                     ("size", "$result[1]"),
@@ -46,29 +46,32 @@ namespace Rukbat
         private static readonly IReadOnlyDictionary<string, Func<Emitter, Call, string, string>> StandardModuleCalls =
             new Dictionary<string, Func<Emitter, Call, string, string>>(StringComparer.Ordinal)
             {
-                ["http"] = static (emitter, call, operation) => emitter.HttpCall(call, operation),
-                ["log"] = static (emitter, call, operation) => emitter.LogCall(call, operation),
-                ["cli"] = static (emitter, call, operation) => emitter.CliCall(call, operation)
+                [RuntimeCatalog.Modules.Http] = static (emitter, call, operation) => emitter.HttpCall(call, operation),
+                [RuntimeCatalog.Modules.Log] = static (emitter, call, operation) => emitter.LogCall(call, operation),
+                [RuntimeCatalog.Modules.Cli] = static (emitter, call, operation) => emitter.CliCall(call, operation)
             };
 
         private static readonly IReadOnlyDictionary<string, Func<Emitter, Call, string, string>> DirectStandardCalls =
             new Dictionary<string, Func<Emitter, Call, string, string>>(StringComparer.Ordinal)
             {
-                ["log.create"] = static (emitter, call, _) => emitter.LogCreate(call),
-                ["re.find"] = static (emitter, call, operation) => emitter.RegexFind(call, operation),
-                ["re.find_all"] = static (emitter, call, operation) => emitter.RegexFindAll(call, operation),
-                ["test.assert"] = static (emitter, call, _) => emitter.TestAssertion(call),
-                ["test.fail"] = static (emitter, call, _) =>
+                [RuntimeCatalog.Operations.LogCreate] = static (emitter, call, _) => emitter.LogCreate(call),
+                [RuntimeCatalog.Operations.ReFind] = static (emitter, call, operation) => emitter.RegexFind(call, operation),
+                [RuntimeCatalog.Operations.ReFindAll] = static (emitter, call, operation) => emitter.RegexFindAll(call, operation),
+                [RuntimeCatalog.Operations.TestAssert] = static (emitter, call, _) => emitter.TestAssertion(call),
+                [RuntimeCatalog.Operations.TestFail] = static (emitter, call, _) =>
                     $"(& $script:__rukbat_raise @{{message = ({emitter.Expr(call.Arguments[0].Value)})}} {emitter.Location(call)})",
-                ["json.parse_strict"] = static (emitter, call, _) => emitter.JsonDecode(call, false, strict: true),
-                ["json.parse"] = static (emitter, call, _) => emitter.JsonDecode(call, false),
-                ["json.as"] = static (emitter, call, _) => emitter.JsonDecode(call, true),
-                ["csv.stringify_table"] = static (emitter, call, operation) => emitter.CsvTableCall(call, operation, stringify: true),
-                ["csv.has_column"] = static (emitter, call, operation) => emitter.CsvTableCall(call, operation, stringify: false),
-                ["json.stringify"] = static (emitter, call, _) => emitter.JsonEncode(call),
-                ["text.parse_enum"] = static (emitter, call, _) => emitter.ParseEnum(call),
-                ["text.from_enum"] = static (emitter, call, _) => emitter.Expr(call.Arguments[0].Value)
+                [RuntimeCatalog.Operations.JsonParseStrict] = static (emitter, call, _) => emitter.JsonDecode(call, false, strict: true),
+                [RuntimeCatalog.Operations.JsonParse] = static (emitter, call, _) => emitter.JsonDecode(call, false),
+                [RuntimeCatalog.Operations.JsonAs] = static (emitter, call, _) => emitter.JsonDecode(call, true),
+                [RuntimeCatalog.Operations.CsvStringifyTable] = static (emitter, call, operation) => emitter.CsvTableCall(call, operation, stringify: true),
+                [RuntimeCatalog.Operations.CsvHasColumn] = static (emitter, call, operation) => emitter.CsvTableCall(call, operation, stringify: false),
+                [RuntimeCatalog.Operations.JsonStringify] = static (emitter, call, _) => emitter.JsonEncode(call),
+                [RuntimeCatalog.Operations.TextParseEnum] = static (emitter, call, _) => emitter.ParseEnum(call),
+                [RuntimeCatalog.Operations.TextFromEnum] = static (emitter, call, _) => emitter.Expr(call.Arguments[0].Value)
             };
+
+        private static bool IsInlinedDirectStandardCall(string operation) =>
+            DirectStandardCalls.ContainsKey(operation) && !RuntimeCatalog.DelegatingDirectStandardCalls.Contains(operation);
 
         private string ParseEnum(Call call)
         {
@@ -79,7 +82,7 @@ namespace Rukbat
         }
 
         private string JsonEncode(Call call) =>
-            $"(& $script:__rukbat_json_encode ({Expr(call.Arguments[0].Value)}) {Schema(checker.Types[call.Arguments[0].Value])})";
+            $"(& $script:__rukbat_json_encode ({ReadExpr(call.Arguments[0].Value)}) {Schema(checker.Types[call.Arguments[0].Value])})";
 
         private string JsonDecode(Call call, bool fromValue, bool strict = false) =>
             $"(& $script:__rukbat_json_decode ({Expr(call.Arguments[0].Value)}) {Schema(checker.Types[call])} " +
@@ -88,13 +91,13 @@ namespace Rukbat
         private static readonly IReadOnlyDictionary<string, Action<Emitter, Call, string[]>> StandardArgumentAdapters =
             new Dictionary<string, Action<Emitter, Call, string[]>>(StringComparer.Ordinal)
             {
-                ["zip.list"] = static (emitter, call, arguments) => emitter.AdaptZipOptions(call, arguments),
-                ["zip.extract"] = static (emitter, call, arguments) => emitter.AdaptZipOptions(call, arguments),
-                ["process.run"] = static (emitter, call, arguments) => emitter.AdaptProcessOptions(call, arguments),
-                ["process.run_to_files"] = static (emitter, call, arguments) => emitter.AdaptProcessOptions(call, arguments),
-                ["json.set"] = static (emitter, call, arguments) => emitter.AdaptJsonReplacement(call, arguments),
-                ["json.set_at"] = static (emitter, call, arguments) => emitter.AdaptJsonReplacement(call, arguments),
-                ["json.append"] = static (emitter, call, arguments) => emitter.AdaptJsonReplacement(call, arguments)
+                [RuntimeCatalog.Operations.ZipList] = static (emitter, call, arguments) => emitter.AdaptZipOptions(call, arguments),
+                [RuntimeCatalog.Operations.ZipExtract] = static (emitter, call, arguments) => emitter.AdaptZipOptions(call, arguments),
+                [RuntimeCatalog.Operations.ProcessRun] = static (emitter, call, arguments) => emitter.AdaptProcessOptions(call, arguments),
+                [RuntimeCatalog.Operations.ProcessRunToFiles] = static (emitter, call, arguments) => emitter.AdaptProcessOptions(call, arguments),
+                [RuntimeCatalog.Operations.JsonSet] = static (emitter, call, arguments) => emitter.AdaptJsonReplacement(call, arguments),
+                [RuntimeCatalog.Operations.JsonSetAt] = static (emitter, call, arguments) => emitter.AdaptJsonReplacement(call, arguments),
+                [RuntimeCatalog.Operations.JsonAppend] = static (emitter, call, arguments) => emitter.AdaptJsonReplacement(call, arguments)
             };
 
         private void AdaptZipOptions(Call call, string[] argumentExpressions)
@@ -133,7 +136,7 @@ namespace Rukbat
 
         private string CsvTableCall(Call call, string standardCall, bool stringify)
         {
-            var argumentExpressions = call.Arguments.Select(argument => Expr(argument.Value)).ToArray();
+            var argumentExpressions = call.Arguments.Select(argument => ReadExpr(argument.Value)).ToArray();
             var fields = checker.Types[call.Arguments[0].Value].Struct!.Fields;
             var secondArgument = stringify
                 ? $"$table[{Quote(fields["rows"].Key)}]" : argumentExpressions[1];
@@ -148,9 +151,10 @@ namespace Rukbat
             return strategy(this, call, standardCall);
         }
 
-        private static string StandardInvocation(string operation, IEnumerable<string> arguments)
+        private static string StandardInvocation(string operation, IEnumerable<string> arguments, IReadOnlyList<bool>? wrapElements = null)
         {
-            var values = string.Join("; ", arguments.Select(argument => ",(" + argument + ")"));
+            var values = string.Join("; ", arguments.Select((argument, index) =>
+                (wrapElements is null || wrapElements[index] ? ",(" : "(") + argument + ")"));
             return $"(& $script:__rukbat_standard {Quote(operation)} @({values}))";
         }
 
@@ -159,12 +163,20 @@ namespace Rukbat
 
         private string StandardRuntimeCall(Call call, string standardCall)
         {
-            var argumentExpressions = call.Arguments.Select(argument => Expr(argument.Value)).ToArray();
-            if (StandardArgumentAdapters.TryGetValue(standardCall, out var adaptArguments))
+            var readOnly = RuntimeCatalog.ReadOnlyStandardCalls.Contains(standardCall);
+            var argumentExpressions = call.Arguments.Select((argument, index) =>
+                readOnly && (index == call.Arguments.Count - 1 || IsNeverMutated(argument.Value))
+                    ? ReadExpr(argument.Value)
+                    : Expr(argument.Value)).ToArray();
+            var adapted = StandardArgumentAdapters.TryGetValue(standardCall, out var adaptArguments);
+            if (adapted)
             {
-                adaptArguments(this, call, argumentExpressions);
+                adaptArguments!(this, call, argumentExpressions);
             }
-            var invocation = StandardInvocation(standardCall, argumentExpressions);
+            var wrapElements = adapted
+                ? null
+                : call.Arguments.Select(argument => NeedsArrayElementWrap(checker.Types[argument.Value])).ToArray();
+            var invocation = StandardInvocation(standardCall, argumentExpressions, wrapElements);
             if (StandardResultFields.TryGetValue(standardCall, out var resultFields))
             {
                 var fields = checker.Types[call].Struct!.Fields;

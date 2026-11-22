@@ -151,20 +151,8 @@ namespace Rukbat
                 _ => false
             });
 
-        private static IEnumerable<Expression> StatementExpressions(Statement statement) => statement switch
-        {
-            Variable variable => [variable.Value],
-            Assignment assignment => [assignment.Value],
-            FieldAssignment assignment => [assignment.Target, assignment.Value],
-            IndexAssignment assignment => [assignment.Target, assignment.Value],
-            Return { Value: { } value } => [value],
-            Throw failure => [failure.Value],
-            For loop => [loop.Items],
-            While loop => [loop.Condition],
-            Conditional conditional => [conditional.Condition],
-            ExpressionStatement expression => [expression.Value],
-            _ => []
-        };
+        private static IEnumerable<Expression> StatementExpressions(Statement statement) =>
+            SyntaxTraversal.StatementExpressions(statement);
 
         private static bool ContainsUnqualifiedUserCall(Expression expression)
         {

@@ -1,29 +1,35 @@
 # Unwrap imported results in the existing argument array before native casts,
 # keeping large strings out of scalar native-method argument binding.
 'text.length' {
+    & $__rukbat_load_Text
     $values[0] = [string]$values[0]
     return [RukbatText]::Length($values)
 }
 'text.slice' {
+    & $__rukbat_load_Text
     $values[0] = [string]$values[0]
     $values[1] = [long]$values[1]
     $values[2] = [long]$values[2]
     return [RukbatText]::Slice($values)
 }
 'text.index_of' {
+    & $__rukbat_load_Text
     $values[0] = [string]$values[0]
     $values[1] = [string]$values[1]
     return [RukbatText]::IndexOf($values)
 }
 'text.upper' {
+    & $__rukbat_load_Text
     $values[0] = [string]$values[0]
     return [RukbatText]::Upper($values)
 }
 'text.lower' {
+    & $__rukbat_load_Text
     $values[0] = [string]$values[0]
     return [RukbatText]::Lower($values)
 }
 'text.trim' {
+    & $__rukbat_load_Text
     $values[0] = [string]$values[0]
     return [RukbatText]::Trim($values)
 }

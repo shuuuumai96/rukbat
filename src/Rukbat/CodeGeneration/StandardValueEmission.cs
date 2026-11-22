@@ -7,10 +7,18 @@ namespace Rukbat
             Named, Positional
         }
 
+        private static bool NeedsStandardValueAdaptation(ValueType type) => type.NonNullable.Kind is
+            ValueKind.Struct or ValueKind.Array or ValueKind.CsvRow or ValueKind.JsonValue;
+
         private string AdaptedStandardCall(Call call, string operation, string prefix, StandardFieldLayout layout)
         {
             var arguments = call.Arguments.Select(argument =>
-                ",(" + StandardValue(Expr(argument.Value), checker.Types[argument.Value], new(false, prefix, layout)) + ")");
+            {
+                var argType = checker.Types[argument.Value];
+                var adapted = StandardValue(ReadExpr(argument.Value), argType, new(false, prefix, layout));
+                var wrap = argType.NonNullable.Kind is ValueKind.Array or ValueKind.Struct or ValueKind.CsvRow or ValueKind.JsonValue;
+                return wrap ? $",({adapted})" : $"({adapted})";
+            });
             var invocation = $"(& $script:__rukbat_standard {Quote(operation)} @({string.Join("; ", arguments)}))";
             return StandardValue(invocation, checker.Types[call], new(true, prefix, layout));
         }
@@ -41,6 +49,10 @@ namespace Rukbat
 
         private static string AdaptNullableValue(string expression, ValueType type, StandardValueContext context)
         {
+            if (!NeedsStandardValueAdaptation(type.NullableElement!))
+            {
+                return expression;
+            }
             var value = context.Variable("Value");
             return $"(& {{ {value} = {expression}; if ($null -eq {value}) {{ return $null }}; return " +
                 StandardValue(value, type.NullableElement!, context) + " })";
@@ -48,6 +60,12 @@ namespace Rukbat
 
         private static string AdaptArrayValue(string expression, ValueType type, StandardValueContext context)
         {
+            if (!NeedsStandardValueAdaptation(type.Element!))
+            {
+                return context.Result
+                    ? $"(& $script:__rukbat_array ({expression}))"
+                    : $"([object[]]({expression}))";
+            }
             var items = context.Variable("Items");
             var list = context.Variable("List");
             var item = context.Variable("Item");
@@ -65,8 +83,12 @@ namespace Rukbat
             var fields = type.Struct!.Fields;
             if (!result && layout == StandardFieldLayout.Positional)
             {
-                var entries = fields.Select(field => ",(" +
-                    StandardValue($"{value}[{Quote(field.Value.Key)}]", field.Value.Type, context) + ")");
+                var entries = fields.Select(field =>
+                {
+                    var adapted = StandardValue($"{value}[{Quote(field.Value.Key)}]", field.Value.Type, context);
+                    var wrap = NeedsStandardValueAdaptation(field.Value.Type);
+                    return wrap ? $",({adapted})" : $"({adapted})";
+                });
                 return $"(& {{ {value} = {expression}; return ,([object[]]@(" + string.Join("; ", entries) + ")) })";
             }
 

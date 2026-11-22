@@ -18,12 +18,15 @@ namespace Rukbat
             }
         }
 
+        public HashSet<FunctionSymbol> MutatingMethods { get; } = new(ReferenceEqualityComparer.Instance);
+
         // Bind every body first, then propagate self writes through bound method calls.
         // Arguments and local declarations are value copies, so only receiver paths
         // rooted at self can forward a mutation to the caller's original value.
         private void CheckConstMethodCalls(List<Module> modules)
         {
-            var mutating = new HashSet<FunctionSymbol>(ReferenceEqualityComparer.Instance);
+            var mutating = MutatingMethods;
+            mutating.Clear();
             var forwarding = new Dictionary<FunctionSymbol, List<FunctionSymbol>>(ReferenceEqualityComparer.Instance);
             foreach (var method in Functions.Values.Where(function => function.Owner is not null))
             {
@@ -91,47 +94,10 @@ namespace Rukbat
             bool IsSelf(Expression expression) => RootVariable(expression)?.Name == "self";
         }
 
-        private static IEnumerable<Statement> NestedStatements(IEnumerable<Statement> statements)
-        {
-            foreach (var statement in statements)
-            {
-                yield return statement;
-                var nested = statement switch
-                {
-                    Function function => function.Body,
-                    ImplDeclaration implementation => implementation.Methods.SelectMany(method => method.Body),
-                    Conditional conditional => conditional.Then.Concat(conditional.Else),
-                    For loop => loop.Body,
-                    While loop => loop.Body,
-                    TryCatch guarded => guarded.Body.Concat(guarded.Handler.Body),
-                    _ => []
-                };
-                foreach (var child in NestedStatements(nested))
-                {
-                    yield return child;
-                }
-            }
-        }
+        private static IEnumerable<Statement> NestedStatements(IEnumerable<Statement> statements) =>
+            SyntaxTraversal.NestedStatements(statements);
 
-        private static IEnumerable<Expression> Expressions(Expression expression)
-        {
-            yield return expression;
-            var children = expression switch
-            {
-                Unary unary => new[] { unary.Value },
-                Binary binary => [binary.Left, binary.Right],
-                ArrayLiteral array => array.Items,
-                DictionaryLiteral dictionary => dictionary.Entries.SelectMany(entry => new[] { entry.Key, entry.Value }),
-                Index index => [index.Receiver, index.Offset],
-                Member member => [member.Receiver],
-                Call call => (call.Receiver is null ? Enumerable.Empty<Expression>() : [call.Receiver])
-                    .Concat(call.Arguments.Select(argument => argument.Value)),
-                _ => []
-            };
-            foreach (var child in children.SelectMany(Expressions))
-            {
-                yield return child;
-            }
-        }
+        private static IEnumerable<Expression> Expressions(Expression expression) =>
+            SyntaxTraversal.Expressions(expression);
     }
 }

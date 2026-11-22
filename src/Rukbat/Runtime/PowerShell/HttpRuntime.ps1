@@ -1,19 +1,20 @@
-'http.request' { return ,([RukbatHttp]::Request($values[0], $values[1])) }
-'http.options' { return ,([RukbatHttp]::Options($values[0])) }
-'http.header_values' { return ,([RukbatHttp]::HeaderValues($values[0], $values[1])) }
-'http.with_query' { return [RukbatHttp]::WithQuery($values[0], $values[1]) }
+'http.request' { & $__rukbat_load_Http; return ,([RukbatHttp]::Request($values[0], $values[1])) }
+'http.options' { & $__rukbat_load_Http; return ,([RukbatHttp]::Options($values[0])) }
+'http.header_values' { & $__rukbat_load_Http; return ,([RukbatHttp]::HeaderValues($values[0], $values[1])) }
+'http.with_query' { & $__rukbat_load_Http; return [RukbatHttp]::WithQuery($values[0], $values[1]) }
 'http.text' {
     $selected = & $__rukbat_text_encoding $values[1] 'http.text'
     return $selected.encoding.GetString($values[0].CopyBytes())
 }
 { $_ -cin @('http.send', 'http.download') } {
+    & $__rukbat_load_Http
     $request = $values[0]
     $options = $values[$values.Length - 1]
     [RukbatHttp]::Validate($request, $options, ($operation -ceq 'http.download'))
     $bytes = $null
     if ($null -ne $request[3]) {
         $selected = & $__rukbat_text_encoding $request[3][1] 'http request'
-        if ($selected.encoding -is [RukbatCodePageCodec]) {
+        if ($selected.encoding -isnot [System.Text.Encoding]) {
             $bytes = $selected.encoding.GetBytes([string]$request[3][0], [RukbatHttp]::MemoryLimit)
         } else {
             if ($selected.encoding.GetByteCount([string]$request[3][0]) -gt [RukbatHttp]::MemoryLimit) { throw 'HTTP request body exceeded 64 MiB.' }

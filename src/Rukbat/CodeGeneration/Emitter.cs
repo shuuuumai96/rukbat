@@ -93,37 +93,21 @@ namespace Rukbat
             Line("$ErrorActionPreference = 'Stop'");
             Line("[Console]::OutputEncoding = [System.Text.Encoding]::UTF8");
             Line("Set-StrictMode -Version Latest");
-            EmitLines(RuntimeResources.ReadPowerShell("EntryContextRuntime"));
+            EmitLines(RuntimeResources.ReadPowerShell(RuntimeCatalog.Resources.EntryContext));
             Line("$__rukbat_modules = @{}");
             if (debugMap is not null)
             {
                 Line("$global:__rukbat_debug_frames = New-Object 'System.Collections.Generic.List[object]'");
             }
 
+            var usage = RuntimeUsage.Analyze(checker);
+            AnalyzeMutations(modules);
             EmitErrorRuntime();
-            EmitRuntime();
-            if (checker.Types.Any(pair => pair.Key is Rukbat.Binary or Unary && pair.Value == ValueType.Int) ||
-                modules.Any(current => current.StandardName == "math"))
-            {
-                EmitNativeLoader("Numbers");
-                Line("& $__rukbat_load_Numbers");
-            }
+            EmitCoreNativeBundle(usage);
+            EmitRuntime(usage);
             Line("$__rukbat_arguments = & $__rukbat_array $__rukbat_arguments");
-            Line("$__rukbat_json_decode = $null");
-            Line("$__rukbat_json_encode = $null");
             Line("$__rukbat_standard = $null");
-            if (modules.Any(current => current.StandardName == "json"))
-            {
-                EmitJsonRuntime();
-            }
-            var standardModules = modules
-                .Where(current => current.StandardName is "fs" or "path" or "csv" or "json" or "env" or "process" or "text" or "encoding" or "math" or "datetime" or "array" or "zip" or "hash" or "http" or "cli" or "log" or "re")
-                .Select(current => current.StandardName!)
-                .ToHashSet(StringComparer.Ordinal);
-            if (standardModules.Count != 0)
-            {
-                EmitStandardRuntime(standardModules);
-            }
+            EmitStandardRuntime(usage);
             Line("try {");
             indentation++;
             foreach (var current in modules)
@@ -159,23 +143,27 @@ namespace Rukbat
         private void EmitModule(Module current)
         {
             module = current;
+            var functions = checker.Functions.Values.Where(function => function.Module == current).ToArray();
+            var statements = current.Statements
+                .Where(statement => statement is not Function and not StructDeclaration and not EnumDeclaration and not ImplDeclaration)
+                .ToList();
+            if (functions.Length == 0 && statements.All(statement => statement is Import))
+            {
+                return;
+            }
             Line($"$__rukbat_modules[{Quote(current.Id)}] = New-Module -AsCustomObject " +
-                "-ArgumentList $__rukbat_modules, $__rukbat_runtime, $__rukbat_array, $__rukbat_clone, $__rukbat_append, $__rukbat_index, $__rukbat_float, $__rukbat_json_decode, $__rukbat_json_encode, $__rukbat_standard, $__rukbat_error, $__rukbat_raise, $__rukbat_arguments, $__rukbat_dictionary -ScriptBlock {");
+                "-ArgumentList $__rukbat_modules, $__rukbat_runtime, $__rukbat_array, $__rukbat_clone, $__rukbat_int_div, $__rukbat_index, $__rukbat_float, $__rukbat_json_decode, $__rukbat_json_encode, $__rukbat_standard, $__rukbat_error, $__rukbat_raise, $__rukbat_arguments, $__rukbat_dictionary -ScriptBlock {");
             indentation++;
-            Line("param($__rukbat_dependencies, $__rukbat_runtime, $__rukbat_array, $__rukbat_clone, $__rukbat_append, $__rukbat_index, $__rukbat_float, $__rukbat_json_decode, $__rukbat_json_encode, $__rukbat_standard, $__rukbat_error, $__rukbat_raise, [System.Collections.Generic.List[object]]$__rukbat_arguments, $__rukbat_dictionary)");
+            Line("param($__rukbat_dependencies, $__rukbat_runtime, $__rukbat_array, $__rukbat_clone, $__rukbat_int_div, $__rukbat_index, $__rukbat_float, $__rukbat_json_decode, $__rukbat_json_encode, $__rukbat_standard, $__rukbat_error, $__rukbat_raise, [System.Collections.Generic.List[object]]$__rukbat_arguments, $__rukbat_dictionary)");
             Line("Set-StrictMode -Version Latest");
             Line("$ErrorActionPreference = 'Stop'");
 
             // Define functions before top-level execution so calls do not depend on declaration order.
-            var functions = checker.Functions.Values.Where(function => function.Module == current).ToArray();
             foreach (var function in functions)
             {
                 EmitFunction(function.Function);
             }
 
-            var statements = current.Statements
-                .Where(statement => statement is not Function and not StructDeclaration and not EnumDeclaration and not ImplDeclaration)
-                .ToList();
             DebugEnter(Path.GetFileName(current.Source.Path), []);
             EmitGuardedStatements(statements, Quote(SourceName(current) + ":1"));
             DebugLeave();

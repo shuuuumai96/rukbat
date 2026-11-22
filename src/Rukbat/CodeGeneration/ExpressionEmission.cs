@@ -6,14 +6,19 @@ namespace Rukbat
     {
         private string Expr(Expression expression)
         {
-            // Ordinary expressions copy values; assignment targets and self use RawExpr or Address.
+            // Ordinary expressions copy values; freshly allocated values are already independent.
             var value = RawExpr(expression);
+            if (IsFreshValue(expression))
+            {
+                return value;
+            }
             var actual = checker.Types[expression];
-            value = Clone(value, actual);
-            return value;
+            return Clone(value, actual);
         }
 
-        private static string Clone(string value, ValueType type) => type.IsComposite
+        private string ReadExpr(Expression expression) => RawExpr(expression);
+
+        private static string Clone(string value, ValueType type) => NeedsClone(type)
             ? $"(& $script:__rukbat_clone ({value}) $script:__rukbat_clone)"
             : value;
 
@@ -85,23 +90,31 @@ namespace Rukbat
             _ => throw new InvalidOperationException("Unsupported literal.")
         };
 
-        private string EmitArrayLiteral(ArrayLiteral array) =>
-            $"(& $script:__rukbat_array @({string.Join("; ", array.Items.Select(item => ",(" + Expr(item) + ")"))}))";
+        private static bool NeedsArrayElementWrap(ValueType type) =>
+            type.NonNullable.Kind == ValueKind.Array;
+
+        private string EmitArrayLiteral(ArrayLiteral array) => array.Items.Count == 0
+            ? "([System.Collections.Generic.List[object]]::new())"
+            : $"(& $script:__rukbat_array @({string.Join("; ", array.Items.Select(item => NeedsArrayElementWrap(checker.Types[item]) ? ",(" + Expr(item) + ")" : "(" + Expr(item) + ")"))}))";
 
         private string EmitIndex(Index index) => checker.Types[index.Receiver].Kind == ValueKind.Dictionary
             ? $"(& $script:__rukbat_dictionary 'get' ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) $null {Location(index)} $script:__rukbat_raise)"
             : $"(& $script:__rukbat_index ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) {Location(index)} $false $script:__rukbat_raise)";
 
+        private static readonly IReadOnlyDictionary<(string Operator, bool IsFloat), Func<string, string>> UnaryStrategies =
+            new Dictionary<(string, bool), Func<string, string>>
+            {
+                [(RuntimeCatalog.Operators.Not, false)] = static operand => $"(-not {operand})",
+                [(RuntimeCatalog.Operators.Add, true)] = static operand => $"([double](+{operand}))",
+                [(RuntimeCatalog.Operators.Subtract, true)] = static operand => $"([double](-{operand}))",
+                [(RuntimeCatalog.Operators.Add, false)] = static operand => $"({operand})",
+                [(RuntimeCatalog.Operators.Subtract, false)] = static operand => $"([Convert]::ToInt64(-[decimal]({operand})))"
+            };
+
         private string EmitUnary(Unary unary)
         {
             var operand = Expr(unary.Value);
-            return (unary.Token.Text, checker.Types[unary]) switch
-            {
-                ("!", _) => $"(-not {operand})",
-                (var operation, var type) when type == ValueType.Float => $"([double]({operation}{operand}))",
-                ("+", _) => $"({operand})",
-                _ => $"([RukbatNumbers]::Integer('negate', ({operand}), 0))"
-            };
+            return UnaryStrategies[(unary.Token.Text, checker.Types[unary] == ValueType.Float)](operand);
         }
 
         private static readonly IReadOnlyDictionary<MemberKind, Func<Emitter, Member, BoundMember, string>> MemberEmitters =
@@ -133,11 +146,20 @@ namespace Rukbat
 
         private delegate string BinaryStrategy(Emitter emitter, Binary binary, string left, string right);
 
+        private static readonly IReadOnlyDictionary<string, Func<string, string, string>> IntegerBinaryStrategies =
+            new Dictionary<string, Func<string, string, string>>(StringComparer.Ordinal)
+            {
+                [RuntimeCatalog.Operators.Add] = static (left, right) => $"([Convert]::ToInt64([decimal]({left}) + [decimal]({right})))",
+                [RuntimeCatalog.Operators.Subtract] = static (left, right) => $"([Convert]::ToInt64([decimal]({left}) - [decimal]({right})))",
+                [RuntimeCatalog.Operators.Multiply] = static (left, right) => $"([Convert]::ToInt64([decimal]({left}) * [decimal]({right})))",
+                [RuntimeCatalog.Operators.Divide] = static (left, right) => $"(& $script:__rukbat_int_div ({left}) ({right}) $false)",
+                [RuntimeCatalog.Operators.Modulo] = static (left, right) => $"(& $script:__rukbat_int_div ({left}) ({right}) $true)"
+            };
+
         private static readonly IReadOnlyDictionary<ValueType, BinaryStrategy> BinaryEmitters =
             new Dictionary<ValueType, BinaryStrategy>
             {
-                [ValueType.Int] = static (_, binary, left, right) =>
-                    $"([RukbatNumbers]::Integer({Quote(binary.Token.Text)}, ({left}), ({right})))",
+                [ValueType.Int] = static (_, binary, left, right) => IntegerBinaryStrategies[binary.Token.Text](left, right),
                 [ValueType.Float] = static (emitter, binary, left, right) =>
                     $"(& $script:__rukbat_float ([double]({emitter.EmitComparison(binary, left, right)})) {emitter.Location(binary)} $script:__rukbat_raise)"
             };
@@ -145,7 +167,10 @@ namespace Rukbat
         private string Binary(Binary binary)
         {
             var strategy = BinaryEmitters.GetValueOrDefault(checker.Types[binary], EmitOrdinaryBinary);
-            return strategy(this, binary, Expr(binary.Left), Expr(binary.Right));
+            var readOnly = RuntimeCatalog.EqualityOperators.Contains(binary.Token.Text);
+            var left = readOnly ? ReadExpr(binary.Left) : Expr(binary.Left);
+            var right = readOnly ? ReadExpr(binary.Right) : Expr(binary.Right);
+            return strategy(this, binary, left, right);
         }
 
         private static string EmitOrdinaryBinary(Emitter emitter, Binary binary, string left, string right) =>
@@ -154,17 +179,20 @@ namespace Rukbat
         private string EmitComparison(Binary binary, string left, string right) =>
             Comparison(left, right, BinaryOperator(binary.Token.Text), checker.Types[binary.Left], checker.Types[binary.Right]);
 
-        private static string BinaryOperator(string operation) => operation switch
-        {
-            "==" => "-ceq",
-            "!=" => "-cne",
-            "<" => "-lt",
-            "<=" => "-le",
-            ">" => "-gt",
-            ">=" => "-ge",
-            "&&" => "-and",
-            "||" => "-or",
-            _ => operation
-        };
+        private static string BinaryOperator(string operation) =>
+            BinaryOperators.GetValueOrDefault(operation, operation);
+
+        private static readonly IReadOnlyDictionary<string, string> BinaryOperators =
+            new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [RuntimeCatalog.Operators.Equal] = "-ceq",
+                [RuntimeCatalog.Operators.NotEqual] = "-cne",
+                [RuntimeCatalog.Operators.Less] = "-lt",
+                [RuntimeCatalog.Operators.LessOrEqual] = "-le",
+                [RuntimeCatalog.Operators.Greater] = "-gt",
+                [RuntimeCatalog.Operators.GreaterOrEqual] = "-ge",
+                [RuntimeCatalog.Operators.And] = "-and",
+                [RuntimeCatalog.Operators.Or] = "-or"
+            };
     }
 }

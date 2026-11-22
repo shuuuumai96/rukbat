@@ -37,7 +37,7 @@ namespace Rukbat
         {
             var address = Address(call.Receiver!);
             var value = Expr(call.Arguments[0].Value);
-            return $"(& $script:__rukbat_append ({address}) ({value}))";
+            return $"(({address}).Add(({value})))";
         }
 
         private string StructLiteral(Call call)
@@ -58,7 +58,8 @@ namespace Rukbat
 
         private IEnumerable<string> FunctionArguments(Call call, FunctionSymbol function)
         {
-            var arguments = call.Arguments.Select(argument => Expr(argument.Value));
+            var arguments = call.Arguments.Select((argument, index) =>
+                CanBorrowArgument(call, index, function) ? ReadExpr(argument.Value) : Expr(argument.Value));
             // Only the method receiver is borrowed for mutation. Ordinary arguments remain value copies.
             return function.Owner is null ? arguments : arguments.Prepend(RawExpr(call.Receiver!));
         }

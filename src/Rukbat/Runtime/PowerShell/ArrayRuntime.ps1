@@ -21,6 +21,7 @@
     return ,$result
 }
 { $_ -cin @('array.sort', 'array.sort_descending', 'array.sort_by', 'array.sort_by_descending') } {
+    & $__rukbat_load_Array
     $items = $values[0]
     $keys = $items
     if ($operation -cin @('array.sort_by', 'array.sort_by_descending')) { $keys = $values[1] }

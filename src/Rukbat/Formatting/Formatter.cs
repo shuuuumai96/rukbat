@@ -9,7 +9,9 @@ namespace Rukbat
 
     internal static class Formatter
     {
-        private sealed record Item(string Text, int Offset, bool IsComment = false, bool IsNewLine = false, bool IsDocumentation = false);
+        private enum ItemKind { Token, Comment, Newline }
+
+        private sealed record Item(string Text, int Offset, ItemKind Kind, bool PreserveTrailingSpace = false);
 
         public static FormatResult Format(string text, string path)
         {
@@ -25,84 +27,274 @@ namespace Rukbat
                 return new(null, source.Diagnostics);
             }
 
-            return new(Write(Items(text, tokens), syntax), []);
+            return new(new Writer(Items(source, tokens), syntax).Write(), []);
         }
 
-        private static List<Item> Items(string source, List<Token> tokens)
+        private static List<Item> Items(Source source, List<Token> tokens)
         {
             var items = new List<Item>();
             var end = 0;
-            foreach (var token in tokens.Where(token => token.Text != TokenFacts.EndOfFile))
+            var commentIndex = 0;
+            foreach (var token in tokens)
             {
-                if (token.Offset > end)
+                // Each line comment ends at the next newline token or at EOF.
+                if (commentIndex < source.Comments.Count && source.Comments[commentIndex].Start < token.Offset)
                 {
-                    var gap = CommentText(source[end..token.Offset]);
-                    if (gap.StartsWith("//", StringComparison.Ordinal))
-                    {
-                        items.Add(new(gap, end, IsComment: true, IsDocumentation: new SourceComment(0, 0, gap).IsDocumentation));
-                    }
+                    var comment = source.Comments[commentIndex++];
+                    var isDocumentation = comment.IsDocumentation;
+                    var commentText = isDocumentation ? comment.Text : comment.Text.TrimEnd();
+                    items.Add(new(commentText, end, ItemKind.Comment, PreserveTrailingSpace: isDocumentation));
                 }
+
+                if (token.Text == TokenFacts.EndOfFile)
+                {
+                    break;
+                }
+
                 // Escape physical line breaks without altering the string's value.
                 var text = token.StringValue is null ? token.Text
                     : token.Text.Replace("\r", "\\r").Replace("\n", "\\n");
-                items.Add(new(text, token.Offset, IsNewLine: token.Text == "\n"));
+                items.Add(new(text, token.Offset, token.Text == "\n" ? ItemKind.Newline : ItemKind.Token));
                 end = token.Offset + token.Text.Length;
-            }
-            if (end < source.Length)
-            {
-                var gap = CommentText(source[end..]);
-                if (gap.StartsWith("//", StringComparison.Ordinal))
-                {
-                    items.Add(new(gap, end, IsComment: true, IsDocumentation: new SourceComment(0, 0, gap).IsDocumentation));
-                }
             }
             return items;
         }
 
-        private static string CommentText(string gap)
+        private sealed class Writer(List<Item> items, FormattingSyntax syntax)
         {
-            var text = gap.TrimStart();
-            return new SourceComment(0, 0, text).IsDocumentation ? text.TrimEnd('\r', '\n') : text.TrimEnd();
-        }
+            private const int IndentationWidth = 4;
+            private const int TrailingCommentSpaces = 2;
 
-        private static string Write(List<Item> items, FormattingSyntax syntax)
-        {
-            const int indentationWidth = 4;
-            var requiredBlankLines = BlankLinePositions(items, syntax);
-            var output = new StringBuilder();
-            var line = new StringBuilder();
-            var indentation = 0;
-            var continuations = new Stack<int>();
-            var commentContinuation = false;
-            var sourceNewlines = 0;
-            var pendingBlankLine = false;
-            string? lastContent = null;
-            string? previous = null;
+            private static readonly IReadOnlyDictionary<ItemKind, Action<Writer, Item>> ItemWriters =
+                new Dictionary<ItemKind, Action<Writer, Item>>
+                {
+                    [ItemKind.Token] = static (writer, item) => writer.WriteToken(item),
+                    [ItemKind.Comment] = static (writer, item) => writer.WriteComment(item),
+                    [ItemKind.Newline] = static (writer, item) => writer.WriteSourceNewline(item)
+                };
 
-            void Append(string value, bool spaceBefore = false, bool indentContinuation = true)
+            private static readonly Action<Writer, Item> WriteWordToken = static (writer, item) => writer.WriteWord(item);
+            private static readonly Action<Writer, Item> WriteBinaryOperator = static (writer, item) => writer.WriteOperator(item);
+            private static readonly Action<Writer, Item> WriteTightToken = static (writer, item) => writer.WriteTight(item);
+
+            private static readonly IReadOnlyDictionary<string, Action<Writer, Item>> TokenWriters =
+                new Dictionary<string, Action<Writer, Item>>(StringComparer.Ordinal)
+                {
+                    ["{"] = static (writer, item) => writer.OpenBlock(item),
+                    ["}"] = static (writer, item) => writer.CloseBlock(item),
+                    [";"] = static (writer, _) => writer.EndStatement(),
+                    ["("] = static (writer, item) => writer.OpenContinuation(item),
+                    ["["] = static (writer, item) => writer.OpenContinuation(item),
+                    [")"] = static (writer, item) => writer.CloseContinuation(item),
+                    ["]"] = static (writer, item) => writer.CloseContinuation(item),
+                    [","] = static (writer, item) => writer.WriteSeparator(item),
+                    [":"] = static (writer, item) => writer.WriteSeparator(item),
+                    ["."] = WriteTightToken,
+                    ["?"] = WriteTightToken,
+                    ["<"] = static (writer, item) => writer.WriteAngle(item),
+                    [">"] = static (writer, item) => writer.WriteAngle(item),
+                    ["!"] = WriteWordToken,
+                    ["+"] = static (writer, item) => writer.WriteSign(item),
+                    ["-"] = static (writer, item) => writer.WriteSign(item)
+                };
+
+            private readonly StringBuilder output = new();
+            private readonly StringBuilder line = new();
+            private readonly Stack<int> continuations = new();
+            private readonly Dictionary<int, int> continuationCounts = [];
+            private int index;
+            private int indentation;
+            private bool commentContinuation;
+            private int sourceNewlines;
+            private bool pendingBlankLine;
+            private string? lastContent;
+            private string? previous;
+
+            public string Write()
             {
-                if (pendingBlankLine)
+                var requiredBlankLines = BlankLinePositions(items, syntax);
+                for (index = 0; index < items.Count; index++)
                 {
-                    if (line.Length == 0 && output.Length != 0 && lastContent != "{" && value != "}")
+                    var item = items[index];
+                    if (item.Kind != ItemKind.Comment && syntax.OmittedTokens.Contains(item.Offset))
                     {
-                        output.Append('\n');
+                        continue;
                     }
-                    pendingBlankLine = false;
+
+                    if (requiredBlankLines.Contains(index))
+                    {
+                        NewLine();
+                        pendingBlankLine = true;
+                    }
+
+                    ItemWriters[item.Kind](this, item);
                 }
-                if (line.Length == 0)
+
+                NewLine();
+                return output.Length == 0 ? "\n" : output.ToString();
+            }
+
+            private void WriteToken(Item item)
+            {
+                sourceNewlines = 0;
+                TokenWriters.GetValueOrDefault(item.Text, WriteUnregisteredToken)(this, item);
+                previous = item.Text == ";" ? null : item.Text;
+                lastContent = item.Text;
+            }
+
+            private void WriteComment(Item item)
+            {
+                sourceNewlines = 0;
+                if (line.Length != 0)
                 {
-                    var extra = indentContinuation &&
-                        (commentContinuation || continuations.Any(depth => depth == indentation)) ? 1 : 0;
-                    line.Append(' ', (indentation + extra) * indentationWidth);
+                    TrimSpace(line);
+                    line.Append(' ', TrailingCommentSpaces);
                 }
-                else if (spaceBefore && line[^1] != ' ')
+                Append(item.Text);
+                lastContent = item.Text;
+                NewLine(item.PreserveTrailingSpace);
+
+                commentContinuation |= index + 1 < items.Count &&
+                    syntax.ContinuationNewlines.Contains(items[index + 1].Offset) &&
+                    previous is not (null or "{" or "}");
+            }
+
+            private void WriteSourceNewline(Item item)
+            {
+                sourceNewlines++;
+                if (syntax.ContinuationNewlines.Contains(item.Offset))
                 {
-                    line.Append(' ');
+                    return;
                 }
+
+                NewLine();
+                previous = null;
+                commentContinuation = false;
+                pendingBlankLine |= sourceNewlines > 1;
+            }
+
+            private void OpenBlock(Item item)
+            {
+                commentContinuation = false;
+                Append(item.Text, spaceBefore: true, indentContinuation: false);
+                NewLine();
+                indentation++;
+            }
+
+            private void CloseBlock(Item item)
+            {
+                NewLine();
+                indentation = Math.Max(0, indentation - 1);
+                Append(item.Text, indentContinuation: false);
+                if (syntax.ExpressionClosings.Contains(item.Offset))
+                {
+                    return;
+                }
+
+                if (NextToken(items, index) is "else" or "catch")
+                {
+                    Space();
+                    return;
+                }
+
+                if (index + 1 >= items.Count || items[index + 1].Kind != ItemKind.Comment)
+                {
+                    NewLine();
+                }
+            }
+
+            private void EndStatement()
+            {
+                NewLine();
+                commentContinuation = false;
+            }
+
+            private void OpenContinuation(Item item)
+            {
+                Append(item.Text, syntax.ExpressionOpenings.Contains(item.Offset) && NeedsWordSpace(previous));
+                continuations.Push(indentation);
+                continuationCounts[indentation] = continuationCounts.GetValueOrDefault(indentation) + 1;
+            }
+
+            private void CloseContinuation(Item item)
+            {
+                var depth = continuations.Pop();
+                if (continuationCounts[depth] == 1)
+                {
+                    continuationCounts.Remove(depth);
+                }
+                else
+                {
+                    continuationCounts[depth]--;
+                }
+
+                TrimSpace(line);
+                Append(item.Text, indentContinuation: false);
+            }
+
+            private void WriteTight(Item item)
+            {
+                TrimSpace(line);
+                Append(item.Text);
+            }
+
+            private void WriteSeparator(Item item)
+            {
+                WriteTight(item);
+                Space();
+            }
+
+            private void WriteWord(Item item) => Append(item.Text, NeedsWordSpace(previous));
+
+            private void WriteOperator(Item item)
+            {
+                Space();
+                Append(item.Text);
+                Space();
+            }
+
+            private void WriteAngle(Item item)
+            {
+                var write = syntax.GenericDelimiters.Contains(item.Offset) ? WriteTightToken : WriteBinaryOperator;
+                write(this, item);
+            }
+
+            private void WriteSign(Item item)
+            {
+                var write = syntax.UnaryOperators.Contains(item.Offset) ? WriteWordToken : WriteBinaryOperator;
+                write(this, item);
+            }
+
+            private static void WriteUnregisteredToken(Writer writer, Item item)
+            {
+                var write = TokenFacts.IsOperator(item.Text) ? WriteBinaryOperator : WriteWordToken;
+                write(writer, item);
+            }
+
+            private void Append(string value, bool spaceBefore = false, bool indentContinuation = true)
+            {
+                var atLineStart = line.Length == 0;
+                if (pendingBlankLine && atLineStart && output.Length != 0 && lastContent != "{" && value != "}")
+                {
+                    output.Append('\n');
+                }
+                pendingBlankLine = false;
+
+                var spaces = atLineStart
+                    ? LineIndentationWidth(indentContinuation)
+                    : spaceBefore && line[^1] != ' ' ? 1 : 0;
+                line.Append(' ', spaces);
                 line.Append(value);
             }
 
-            void Space()
+            private int LineIndentationWidth(bool indentContinuation)
+            {
+                var continued = indentContinuation &&
+                    (commentContinuation || continuationCounts.ContainsKey(indentation));
+                return (indentation + (continued ? 1 : 0)) * IndentationWidth;
+            }
+
+            private void Space()
             {
                 if (line.Length != 0 && line[^1] != ' ')
                 {
@@ -110,11 +302,11 @@ namespace Rukbat
                 }
             }
 
-            void NewLine(bool preserveTrailingSpace = false)
+            private void NewLine(bool preserveTrailingSpace = false)
             {
-                while (!preserveTrailingSpace && line.Length != 0 && line[^1] == ' ')
+                if (!preserveTrailingSpace)
                 {
-                    line.Length--;
+                    TrimSpace(line);
                 }
                 if (line.Length != 0)
                 {
@@ -122,126 +314,6 @@ namespace Rukbat
                     line.Clear();
                 }
             }
-
-            for (var index = 0; index < items.Count; index++)
-            {
-                var item = items[index];
-                if (syntax.OmittedTokens.Contains(item.Offset) && !item.IsComment)
-                {
-                    continue;
-                }
-                if (requiredBlankLines.Contains(index))
-                {
-                    NewLine();
-                    pendingBlankLine = true;
-                }
-                if (item.IsComment)
-                {
-                    sourceNewlines = 0;
-                    if (line.Length != 0)
-                    {
-                        TrimSpace(line);
-                        line.Append("  ");
-                    }
-                    Append(item.Text);
-                    lastContent = item.Text;
-                    NewLine(item.IsDocumentation);
-                    if (index + 1 < items.Count && syntax.ContinuationNewlines.Contains(items[index + 1].Offset) &&
-                        previous is not (null or "{" or "}"))
-                    {
-                        commentContinuation = true;
-                    }
-                    continue;
-                }
-                if (item.IsNewLine)
-                {
-                    sourceNewlines++;
-                    if (!syntax.ContinuationNewlines.Contains(item.Offset))
-                    {
-                        NewLine();
-                        previous = null;
-                        commentContinuation = false;
-                        if (sourceNewlines > 1)
-                        {
-                            pendingBlankLine = true;
-                        }
-                    }
-                    continue;
-                }
-
-                var token = item.Text;
-                sourceNewlines = 0;
-                switch (token)
-                {
-                    case "{":
-                        commentContinuation = false;
-                        Append("{", spaceBefore: true, indentContinuation: false);
-                        NewLine();
-                        indentation++;
-                        break;
-                    case "}":
-                        NewLine();
-                        indentation = Math.Max(0, indentation - 1);
-                        Append("}", indentContinuation: false);
-                        if (syntax.ExpressionClosings.Contains(item.Offset))
-                        {
-                            break;
-                        }
-                        if (NextToken(items, index) is "else" or "catch")
-                        {
-                            Space();
-                        }
-                        else if (index + 1 >= items.Count || !items[index + 1].IsComment)
-                        {
-                            NewLine();
-                        }
-                        break;
-                    case ";":
-                        NewLine();
-                        commentContinuation = false;
-                        break;
-                    case "(" or "[":
-                        Append(token, syntax.ExpressionOpenings.Contains(item.Offset) && NeedsWordSpace(previous));
-                        continuations.Push(indentation);
-                        break;
-                    case ")" or "]":
-                        continuations.Pop();
-                        TrimSpace(line);
-                        Append(token, indentContinuation: false);
-                        break;
-                    case "," or ":":
-                        TrimSpace(line);
-                        Append(token);
-                        Space();
-                        break;
-                    case "." or "?":
-                    case "<" or ">" when syntax.GenericDelimiters.Contains(item.Offset):
-                        TrimSpace(line);
-                        Append(token);
-                        break;
-                    case "!":
-                    case "+" or "-" when syntax.UnaryOperators.Contains(item.Offset):
-                        Append(token, NeedsWordSpace(previous));
-                        break;
-                    case string _ when TokenFacts.IsOperator(token):
-                        Space();
-                        Append(token);
-                        Space();
-                        break;
-                    default:
-                        Append(token, NeedsWordSpace(previous));
-                        break;
-                }
-                previous = token is ";" ? null : token;
-                lastContent = token;
-            }
-
-            NewLine();
-            if (output.Length == 0)
-            {
-                output.Append('\n');
-            }
-            return output.ToString();
         }
 
         private static void TrimSpace(StringBuilder line)
@@ -257,22 +329,22 @@ namespace Rukbat
             var positions = new HashSet<int>();
             for (var index = 0; index < items.Count; index++)
             {
-                if (!syntax.RequiredBlankLines.Contains(items[index].Offset) || items[index].IsComment || items[index].IsNewLine)
+                if (!syntax.RequiredBlankLines.Contains(items[index].Offset) || items[index].Kind != ItemKind.Token)
                 {
                     continue;
                 }
                 var start = index;
-                while (start > 0 && (items[start - 1].IsComment || items[start - 1].IsNewLine))
+                while (start > 0 && items[start - 1].Kind != ItemKind.Token)
                 {
                     start--;
                 }
                 // Keep a trailing comment with the previous statement; a leading
                 // comment belongs to the statement following it.
-                if (start < index && items[start].IsComment)
+                if (start < index && items[start].Kind == ItemKind.Comment)
                 {
                     start++;
                 }
-                while (start < index && items[start].IsNewLine)
+                while (start < index && items[start].Kind == ItemKind.Newline)
                 {
                     start++;
                 }
@@ -289,9 +361,9 @@ namespace Rukbat
         {
             for (var next = index + 1; next < items.Count; next++)
             {
-                if (!items[next].IsNewLine)
+                if (items[next].Kind != ItemKind.Newline)
                 {
-                    return items[next].IsComment ? null : items[next].Text;
+                    return items[next].Kind == ItemKind.Comment ? null : items[next].Text;
                 }
             }
             return null;

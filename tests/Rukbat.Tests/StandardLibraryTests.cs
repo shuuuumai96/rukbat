@@ -12,12 +12,25 @@ namespace Rukbat.Tests
             var plain = Success("print('hello')");
             Assert.DoesNotContain("Unknown standard-library operation", plain);
             Assert.DoesNotContain("JSON value", plain);
+            Assert.DoesNotContain("$__rukbat_runtime = {", plain);
+            Assert.DoesNotContain("$__rukbat_dictionary = {", plain);
 
-            var json = Success("import json\nprint(json.stringify([1]))");
-            Assert.Contains("JSON value", json);
-            Assert.Contains("'json.get'", json);
-            Assert.DoesNotContain("'fs.read_text'", json);
-            Assert.DoesNotContain("'csv.parse'", json);
+            var jsonEncodeOnly = Success("import json\nprint(json.stringify([1]))");
+            Assert.Contains("$__rukbat_json_encode = {", jsonEncodeOnly);
+            Assert.DoesNotContain("$__rukbat_json_decode = {", jsonEncodeOnly);
+            Assert.DoesNotContain("'json.get'", jsonEncodeOnly);
+            Assert.DoesNotContain("'fs.read_text'", jsonEncodeOnly);
+            Assert.DoesNotContain("'csv.parse'", jsonEncodeOnly);
+
+            var jsonDecodeOnly = Success("import json\nvalue := json.parse('[1]')\nprint(json.kind(value))");
+            Assert.Contains("$__rukbat_json_decode = {", jsonDecodeOnly);
+            Assert.DoesNotContain("$__rukbat_json_encode = {", jsonDecodeOnly);
+            Assert.Contains("'json.get'", jsonDecodeOnly);
+
+            var textNonNative = Success("import text\nprint(text.contains('abc', 'b'))");
+            Assert.DoesNotContain("$__rukbat_load_Text = {", textNonNative);
+            Assert.DoesNotContain("Add-Type", textNonNative);
+            Assert.Contains("'text.contains'", textNonNative);
 
             var files = Success("import fs\nprint(fs.is_file('x'))");
             Assert.Contains("Unknown standard-library operation", files);
@@ -26,6 +39,7 @@ namespace Rukbat.Tests
             Assert.Contains("'fs.list_files_recursive'", files);
             Assert.DoesNotContain("'env.get'", files);
             Assert.DoesNotContain("'process.run'", files);
+            Assert.DoesNotContain("$__rukbat_load_DateTime = {", files);
         }
 
         [Trait("Category", "Runtime")]

@@ -16,6 +16,32 @@ namespace Rukbat
             NodeHandlers<Emitter>.For<ExpressionStatement>(static (emitter, node) => emitter.EmitExpressionStatement(node)),
             NodeHandlers<Emitter>.For<Conditional>(static (emitter, node) => emitter.EmitConditional(node)));
 
+        private static readonly IReadOnlyDictionary<Type, Func<Emitter, Expression, bool>> InfallibleExpressions =
+            new[]
+            {
+                ExpressionRule<Literal, bool>(static (_, _) => true),
+                ExpressionRule<Name, bool>(static (_, _) => true),
+                ExpressionRule<ArrayLiteral, bool>(static (emitter, array) => array.Items.All(emitter.IsInfallibleExpression)),
+                ExpressionRule<Call, bool>(static (emitter, call) =>
+                    emitter.CallKindOf(call) == CallKind.StructLiteral &&
+                    call.Arguments.All(argument => emitter.IsInfallibleExpression(argument.Value)))
+            }.ToDictionary(entry => entry.Key, entry => entry.Value);
+
+        private static readonly IReadOnlyDictionary<Type, Func<Emitter, Statement, bool>> InfallibleStatements =
+            new Dictionary<Type, Func<Emitter, Statement, bool>>
+            {
+                [typeof(LoopControl)] = static (_, _) => true,
+                [typeof(Variable)] = static (emitter, statement) => emitter.IsInfallibleExpression(((Variable)statement).Value),
+                [typeof(Assignment)] = static (emitter, statement) => emitter.IsInfallibleExpression(((Assignment)statement).Value)
+            };
+
+        private bool IsInfallibleExpression(Expression expression) =>
+            InfallibleExpressions.TryGetValue(expression.GetType(), out var check) && check(this, expression);
+
+        private bool RequiresLocationTracking(Statement statement) =>
+            debugMap is not null ||
+            !(InfallibleStatements.TryGetValue(statement.GetType(), out var infallible) && infallible(this, statement));
+
         private void EmitStatements(List<Statement> statements)
         {
             var outerDebugVariables = debugVariables;
@@ -42,7 +68,10 @@ namespace Rukbat
                 }
                 DebugPoint(statement);
                 // A function has its own location variable, so calls cannot overwrite their caller's location.
-                Line($"$__rukbat_location = {Location(statement)}");
+                if (RequiresLocationTracking(statement))
+                {
+                    Line($"$__rukbat_location = {Location(statement)}");
+                }
                 StatementEmitters.Dispatch(this, statement);
             }
             debugVariables = outerDebugVariables;
@@ -100,10 +129,15 @@ namespace Rukbat
         private void EmitArrayIteration(For loop)
         {
             var item = "$__rukbat_item" + temporaryId++;
-            Line($"foreach ({item} in {Expr(loop.Items)}) {{");
+            var itemsNeverMutated = IsNeverMutated(loop.Items);
+            var itemsExpr = itemsNeverMutated ? RawExpr(loop.Items) : Expr(loop.Items);
+            Line($"foreach ({item} in {itemsExpr}) {{");
             indentation++;
             var loopVariable = checker.Variables[loop];
-            Line($"[{TypeName(loopVariable.Type)}]{loopVariable.PowerShellName} = {Clone(item, loopVariable.Type)}");
+            var loopValue = itemsNeverMutated && mutatedVariables.Contains(loopVariable)
+                ? Clone(item, loopVariable.Type)
+                : item;
+            Line($"[{TypeName(loopVariable.Type)}]{loopVariable.PowerShellName} = {loopValue}");
             var beforeLoop = debugVariables;
             debugVariables = [loopVariable, .. debugVariables];
             EmitStatements(loop.Body);
@@ -124,7 +158,7 @@ namespace Rukbat
         private void EmitExpressionStatement(ExpressionStatement expression)
         {
             // Suppress unused values to prevent PowerShell's implicit function output.
-            Line($"$null = {Expr(expression.Value)}");
+            Line($"$null = {ReadExpr(expression.Value)}");
         }
 
         private void EmitConditional(Conditional conditional)
