@@ -12,6 +12,48 @@ const THREAD = 1;
 const STARTUP_TIMEOUT = 30000;
 const BUILD_TIMEOUT = 60000;
 const MAX_PROTOCOL_BUFFER = 16 * 1024 * 1024;
+const DEBUG_MAP_VERSION = 1;
+const DEBUG_MAP_SUFFIX = '.rukbat-map.json';
+const DEBUG_CONFIGURATION = 'launch.json';
+const MIN_INT64 = -(1n << 63n);
+const MAX_INT64 = -MIN_INT64 - 1n;
+const LAUNCH_REQUEST = 'launch';
+const CONTINUE = 'continue';
+const STEP_OVER = 'next';
+const STEP_IN = 'stepIn';
+const STEP_OUT = 'stepOut';
+
+const REQUEST_HANDLERS = new Map([
+    ['initialize', (adapter, request, args) => adapter.initialize(request, args)],
+    [LAUNCH_REQUEST, (adapter, request, args) => adapter.launchRequest(request, args)],
+    ['setBreakpoints', (adapter, request, args) => adapter.setBreakpoints(request, args)],
+    ['configurationDone', (adapter, request, args) => adapter.configurationDone(request, args)],
+    ['threads', (adapter, request, args) => adapter.reportThreads(request, args)],
+    ['stackTrace', (adapter, request, args) => adapter.stackTrace(request, args)],
+    ['scopes', (adapter, request, args) => adapter.scopes(request, args)],
+    ['variables', (adapter, request, args) => adapter.variables(request, args)],
+    ['evaluate', (adapter, request, args) => adapter.evaluateRequest(request, args)],
+    [CONTINUE, (adapter, request, args) => adapter.resume(request, args)],
+    [STEP_OVER, (adapter, request, args) => adapter.resume(request, args)],
+    [STEP_IN, (adapter, request, args) => adapter.resume(request, args)],
+    [STEP_OUT, (adapter, request, args) => adapter.resume(request, args)],
+    ['pause', (adapter, request, args) => adapter.pauseRequest(request, args)],
+    ['disconnect', (adapter, request, args) => adapter.endRequest(request, args)],
+    ['terminate', (adapter, request, args) => adapter.endRequest(request, args)],
+    ['setExceptionBreakpoints', (adapter, request, args) => adapter.setExceptionBreakpoints(request, args)],
+]);
+
+const HOST_HANDLERS = new Map([
+    ['ready', adapter => adapter.hostReady()],
+    ['checkpoint', (adapter, message) => adapter.hostCheckpoint(message)],
+    ['snapshot', (adapter, message) => adapter.hostSnapshot(message)],
+]);
+
+const STEP_RULES = new Map([
+    [STEP_IN, () => true],
+    [STEP_OVER, (depth, previous) => depth <= previous],
+    [STEP_OUT, (depth, previous) => depth < previous],
+]);
 
 function normalized(file) { return path.resolve(file).toLowerCase(); }
 
@@ -28,7 +70,7 @@ class RukbatDebugAdapter {
         this.breakpoints = new Map();
         this.handles = new Map();
         this.frames = [];
-        this.mode = 'continue';
+        this.mode = CONTINUE;
         this.configured = false;
         this.finished = false;
         this.references = 1;
@@ -42,101 +84,125 @@ class RukbatDebugAdapter {
     handleMessage(request) {
         void this.request(request).catch(error => {
             this.reject(request, error);
-            if (request.command === 'launch') this.finish();
+            if (request.command === LAUNCH_REQUEST) this.finish();
         });
     }
 
     async request(request) {
-        const args = request.arguments || {};
-        switch (request.command) {
-            case 'initialize':
-                this.respond(request, { supportsConfigurationDoneRequest: true, supportsTerminateRequest: true,
-                    supportsEvaluateForHovers: true, supportsDelayedStackTraceLoading: true });
-                return;
-            case 'launch':
-                await this.launch(args);
-                this.respond(request);
-                this.event('initialized');
-                return;
-            case 'setBreakpoints': {
-                const file = normalized(args.source.path);
-                const requested = args.breakpoints || [];
-                const points = this.map?.points.filter(point => normalized(point.file) === file) || [];
-                const lines = new Set();
-                const breakpoints = requested.map(breakpoint => {
-                    const candidates = points.filter(point => point.line === breakpoint.line &&
-                        (breakpoint.column === undefined || point.column >= breakpoint.column));
-                    const point = candidates.sort((a, b) => a.column - b.column)[0];
-                    if (!point || breakpoint.condition || breakpoint.hitCondition || breakpoint.logMessage)
-                        return { verified: false, line: breakpoint.line, message: 'Choose an executable Rukbat statement; conditional and log breakpoints are not supported.' };
-                    // A line breakpoint covers all executable statements on that line.
-                    for (const candidate of (breakpoint.column === undefined ? candidates : [point])) lines.add(candidate.id);
-                    // Returning a column for a line breakpoint makes VS Code
-                    // draw an inline marker, for example between const and its name.
-                    return { verified: true, line: point.line, source: { path: point.file },
-                        ...(breakpoint.column === undefined ? {} : { column: point.column }) };
-                });
-                this.breakpoints.set(file, lines);
-                this.respond(request, { breakpoints });
-                return;
-            }
-            case 'configurationDone':
-                this.configured = true;
-                this.respond(request);
-                if (this.ready) this.write({ command: 'continue' });
-                return;
-            case 'threads': this.respond(request, { threads: [{ id: THREAD, name: 'Rukbat' }] }); return;
-            case 'stackTrace': {
-                const start = args.startFrame || 0;
-                const end = args.levels ? start + args.levels : undefined;
-                this.respond(request, { stackFrames: this.frames.map((frame, index) => {
-                    const point = this.map.points[frame.point];
-                    return { id: index + 1, name: point.function, source: { name: path.basename(point.file), path: point.file },
-                        line: point.line, column: point.column };
-                }).slice(start, end), totalFrames: this.frames.length });
-                return;
-            }
-            case 'scopes': {
-                const frame = this.frames[args.frameId - 1];
-                if (!frame) throw new Error('The stack frame is no longer available.');
-                this.respond(request, { scopes: [
-                    { name: 'Locals', presentationHint: 'locals', expensive: false, variablesReference: this.reference(frame.variables.filter(value => !value.global)) },
-                    { name: 'Module', expensive: false, variablesReference: this.reference(frame.variables.filter(value => value.global)) }
-                ] });
-                return;
-            }
-            case 'variables': {
-                const values = this.handles.get(args.variablesReference);
-                if (!values) throw new Error('The variable reference is no longer available.');
-                this.respond(request, { variables: values.map(value => this.variable(value)) });
-                return;
-            }
-            case 'evaluate': {
-                const frame = this.frames[(args.frameId || 1) - 1];
-                const value = this.evaluate(args.expression, frame);
-                const result = this.variable(value);
-                this.respond(request, { result: result.value, type: result.type, variablesReference: result.variablesReference });
-                return;
-            }
-            case 'continue': case 'next': case 'stepIn': case 'stepOut':
-                if (!this.stopped) throw new Error('The program is not stopped.');
-                this.mode = request.command;
-                this.stepDepth = this.frames.length;
-                this.stopped = false;
-                this.frames = [];
-                this.handles.clear();
-                this.respond(request, { allThreadsContinued: true });
-                this.event('continued', { threadId: THREAD, allThreadsContinued: true });
-                this.write({ command: 'continue' });
-                return;
-            case 'pause': this.pause = true; this.respond(request); return;
-            case 'disconnect': case 'terminate':
-                this.respond(request); this.finish(); return;
-            case 'setExceptionBreakpoints':
-                if (args.filters?.length) throw new Error('Exception breakpoints are not supported.');
-                this.respond(request); return;
-            default: throw new Error(`Unsupported debug request: ${request.command}`);
+        const handler = REQUEST_HANDLERS.get(request.command);
+        if (!handler) throw new Error('Unsupported debug request: ' + request.command);
+        return handler(this, request, request.arguments || {});
+    }
+
+    initialize(request) {
+        this.respond(request, { supportsConfigurationDoneRequest: true, supportsTerminateRequest: true,
+            supportsEvaluateForHovers: true, supportsDelayedStackTraceLoading: true });
+    }
+
+    async launchRequest(request, args) {
+        await this.launch(args);
+        this.respond(request);
+        this.event('initialized');
+    }
+
+    setBreakpoints(request, args) {
+        const file = normalized(args.source.path);
+        const requested = args.breakpoints || [];
+        const pointsByLine = new Map();
+        for (const point of this.map?.points || []) {
+            if (normalized(point.file) !== file) continue;
+            const points = pointsByLine.get(point.line) || [];
+            if (points.length === 0) pointsByLine.set(point.line, points);
+            points.push(point);
         }
+        const lines = new Set();
+        const breakpoints = requested.map(breakpoint => {
+            const candidates = pointsByLine.get(breakpoint.line) || [];
+            let point;
+            for (const candidate of candidates) {
+                if (breakpoint.column !== undefined && candidate.column < breakpoint.column) continue;
+                if (!point || candidate.column < point.column) point = candidate;
+            }
+            if (!point || breakpoint.condition || breakpoint.hitCondition || breakpoint.logMessage)
+                return { verified: false, line: breakpoint.line, message: 'Choose an executable Rukbat statement; conditional and log breakpoints are not supported.' };
+            // A line breakpoint covers all executable statements on that line.
+            for (const candidate of (breakpoint.column === undefined ? candidates : [point])) lines.add(candidate.id);
+            // Returning a column for a line breakpoint makes VS Code
+            // draw an inline marker, for example between const and its name.
+            return { verified: true, line: point.line, source: { path: point.file },
+                ...(breakpoint.column === undefined ? {} : { column: point.column }) };
+        });
+        this.breakpoints.set(file, lines);
+        this.respond(request, { breakpoints });
+    }
+
+    configurationDone(request) {
+        this.configured = true;
+        this.respond(request);
+        if (this.ready) this.write({ command: CONTINUE });
+    }
+
+    reportThreads(request) {
+        this.respond(request, { threads: [{ id: THREAD, name: 'Rukbat' }] });
+    }
+
+    stackTrace(request, args) {
+        const start = args.startFrame || 0;
+        const end = args.levels ? start + args.levels : undefined;
+        this.respond(request, { stackFrames: this.frames.map((frame, index) => {
+            const point = this.map.points[frame.point];
+            return { id: index + 1, name: point.function, source: { name: path.basename(point.file), path: point.file },
+                line: point.line, column: point.column };
+        }).slice(start, end), totalFrames: this.frames.length });
+    }
+
+    scopes(request, args) {
+        const frame = this.frames[args.frameId - 1];
+        if (!frame) throw new Error('The stack frame is no longer available.');
+        this.respond(request, { scopes: [
+            { name: 'Locals', presentationHint: 'locals', expensive: false, variablesReference: this.reference(frame.variables.filter(value => !value.global)) },
+            { name: 'Module', expensive: false, variablesReference: this.reference(frame.variables.filter(value => value.global)) }
+        ] });
+    }
+
+    variables(request, args) {
+        const values = this.handles.get(args.variablesReference);
+        if (!values) throw new Error('The variable reference is no longer available.');
+        this.respond(request, { variables: values.map(value => this.variable(value)) });
+    }
+
+    evaluateRequest(request, args) {
+        const frame = this.frames[(args.frameId || 1) - 1];
+        const value = this.evaluate(args.expression, frame);
+        const result = this.variable(value);
+        this.respond(request, { result: result.value, type: result.type, variablesReference: result.variablesReference });
+    }
+
+    resume(request) {
+        if (!this.stopped) throw new Error('The program is not stopped.');
+        this.mode = request.command;
+        this.stepDepth = this.frames.length;
+        this.stopped = false;
+        this.frames = [];
+        this.handles.clear();
+        this.respond(request, { allThreadsContinued: true });
+        this.event('continued', { threadId: THREAD, allThreadsContinued: true });
+        this.write({ command: CONTINUE });
+    }
+
+    pauseRequest(request) {
+        this.pause = true;
+        this.respond(request);
+    }
+
+    endRequest(request) {
+        this.respond(request);
+        this.finish();
+    }
+
+    setExceptionBreakpoints(request, args) {
+        if (args.filters?.length) throw new Error('Exception breakpoints are not supported.');
+        this.respond(request);
     }
 
     reference(values) { const id = this.references++; this.handles.set(id, values); return id; }
@@ -166,7 +232,7 @@ class RukbatDebugAdapter {
                     key = literal.slice(1, -1).replace(/\\([nrt\\'"])/g, (_, escape) => escapes[escape]);
                 } else {
                     const integer = BigInt(literal);
-                    if (integer < -9223372036854775808n || integer > 9223372036854775807n) throw new Error('Dictionary key is outside int range.');
+                    if (integer < MIN_INT64 || integer > MAX_INT64) throw new Error('Dictionary key is outside int range.');
                     name = `[${integer}]`;
                 }
             }
@@ -193,10 +259,10 @@ class RukbatDebugAdapter {
         this.temp = fs.mkdtempSync(path.join(os.tmpdir(), 'rukbat-debug-'));
         await this.build(program, cwd);
         if (this.finished) throw new Error('Debug launch was canceled.');
-        this.map = JSON.parse(fs.readFileSync(this.output + '.rukbat-map.json', 'utf8'));
-        if (this.map.version !== 1) throw new Error('Unsupported Rukbat debug map version.');
-        const configuration = path.join(this.temp, 'launch.json');
-        fs.writeFileSync(configuration, JSON.stringify({ script: this.output, map: this.output + '.rukbat-map.json', cwd, args: args.args || [] }));
+        this.map = JSON.parse(fs.readFileSync(this.output + DEBUG_MAP_SUFFIX, 'utf8'));
+        if (this.map.version !== DEBUG_MAP_VERSION) throw new Error('Unsupported Rukbat debug map version.');
+        const configuration = path.join(this.temp, DEBUG_CONFIGURATION);
+        fs.writeFileSync(configuration, JSON.stringify({ script: this.output, map: this.output + DEBUG_MAP_SUFFIX, cwd, args: args.args || [] }));
         const pipeName = 'rukbat-debug-' + id;
         await new Promise((resolve, reject) => {
             this.server = net.createServer(socket => {
@@ -255,33 +321,47 @@ class RukbatDebugAdapter {
     write(message) { if (this.socket && !this.socket.destroyed) this.socket.write(JSON.stringify(message) + '\n'); }
     hostMessage(message) {
         if (this.finished) return;
-        if (message.event === 'ready') {
-            clearTimeout(this.startupTimer);
-            this.ready = true;
-            if (this.configured) this.write({ command: 'continue' });
-        } else if (message.event === 'checkpoint') {
-            const points = message.points.filter(id => id >= 0);
-            const id = points[0];
-            if (!this.map.points[id]) throw new Error('Invalid checkpoint from debug host.');
-            let reason;
-            if (!this.noDebug) {
-                if (this.stopOnEntry) reason = 'entry';
-                else if (this.pause) reason = 'pause';
-                else if ([...this.breakpoints.values()].some(ids => ids.has(id))) reason = 'breakpoint';
-                else if (this.mode === 'stepIn' || this.mode === 'next' && points.length <= this.stepDepth ||
-                    this.mode === 'stepOut' && points.length < this.stepDepth) reason = 'step';
-            }
-            if (reason) {
-                this.stopOnEntry = false; this.pause = false; this.reason = reason;
-                this.write({ command: 'inspect' });
-            } else this.write({ command: 'continue' });
-        } else if (message.event === 'snapshot') {
-            this.frames = message.frames;
-            this.handles.clear();
-            this.stopped = true;
-            this.event('stopped', { reason: this.reason, threadId: THREAD, allThreadsStopped: true });
-        }
+        HOST_HANDLERS.get(message.event)?.(this, message);
     }
+
+    hostReady() {
+        clearTimeout(this.startupTimer);
+        this.ready = true;
+        if (this.configured) this.write({ command: CONTINUE });
+    }
+
+    stopReason(id, depth) {
+        if (this.noDebug) return undefined;
+        if (this.stopOnEntry) return 'entry';
+        if (this.pause) return 'pause';
+        for (const ids of this.breakpoints.values()) {
+            if (ids.has(id)) return 'breakpoint';
+        }
+        return STEP_RULES.get(this.mode)?.(depth, this.stepDepth) ? 'step' : undefined;
+    }
+
+    hostCheckpoint(message) {
+        const points = message.points.filter(id => id >= 0);
+        const id = points[0];
+        if (!this.map.points[id]) throw new Error('Invalid checkpoint from debug host.');
+        const reason = this.stopReason(id, points.length);
+        if (!reason) {
+            this.write({ command: CONTINUE });
+            return;
+        }
+        this.stopOnEntry = false;
+        this.pause = false;
+        this.reason = reason;
+        this.write({ command: 'inspect' });
+    }
+
+    hostSnapshot(message) {
+        this.frames = message.frames;
+        this.handles.clear();
+        this.stopped = true;
+        this.event('stopped', { reason: this.reason, threadId: THREAD, allThreadsStopped: true });
+    }
+
     fail(error) { this.event('output', { category: 'stderr', output: error.message + '\n' }); this.finish(); }
     finish() {
         if (this.finished) return;
@@ -301,7 +381,7 @@ class RukbatDebugAdapter {
         // Wait for Windows to release script/directory handles before reporting
         // termination or removing the exact session-owned files.
         void Promise.all(closing).then(() => {
-            for (const file of [this.output, this.output && this.output + '.rukbat-map.json', this.temp && path.join(this.temp, 'launch.json')]) {
+            for (const file of [this.output, this.output && this.output + DEBUG_MAP_SUFFIX, this.temp && path.join(this.temp, DEBUG_CONFIGURATION)]) {
                 if (file) { try { fs.unlinkSync(file); } catch { /* May already be absent. */ } }
             }
             if (this.temp) { try { fs.rmdirSync(this.temp); } catch { /* An external reader may still hold it. */ } }

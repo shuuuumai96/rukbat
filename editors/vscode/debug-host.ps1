@@ -9,13 +9,21 @@ $ErrorActionPreference = 'Stop'
 $config = Get-Content -LiteralPath $Configuration -Raw -Encoding UTF8 | ConvertFrom-Json
 $global:__rukbat_debug_map = Get-Content -LiteralPath $config.map -Raw -Encoding UTF8 | ConvertFrom-Json
 $pipe = New-Object System.IO.Pipes.NamedPipeClientStream('.', $PipeName, [System.IO.Pipes.PipeDirection]::InOut)
-$pipe.Connect(15000)
+$pipeConnectTimeoutMs = 15000
+$pipe.Connect($pipeConnectTimeoutMs)
+$global:__rukbat_debug_limits = @{
+    maxCollectionChildren = 100
+    maxDepth = 6
+    maxTextLength = 4096
+    maxInspectionNodes = 2000
+    jsonDepth = 40
+}
 $global:__rukbat_debug_reader = New-Object System.IO.StreamReader($pipe, [System.Text.Encoding]::UTF8)
 $global:__rukbat_debug_writer = New-Object System.IO.StreamWriter($pipe, (New-Object System.Text.UTF8Encoding($false)))
 $global:__rukbat_debug_writer.AutoFlush = $true
 
 function global:Send-RukbatDebug($message) {
-    $global:__rukbat_debug_writer.WriteLine((ConvertTo-Json -InputObject $message -Depth 40 -Compress))
+    $global:__rukbat_debug_writer.WriteLine((ConvertTo-Json -InputObject $message -Depth $global:__rukbat_debug_limits.jsonDepth -Compress))
 }
 
 function global:Read-RukbatDebug {
@@ -34,12 +42,27 @@ function global:Format-RukbatDebugValue($value, [string]$typeId, [int]$depth, $b
         return $node
     }
     $budget.remaining--
-    if ($null -ne $type.PSObject.Properties['dictionaryKey'] -and $null -ne $type.dictionaryKey) {
+    foreach ($entry in $global:__rukbat_debug_shape_formatters.GetEnumerator()) {
+        $property = $type.PSObject.Properties[$entry.Key]
+        if ($null -ne $property -and $null -ne $property.Value) {
+            & $entry.Value $value $type $node $depth $budget
+            return $node
+        }
+    }
+    $formatter = $global:__rukbat_debug_scalar_formatters[$type.name]
+    # Opaque values have no public fields. Inspection never calls their methods.
+    $node.value = if ($null -ne $formatter) { & $formatter $value } else { '<' + $type.name + '>' }
+    return $node
+}
+
+$global:__rukbat_debug_shape_formatters = [ordered]@{
+    dictionaryKey = {
+        param($value, $type, $node, $depth, $budget)
         $node.value = $type.name + ' (' + $value['entries'].Count + ')'
-        if ($depth -lt 6 -and $budget.remaining -gt 0) {
+        if ($depth -lt $global:__rukbat_debug_limits.maxDepth -and $budget.remaining -gt 0) {
             $children = New-Object 'System.Collections.Generic.List[object]'
             foreach ($key in $value['order']) {
-                if ($children.Count -ge 100 -or $budget.remaining -le 0) { break }
+                if ($children.Count -ge $global:__rukbat_debug_limits.maxCollectionChildren -or $budget.remaining -le 0) { break }
                 $child = Format-RukbatDebugValue $value['entries'][$key]['value'] $type.dictionaryValue ($depth + 1) $budget
                 $keyType = $global:__rukbat_debug_map.types.PSObject.Properties[$type.dictionaryKey].Value
                 $label = if ($keyType.name -ceq 'string') { ConvertTo-Json -InputObject ([string]$key) -Compress } else { ([long]$key).ToString([System.Globalization.CultureInfo]::InvariantCulture) }
@@ -50,11 +73,13 @@ function global:Format-RukbatDebugValue($value, [string]$typeId, [int]$depth, $b
             $null = $children.Add(@{ name = 'length'; type = 'int'; value = $value['entries'].Count.ToString(); children = @(); isConst = $true })
             $node.children = $children.ToArray()
         }
-    } elseif ($null -ne $type.element) {
+    }
+    element = {
+        param($value, $type, $node, $depth, $budget)
         $node.value = $type.name + ' (' + $value.Count + ')'
-        if ($depth -lt 6 -and $budget.remaining -gt 0) {
+        if ($depth -lt $global:__rukbat_debug_limits.maxDepth -and $budget.remaining -gt 0) {
             $children = New-Object 'System.Collections.Generic.List[object]'
-            for ($index = 0; $index -lt [Math]::Min($value.Count, 100) -and $budget.remaining -gt 0; $index++) {
+            for ($index = 0; $index -lt [Math]::Min($value.Count, $global:__rukbat_debug_limits.maxCollectionChildren) -and $budget.remaining -gt 0; $index++) {
                 $child = Format-RukbatDebugValue $value[$index] $type.element ($depth + 1) $budget
                 $child.name = '[' + $index + ']'
                 $null = $children.Add($child)
@@ -62,9 +87,11 @@ function global:Format-RukbatDebugValue($value, [string]$typeId, [int]$depth, $b
             $null = $children.Add(@{ name = 'length'; type = 'int'; value = $value.Count.ToString(); children = @(); isConst = $true })
             $node.children = $children.ToArray()
         }
-    } elseif ($null -ne $type.fields) {
+    }
+    fields = {
+        param($value, $type, $node, $depth, $budget)
         $node.value = $type.name
-        if ($depth -lt 6 -and $budget.remaining -gt 0) {
+        if ($depth -lt $global:__rukbat_debug_limits.maxDepth -and $budget.remaining -gt 0) {
             $children = New-Object 'System.Collections.Generic.List[object]'
             foreach ($field in $type.fields) {
                 if ($budget.remaining -le 0) { break }
@@ -74,29 +101,37 @@ function global:Format-RukbatDebugValue($value, [string]$typeId, [int]$depth, $b
             }
             $node.children = $children.ToArray()
         }
-    } elseif ($null -ne $type.PSObject.Properties['displayValues'] -and $null -ne $type.displayValues) {
+    }
+    displayValues = {
+        param($value, $type, $node)
         # Validated standard tags use compiler-provided labels, never property getters.
         $label = $type.displayValues.PSObject.Properties[[string]$value]
         $node.value = if ($null -ne $label) { [string]$label.Value } else { '<' + $type.name + '>' }
-    } elseif ($type.name -ceq 'string') {
-        $text = [string]$value
-        if ($text.Length -gt 4096) { $text = $text.Substring(0, 4096) + '...' }
-        $node.value = ConvertTo-Json -InputObject $text -Compress
-    } elseif ($type.name -ceq 'bool') {
-        $node.value = ([bool]$value).ToString().ToLowerInvariant()
-    } elseif ($type.name -ceq 'int') {
-        # Standard-library fields may use Int32 storage even though their bound
-        # Rukbat type is int. Inspection follows that type, not backend storage.
-        $node.value = ([long]$value).ToString([System.Globalization.CultureInfo]::InvariantCulture)
-    } elseif ($type.name -ceq 'float') {
-        $node.value = ([double]$value).ToString('R', [System.Globalization.CultureInfo]::InvariantCulture)
-    } else {
-        # Opaque standard values have no public Rukbat fields. Do not invoke
-        # arbitrary PowerShell property getters or methods while inspecting them.
-        $node.value = '<' + $type.name + '>'
     }
-    return $node
 }
+
+$global:__rukbat_debug_scalar_formatters = [hashtable]::new([StringComparer]::Ordinal)
+$global:__rukbat_debug_scalar_formatters['string'] = {
+    param($value)
+    $text = [string]$value
+    $limit = $global:__rukbat_debug_limits.maxTextLength
+    if ($text.Length -gt $limit) { $text = $text.Substring(0, $limit) + '...' }
+    ConvertTo-Json -InputObject $text -Compress
+}
+$global:__rukbat_debug_scalar_formatters['bool'] = {
+    param($value)
+    ([bool]$value).ToString().ToLowerInvariant()
+}
+$global:__rukbat_debug_scalar_formatters['int'] = {
+    param($value)
+    # A bound int can have Int32 storage at a standard-library boundary.
+    ([long]$value).ToString([System.Globalization.CultureInfo]::InvariantCulture)
+}
+$global:__rukbat_debug_scalar_formatters['float'] = {
+    param($value)
+    ([double]$value).ToString('R', [System.Globalization.CultureInfo]::InvariantCulture)
+}
+
 
 $global:__rukbat_debug_checkpoint = {
     $frames = $global:__rukbat_debug_frames
@@ -106,7 +141,7 @@ $global:__rukbat_debug_checkpoint = {
     $command = Read-RukbatDebug
     if ($command.command -eq 'inspect') {
         $snapshot = New-Object 'System.Collections.Generic.List[object]'
-        $budget = @{ remaining = 2000 }
+        $budget = @{ remaining = $global:__rukbat_debug_limits.maxInspectionNodes }
         for ($index = $frames.Count - 1; $index -ge 0; $index--) {
             $frame = $frames[$index]
             if ($frame.point -lt 0) { continue }
