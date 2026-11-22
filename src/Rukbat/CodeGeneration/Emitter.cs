@@ -45,27 +45,21 @@ namespace Rukbat
                 [DateTimeValues.Zone] = "RukbatZone",
             };
 
-        private static string TypeName(ValueType type)
-        {
-            if (PowerShellTypeNames.TryGetValue(type, out var name))
+        private static readonly IReadOnlyDictionary<ValueKind, string> PowerShellShapeNames =
+            new Dictionary<ValueKind, string>
             {
-                return name;
-            }
-
-            // These representations depend on the bound shape, including standard structs.
-            return type switch
-            {
-                { IsNullable: true } => "object",
-                { Element: not null } => "System.Collections.Generic.List[object]",
-                { DictionaryKey: not null } => "hashtable",
-                { IsJsonValue: true } => "RukbatJsonValue",
-                { IsCsvRow: true } => "RukbatCsvRow",
-                { IsCliResult: true } => "object",
-                { Struct: not null } => "hashtable",
-                { Enum: not null } => "string",
-                _ => type.Name,
+                [ValueKind.Nullable] = "object",
+                [ValueKind.Array] = "System.Collections.Generic.List[object]",
+                [ValueKind.Dictionary] = "hashtable",
+                [ValueKind.JsonValue] = "RukbatJsonValue",
+                [ValueKind.CsvRow] = "RukbatCsvRow",
+                [ValueKind.CliResult] = "object",
+                [ValueKind.Struct] = "hashtable",
+                [ValueKind.Enum] = "string"
             };
-        }
+
+        private static string TypeName(ValueType type) => PowerShellTypeNames.TryGetValue(type, out var name)
+            ? name : PowerShellShapeNames.GetValueOrDefault(type.Kind, type.Name);
 
         private void Line(string text)
         {

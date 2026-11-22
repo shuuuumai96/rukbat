@@ -1,5 +1,7 @@
 namespace Rukbat
 {
+    internal enum ValueKind { Scalar, Dictionary, Nullable, Array, CsvRow, CliResult, JsonValue, Struct, Enum }
+
     // The AST retains type names until the checker binds them to their defining symbols.
     // Structs and enums from different modules keep their own type identities.
     internal sealed record ValueType(
@@ -29,6 +31,19 @@ namespace Rukbat
         public static readonly ValueType RegexPattern = new("re.Pattern");
         public static ValueType ArrayOf(ValueType element) => new(element.Name + "[]", Element: element);
         public static ValueType NullableOf(ValueType element) => new(element.Name + "?", NullableElement: element);
+        public ValueKind Kind => this switch
+        {
+            { DictionaryKey: not null } => ValueKind.Dictionary,
+            { NullableElement: not null } => ValueKind.Nullable,
+            { Element: not null } => ValueKind.Array,
+            { IsCsvRow: true } => ValueKind.CsvRow,
+            { IsCliResult: true } => ValueKind.CliResult,
+            { IsJsonValue: true } => ValueKind.JsonValue,
+            { Struct: not null } => ValueKind.Struct,
+            { Enum: not null } => ValueKind.Enum,
+            _ => ValueKind.Scalar
+        };
+
         public bool IsNullable => NullableElement is not null;
         public bool IsCsvRow => Struct?.IsCsvRow == true;
         public bool IsJsonValue => Struct?.IsJsonValue == true;
