@@ -87,16 +87,12 @@ namespace Rukbat
                         break;
                     case For loop:
                         var collectionType = TypeOf(loop.Items, scope);
-                        var iteration = collectionType switch
-                        {
-                            var type when type == ValueType.FileLines => new BoundIteration(IterationKind.OwnedCursor, ValueType.String, "fs.__open_lines"),
-                            var type when type == ValueType.CsvRecords => new BoundIteration(IterationKind.OwnedCursor, ValueType.ArrayOf(ValueType.String), "csv.__open_records"),
-                            _ => new BoundIteration(IterationKind.ArraySnapshot, collectionType.Element ?? ValueType.Error)
-                        };
+                        var iteration = !collectionType.IsComposite && ownedTraversals.TryGetValue(collectionType, out var traversal)
+                            ? traversal : new BoundIteration(IterationKind.ArraySnapshot, collectionType.Element ?? ValueType.Error);
                         Iterations[loop] = iteration;
                         if (iteration.Kind == IterationKind.ArraySnapshot && collectionType.Element is null && collectionType != ValueType.Error)
                         {
-                            Error("RUK2001", "for ... in requires an array, fs.Lines, or csv.Records.", loop.Items);
+                            Error("RUK2001", "for ... in requires an array or a standard traversal descriptor.", loop.Items);
                         }
 
                         var beforeLoop = SnapshotFlow();

@@ -10,18 +10,26 @@ if arguments.length != 2 {
 }
 
 try {
-    errors: string[] = []
+    for writer in fs.stage_text(arguments[1], encoding.utf8) {
+        first := true
 
-    for line in fs.lines(arguments[0], encoding.utf8) {
-        cleaned := text.trim(line)
+        for line in fs.lines(arguments[0], encoding.utf8) {
+            cleaned := text.trim(line)
 
-        if text.starts_with(cleaned, "ERROR:") {
-            errors.append(cleaned)
+            if !text.starts_with(cleaned, "ERROR:") {
+                continue
+            }
+
+            if !first {
+                fs.write_chunk(writer, "\r\n")
+            }
+
+            fs.write_chunk(writer, cleaned)
+            first = false
         }
-    }
 
-    report := text.join(errors, "\r\n")
-    fs.write_text(arguments[1], report, encoding.utf8)
+        fs.commit(writer)
+    }
 } catch err {
     eprint(err.message)
     exit(1)

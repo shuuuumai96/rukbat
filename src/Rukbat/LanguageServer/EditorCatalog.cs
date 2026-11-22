@@ -48,6 +48,11 @@ namespace Rukbat
         [
             HashType, LogType, HttpType(HttpValues.Method), HttpType(HttpValues.Body),
             EncodingType, FileLinesType, CsvRecordsType, RegexPatternType,
+            new("Rows", "csv.Rows", 13, "CSV traversal with named columns.", Type: ValueType.CsvRows),
+            new("FileWalk", "fs.FileWalk", 13, "Sequential recursive file traversal.", Type: ValueType.FileWalk),
+            new("LockScope", "fs.LockScope", 13, "Loop-owned exclusive file lock.", Type: ValueType.FileLock),
+            new("TextStage", "fs.TextStage", 13, "Loop-owned staged file output.", Type: ValueType.TextStage),
+            new("TextWriter", "fs.TextWriter", 13, "Writer valid within its staging loop.", Type: ValueType.TextWriter),
             .. DateTimeValues.All.Select(DateTimeType)
         ];
         private static readonly IReadOnlyDictionary<ValueType, EditorSymbol> scalarSymbols =

@@ -6,7 +6,8 @@ namespace Rukbat
         // standard values must still come from the current compilation's modules.
         private static readonly IReadOnlyDictionary<string, ValueType> scalars = new[]
         {
-            ValueType.Encoding, ValueType.RegexPattern, ValueType.FileLines, ValueType.CsvRecords,
+            ValueType.Encoding, ValueType.RegexPattern, ValueType.FileLines, ValueType.CsvRecords, ValueType.CsvRows,
+            ValueType.FileWalk, ValueType.FileLock, ValueType.TextStage, ValueType.TextWriter,
             HashValues.Algorithm, LogValues.Level, HttpValues.Method, HttpValues.Body,
             DateTimeValues.Timestamp, DateTimeValues.Date, DateTimeValues.Duration, DateTimeValues.Zone
         }.ToDictionary(type => type.Name, StringComparer.Ordinal);
@@ -19,6 +20,9 @@ namespace Rukbat
 
         public static bool IsOpaqueScalar(ValueType type) =>
             scalars.TryGetValue(type.Name, out var scalar) && scalar == type;
+
+        public static bool HasScalarEquality(ValueType type) =>
+            !IsOpaqueScalar(type) || IsTagged(type) || type == HttpValues.Method || DateTimeValues.All.Contains(type);
 
         // Struct-backed opaque values retain the identities of their canonical standard modules.
         public static bool IsOpaque(ValueType type) =>

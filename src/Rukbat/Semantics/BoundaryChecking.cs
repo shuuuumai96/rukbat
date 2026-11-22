@@ -4,12 +4,13 @@ namespace Rukbat
     {
         private ValueType JsonCallType(Call call, Symbols scope, ValueType jsonValue)
         {
-            if (call.Name is "parse" or "as")
+            if (call.Name is "parse" or "parse_strict" or "as")
             {
-                CheckStandardArguments(call, scope, [call.Name == "parse" ? ValueType.String : jsonValue], $"json.{call.Name}");
-                if (call.Name == "as" && call.TypeArgument is null)
+                CheckStandardArguments(call, scope, [call.Name == "as" ? jsonValue : ValueType.String], $"json.{call.Name}");
+                if (call.Name != "parse" && call.TypeArgument is null)
                 {
-                    Error("RUK2005", "json.as requires an explicit result type: json.as<T>(value).", call);
+                    var argument = call.Name == "as" ? "value" : "text";
+                    Error("RUK2005", $"json.{call.Name} requires an explicit result type: json.{call.Name}<T>({argument}).", call);
                     return ValueType.Error;
                 }
                 var resultType = call.TypeArgument is null ? jsonValue : BindType(call.TypeArgument, call);

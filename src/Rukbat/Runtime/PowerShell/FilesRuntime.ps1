@@ -72,53 +72,15 @@
     return $selected.encoding.GetString($bytes, $offset, $bytes.Length - $offset)
 }
 'fs.write_text' {
+    $path = & $__rukbat_resolve_path $values[0]
     $selected = & $__rukbat_text_encoding ([string]$values[2]) 'file'
-    $path = & $__rukbat_resolve_path ([string]$values[0])
-    $text = [string]$values[1]
-    $bytes = $selected.encoding.GetBytes($text)
-    $noBackup = [System.Management.Automation.Language.NullString]::Value
-    $directory = [System.IO.Path]::GetDirectoryName($path)
-    $tempPath = $null
-    $stream = $null
+    $bytes = $selected.encoding.GetBytes([string]$values[1])
+    & $__rukbat_load_FileScopes
+    $writer = [RukbatFileScopes]::OpenStage($path, $selected.encoding)
     try {
-        for ($attempt = 0; $attempt -lt 32; $attempt++) {
-            $candidate = [System.IO.Path]::Combine($directory, '.rukbat-write-' + [System.IO.Path]::GetRandomFileName())
-            try {
-                $stream = [System.IO.File]::Open($candidate, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
-                $tempPath = $candidate
-                break
-            } catch [System.IO.IOException] {
-                if (-not [System.IO.File]::Exists($candidate)) { throw }
-            }
-        }
-        if ($null -eq $tempPath) {
-            throw 'fs.write_text could not create a unique temporary file.'
-        }
-        try {
-            $stream.Write($bytes, 0, $bytes.Length)
-            $stream.Flush($true)
-        } finally {
-            if ($null -ne $stream) {
-                try { $stream.Dispose() } finally { $stream = $null }
-            }
-        }
-        if ([System.IO.File]::Exists($path)) {
-            [System.IO.File]::Replace($tempPath, $path, $noBackup)
-        } else {
-            try {
-                [System.IO.File]::Move($tempPath, $path)
-            } catch [System.IO.IOException] {
-                if (-not [System.IO.File]::Exists($path)) { throw }
-                [System.IO.File]::Replace($tempPath, $path, $noBackup)
-            }
-        }
-        $tempPath = $null
-    } finally {
-        if ($null -ne $stream) { $stream.Dispose() }
-        if ($null -ne $tempPath) {
-            try { [System.IO.File]::Delete($tempPath) } catch { }
-        }
-    }
+        $writer.Write($bytes)
+        $writer.Commit()
+    } finally { $writer.Close() }
     return
 }
 'fs.append_text' {

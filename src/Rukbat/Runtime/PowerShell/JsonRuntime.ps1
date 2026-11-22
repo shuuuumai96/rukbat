@@ -1,5 +1,5 @@
         $__rukbat_json_decode = {
-            param([object]$text, [hashtable]$schema, [bool]$fromValue, [scriptblock]$dictionaryRuntime)
+            param([object]$text, [hashtable]$schema, [bool]$fromValue, [scriptblock]$dictionaryRuntime, [bool]$strict)
             if ($fromValue) { $node = $text.Node }
             else { $node = [RukbatJsonParser]::Parse([string]$text) }
             function __rukbat_json_convert {
@@ -71,6 +71,13 @@
                                     throw "$path.$($field.name): Missing required property."
                                 }
                                 $copy[$field.key] = __rukbat_json_convert $value[$field.name] $field.type "$path.$($field.name)"
+                            }
+                            if ($strict -and $value.Count -ne $type.fields.Count) {
+                                $expected = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+                                foreach ($field in $type.fields) { $null = $expected.Add($field.name) }
+                                foreach ($name in $value.Keys) {
+                                    if (-not $expected.Contains($name)) { throw "$path.$($name): Unknown property." }
+                                }
                             }
                             return $copy
                         }

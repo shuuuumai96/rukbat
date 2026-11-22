@@ -198,6 +198,33 @@ public sealed class RukbatCsvRow {
         values = ownedValues;
     }
 
+    public sealed class NamedCursor {
+        private readonly RukbatCsvCursor records;
+        private readonly Header header;
+        private int number = FirstRecordNumber;
+        public RukbatCsvRow Current { get; private set; }
+
+        public NamedCursor(TextReader reader, string[] required) {
+            records = new RukbatCsvCursor(reader);
+            try {
+                if (!records.MoveNext()) throw new FormatException("CSV table requires a header record.");
+                header = new Header(CopyFields(records.Current));
+                foreach (string name in required)
+                    if (!header.Indices.ContainsKey(name))
+                        throw new FormatException("Missing required CSV column '" + name + "'.");
+            } catch { records.Close(); throw; }
+        }
+
+        public bool MoveNext() {
+            Current = null;
+            if (!records.MoveNext()) return false;
+            Current = MakeRow(header, records.Current, ++number);
+            return true;
+        }
+
+        public void Close() { Current = null; records.Close(); }
+    }
+
     public static bool HasColumn(string[] columns, string column) { return new Header(columns).Indices.ContainsKey(column); }
 
     public static RukbatCsvRow Create(string[] columns, IList values) {

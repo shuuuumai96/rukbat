@@ -59,6 +59,7 @@ namespace Rukbat
                 ["test.assert"] = static (emitter, call) => emitter.TestAssertion(call),
                 ["test.fail"] = static (emitter, call) =>
                     $"(& $script:__rukbat_raise @{{message = ({emitter.Expr(call.Arguments[0].Value)})}} {emitter.Location(call)})",
+                ["json.parse_strict"] = static (emitter, call) => emitter.JsonDecode(call, false, strict: true),
                 ["json.parse"] = static (emitter, call) => emitter.JsonDecode(call, false),
                 ["json.as"] = static (emitter, call) => emitter.JsonDecode(call, true),
                 ["json.stringify"] = static (emitter, call) => emitter.JsonEncode(call)
@@ -67,9 +68,9 @@ namespace Rukbat
         private string JsonEncode(Call call) =>
             $"(& $script:__rukbat_json_encode ({Expr(call.Arguments[0].Value)}) {Schema(checker.Types[call.Arguments[0].Value])})";
 
-        private string JsonDecode(Call call, bool fromValue) =>
+        private string JsonDecode(Call call, bool fromValue, bool strict = false) =>
             $"(& $script:__rukbat_json_decode ({Expr(call.Arguments[0].Value)}) {Schema(checker.Types[call])} " +
-            (fromValue ? "$true" : "$false") + " $script:__rukbat_dictionary)";
+            (fromValue ? "$true" : "$false") + " $script:__rukbat_dictionary " + (strict ? "$true)" : "$false)");
 
         private string StandardCall(Call call, string standardCall)
         {
@@ -92,7 +93,7 @@ namespace Rukbat
                     $"$options[{Quote(fields["name_encoding"].Key)}]; $options[{Quote(fields["max_entries"].Key)}]; " +
                     $"$options[{Quote(fields["max_total_bytes"].Key)}]" + ")) })";
             }
-            if (standardCall == "process.run")
+            if (standardCall is "process.run" or "process.run_to_files")
             {
                 var options = checker.Types[call.Arguments[2].Value].Struct!.Fields;
                 var environment = options["environment"].Type.Element!.Struct!.Fields;

@@ -1,3 +1,4 @@
+'process.monotonic_ms' { return [long]$__rukbat_clock.ElapsedMilliseconds }
 'process.sleep' {
     $duration = [long]$values[0]
     if ($duration -lt 0 -or $duration -gt [int]::MaxValue) {
@@ -6,7 +7,7 @@
     if ($duration -gt 0) { Microsoft.PowerShell.Utility\Start-Sleep -Milliseconds ([int]$duration) }
     return
 }
-{ $_ -cin @('process.options', 'process.run') } {
+{ $_ -cin @('process.options', 'process.run', 'process.run_to_files') } {
     if ($operation -ceq 'process.options') {
         $timeout = $values[0]
         $encodingName = [string]$values[1]
@@ -104,7 +105,16 @@
         if ($null -eq $found) { throw "Could not find executable '$executable'." }
         $start.FileName = $found
     }
-    $result = [RukbatProcessJob]::RunBytes($start.FileName, [string]::Join(' ', $quoted), $workingDirectory, $timeout, $environmentBlock, $standardInput)
+    $commandLine = [string]::Join(' ', $quoted)
+    if ($operation -ceq 'process.run_to_files') {
+        $stdoutPath = & $__rukbat_resolve_path $values[3]
+        $stderrPath = & $__rukbat_resolve_path $values[4]
+        if ([string]::Equals($stdoutPath, $stderrPath, [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Process output paths must be different.'
+        }
+        return [long][RukbatProcessJob]::RunToFiles($start.FileName, $commandLine, $workingDirectory, $timeout, $environmentBlock, $standardInput, $stdoutPath, $stderrPath)
+    }
+    $result = [RukbatProcessJob]::RunBytes($start.FileName, $commandLine, $workingDirectory, $timeout, $environmentBlock, $standardInput)
     $stdout = $selected.encoding.GetString([byte[]]$result[1])
     $stderr = $selected.encoding.GetString([byte[]]$result[2])
     return ,([object[]]@($result[0], [string]$stdout, [string]$stderr))

@@ -625,6 +625,18 @@ print(encoding.name(selected))
 
 ## `fs`
 
+| シグネチャ | 動作 |
+|---|---|
+| `fs.walk_files(directory: string, pattern: string): fs.FileWalk` | `for` で一致したファイルの絶対パスを1件ずつ取得します。子ディレクトリも対象です。Hidden 属性や再解析ポイントのある子要素を除きます。 |
+| `fs.stage_text(path: string, encoding: encoding.Encoding): fs.TextStage` | `for` で出力先と同じディレクトリに一時ファイルを開き、書き込み用の値を1つ返します。 |
+| `fs.write_chunk(writer: fs.TextWriter, text: string): void` | 指定した文字コードで文字列を書き込みます。改行や BOM は明示した内容に従います。 |
+| `fs.commit(writer: fs.TextWriter): void` | フラッシュとクローズに成功した後で、出力先に反映します。読み取りと検証を終えてから呼び出します。 |
+| `fs.try_lock(path: string): fs.LockScope` | 排他ロックを取得できれば `for` の本体を1回実行し、競合時は0回です。ループを抜けるとハンドルを閉じます。 |
+| `fs.error_kind(error: Error): string` | I/O エラーを `not_found`、`access_denied`、`in_use`、`other` に分類します。 |
+
+確定していない一時ファイルは、ループの完了や中断時に破棄します。書き込みでエラーが起きた後は確定できません。
+排他処理では、参加するすべてのジョブで同じロックファイルを使い、ファイル自体は残します。
+
 ファイルとディレクトリの両方の操作を含み、どちらも`import fs`で使えます。
 
 <a id="file-operations"></a>
@@ -943,6 +955,12 @@ equalと同じ開始ディレクトリ基準の解決と、大文字小文字を
 
 ## `csv`
 
+| シグネチャ | 動作 |
+|---|---|
+| `csv.rows(path: string, encoding: encoding.Encoding, required_columns: string[]): csv.Rows` | `for` の開始時にヘッダーと必須列を検証し、各行を `csv.Row` として順に返します。列名で読むには `csv.get` を使います。 |
+
+データ行がゼロでもヘッダーを検証します。データ行は読み取り時に列数を検査します。
+
 <a id="header-tables"></a>
 
 ### ヘッダー付きの表
@@ -1057,6 +1075,10 @@ EOF、`break`、`return`、ループ外に伝わる`Error`でファイルを閉�
 <a id="json"></a>
 
 ## `json`
+
+| シグネチャ | 動作 |
+|---|---|
+| `json.parse_strict<T>(text: string): T` | 型付き JSON を読み、構造体に変換する各オブジェクトで未定義のキーを拒否します。辞書と `json.Value` には任意のキーを格納できます。 |
 
 | シグネチャ | 意味 | 失敗 |
 |---|---|---|
@@ -1344,6 +1366,13 @@ zip.extract("./legacy.zip", "./installed", options)
 <a id="process"></a>
 
 ## `process`
+
+| シグネチャ | 動作 |
+|---|---|
+| `process.monotonic_ms(): int` | 単調時計でスクリプト開始からの経過ミリ秒を返します。差分を取ると処理にかかった時間を測れます。 |
+| `process.run_to_files(executable: string, arguments: string[], options: process.Options, stdout_path: string, stderr_path: string): int` | 標準出力と標準エラーをそれぞれ新しいファイルにバイト列のまま保存し、終了コードを返します。既存ファイルへの書き込みはエラーになります。 |
+
+`process.run_to_files` が異常終了した場合は、作成済みの空ファイルや途中までの出力が残ることがあります。
 
 次の通常の値構造体を公開します。
 

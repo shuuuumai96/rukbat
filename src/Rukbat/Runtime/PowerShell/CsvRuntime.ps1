@@ -4,6 +4,14 @@
 }
 'csv.records' { return (& $__rukbat_describe_text_file $values[0] $values[1]) }
 'csv.__open_records' { return [RukbatCsvCursor]::new((& $__rukbat_open_text_file $values[0])) }
+'csv.rows' {
+    $file = & $__rukbat_describe_text_file $values[0] $values[1]
+    return @{ file = $file; required = [string[]]$values[2] }
+}
+'csv.__open_rows' {
+    $source = $values[0]
+    return [RukbatCsvRow+NamedCursor]::new((& $__rukbat_open_text_file $source.file), $source.required)
+}
 'csv.stringify' {
     try { return [RukbatCsv]::Stringify($values[0]) }
     catch [System.FormatException] { throw $_.Exception.GetBaseException().Message }

@@ -230,13 +230,14 @@ namespace Rukbat
             indentation++;
             Line($"{cleanup} = & $script:__rukbat_error $_ {Location(loop)}");
             Line($"if ($null -ne {primary}) {{");
-            Line($"    {cleanup} = @{{ message = {primary}.message + '; cleanup failed: ' + {cleanup}.message; __rukbat_location = {primary}.__rukbat_location }}");
+            Line($"    {cleanup} = @{{ message = {primary}.message + '; cleanup failed: ' + {cleanup}.message; __rukbat_location = {primary}.__rukbat_location; __rukbat_error_kind = {primary}.__rukbat_error_kind }}");
             Line("}");
             Line($"& $script:__rukbat_raise {cleanup} {Location(loop)}");
             indentation--;
             Line("} finally {");
             Line($"    {cursor} = $null; {source} = $null; {primary} = $null; {cleanup} = $null");
-            Line($"    {variable.PowerShellName} = $null");
+            var reset = variable.Type == ValueType.Bool ? "$false" : "$null";
+            Line($"    {variable.PowerShellName} = {reset}");
             Line("}");
             indentation--;
             Line("}");

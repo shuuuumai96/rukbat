@@ -1,0 +1,142 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+
+public static class RukbatFileScopes {
+    private const int ErrorCodeMask = 0xffff;
+    private const int SharingViolation = 32;
+    private const int LockViolation = 33;
+    private const int TemporaryNameAttempts = 32;
+    private const FileAttributes WalkExcluded = FileAttributes.Hidden | FileAttributes.ReparsePoint;
+
+    public static WalkCursor OpenWalk(string directory, string pattern) {
+        return new WalkCursor(Walk(directory, pattern).GetEnumerator());
+    }
+
+    private static IEnumerable<string> Walk(string directory, string pattern) {
+        var pending = new Stack<IEnumerator<DirectoryInfo>>();
+        var current = new DirectoryInfo(directory);
+        try {
+            while (true) {
+                foreach (FileInfo file in current.EnumerateFiles(pattern))
+                    if ((file.Attributes & WalkExcluded) == 0) yield return file.FullName;
+
+                pending.Push(current.EnumerateDirectories().GetEnumerator());
+                current = NextDirectory(pending);
+                if (current == null) yield break;
+            }
+        } finally {
+            while (pending.Count != 0) pending.Pop().Dispose();
+        }
+    }
+
+    private static DirectoryInfo NextDirectory(Stack<IEnumerator<DirectoryInfo>> pending) {
+        while (pending.Count != 0) {
+            var siblings = pending.Peek();
+            while (siblings.MoveNext())
+                if ((siblings.Current.Attributes & WalkExcluded) == 0) return siblings.Current;
+            pending.Pop().Dispose();
+        }
+        return null;
+    }
+
+    public sealed class WalkCursor {
+        private readonly IEnumerator<string> entries;
+        internal WalkCursor(IEnumerator<string> entries) { this.entries = entries; }
+        public string Current { get { return entries.Current; } }
+        public bool MoveNext() { return entries.MoveNext(); }
+        public void Close() { entries.Dispose(); }
+    }
+
+    public static LockCursor OpenLock(string path) {
+        try { return new LockCursor(new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None)); }
+        catch (IOException error) {
+            int code = error.HResult & ErrorCodeMask;
+            if (code != SharingViolation && code != LockViolation) throw;
+            return new LockCursor(null);
+        }
+    }
+
+    public sealed class LockCursor {
+        private readonly FileStream held;
+        private bool yielded;
+        internal LockCursor(FileStream held) { this.held = held; }
+        public bool Current { get { return true; } }
+        public bool MoveNext() {
+            if (held == null || yielded) return false;
+            yielded = true;
+            return true;
+        }
+        public void Close() { if (held != null) held.Dispose(); }
+    }
+
+    public static Writer OpenStage(string destination, object codec) {
+        string directory = Path.GetDirectoryName(destination);
+        for (int attempt = 0; attempt < TemporaryNameAttempts; attempt++) {
+            string stage = Path.Combine(directory, ".rukbat-write-" + Path.GetRandomFileName());
+            FileStream stream;
+            try { stream = new FileStream(stage, FileMode.CreateNew, FileAccess.Write, FileShare.None); }
+            catch (IOException) { if (File.Exists(stage) || Directory.Exists(stage)) continue; throw; }
+            return new Writer(destination, codec, stage, stream);
+        }
+        throw new IOException("Could not create a temporary output file.");
+    }
+
+    public sealed class Writer {
+        private readonly string destination;
+        private string stage;
+        private FileStream stream;
+        private bool yielded;
+        private bool failed;
+        public object Codec { get; private set; }
+        public Writer Current { get { return this; } }
+
+        internal Writer(string destination, object codec, string stage, FileStream stream) {
+            this.destination = destination;
+            this.stage = stage;
+            this.stream = stream;
+            Codec = codec;
+        }
+
+        public bool MoveNext() {
+            if (yielded) return false;
+            yielded = true;
+            return true;
+        }
+
+        public void Invalidate() { failed = true; }
+
+        private void RequireWritable() {
+            if (stream == null || failed) throw new InvalidOperationException("Staged output is closed or has failed.");
+        }
+
+        public void Write(byte[] bytes) {
+            RequireWritable();
+            stream.Write(bytes, 0, bytes.Length);
+        }
+
+        public void Commit() {
+            RequireWritable();
+            failed = true;
+            stream.Flush(true);
+            CloseStream();
+            if (!File.Exists(destination)) {
+                try { File.Move(stage, destination); stage = null; return; }
+                catch (IOException) { if (!File.Exists(destination)) throw; }
+            }
+            File.Replace(stage, destination, null);
+            stage = null;
+        }
+
+        private void CloseStream() {
+            FileStream owned = stream;
+            stream = null;
+            if (owned != null) owned.Dispose();
+        }
+
+        public void Close() {
+            try { CloseStream(); }
+            finally { if (stage != null) File.Delete(stage); }
+        }
+    }
+}

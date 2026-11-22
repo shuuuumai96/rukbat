@@ -19,6 +19,11 @@ namespace Rukbat
         public static readonly ValueType Null = new("null");
         public static readonly ValueType Encoding = new("encoding.Encoding");
         public static readonly ValueType FileLines = new("fs.Lines");
+        public static readonly ValueType CsvRows = new("csv.Rows");
+        public static readonly ValueType FileWalk = new("fs.FileWalk");
+        public static readonly ValueType FileLock = new("fs.LockScope");
+        public static readonly ValueType TextStage = new("fs.TextStage");
+        public static readonly ValueType TextWriter = new("fs.TextWriter");
         public static readonly ValueType CsvRecords = new("csv.Records");
         public static readonly ValueType RegexPattern = new("re.Pattern");
         public static ValueType ArrayOf(ValueType element) => new(element.Name + "[]", Element: element);

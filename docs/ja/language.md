@@ -17,6 +17,7 @@ Rukbatは、Windowsのシステムスクリプト向けの型付き手続き型�
 | `rukbat run input.rukbat -- arguments...` | ビルド後、Windows PowerShellで実行します。 |
 | `rukbat check input.rukbat` | コードを生成せず、インポート、名前、型を検査します。 |
 | `rukbat fmt input.rukbat` / `rukbat fmt directory` | ファイルまたはディレクトリを[標準形式に整形](#formatting)します。 |
+| `rukbat fmt --check path` | ファイルを書き換えずに整形を検査し、差分があるパスを表示します。差分や構文エラーは終了コード1、引数やI/Oエラーは2です。 |
 | `rukbat test [path]` | テストを検出して実行します。[テストガイド](TESTING.md)を参照してください。 |
 | `rukbat doc input.rukbat` | ソースのドキュメントを生成します。[文書生成ガイド](DOCUMENTATION.md)を参照してください。 |
 | `rukbat lsp` | 言語サーバーを起動します。[エディタ機能](EDITOR.md#language-server-protocol)を参照してください。 |
@@ -286,7 +287,7 @@ forの走査対象式はループ開始時に1回だけ評価します。
 配列はその時点の値のスナップショットを走査します。ループ本体で元の配列変数を変更しても、appendによる追加を含め、走査する要素やその順序は変わりません。
 ループ変数には各要素をコピーします。その変数への代入は元の配列を変更しません。
 
-forはnullでない`fs.Lines`と`csv.Records`も受け取ります。`fs.Lines`からは文字列を1行ずつ、`csv.Records`からは文字列の配列を1レコードずつ取り出します。
+forは標準ライブラリの走査用の値も受け取ります。`fs.Lines`と`fs.FileWalk`からは文字列、`csv.Records`からは文字列の配列、`csv.Rows`からは列名で参照できる行を取り出します。`fs.TextStage`からは書き込み用の値を1つ取り出し、`fs.LockScope`ではロックを取得できたときに1回だけ本体を実行します。
 各ループが独立したファイル走査を管理し、EOF、break、return、外へ伝播するErrorで閉じます。continueでは開いたままです。
 return式の評価とコピーはクローズ前に行い、戻り値の出力は後始末に成功した後です。
 後始末の失敗は通常のErrorになります。元のErrorと後始末の失敗が重なっても、catchしたErrorのソース位置は保持します。

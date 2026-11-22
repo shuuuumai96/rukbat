@@ -654,10 +654,16 @@ Because `modified` is a `datetime.Timestamp`, `fs.Info` cannot be converted dire
 | `fs.stat(path: string): fs.Info` | Reads file or directory kind, byte size, and UTC last-write time. | Missing/inaccessible entries, reparse points, and I/O failures cause Error. |
 | `fs.list_files(directory: string, pattern: string): string[]` | Returns absolute paths of directly contained, non-Hidden files that match the file-system wildcard `pattern`. It excludes directories, does not recurse, and does not guarantee order. | An inaccessible or nonexistent directory, or an invalid pattern, causes Error. |
 | `fs.list_files_recursive(directory: string, pattern: string): string[]` | Returns absolute paths to files matching the filename wildcard `pattern` at every depth beneath `directory`, including direct children. It excludes directories and does not guarantee order. | An inaccessible/nonexistent directory, a file passed as `directory`, an invalid path or pattern, or a traversal failure causes Error. |
+| `fs.walk_files(directory: string, pattern: string): fs.FileWalk` | Yields matching absolute file paths recursively, one at a time in unspecified order. Skips hidden and reparse-point children. | Path and pattern validation can fail at creation. Filesystem errors can occur during traversal. |
 | `fs.read_text(path: string, encoding: encoding.Encoding): string` | Reads text with one explicit encoding value. | Missing/inaccessible files, an invalid byte sequence, or a conflicting UTF-16 BOM causes Error. |
 | `fs.lines(path: string, encoding: encoding.Encoding): fs.Lines` | Creates an immutable descriptor for sequential physical lines. Each for opens an independent traversal and closes it on termination. | Invalid paths or encodings cause Error during descriptor creation. Opening, reading, decoding, BOM conflicts, sharing conflicts, and cleanup failures cause Error during traversal. |
 | `fs.write_text(path: string, text: string, encoding: encoding.Encoding): void` | Replaces a file with one explicit encoding value, without a BOM or implicit newline. It does not create parent directories. Complete new contents are written to a temporary file in the destination directory before it is moved or used to replace the destination. | An inaccessible path, missing parent directory, or unencodable text causes Error. |
 | `fs.append_text(path: string, text: string, encoding: encoding.Encoding): void` | Appends strictly encoded text bytes to a file, without a BOM or implicit newline. Creates a missing file, including for empty text, and does not create parent directories. | An invalid/inaccessible path, missing parent, unencodable text, sharing conflict, or I/O failure causes Error. An I/O failure can leave a partial append. |
+| `fs.stage_text(path: string, encoding: encoding.Encoding): fs.TextStage` | Each `for` opens a temporary sibling and yields one `fs.TextWriter`. | Invalid paths or encodings and failure to create the temporary file cause Error. |
+| `fs.write_chunk(writer: fs.TextWriter, text: string): void` | Writes one strictly encoded chunk with no implicit newline or BOM. | Encoding and I/O errors prevent subsequent commit. |
+| `fs.commit(writer: fs.TextWriter): void` | Flushes and closes the temporary file, then publishes it at the destination. | An inactive or failed writer, or a flush, close, or publication failure, causes Error. |
+| `fs.try_lock(path: string): fs.LockScope` | Each `for` yields `true` once while holding an exclusive file handle. An existing sharing or lock conflict yields zero iterations. | Invalid paths, missing parents, permissions, and other I/O failures cause Error. |
+| `fs.error_kind(error: Error): string` | Returns `not_found`, `access_denied`, `in_use`, or `other` from supported I/O exception types. Explicitly constructed errors return `other`. | None. |
 | `fs.create_temp_file(directory: string): string` | Exclusively creates an empty temporary file in an existing directory and returns its absolute path. | An invalid/missing/inaccessible parent, a file passed as parent, failure to find an unused name within the retry limit, or an I/O failure causes Error. |
 | `fs.is_file(path: string): bool` | Returns `true` for an existing file. Missing files, directories, invalid paths, and access failures or other cases that File.Exists cannot determine return `false`. | This predicate returns `false` rather than raising Error when path resolution or existence checking fails. |
 | `fs.copy_file(source: string, destination: string): void` | Copies one file without overwriting an existing destination or creating its parent directory. | A missing, inaccessible, or directory source; an existing destination; a missing parent; identical source and destination; or an I/O failure causes Error. |
@@ -681,6 +687,18 @@ retrying. It is not a transactional replacement: write/flush failures or host te
 leave a partial suffix. If the supplied text is empty, the operation creates an empty file
 when none exists and adds nothing to an existing file. Neither a BOM nor a newline is added;
 put the desired line ending in the text explicitly.
+
+### Scoped file output and locking
+
+Place `fs.commit` after all writes and input validation. Loop cleanup discards an
+unpublished temporary file on normal completion, break, return, or escaping Error.
+Writes encode each chunk independently, so each chunk must be valid text in the
+chosen encoding. The filesystem must permit replacement at the destination.
+
+A lock uses a persistent file as its coordination point. Leaving the loop closes
+the handle. Use the same path for all participants and keep the lock file in place.
+`fs.error_kind` classifies exceptions that retain their I/O cause, including across
+Rukbat rethrow. APIs that collapse failures into predicates keep their own contracts.
 
 ### Sequential line reads
 
@@ -1023,6 +1041,11 @@ print(loaded[1][0]) // Taro
 | Signature | Meaning | Failure |
 |---|---|---|
 | `csv.records(path: string, encoding: encoding.Encoding): csv.Records` | Creates an immutable descriptor for sequential CSV records. Each `for` opens its own traversal and yields one `string[]` at a time, including the header if present. | Invalid paths or encodings cause Error when creating the descriptor. Opening, reading, decoding, invalid CSV syntax, and cleanup can cause Error during traversal. |
+| `csv.rows(path: string, encoding: encoding.Encoding, required_columns: string[]): csv.Rows` | Each `for` validates the header and yields one `csv.Row` at a time. Use `csv.get` for exact column names. | An absent or invalid header, missing required column, bad record width, or input error causes Error. |
+
+`csv.rows` checks required columns before the first data row, including when a
+file has only a header. It shares the validated header lookup across rows and
+applies the same CSV and encoding rules as `csv.records`.
 
 Records follow the same quoting, separator, and empty-field rules as `csv.parse`,
 and use the same path resolution, strict decoding, and BOM handling as `fs.lines`.
@@ -1042,6 +1065,10 @@ for record in csv.records("report.csv", encoding.utf8) {
 ```
 
 ## `json`
+
+| Signature | Meaning | Failure |
+|---|---|---|
+| `json.parse_strict<T>(text: string): T` | Reads a typed JSON value and rejects undeclared properties in every object converted to a struct. Dictionaries and `json.Value` retain their open shape. | Invalid input, type incompatibility, or an unknown struct property causes Error with the property path. |
 
 | Signature | Meaning | Failure |
 |---|---|---|
@@ -1362,6 +1389,11 @@ struct Options {
 | `process.options(timeout_ms: int?, output_encoding: encoding.Encoding): process.Options` | Creates explicit execution options. working_dir and stdin are null; environment is empty. Null timeout is deliberately unbounded; a deadline is 1 through 2147483647 milliseconds. | Invalid timeout or unsupported encoding causes Error. |
 | `process.run(executable: string, arguments: string[], options: process.Options): process.Result` | Starts a contained executable with the supplied execution conditions and captures stdout/stderr. | Invalid conditions or failure to launch, send input, capture, decode, or finish before the deadline causes Error. |
 | `process.sleep(duration_ms: int): void` | Pauses the current script for the supplied number of milliseconds. Zero returns immediately. | A duration outside 0 through 2147483647 milliseconds causes Error. |
+| `process.monotonic_ms(): int` | Returns elapsed whole milliseconds from the script's monotonic clock. Subtract two readings to measure a duration. | None. |
+| `process.run_to_files(executable: string, arguments: string[], options: process.Options, stdout_path: string, stderr_path: string): int` | Runs a contained process and saves stdout and stderr as raw bytes to two new files. Returns the exit code. | Existing or identical destinations, invalid options, launch failures, or timeouts cause Error. Files already created can remain empty or partial after Error. |
+
+Direct output bypasses capture limits and output decoding. The destination directories
+must already exist. The child and its descendants write directly to the files.
 
 The API accepts required positional arguments only. It does not interpret a shell command string.
 The executable and each argument are separate strings; embedded NUL is rejected before launch.

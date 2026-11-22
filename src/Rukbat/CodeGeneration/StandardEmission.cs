@@ -17,10 +17,15 @@ namespace Rukbat
             }),
             ("fs", static emitter =>
             {
+                emitter.EmitNativeLoader("FileScopes");
                 emitter.EmitNativeLoader("MoveBatch");
                 emitter.EmitNativeLoader("TemporaryEntries");
             }),
-            ("process", static emitter => emitter.EmitNativeLoader("ProcessJob")),
+            ("process", static emitter =>
+            {
+                emitter.EmitNativeLoader("ProcessJob");
+                emitter.Line("$__rukbat_clock = [Diagnostics.Stopwatch]::StartNew()");
+            }),
             ("hash", static emitter => emitter.EmitNativeLoader("Hash")),
             ("re", static emitter => emitter.EmitNativeLoader("Regex")),
             ("log", static emitter => emitter.EmitLogRuntime()),
@@ -42,7 +47,7 @@ namespace Rukbat
 
         private static readonly (string Module, string[] Resources)[] RuntimeOperations =
         [
-            ("fs", ["FilesRuntime", "DirectoriesRuntime"]),
+            ("fs", ["FilesRuntime", "DirectoriesRuntime", "FileScopesRuntime"]),
             ("path", ["PathRuntime"]),
             ("csv", ["CsvRuntime"]),
             ("cli", ["CliRuntime"]),

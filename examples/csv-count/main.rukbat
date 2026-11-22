@@ -3,7 +3,6 @@
 import array
 import csv
 import encoding
-import fs
 import text
 
 labels := {
@@ -18,9 +17,8 @@ if inputs.length != 1 {
 
 counts: dict[string, int] = {
 }
-table := csv.parse_table(fs.read_text(inputs[0], encoding.utf8))
 
-for row in table.rows {
+for row in csv.rows(inputs[0], encoding.utf8, ["category"]) {
     category := csv.get(row, "category")
 
     if counts.has(category) {

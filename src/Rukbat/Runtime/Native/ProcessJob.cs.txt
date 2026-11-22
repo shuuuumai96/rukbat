@@ -174,6 +174,48 @@ public static class RukbatProcessJob
     }
     public static object[] RunBytes(string executable, string arguments, string directory, int? timeout, string environment, byte[] standardInput)
     {
+        return RunWithOutput(executable, arguments, directory, timeout, environment, standardInput, null, null);
+    }
+
+    public static int RunToFiles(string executable, string arguments, string directory, int? timeout, string environment,
+        byte[] standardInput, string stdoutPath, string stderrPath)
+    {
+        return (int)RunWithOutput(executable, arguments, directory, timeout, environment, standardInput, stdoutPath, stderrPath)[0];
+    }
+
+    private static IntPtr OpenOutput(string path, ref SecurityAttributes security, out IntPtr reader)
+    {
+        if (path == null)
+        {
+            IntPtr writer;
+            Check(CreatePipe(out reader, out writer, ref security, 0), "Cannot create output pipe.");
+            if (!SetHandleInformation(reader, HandleFlagInherit, 0))
+            {
+                int code = Marshal.GetLastWin32Error();
+                Close(ref writer);
+                throw new Win32Exception(code, "Cannot protect output capture handle.");
+            }
+            return writer;
+        }
+        const uint GenericWrite = 0x40000000, ShareRead = 1, CreateNew = 1;
+        reader = IntPtr.Zero;
+        IntPtr output = CreateFile(path, GenericWrite, ShareRead, ref security, CreateNew, 0, IntPtr.Zero);
+        Check(output != InvalidHandle, "Cannot create process output file: " + path);
+        return output;
+    }
+
+    private static Task<byte[]> StartCapture(ref IntPtr reader)
+    {
+        if (reader == IntPtr.Zero) return Task.FromResult<byte[]>(null);
+        IntPtr captured = reader;
+        var task = Task.Factory.StartNew(() => Capture(captured), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        reader = IntPtr.Zero;
+        return task;
+    }
+
+    private static object[] RunWithOutput(string executable, string arguments, string directory, int? timeout, string environment,
+        byte[] standardInput, string stdoutPath, string stderrPath)
+    {
         if (standardInput != null && standardInput.Length > CaptureLimit) throw new ArgumentException("process input exceeded 64 MiB.");
         IntPtr job = IntPtr.Zero, outRead = IntPtr.Zero, outWrite = IntPtr.Zero;
         IntPtr errRead = IntPtr.Zero, errWrite = IntPtr.Zero, input = IntPtr.Zero;
@@ -191,10 +233,8 @@ public static class RukbatProcessJob
             limits.Basic.Flags = KillOnJobClose;
             Check(SetInformationJobObject(job, JobExtendedLimitInformation, ref limits, Marshal.SizeOf(typeof(ExtendedLimits))), "Cannot configure process job.");
             var security = new SecurityAttributes { Size = Marshal.SizeOf(typeof(SecurityAttributes)), Inherit = 1 };
-            Check(CreatePipe(out outRead, out outWrite, ref security, 0), "Cannot create stdout pipe.");
-            Check(CreatePipe(out errRead, out errWrite, ref security, 0), "Cannot create stderr pipe.");
-            Check(SetHandleInformation(outRead, HandleFlagInherit, 0), "Cannot protect stdout capture handle.");
-            Check(SetHandleInformation(errRead, HandleFlagInherit, 0), "Cannot protect stderr capture handle.");
+            outWrite = OpenOutput(stdoutPath, ref security, out outRead);
+            errWrite = OpenOutput(stderrPath, ref security, out errRead);
             const uint GenericRead = 0x80000000, ShareReadWrite = 3, OpenExisting = 3;
             if (standardInput == null) {
                 input = CreateFile("NUL", GenericRead, ShareReadWrite, ref security, OpenExisting, 0, IntPtr.Zero);
@@ -229,11 +269,8 @@ public static class RukbatProcessJob
                 environmentPointer, directory, ref startup, out process), "Could not start contained process: " + executable);
             var timer = Stopwatch.StartNew();
             Close(ref outWrite); Close(ref errWrite); Close(ref input);
-            IntPtr capturedOut = outRead, capturedErr = errRead;
-            stdout = Task.Factory.StartNew(() => Capture(capturedOut), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
-            outRead = IntPtr.Zero;
-            stderr = Task.Factory.StartNew(() => Capture(capturedErr), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
-            errRead = IntPtr.Zero;
+            stdout = StartCapture(ref outRead);
+            stderr = StartCapture(ref errRead);
             if (standardInput != null) {
                 IntPtr capturedInput = inputWrite;
                 writer = Task.Factory.StartNew(() => SendInput(capturedInput, standardInput), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);

@@ -12,6 +12,7 @@ Rukbat is a typed, procedural language for Windows system scripting. It is not P
 | `rukbat run input.rukbat -- arguments...` | Build, then execute with Windows PowerShell. |
 | `rukbat check input.rukbat` | Check imports, names, and types without generation. |
 | `rukbat fmt input.rukbat` / `rukbat fmt directory` | Apply [canonical formatting](#formatting) to a file or directory. |
+| `rukbat fmt --check path` | Check canonical file bytes. Reports paths that need formatting, with exit code 1 for differences or syntax errors and 2 for usage or I/O errors. |
 | `rukbat test [path]` | Discover and run tests; see [TESTING.md](TESTING.md). |
 | `rukbat doc input.rukbat` | Generate source documentation; see [DOCUMENTATION.md](DOCUMENTATION.md). |
 | `rukbat lsp` | Serve the language protocol; see [EDITOR.md](EDITOR.md#language-server-protocol). |
@@ -247,8 +248,10 @@ against null. Nullable dictionary variables use existing narrowing rules.
 
 The iterable expression of a `for` loop is evaluated exactly once when the loop begins. For an array, the loop iterates over a snapshot of that value. Modifying the original array variable inside the loop body (including `append`) does not affect the iteration sequence. The loop variable is a copy of each element; assigning to it does not modify the source array.
 
-A `for` also accepts non-null `fs.Lines`, yielding strings, and non-null `csv.Records`,
-yielding arrays of strings. Each loop owns an independent file traversal and closes it
+A `for` also accepts standard traversal descriptors. `fs.Lines` and `fs.FileWalk`
+yield strings, `csv.Records` yields arrays of strings, and `csv.Rows` yields named
+rows. `fs.TextStage` yields one writer and `fs.LockScope` yields a boolean if the
+lock is acquired. Each loop owns an independent scope and closes it
 on EOF, break, return, or escaping Error. Continue keeps it open.
 Return expressions are evaluated and copied before closure; return values are emitted after
 successful cleanup. Cleanup failure follows the ordinary Error path. A caught primary Error

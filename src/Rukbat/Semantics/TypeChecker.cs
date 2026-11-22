@@ -17,9 +17,22 @@ namespace Rukbat
         private readonly HashSet<List<Statement>> reboundLoopBodies = new(ReferenceEqualityComparer.Instance);
         private Module module = null!;
 
+        private readonly Dictionary<ValueType, BoundIteration> ownedTraversals = new()
+        {
+            [ValueType.FileLines] = new(IterationKind.OwnedCursor, ValueType.String, "fs.__open_lines"),
+            [ValueType.FileWalk] = new(IterationKind.OwnedCursor, ValueType.String, "fs.__open_walk"),
+            [ValueType.FileLock] = new(IterationKind.OwnedCursor, ValueType.Bool, "fs.__open_lock"),
+            [ValueType.TextStage] = new(IterationKind.OwnedCursor, ValueType.TextWriter, "fs.__open_stage"),
+            [ValueType.CsvRecords] = new(IterationKind.OwnedCursor, ValueType.ArrayOf(ValueType.String), "csv.__open_records")
+        };
+
         public void Check(List<Module> modules)
         {
             RegisterDefinitions(modules);
+            if (modules.FirstOrDefault(item => item.StandardName == "csv") is { } csv)
+            {
+                ownedTraversals[ValueType.CsvRows] = new(IterationKind.OwnedCursor, csv.Structs["Row"].BoundType, "csv.__open_rows");
+            }
             foreach (var current in modules)
             {
                 module = current;

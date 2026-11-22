@@ -9,7 +9,7 @@ namespace Rukbat
                 return ArrayCallType(call, scope);
             }
 
-            if (moduleName == "json" && call.Name is "stringify" or "parse" or "as")
+            if (moduleName == "json" && call.Name is "stringify" or "parse" or "parse_strict" or "as")
             {
                 if (!RequireCallParentheses(call))
                 {
@@ -29,7 +29,9 @@ namespace Rukbat
                 return JsonUpdateCallType(call, scope, standardModule.Structs["Value"].BoundType);
             }
 
-            var signature = StandardSignatures.Find(standardModule, call.Name);
+            var signature = (moduleName, call.Name) == ("fs", "error_kind")
+                ? new StandardSignature([ErrorStructure.BoundType], ValueType.String)
+                : StandardSignatures.Find(standardModule, call.Name);
             if (signature is null)
             {
                 Error("RUK2004", $"Unknown standard-library function '{moduleName}.{call.Name}'.", call);

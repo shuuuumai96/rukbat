@@ -406,14 +406,16 @@ namespace Rukbat.Tests
             var filesystem = Success("import fs\nfs.create_dir_all('x'); fs.remove_file('y')");
             Assert.Contains("'fs.remove_dir_all'", filesystem);
             Assert.Contains("'fs.copy_file'", filesystem);
-            Assert.Contains("[System.IO.File]::Replace($tempPath, $path, $noBackup)", filesystem);
-            Assert.Contains("[System.IO.FileMode]::CreateNew", filesystem);
+            Assert.Contains("class RukbatFileScopes", filesystem);
+            Assert.Contains("File.Replace(stage, destination, null)", filesystem);
+            Assert.Contains("FileMode.CreateNew", filesystem);
             Assert.DoesNotContain("[System.IO.File]::WriteAllText($path", filesystem);
 
             var paths = Success("import path\nprint(path.filename('x'))");
             Assert.DoesNotContain("'fs.remove_dir_all'", paths);
             Assert.DoesNotContain("'fs.copy_file'", paths);
             Assert.DoesNotContain("class RukbatMoveBatch", paths);
+            Assert.DoesNotContain("class RukbatFileScopes", paths);
         }
 
         [Trait("Category", "Unit")]
@@ -422,10 +424,11 @@ namespace Rukbat.Tests
         {
             var output = Success("import encoding; import fs\nfs.write_text('report.txt', 'contents', encoding.utf8)");
 
-            Assert.Contains("[System.IO.Path]::Combine($directory, '.rukbat-write-' + [System.IO.Path]::GetRandomFileName())", output);
-            Assert.Contains("[System.IO.File]::Open($candidate, [System.IO.FileMode]::CreateNew", output);
-            Assert.Contains("[System.IO.File]::Move($tempPath, $path)", output);
-            Assert.Contains("[System.IO.File]::Delete($tempPath)", output);
+            Assert.Contains("[RukbatFileScopes]::OpenStage($path", output);
+            Assert.Contains("Path.Combine(directory, \".rukbat-write-\" + Path.GetRandomFileName())", output);
+            Assert.Contains("new FileStream(stage, FileMode.CreateNew", output);
+            Assert.Contains("File.Move(stage, destination)", output);
+            Assert.Contains("File.Delete(stage)", output);
         }
     }
 }
