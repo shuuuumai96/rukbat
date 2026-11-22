@@ -14,7 +14,8 @@ try {
     try { $lock = Open-JobLock $config } catch [IO.IOException] {
         $failure = $_.Exception
         while ($failure.InnerException) { $failure = $failure.InnerException }
-        $windowsError = $failure.HResult -band 0xffff
+        $win32ErrorCodeMask = 0xffff
+        $windowsError = $failure.HResult -band $win32ErrorCodeMask
         if ($windowsError -notin @(32, 33)) { throw }
         $busy = $true
     }
@@ -50,7 +51,8 @@ if ($NotifyScript -and $exitCode -ne 0) {
             Write-AtomicJson $notificationPath $report
             Import-ProcessJob
             $hostPath = (Get-Process -Id $PID).Path
-            $result = [RukbatProcessJob]::Run($hostPath, (Get-EncodedInvocation $notify @($notificationPath)), $PSScriptRoot, 30000)
+            $notificationTimeoutMs = 30 * $script:MillisecondsPerSecond
+            $result = [RukbatProcessJob]::Run($hostPath, (Get-EncodedInvocation $notify @($notificationPath)), $PSScriptRoot, $notificationTimeoutMs)
             if ($result[0] -ne 0) { throw "Notification failed with exit code $($result[0])." }
         } finally { if ($notificationPath -and [IO.File]::Exists($notificationPath)) { [IO.File]::Delete($notificationPath) } }
     } catch { $report.diagnostic = 'Notification failed: ' + $_.Exception.Message; $exitCode = 2 }

@@ -31,7 +31,7 @@ try {
     }
     Save-Run $config $record
     $timer = [Diagnostics.Stopwatch]::StartNew()
-    $deadline = $config.timeout_seconds * 1000
+    $deadline = $config.timeout_seconds * $script:MillisecondsPerSecond
     Import-ProcessJob
     while ($record.attempts -lt $config.max_attempts) {
         $remaining = $deadline - $timer.ElapsedMilliseconds
@@ -50,7 +50,7 @@ try {
         if ($record.attempts -ge $config.max_attempts -or $result[0] -notin $config.retry_exit_codes) { break }
         $record.status = 'running'
         Save-Run $config $record
-        $delay = [Math]::Min($config.retry_delay_seconds * 1000, [Math]::Max(0, $deadline - $timer.ElapsedMilliseconds))
+        $delay = [Math]::Min($config.retry_delay_seconds * $script:MillisecondsPerSecond, [Math]::Max(0, $deadline - $timer.ElapsedMilliseconds))
         Start-Sleep -Milliseconds ([int]$delay)
     }
 } catch {

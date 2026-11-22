@@ -1,6 +1,7 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $script:Utf8 = [Text.UTF8Encoding]::new($false, $true)
+$script:MillisecondsPerSecond = [int][TimeSpan]::FromSeconds(1).TotalMilliseconds
 
 function Assert-OperationsHost {
     if ($ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage') { throw 'FullLanguage is required.' }
@@ -60,7 +61,13 @@ function Read-JobConfig([string]$Path) {
     foreach ($name in @('timeout_seconds','max_attempts','retry_delay_seconds','max_success_age_seconds')) {
         if ($config.$name -isnot [int] -and $config.$name -isnot [long]) { throw "Expected integer: $name" }
     }
-    if ($config.timeout_seconds -lt 1 -or $config.timeout_seconds -gt 86400 -or $config.max_attempts -lt 1 -or $config.max_attempts -gt 10 -or $config.retry_delay_seconds -lt 0 -or $config.retry_delay_seconds -gt 3600 -or $config.max_success_age_seconds -lt 1) { throw 'Invalid time limit or retry count.' }
+    $maximumTimeoutSeconds = [TimeSpan]::FromDays(1).TotalSeconds
+    $maximumAttempts = 10
+    $maximumRetryDelaySeconds = [TimeSpan]::FromHours(1).TotalSeconds
+    if ($config.timeout_seconds -lt 1 -or $config.timeout_seconds -gt $maximumTimeoutSeconds -or
+        $config.max_attempts -lt 1 -or $config.max_attempts -gt $maximumAttempts -or
+        $config.retry_delay_seconds -lt 0 -or $config.retry_delay_seconds -gt $maximumRetryDelaySeconds -or
+        $config.max_success_age_seconds -lt 1) { throw 'Invalid time limit or retry count.' }
     if ($config.arguments -isnot [array] -or $config.retry_exit_codes -isnot [array]) { throw 'Arguments and retry exit codes must be arrays.' }
     foreach ($argument in $config.arguments) { if ($argument -isnot [string] -or $argument.Contains([string][char]0)) { throw 'Arguments must be strings without NUL.' } }
     foreach ($code in $config.retry_exit_codes) { if (($code -isnot [int] -and $code -isnot [long]) -or $code -lt 1 -or $code -gt [int]::MaxValue) { throw 'Retry exit codes must be positive integers.' } }
