@@ -22,16 +22,16 @@ namespace Rukbat
             EmitLines(RuntimeResources.ReadPowerShell("LogHelpers"));
         }
 
+        private string LogCreate(Call call)
+        {
+            var fields = checker.Types[call].Struct!.Fields;
+            var defaultLevel = Quote(LogValues.DefaultLevel.Tag);
+            return $"@{{{Quote(fields["stderr_level"].Key)} = {defaultLevel}; " +
+                $"{Quote(fields["file"].Key)} = $null; {Quote(fields["file_level"].Key)} = {defaultLevel}}}";
+        }
+
         private string LogCall(Call call, string operation)
         {
-            if (operation == "log.create")
-            {
-                var fields = checker.Types[call].Struct!.Fields;
-                var defaultLevel = Quote(LogValues.DefaultLevel.Tag);
-                return $"@{{{Quote(fields["stderr_level"].Key)} = {defaultLevel}; " +
-                    $"{Quote(fields["file"].Key)} = $null; {Quote(fields["file_level"].Key)} = {defaultLevel}}}";
-            }
-
             var argument = call.Arguments[0].Value;
             var loggerFields = checker.Types[argument].NonNullable.Struct!.Fields;
             // Expr takes the ordinary value-copy snapshot before evaluating the message.

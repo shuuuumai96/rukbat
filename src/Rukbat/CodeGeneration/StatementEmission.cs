@@ -162,40 +162,44 @@ namespace Rukbat
                 return;
             }
 
-            // Unary comma returns an array as one value instead of letting PowerShell enumerate it.
-            var value = Expr(result.Value);
-            if (currentReturnType.IsNullable && currentReturnType.NonNullable.Element is not null)
+            EmitReturnValue(Expr(result.Value), direct: true);
+        }
+
+        private enum ReturnShape { Void, Scalar, Array, NullableArray }
+
+        private static readonly IReadOnlyDictionary<ReturnShape, Action<Emitter, string, bool>> ReturnEmitters =
+            new Dictionary<ReturnShape, Action<Emitter, string, bool>>
+            {
+                [ReturnShape.Void] = static (emitter, _, _) => emitter.Line("return"),
+                [ReturnShape.Scalar] = static (emitter, value, _) => emitter.Line($"return {value}"),
+                [ReturnShape.Array] = static (emitter, value, _) => emitter.Line($"return ,({value})"),
+                [ReturnShape.NullableArray] = static (emitter, value, stabilize) => emitter.EmitNullableArrayReturn(value, stabilize)
+            };
+
+        private void EmitReturnValue(string value, bool direct = false)
+        {
+            var shape = currentReturnType switch
+            {
+                var type when type == ValueType.Void && !direct => ReturnShape.Void,
+                { NullableElement.Kind: ValueKind.Array } => ReturnShape.NullableArray,
+                { Kind: ValueKind.Array } => ReturnShape.Array,
+                _ => ReturnShape.Scalar
+            };
+            ReturnEmitters[shape](this, value, direct);
+        }
+
+        private void EmitNullableArrayReturn(string value, bool stabilize)
+        {
+            // Preserve successful null returns and prevent PowerShell from enumerating an array.
+            if (stabilize)
             {
                 var temporary = $"$__rukbat_return{temporaryId++}";
                 Line($"{temporary} = {value}");
-                Line($"if ($null -eq {temporary}) {{ return $null }}");
-                Line($"return ,({temporary})");
+                value = temporary;
             }
-            else
-            {
-                Line(currentReturnType.Element is not null ? $"return ,({value})" : $"return {value}");
-            }
-        }
 
-        private void EmitReturnValue(string value)
-        {
-            if (currentReturnType == ValueType.Void)
-            {
-                Line("return");
-            }
-            else if (currentReturnType.NonNullable.Element is not null)
-            {
-                if (currentReturnType.IsNullable)
-                {
-                    Line($"if ($null -eq {value}) {{ return $null }}");
-                }
-
-                Line($"return ,({value})");
-            }
-            else
-            {
-                Line($"return {value}");
-            }
+            Line($"if ($null -eq {value}) {{ return $null }}");
+            Line($"return ,({value})");
         }
 
         private bool ContainsOwnedIteration(IEnumerable<Statement> statements) => statements.Any(statement => statement switch

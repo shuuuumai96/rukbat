@@ -36,13 +36,22 @@ namespace Rukbat
             return $"{slot}.array[{slot}.offset]";
         }
 
-        private string Address(Expression expression) => expression switch
+        private delegate string ExpressionStrategy(Emitter emitter, Expression expression);
+
+        private static KeyValuePair<Type, ExpressionStrategy> ExpressionHandler<TExpression>(Func<Emitter, TExpression, string> emit)
+            where TExpression : Expression =>
+            new(typeof(TExpression), (emitter, expression) => emit(emitter, (TExpression)expression));
+
+        private static readonly IReadOnlyDictionary<Type, ExpressionStrategy> AddressEmitters = new[]
         {
-            Name name => checker.Variables[name].PowerShellName,
-            Member member => MemberAddress(member),
-            Index index => IndexAddress(index),
-            _ => throw new InvalidOperationException("Invalid field assignment target.")
-        };
+            ExpressionHandler<Name>(static (emitter, name) => emitter.VariableReference(name)),
+            ExpressionHandler<Member>(static (emitter, member) => emitter.MemberAddress(member)),
+            ExpressionHandler<Index>(static (emitter, index) => emitter.IndexAddress(index))
+        }.ToDictionary(handler => handler.Key, handler => handler.Value);
+
+        private string Address(Expression expression) => AddressEmitters[expression.GetType()](this, expression);
+
+        private string VariableReference(Name name) => checker.Variables[name].PowerShellName;
 
         private string MemberAddress(Member member)
         {
@@ -51,32 +60,49 @@ namespace Rukbat
             return $"{receiver}[{Quote(checker.Members[member].Field!.Key)}]";
         }
 
-        private string RawExpr(Expression expression) => expression switch
+        private static readonly IReadOnlyDictionary<Type, ExpressionStrategy> ExpressionEmitters = new[]
         {
-            Literal literal => literal.Value switch
-            {
-                string value => Quote(value),
-                bool value => value ? "$true" : "$false",
-                long value => $"([long]{Quote(value.ToString(CultureInfo.InvariantCulture))})",
-                double value => $"([double]{value.ToString("R", CultureInfo.InvariantCulture)})",
-                NullValue => "$null",
-                _ => throw new InvalidOperationException()
-            },
-            ArrayLiteral array => $"(& $script:__rukbat_array @({string.Join("; ", array.Items.Select(item => ",(" + Expr(item) + ")"))}))",
-            DictionaryLiteral dictionary => DictionaryLiteral(dictionary),
-            Index index when checker.Types[index.Receiver].DictionaryKey is not null => $"(& $script:__rukbat_dictionary 'get' ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) $null {Location(index)} $script:__rukbat_raise)",
-            Index index => $"(& $script:__rukbat_index ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) {Location(index)} $false $script:__rukbat_raise)",
-            Name name => checker.Variables[name].PowerShellName,
-            Member member => EmitMember(member),
-            Unary unary => unary.Token.Text == "!"
-                ? $"(-not {Expr(unary.Value)})"
-                : checker.Types[unary] == ValueType.Float
-                    ? $"([double]({unary.Token.Text}{Expr(unary.Value)}))"
-                    : unary.Token.Text == "+" ? $"({Expr(unary.Value)})" : $"([RukbatNumbers]::Integer('negate', ({Expr(unary.Value)}), 0))",
-            Binary binary => Binary(binary),
-            Call call => Call(call),
-            _ => throw new InvalidOperationException("Unbound expression.")
+            ExpressionHandler<Literal>(static (_, literal) => EmitLiteral(literal)),
+            ExpressionHandler<ArrayLiteral>(static (emitter, array) => emitter.EmitArrayLiteral(array)),
+            ExpressionHandler<DictionaryLiteral>(static (emitter, dictionary) => emitter.DictionaryLiteral(dictionary)),
+            ExpressionHandler<Index>(static (emitter, index) => emitter.EmitIndex(index)),
+            ExpressionHandler<Name>(static (emitter, name) => emitter.VariableReference(name)),
+            ExpressionHandler<Member>(static (emitter, member) => emitter.EmitMember(member)),
+            ExpressionHandler<Unary>(static (emitter, unary) => emitter.EmitUnary(unary)),
+            ExpressionHandler<Binary>(static (emitter, binary) => emitter.Binary(binary)),
+            ExpressionHandler<Call>(static (emitter, call) => emitter.Call(call))
+        }.ToDictionary(handler => handler.Key, handler => handler.Value);
+
+        private string RawExpr(Expression expression) => ExpressionEmitters[expression.GetType()](this, expression);
+
+        private static string EmitLiteral(Literal literal) => literal.Value switch
+        {
+            string value => Quote(value),
+            bool value => value ? "$true" : "$false",
+            long value => $"([long]{Quote(value.ToString(CultureInfo.InvariantCulture))})",
+            double value => $"([double]{value.ToString("R", CultureInfo.InvariantCulture)})",
+            NullValue => "$null",
+            _ => throw new InvalidOperationException("Unsupported literal.")
         };
+
+        private string EmitArrayLiteral(ArrayLiteral array) =>
+            $"(& $script:__rukbat_array @({string.Join("; ", array.Items.Select(item => ",(" + Expr(item) + ")"))}))";
+
+        private string EmitIndex(Index index) => checker.Types[index.Receiver].Kind == ValueKind.Dictionary
+            ? $"(& $script:__rukbat_dictionary 'get' ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) $null {Location(index)} $script:__rukbat_raise)"
+            : $"(& $script:__rukbat_index ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) {Location(index)} $false $script:__rukbat_raise)";
+
+        private string EmitUnary(Unary unary)
+        {
+            var operand = Expr(unary.Value);
+            return (unary.Token.Text, checker.Types[unary]) switch
+            {
+                ("!", _) => $"(-not {operand})",
+                (var operation, var type) when type == ValueType.Float => $"([double]({operation}{operand}))",
+                ("+", _) => $"({operand})",
+                _ => $"([RukbatNumbers]::Integer('negate', ({operand}), 0))"
+            };
+        }
 
         private static readonly IReadOnlyDictionary<MemberKind, Func<Emitter, Member, BoundMember, string>> MemberEmitters =
             new Dictionary<MemberKind, Func<Emitter, Member, BoundMember, string>>
@@ -105,21 +131,28 @@ namespace Rukbat
             _ => throw new InvalidOperationException($"Unsupported standard constant '{constant.Name}'.")
         };
 
+        private delegate string BinaryStrategy(Emitter emitter, Binary binary, string left, string right);
+
+        private static readonly IReadOnlyDictionary<ValueType, BinaryStrategy> BinaryEmitters =
+            new Dictionary<ValueType, BinaryStrategy>
+            {
+                [ValueType.Int] = static (_, binary, left, right) =>
+                    $"([RukbatNumbers]::Integer({Quote(binary.Token.Text)}, ({left}), ({right})))",
+                [ValueType.Float] = static (emitter, binary, left, right) =>
+                    $"(& $script:__rukbat_float ([double]({emitter.EmitComparison(binary, left, right)})) {emitter.Location(binary)} $script:__rukbat_raise)"
+            };
+
         private string Binary(Binary binary)
         {
-            var op = BinaryOperator(binary.Token.Text);
-            var expression = Comparison(Expr(binary.Left), Expr(binary.Right), op, checker.Types[binary.Left], checker.Types[binary.Right]);
-            if (checker.Types[binary] == ValueType.Int)
-            {
-                return $"([RukbatNumbers]::Integer({Quote(binary.Token.Text)}, ({Expr(binary.Left)}), ({Expr(binary.Right)})))";
-            }
-            if (checker.Types[binary] == ValueType.Float)
-            {
-                return $"(& $script:__rukbat_float ([double]({expression})) {Location(binary)} $script:__rukbat_raise)";
-            }
-
-            return expression;
+            var strategy = BinaryEmitters.GetValueOrDefault(checker.Types[binary], EmitOrdinaryBinary);
+            return strategy(this, binary, Expr(binary.Left), Expr(binary.Right));
         }
+
+        private static string EmitOrdinaryBinary(Emitter emitter, Binary binary, string left, string right) =>
+            emitter.EmitComparison(binary, left, right);
+
+        private string EmitComparison(Binary binary, string left, string right) =>
+            Comparison(left, right, BinaryOperator(binary.Token.Text), checker.Types[binary.Left], checker.Types[binary.Right]);
 
         private static string BinaryOperator(string operation) => operation switch
         {

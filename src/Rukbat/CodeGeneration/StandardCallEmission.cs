@@ -51,22 +51,23 @@ namespace Rukbat
                 ["cli"] = static (emitter, call, operation) => emitter.CliCall(call, operation)
             };
 
-        private static readonly IReadOnlyDictionary<string, Func<Emitter, Call, string>> DirectStandardCalls =
-            new Dictionary<string, Func<Emitter, Call, string>>(StringComparer.Ordinal)
+        private static readonly IReadOnlyDictionary<string, Func<Emitter, Call, string, string>> DirectStandardCalls =
+            new Dictionary<string, Func<Emitter, Call, string, string>>(StringComparer.Ordinal)
             {
-                ["re.find"] = static (emitter, call) => emitter.RegexCall(call, "re.find"),
-                ["re.find_all"] = static (emitter, call) => emitter.RegexCall(call, "re.find_all"),
-                ["test.assert"] = static (emitter, call) => emitter.TestAssertion(call),
-                ["test.fail"] = static (emitter, call) =>
+                ["log.create"] = static (emitter, call, _) => emitter.LogCreate(call),
+                ["re.find"] = static (emitter, call, operation) => emitter.RegexFind(call, operation),
+                ["re.find_all"] = static (emitter, call, operation) => emitter.RegexFindAll(call, operation),
+                ["test.assert"] = static (emitter, call, _) => emitter.TestAssertion(call),
+                ["test.fail"] = static (emitter, call, _) =>
                     $"(& $script:__rukbat_raise @{{message = ({emitter.Expr(call.Arguments[0].Value)})}} {emitter.Location(call)})",
-                ["json.parse_strict"] = static (emitter, call) => emitter.JsonDecode(call, false, strict: true),
-                ["json.parse"] = static (emitter, call) => emitter.JsonDecode(call, false),
-                ["json.as"] = static (emitter, call) => emitter.JsonDecode(call, true),
-                ["csv.stringify_table"] = static (emitter, call) => emitter.CsvTableCall(call, "csv.stringify_table", stringify: true),
-                ["csv.has_column"] = static (emitter, call) => emitter.CsvTableCall(call, "csv.has_column", stringify: false),
-                ["json.stringify"] = static (emitter, call) => emitter.JsonEncode(call),
-                ["text.parse_enum"] = static (emitter, call) => emitter.ParseEnum(call),
-                ["text.from_enum"] = static (emitter, call) => emitter.Expr(call.Arguments[0].Value)
+                ["json.parse_strict"] = static (emitter, call, _) => emitter.JsonDecode(call, false, strict: true),
+                ["json.parse"] = static (emitter, call, _) => emitter.JsonDecode(call, false),
+                ["json.as"] = static (emitter, call, _) => emitter.JsonDecode(call, true),
+                ["csv.stringify_table"] = static (emitter, call, operation) => emitter.CsvTableCall(call, operation, stringify: true),
+                ["csv.has_column"] = static (emitter, call, operation) => emitter.CsvTableCall(call, operation, stringify: false),
+                ["json.stringify"] = static (emitter, call, _) => emitter.JsonEncode(call),
+                ["text.parse_enum"] = static (emitter, call, _) => emitter.ParseEnum(call),
+                ["text.from_enum"] = static (emitter, call, _) => emitter.Expr(call.Arguments[0].Value)
             };
 
         private string ParseEnum(Call call)
@@ -142,42 +143,54 @@ namespace Rukbat
 
         private string StandardCall(Call call, string standardCall)
         {
-            var moduleName = standardCall[..standardCall.IndexOf('.')];
-            if (StandardModuleCalls.TryGetValue(moduleName, out var emitModuleCall))
-            {
-                return emitModuleCall(this, call, standardCall);
-            }
-            if (DirectStandardCalls.TryGetValue(standardCall, out var emitCall))
-            {
-                return emitCall(this, call);
-            }
+            var strategy = DirectStandardCalls.GetValueOrDefault(standardCall)
+                ?? StandardModuleCalls.GetValueOrDefault(standardCall[..standardCall.IndexOf('.')], EmitDefaultStandardCall);
+            return strategy(this, call, standardCall);
+        }
 
+        private static string StandardInvocation(string operation, IEnumerable<string> arguments)
+        {
+            var values = string.Join("; ", arguments.Select(argument => ",(" + argument + ")"));
+            return $"(& $script:__rukbat_standard {Quote(operation)} @({values}))";
+        }
+
+        private static string EmitDefaultStandardCall(Emitter emitter, Call call, string operation) =>
+            emitter.StandardRuntimeCall(call, operation);
+
+        private string StandardRuntimeCall(Call call, string standardCall)
+        {
             var argumentExpressions = call.Arguments.Select(argument => Expr(argument.Value)).ToArray();
             if (StandardArgumentAdapters.TryGetValue(standardCall, out var adaptArguments))
             {
                 adaptArguments(this, call, argumentExpressions);
             }
-            var standardArguments = string.Join("; ", argumentExpressions.Select(expression => ",(" + expression + ")"));
-            var invocation = $"(& $script:__rukbat_standard {Quote(standardCall)} @({standardArguments}))";
+            var invocation = StandardInvocation(standardCall, argumentExpressions);
             if (StandardResultFields.TryGetValue(standardCall, out var resultFields))
             {
                 var fields = checker.Types[call].Struct!.Fields;
                 var entries = resultFields.Select(field => $"{Quote(fields[field.Name].Key)} = {field.Value}");
                 return $"(& {{ $result = {invocation}; return @{{" + string.Join("; ", entries) + "}})";
             }
-            if (standardCall == "zip.list")
-            {
-                var fields = checker.Types[call].Element!.Struct!.Fields;
-                return $"(& {{ $items = {invocation}; $entries = [System.Collections.Generic.List[object]]::new(); " +
-                    $"foreach ($entry in $items) {{ $entries.Add(@{{{Quote(fields["name"].Key)} = $entry[0]; " +
-                    $"{Quote(fields["is_directory"].Key)} = $entry[1]; {Quote(fields["size"].Key)} = $entry[2]; " +
-                    $"{Quote(fields["compressed_size"].Key)} = $entry[3]" + "}) }; return ,$entries })";
-            }
-            if (checker.Types[call].Element is not null)
-            {
-                return $"(& $script:__rukbat_array ({invocation}))";
-            }
-            return invocation;
+            var adapt = StandardResultAdapters.GetValueOrDefault(standardCall, AdaptDefaultResult);
+            return adapt(invocation, checker.Types[call]);
         }
+
+        private static readonly IReadOnlyDictionary<string, Func<string, ValueType, string>> StandardResultAdapters =
+            new Dictionary<string, Func<string, ValueType, string>>(StringComparer.Ordinal)
+            {
+                ["zip.list"] = AdaptZipList
+            };
+
+        private static string AdaptZipList(string invocation, ValueType type)
+        {
+            var fields = type.Element!.Struct!.Fields;
+            return $"(& {{ $items = {invocation}; $entries = [System.Collections.Generic.List[object]]::new(); " +
+                $"foreach ($entry in $items) {{ $entries.Add(@{{{Quote(fields["name"].Key)} = $entry[0]; " +
+                $"{Quote(fields["is_directory"].Key)} = $entry[1]; {Quote(fields["size"].Key)} = $entry[2]; " +
+                $"{Quote(fields["compressed_size"].Key)} = $entry[3]" + "}) }; return ,$entries })";
+        }
+
+        private static string AdaptDefaultResult(string invocation, ValueType type) =>
+            type.Kind == ValueKind.Array ? $"(& $script:__rukbat_array ({invocation}))" : invocation;
     }
 }
