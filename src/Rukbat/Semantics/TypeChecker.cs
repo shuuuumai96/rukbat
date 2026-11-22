@@ -39,7 +39,7 @@ namespace Rukbat
                 reachable = true;
                 var globals = new Symbols();
                 var statements = current.Statements
-                    .Where(statement => statement is not Function and not StructDeclaration and not ImplDeclaration)
+                    .Where(statement => statement is not Function and not StructDeclaration and not EnumDeclaration and not ImplDeclaration)
                     .ToList();
                 CheckStatements(statements, globals, null, true);
                 foreach (var symbol in Functions.Values.Where(f => f.Module == current))

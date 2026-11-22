@@ -22,6 +22,9 @@ namespace Rukbat
                     case StructDeclaration structure:
                         Error("RUK1002", "Structs are allowed only at module level.", structure);
                         break;
+                    case EnumDeclaration enumeration:
+                        Error("RUK1002", "Enums are allowed only at module level.", enumeration);
+                        break;
                     case ImplDeclaration implementation:
                         Error("RUK1002", "Impl blocks are allowed only at module level.", implementation);
                         break;
@@ -61,6 +64,10 @@ namespace Rukbat
                         if (Constants.ContainsKey(assignment.Target))
                         {
                             Error("RUK2010", "Standard-library constants are read-only.", assignment);
+                        }
+                        if (EnumMembers.ContainsKey(assignment.Target))
+                        {
+                            Error("RUK2010", "Enum members are read-only.", assignment);
                         }
                         if (!IsVariablePath(assignment.Target))
                         {

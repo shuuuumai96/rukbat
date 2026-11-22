@@ -13,6 +13,7 @@ this guide defines source conventions, not additional syntax restrictions.
 |---|---|---|
 | Variables, parameters and fields | `snake_case` | `output_path` |
 | Functions and methods | `snake_case` | `verify_release` |
+| Enum members | `snake_case` | `CollisionPolicy.skip` |
 | User-defined types | `PascalCase` | `CheckResult` |
 | Module aliases and source filenames | `snake_case` | `release_check.rukbat` |
 | `const` bindings, in any scope | `snake_case` | `max_retries` |

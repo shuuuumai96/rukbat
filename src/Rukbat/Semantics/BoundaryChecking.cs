@@ -97,7 +97,7 @@ namespace Rukbat
             }
 
             return type is { Struct: not null } && type.Struct != ErrorStructure ||
-                type == ValueType.Bool || type == ValueType.Int || type == ValueType.Float || type == ValueType.String;
+                type.Enum is not null || type == ValueType.Bool || type == ValueType.Int || type == ValueType.Float || type == ValueType.String;
         }
 
         private static bool ContainsNonJsonStandardValue(ValueType type) =>

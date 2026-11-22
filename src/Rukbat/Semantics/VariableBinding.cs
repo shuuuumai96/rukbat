@@ -18,6 +18,11 @@ namespace Rukbat
                 Error("RUK2002", $"Name '{name}' is already a function, struct or import.", node);
             }
 
+            if (module.Enums.ContainsKey(name))
+            {
+                Error("RUK2002", $"Name '{name}' is already an enum.", node);
+            }
+
             var symbol = new VariableSymbol(name, type, $"${(global ? "script:" : "")}__rukbat_v{variableId++}", global,
                 node is Variable { IsConst: true });
             if (!scope.Variables.TryAdd(name, symbol))

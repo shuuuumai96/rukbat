@@ -67,6 +67,7 @@ namespace Rukbat
             Index index when checker.Types[index.Receiver].DictionaryKey is not null => $"(& $script:__rukbat_dictionary 'get' ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) $null {Location(index)} $script:__rukbat_raise)",
             Index index => $"(& $script:__rukbat_index ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) {Location(index)} $false $script:__rukbat_raise)",
             Name name => checker.Variables[name].PowerShellName,
+            Member member when checker.EnumMembers.TryGetValue(member, out var enumMember) => Quote(enumMember.Token.Text),
             Member member when checker.Constants.TryGetValue(member, out var constant) => Constant(constant),
             Member member when checker.Types[member.Receiver].Element is not null => $"([long]({RawExpr(member.Receiver)}).Count)",
             Member member when checker.Types[member.Receiver].DictionaryKey is not null => $"([long]({RawExpr(member.Receiver)})['entries'].Count)",

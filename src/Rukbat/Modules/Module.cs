@@ -13,6 +13,7 @@ namespace Rukbat
         public Dictionary<ValueType, Token>? TypeQualifiers { get; set; }
         public Dictionary<List<Argument>, CallSyntax>? CallSites { get; set; }
         public Dictionary<string, Module> Imports { get; } = new(StringComparer.Ordinal);
+        public Dictionary<string, EnumSymbol> Enums { get; } = new(StringComparer.Ordinal);
         public Dictionary<string, StructSymbol> Structs { get; } = new(StringComparer.Ordinal);
         public Dictionary<string, Function> Functions { get; } = new(StringComparer.Ordinal);
     }

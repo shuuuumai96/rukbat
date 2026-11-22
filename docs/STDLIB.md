@@ -283,8 +283,10 @@ See [the log-filter example](../examples/filter-errors.rukbat) for a procedural 
 | `text.parse_int(value: string): int` | Parses a signed decimal integer within the signed 64-bit range. |
 | `text.parse_float(value: string): float` | Parses a finite decimal binary64 value. |
 | `text.parse_bool(value: string): bool` | Accepts only case-sensitive `true` and `false`. |
+| `text.parse_enum<T>(value: string): T` | Requires an enum type and matches a declared member name exactly. An unknown name raises Error. |
+| `text.from_enum(value: T): string` | Infers the non-null enum type and returns the declared member name. |
 
-All parse operations trim leading and trailing ASCII whitespace (U+0009 through U+000D and U+0020).
+Integer, float, and boolean parsing trims leading and trailing ASCII whitespace (U+0009 through U+000D and U+0020).
 Other whitespace is rejected. Numeric parsing is independent of the OS locale and uses ASCII digits.
 Integer syntax is `[+-]?[0-9]+`; decimal points and exponents are rejected.
 Float syntax is `[+-]?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?`: the decimal separator is a dot,
@@ -293,7 +295,7 @@ Invalid input, overflow, and nonzero float input that underflows to zero cause E
 Representable subnormal floats are accepted. Float formatting preserves the numeric value on reparse;
 it does not promise to preserve the input spelling or the sign of zero.
 
-Parse errors include a quoted preview of the original input, before whitespace trimming.
+Integer, float, and boolean parse errors include a quoted preview of the original input, before whitespace trimming.
 Quotes, backslashes, control characters and non-ASCII whitespace are escaped. The preview
 contains at most 80 UTF-16 code units without splitting a surrogate pair; longer inputs
 are marked `(truncated)`. For example: `text.parse_int: invalid format or value outside
@@ -1203,7 +1205,12 @@ print(loaded["https"])
 
 ### Reading a known type
 
-`T` may be `int`, `float`, `string`, `bool`, `json.Value`, a struct, an array of supported values,
+A user-defined enum reads and writes a JSON string containing its member name.
+Reading rejects other JSON types and unknown names, using ordinal case-sensitive
+comparison without trimming. This also applies to enum values inside supported
+structs, arrays, dictionaries, and nullable types.
+
+`T` may be `int`, `float`, `string`, `bool`, `json.Value`, an enum, a struct, an array of supported values,
 `dict[string, V]` with recursively supported V, or
 a nullable form of a supported type. `csv.Row`, `cli.Result`, `encoding.Encoding`, `hash.Algorithm`,
 all `datetime` types, `http.Method`, and `http.Body` are not supported. This restriction also applies

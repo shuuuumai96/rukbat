@@ -127,6 +127,11 @@ namespace Rukbat
                             Add(module, new(parts[0], text.SourceOffset(partOffset)), symbols[structure]);
                             partOffset += parts[0].Length + 1;
                         }
+                        if (parts.Length > 1 && owner.Enums.TryGetValue(parts[0], out var enumeration))
+                        {
+                            Add(module, new(parts[0], text.SourceOffset(partOffset)), symbols[enumeration]);
+                            partOffset += parts[0].Length + 1;
+                        }
                         var declaration = occurrences.FirstOrDefault(o => o.IsDeclaration &&
                             o.Module == target.Module && o.Token.Offset == target.Declaration.Node.Token.Offset);
                         if (declaration is not null)

@@ -50,6 +50,11 @@ namespace Rukbat
                     Error("RUK2010", "Dictionaries cannot be returned directly from PowerShell. Convert primitive results explicitly.", call);
                 }
 
+                if (ContainsType(powerShellType, value => value.Enum is not null))
+                {
+                    Error("RUK2010", "PowerShell result types cannot contain enums. Convert returned text explicitly.", call);
+                }
+
                 if (ContainsOpaqueStandardValue(powerShellType))
                 {
                     Error("RUK2010", "PowerShell result types cannot contain re.Pattern, fs.Lines, json.Value, csv.Row, cli.Result, encoding.Encoding, hash.Algorithm, log.Level, datetime types, http.Method or http.Body. Read text and use the corresponding parser.", call);
@@ -72,6 +77,11 @@ namespace Rukbat
                     if (ContainsType(arguments[i], value => value.DictionaryKey is not null))
                     {
                         Error("RUK2010", "Dictionaries cannot be passed directly to PowerShell. Pass primitive values.", argument);
+                    }
+
+                    if (ContainsType(arguments[i], value => value.Enum is not null))
+                    {
+                        Error("RUK2010", "Enums cannot be passed directly to PowerShell. Convert them to text explicitly.", argument);
                     }
 
                     if (ContainsType(arguments[i], StandardValueTypes.IsOpaqueScalar))

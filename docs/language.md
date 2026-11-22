@@ -112,7 +112,7 @@ Structs, arrays, and dictionaries are mutable value types. Their stored values c
 
 ## Types, nullable values, and conversions
 
-The primitive types are `int`, `float`, `string`, and `bool`. `int` is a signed 64-bit integer. `float` is a finite IEEE 754 binary64 value. `void` is return-only. Rukbat also has user-defined `struct` types, typed arrays `T[]`, typed dictionaries `dict[K, V]`, and nullable types `T?`.
+The primitive types are `int`, `float`, `string`, and `bool`. `int` is a signed 64-bit integer. `float` is a finite IEEE 754 binary64 value. `void` is return-only. Rukbat also has user-defined `struct` and `enum` types, typed arrays `T[]`, typed dictionaries `dict[K, V]`, and nullable types `T?`.
 
 Standard modules also define ordinary structs and opaque immutable types. Opaque
 types use ordinary variable, parameter, return, field, array, dictionary, and nullable
@@ -186,7 +186,7 @@ Every index expression in an assignment or `append` receiver is evaluated exactl
 V can be any storable type, including nullable values, structs, arrays, dictionaries, and
 opaque standard values. `void` and recursive struct cycles through dictionary values are
 rejected. K and V are invariant. `dict` is a dedicated built-in type constructor, not a
-module or general generic facility. A struct cannot be named `dict`; an otherwise legal
+module or general generic facility. A struct or enum cannot be named `dict`; an otherwise legal
 variable/import alias can. No import is needed.
 
 ```rukbat
@@ -258,6 +258,45 @@ successful cleanup. Cleanup failure follows the ordinary Error path. A caught pr
 retains its location when cleanup also fails. Valid exit and forced termination do not guarantee
 finally execution. Descriptor, decoding, and read-ahead behavior are defined in STDLIB.md.
 
+## Enums
+
+An enum declares a fixed set of named values at module scope.
+
+```rukbat
+import text
+
+enum CollisionPolicy {
+    fail
+    skip
+    rename
+}
+
+fn should_skip(policy: CollisionPolicy): bool {
+    return policy == CollisionPolicy.skip
+}
+
+policy := text.parse_enum<CollisionPolicy>("skip")
+print(should_skip(policy))
+```
+
+Declare at least one member. Member names are case-sensitive and unique within
+the enum. Write one member per line. Members are read-only and are referenced as
+`Type.member`, or `alias.Type.member` for an imported enum. Types from different
+declarations remain distinct even if their names and members match. The keyword
+`enum` is reserved.
+
+Enum values can be stored in variables, fields, arrays, dictionary values and
+nullable types, and can be passed to and returned from functions. Non-null
+values of the same enum support `==` and `!=`. There are no member initializers,
+arithmetic, ordering, implicit conversions, or `impl` blocks for enums.
+
+`print` and `eprint` write the declared member name. Typed JSON represents an enum
+as a string containing that name. Use `text.parse_enum<T>` and `text.from_enum` to
+convert between an enum and plain text. Name matching is ordinal and
+case-sensitive, with no trimming. Renaming a member changes its serialized
+and CLI spelling. PowerShell arguments and results use an explicit text
+conversion, including for values nested in containers or structs.
+
 ## Structs and modules
 
 ```rukbat
@@ -319,7 +358,7 @@ If both syntax and I/O failures occur, exit code 2 takes precedence.
 
 Formatting is canonical and has no configuration. `rukbat fmt` uses four-space indentation, one statement per line, spaces around binary operators and after commas/colons, no padding immediately inside delimiters, braces on the declaration or control-flow line, and `else` / `catch` on the same line as the preceding closing brace. It preserves comments and blank lines between statements or comments, collapsing consecutive blank lines to one. Leading blank lines and blank lines immediately inside block braces are removed. It writes UTF-8 without a BOM and LF line endings, and ends with one LF newline (`\n`) without an additional trailing blank line. An empty source becomes `\n`.
 
-The formatter also inserts one blank line between an import group and other statements, and before and after functions, struct declarations, impl declarations, and control-flow statements (`if`, `for`, `while`, and `try`) when another statement exists in the same block. Methods within an `impl` are separated by one blank line. Consecutive struct fields and simple statements remain adjacent unless the source explicitly separates them. No blank line is inserted at a block's edges or between an `if` and its `else`, or a `try` and its `catch`. Leading comments stay with the following statement; trailing comments stay with the preceding statement.
+The formatter also inserts one blank line between an import group and other statements, and before and after functions, struct declarations, enum declarations, impl declarations, and control-flow statements (`if`, `for`, `while`, and `try`) when another statement exists in the same block. Methods within an `impl` are separated by one blank line. Consecutive struct fields and simple statements remain adjacent unless the source explicitly separates them. No blank line is inserted at a block's edges or between an `if` and its `else`, or a `try` and its `catch`. Leading comments stay with the following statement; trailing comments stay with the preceding statement.
 
 Struct literals use indented braces; their closing brace stays attached to any following comma, member access, index, or closing expression delimiter. Expression continuations normally join onto one line. When a line comment requires a continuation to remain on a new line, it receives one additional four-space indent. Closing delimiters align with the enclosing block. Comments can also require an opening brace, `else`, or `catch` to remain on a separate line. Physical CR and LF characters inside string literals become `\r` and `\n` escapes, preserving the string value while keeping source line endings canonical. Formatting twice produces the same result as formatting once.
 

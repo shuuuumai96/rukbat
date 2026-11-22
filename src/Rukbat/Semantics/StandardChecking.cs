@@ -29,6 +29,11 @@ namespace Rukbat
                 return JsonUpdateCallType(call, scope, standardModule.Structs["Value"].BoundType);
             }
 
+            if (moduleName == "text" && call.Name is "parse_enum" or "from_enum")
+            {
+                return EnumTextCallType(call, scope);
+            }
+
             var signature = (moduleName, call.Name) == ("fs", "error_kind")
                 ? new StandardSignature([ErrorStructure.BoundType], ValueType.String)
                 : StandardSignatures.Find(standardModule, call.Name);

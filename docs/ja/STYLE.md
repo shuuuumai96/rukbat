@@ -12,6 +12,7 @@ Rukbatのプログラム、サンプル、ドキュメント内のコードは�
 |---|---|---|
 | 変数・引数・フィールド | `snake_case` | `output_path` |
 | 関数・メソッド | `snake_case` | `verify_release` |
+| 列挙型のメンバー | `snake_case` | `CollisionPolicy.skip` |
 | ユーザー定義の型 | `PascalCase` | `CheckResult` |
 | モジュールの別名・ソースファイル名 | `snake_case` | `release_check.rukbat` |
 | すべてのスコープの`const` | `snake_case` | `max_retries` |

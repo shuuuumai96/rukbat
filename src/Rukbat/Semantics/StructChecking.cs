@@ -63,6 +63,7 @@ namespace Rukbat
                         Error("RUK2002", $"Struct name '{name}' conflicts with an existing type or import.", declaration);
                     }
                 }
+                RegisterEnums(current);
                 foreach (var function in current.Statements.OfType<Function>())
                 {
                     if (!current.Functions.TryAdd(function.Name, function))
@@ -73,6 +74,10 @@ namespace Rukbat
                     if (current.Structs.ContainsKey(function.Name))
                     {
                         Error("RUK2002", $"Function '{function.Name}' conflicts with a struct.", function);
+                    }
+                    if (current.Enums.ContainsKey(function.Name))
+                    {
+                        Error("RUK2002", $"Function '{function.Name}' conflicts with an enum.", function);
                     }
                     if (function.Name == "Error")
                     {
@@ -220,6 +225,11 @@ namespace Rukbat
                 return DeclaredTypes[node] = structure.BoundType;
             }
 
+            if (owner is not null && owner.Enums.TryGetValue(parts[^1], out var enumeration))
+            {
+                return DeclaredTypes[node] = enumeration.Type;
+            }
+
             Error("RUK2004", $"Unknown struct/type '{type.Name}'.", node);
             return DeclaredTypes[node] = ValueType.Error;
         }
@@ -260,6 +270,19 @@ namespace Rukbat
 
         private ValueType MemberType(Member member, Symbols scope)
         {
+            if (FindEnumQualifier(member.Receiver) is { } enumeration)
+            {
+                EnumQualifiers[member.Receiver] = enumeration;
+                if (enumeration.Members.TryGetValue(member.Name, out var enumMember))
+                {
+                    EnumMembers[member] = enumMember;
+                    return enumeration.Type;
+                }
+
+                Error("RUK2004", $"Unknown member '{member.Name}' on enum {enumeration.Type}.", member);
+                return ValueType.Error;
+            }
+
             if (member.Receiver is Name name && module.Imports.TryGetValue(name.Token.Text, out var imported) &&
                 imported.StandardName is { } standardName && StandardConstants.ForModule(standardName) is { } group)
             {

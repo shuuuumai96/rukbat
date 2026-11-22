@@ -20,7 +20,7 @@ namespace Rukbat
                 return $"($null {operation} ({value}))";
             }
 
-            if (type == ValueType.String && operation is "-ceq" or "-cne")
+            if ((type == ValueType.String || type.Enum is not null) && operation is "-ceq" or "-cne")
             {
                 var equality = $"[string]::Equals(({left}), ({right}), [System.StringComparison]::Ordinal)";
                 return operation == "-ceq" ? $"({equality})" : $"(-not {equality})";

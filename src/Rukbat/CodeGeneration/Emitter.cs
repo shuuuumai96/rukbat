@@ -62,6 +62,7 @@ namespace Rukbat
                 { IsCsvRow: true } => "RukbatCsvRow",
                 { IsCliResult: true } => "object",
                 { Struct: not null } => "hashtable",
+                { Enum: not null } => "string",
                 _ => type.Name,
             };
         }
@@ -179,7 +180,7 @@ namespace Rukbat
             }
 
             var statements = current.Statements
-                .Where(statement => statement is not Function and not StructDeclaration and not ImplDeclaration)
+                .Where(statement => statement is not Function and not StructDeclaration and not EnumDeclaration and not ImplDeclaration)
                 .ToList();
             DebugEnter(Path.GetFileName(current.Source.Path), []);
             EmitGuardedStatements(statements, Quote(SourceName(current) + ":1"));

@@ -62,8 +62,18 @@ namespace Rukbat
                 ["json.parse_strict"] = static (emitter, call) => emitter.JsonDecode(call, false, strict: true),
                 ["json.parse"] = static (emitter, call) => emitter.JsonDecode(call, false),
                 ["json.as"] = static (emitter, call) => emitter.JsonDecode(call, true),
-                ["json.stringify"] = static (emitter, call) => emitter.JsonEncode(call)
+                ["json.stringify"] = static (emitter, call) => emitter.JsonEncode(call),
+                ["text.parse_enum"] = static (emitter, call) => emitter.ParseEnum(call),
+                ["text.from_enum"] = static (emitter, call) => emitter.Expr(call.Arguments[0].Value)
             };
+
+        private string ParseEnum(Call call)
+        {
+            var enumeration = checker.Types[call].Enum!;
+            return "(& { param([string]$value) " +
+                $"if ([Array]::IndexOf({EnumNames(enumeration)}, $value) -lt 0) {{ throw {Quote($"Unknown member of enum {enumeration.Type}.")} }}; " +
+                $"return $value }} ({Expr(call.Arguments[0].Value)}))";
+        }
 
         private string JsonEncode(Call call) =>
             $"(& $script:__rukbat_json_encode ({Expr(call.Arguments[0].Value)}) {Schema(checker.Types[call.Arguments[0].Value])})";

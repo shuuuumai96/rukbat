@@ -31,6 +31,8 @@ namespace Rukbat
     internal sealed record FieldAssignment(Member Target, Expression Value) : Statement(Target.Token);
     internal sealed record Field(Token Token, ValueType Type) : Node(Token);
     internal sealed record StructDeclaration(Token Token, List<Field> Fields) : Statement(Token);
+    internal sealed record EnumDeclaration(Token Token, List<EnumMember> Members) : Statement(Token);
+    internal sealed record EnumMember(Token Token) : Node(Token);
     internal sealed record ImplDeclaration(Token Token, List<Function> Methods) : Statement(Token);
     internal sealed record Member(Token Token, Expression Receiver, string Name) : Expression(Token);
     internal sealed record ArrayLiteral(Token Token, List<Expression> Items) : Expression(Token);

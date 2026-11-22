@@ -71,7 +71,7 @@ namespace Rukbat
         }
 
         internal static bool IsReservedWord(string text) => text is
-            "fn" or "function" or "func" or "struct" or "impl" or "self" or "class" or
+            "fn" or "function" or "func" or "struct" or "enum" or "impl" or "self" or "class" or
             "return" or "if" or "else" or "import" or "true" or "false" or
             "powershell" or "print" or "eprint" or "args" or "exit" or "for" or "in" or "while" or "break" or "continue" or
             "try" or "catch" or "throw" or "null" or "const";
@@ -85,7 +85,7 @@ namespace Rukbat
                 {
                     var start = Current.Offset;
                     var statement = Statement();
-                    if (statement is Function or Rukbat.StructDeclaration or ImplDeclaration or Variable)
+                    if (statement is Function or Rukbat.StructDeclaration or Rukbat.EnumDeclaration or ImplDeclaration or Variable)
                     {
                         source.DeclarationStarts[statement] = start;
                     }
@@ -238,6 +238,24 @@ namespace Rukbat
             return new StructDeclaration(name, fields);
         }
 
+        private EnumDeclaration EnumDeclaration()
+        {
+            var name = Identifier();
+            NewLines();
+            Expect("{");
+            Separators();
+            var members = new List<EnumMember>();
+            while (Current.Text is not ("}" or "<eof>"))
+            {
+                var member = new EnumMember(Identifier());
+                members.Add(member);
+                source.DeclarationStarts[member] = member.Token.Offset;
+                EndStatement();
+            }
+            Expect("}");
+            return new EnumDeclaration(name, members);
+        }
+
         private ImplDeclaration ImplementationDeclaration()
         {
             var name = Identifier();
@@ -272,6 +290,7 @@ namespace Rukbat
             {
                 ["import"] = static (parser, token) => parser.ImportDeclaration(token),
                 ["struct"] = static (parser, _) => parser.StructDeclaration(),
+                ["enum"] = static (parser, _) => parser.EnumDeclaration(),
                 ["impl"] = static (parser, _) => parser.ImplementationDeclaration(),
                 ["fn"] = static (parser, _) => parser.FunctionDeclaration(),
                 ["return"] = static (parser, token) => new Return(token,

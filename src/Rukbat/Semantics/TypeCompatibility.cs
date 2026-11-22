@@ -32,7 +32,8 @@ namespace Rukbat
 
             var expectedName = expected.Name;
             var actualName = actual.Name;
-            if (expectedName == actualName && expected.IsComposite && actual.IsComposite)
+            if (expectedName == actualName && (expected.IsComposite || expected.NonNullable.Enum is not null) &&
+                (actual.IsComposite || actual.NonNullable.Enum is not null))
             {
                 expectedName = QualifiedTypeName(expected);
                 actualName = QualifiedTypeName(actual);
@@ -56,9 +57,9 @@ namespace Rukbat
                 return QualifiedTypeName(element) + "[]";
             }
 
-            if (type.Struct is { } structure)
+            if ((type.Struct?.Module ?? type.Enum?.Module) is { } owner)
             {
-                return Path.GetFileNameWithoutExtension(structure.Module.Source.Path) + "." + type.Name;
+                return Path.GetFileNameWithoutExtension(owner.Source.Path) + "." + type.Name;
             }
 
             return type.Name;

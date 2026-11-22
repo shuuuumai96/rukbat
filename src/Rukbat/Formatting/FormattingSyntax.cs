@@ -24,6 +24,6 @@ namespace Rukbat
         }
 
         private static bool IsCompound(Statement statement) =>
-            statement is Function or StructDeclaration or ImplDeclaration or Conditional or For or While or TryCatch;
+            statement is Function or StructDeclaration or EnumDeclaration or ImplDeclaration or Conditional or For or While or TryCatch;
     }
 }

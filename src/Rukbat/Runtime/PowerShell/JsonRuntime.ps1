@@ -17,6 +17,11 @@
                     'string' {
                         if ($value -is [string]) { return $value }
                     }
+                    'enum' {
+                        if ($value -is [string] -and [Array]::IndexOf($type.members, $value) -ge 0) {
+                            return $value
+                        }
+                    }
                     'bool' {
                         if ($value -is [bool]) { return $value }
                     }
@@ -104,6 +109,7 @@
                 switch ($type.kind) {
                     'json' { return $item.ToJson() }
                     'string' { return (__rukbat_json_quote ([string]$item)) }
+                    'enum' { return (__rukbat_json_quote ([string]$item)) }
                     'bool' { return $(if ($item) { 'true' } else { 'false' }) }
                     'int' { return ([long]$item).ToString([System.Globalization.CultureInfo]::InvariantCulture) }
                     'float' {

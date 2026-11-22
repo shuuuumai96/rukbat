@@ -12,6 +12,9 @@ namespace Rukbat
             }
         }
 
+        private static string EnumNames(EnumSymbol enumeration) =>
+            $"[string[]]@({string.Join(", ", enumeration.Members.Keys.Select(Quote))})";
+
         private static string Schema(ValueType type)
         {
             if (type.DictionaryKey is { } key)
@@ -47,6 +50,10 @@ namespace Rukbat
                 var fields = structure.Fields.Select(f =>
                     $"@{{name = {Quote(f.Key)}; key = {Quote(f.Value.Key)}; type = {Schema(f.Value.Type)}}}");
                 return $"@{{kind = 'struct'; name = {Quote(type.Name)}; fields = @({string.Join("; ", fields)})}}";
+            }
+            if (type.Enum is { } enumeration)
+            {
+                return $"@{{kind = 'enum'; name = {Quote(type.Name)}; members = {EnumNames(enumeration)}}}";
             }
             return $"@{{kind = {Quote(type.Name)}; name = {Quote(type.Name)}}}";
         }

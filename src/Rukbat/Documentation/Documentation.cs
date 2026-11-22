@@ -234,7 +234,7 @@ namespace Rukbat
                     return "dict[" + Type(key) + ", " + Type(type.DictionaryValue!) + "]";
                 }
 
-                if (type.Struct is { } structure && catalog.Find(structure.Declaration) is { } target)
+                if ((type.Struct?.Declaration as Node ?? type.Enum?.Declaration) is { } declaration && catalog.Find(declaration) is { } target)
                 {
                     return "<a href=\"#" + target.Id + "\">" + Escape(type.Name) + "</a>";
                 }
@@ -247,6 +247,8 @@ namespace Rukbat
                     Escape(parameter.Token.Text) + ": " + Type(checker.DeclaredTypes[parameter]))) + ")" +
                     (checker.Functions[function].ReturnType == ValueType.Void ? "" : ": " + Type(checker.Functions[function].ReturnType)),
                 StructDeclaration structure => "struct " + Escape(structure.Token.Text),
+                EnumDeclaration enumeration => "enum " + Escape(enumeration.Token.Text),
+                EnumMember => Escape(entry.Declaration.Name),
                 Field field => Escape(field.Token.Text) + ": " + Type(checker.DeclaredTypes[field]),
                 Variable variable => (variable.IsConst ? "const " : "") + Escape(variable.Token.Text) + ": " + Type(checker.Variables[variable].Type),
                 _ => throw new InvalidOperationException("Unsupported documentation declaration.")

@@ -95,6 +95,14 @@ namespace Rukbat
                         Add(field, structure.Token.Text + "." + field.Token.Text, "field", structure);
                     }
                 }
+                else if (statement is EnumDeclaration enumeration)
+                {
+                    Add(enumeration, enumeration.Token.Text, "enum");
+                    foreach (var member in enumeration.Members)
+                    {
+                        Add(member, enumeration.Token.Text + "." + member.Token.Text, "enum-member");
+                    }
+                }
                 else if (statement is ImplDeclaration implementation)
                 {
                     var owner = module.Statements.OfType<StructDeclaration>().FirstOrDefault(structure => structure.Token.Text == implementation.Token.Text);
@@ -144,7 +152,7 @@ namespace Rukbat
                     var declaration = Declarations.FirstOrDefault(d => d.Start >= text.End && Adjacent(source, text.End, d.Start));
                     if (declaration is null)
                     {
-                        Diagnostics.Add(text.Error("RUK6000", "Place documentation immediately before a top-level declaration, struct field, or method."));
+                        Diagnostics.Add(text.Error("RUK6000", "Place documentation immediately before a top-level declaration, struct field, method, or enum member."));
                     }
                     else
                     {

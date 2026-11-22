@@ -1,14 +1,15 @@
 namespace Rukbat
 {
-    // The AST retains type names until the checker binds them to their defining StructSymbol.
-    // Structs defined in different modules remain distinct even when their fields match.
+    // The AST retains type names until the checker binds them to their defining symbols.
+    // Structs and enums from different modules keep their own type identities.
     internal sealed record ValueType(
         string Name,
         StructSymbol? Struct = null,
         ValueType? Element = null,
         ValueType? NullableElement = null,
         ValueType? DictionaryKey = null,
-        ValueType? DictionaryValue = null)
+        ValueType? DictionaryValue = null,
+        EnumSymbol? Enum = null)
     {
         public static readonly ValueType Error = new("error");
         public static readonly ValueType Int = new("int");

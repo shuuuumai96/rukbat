@@ -79,6 +79,11 @@ namespace Rukbat
                         root.Symbols.Add(symbols[structure]);
                     }
 
+                    foreach (var enumeration in module.Enums.Values)
+                    {
+                        root.Symbols.Add(symbols[enumeration]);
+                    }
+
                     foreach (var import in module.Statements.OfType<Import>())
                     {
                         var symbol = new EditorSymbol(import.Name, $"import {import.Path}", 9,
@@ -88,8 +93,8 @@ namespace Rukbat
                         // Preserve the existing module hover on the import keyword, but never edit it.
                         occurrences.Add(new(module, import.Token, symbol, Searchable: false));
                     }
-                    WalkStatements(module.Statements.Where(s => s is not Function and not StructDeclaration and not ImplDeclaration).ToList(), root);
-                    WalkStatements(module.Statements.Where(s => s is Function or StructDeclaration or ImplDeclaration).ToList(), root);
+                    WalkStatements(module.Statements.Where(s => s is not Function and not StructDeclaration and not EnumDeclaration and not ImplDeclaration).ToList(), root);
+                    WalkStatements(module.Statements.Where(s => s is Function or StructDeclaration or EnumDeclaration or ImplDeclaration).ToList(), root);
                     AddTypeReferences(module);
                 }
                 if (program.Diagnostics.Count == 0)
@@ -126,6 +131,18 @@ namespace Rukbat
                         Module: structure.Module, Declaration: field.Field.Token, Type: field.Type);
                 }
             }
+            foreach (var enumeration in Modules.SelectMany(m => m.Enums.Values))
+            {
+                var declaration = enumeration.Declaration;
+                symbols[enumeration] = new(declaration.Token.Text, $"enum {enumeration.Type}", 13,
+                    Description(enumeration.Module, declaration), Module: enumeration.Module, Declaration: declaration.Token);
+                foreach (var member in enumeration.Members.Values)
+                {
+                    symbols[member] = new(member.Token.Text, $"{enumeration.Type}.{member.Token.Text}: {enumeration.Type}", 20,
+                        Description(enumeration.Module, member), Module: enumeration.Module, Declaration: member.Token, Type: enumeration.Type);
+                }
+            }
+
             foreach (var (node, variable) in checker.Variables.Where(p => p.Key is Variable or Parameter or For or Catch))
             {
                 // The module is attached when its declaration is visited below.
@@ -202,6 +219,16 @@ namespace Rukbat
                         }
 
                         WalkStatements(function.Body, local);
+                        break;
+                    case EnumDeclaration enumeration:
+                        if (scope.Module.Enums.TryGetValue(enumeration.Token.Text, out var boundEnum) && boundEnum.Declaration == enumeration)
+                        {
+                            Add(scope.Module, enumeration.Token, symbols[boundEnum]);
+                            foreach (var member in boundEnum.Members.Values)
+                            {
+                                Add(scope.Module, member.Token, symbols[member]);
+                            }
+                        }
                         break;
                     case StructDeclaration structure:
                         if (!scope.Module.Structs.TryGetValue(structure.Token.Text, out var bound))
@@ -307,7 +334,16 @@ namespace Rukbat
                     break;
                 case Member member:
                     Walk(member.Receiver, scope);
-                    if (checker!.Constants.TryGetValue(member, out var constant))
+                    if (checker!.EnumQualifiers.TryGetValue(member.Receiver, out var enumeration))
+                    {
+                        Add(scope.Module, member.Receiver.Token, symbols[enumeration]);
+                    }
+
+                    if (checker.EnumMembers.TryGetValue(member, out var enumMember))
+                    {
+                        Add(scope.Module, member.Token, symbols[enumMember]);
+                    }
+                    else if (checker.Constants.TryGetValue(member, out var constant))
                     {
                         Add(scope.Module, member.Token, EditorCatalog.Constant(constant));
                     }
@@ -427,6 +463,10 @@ namespace Rukbat
                 {
                     Add(module, token, symbols[structure]);
                 }
+                else if (bound?.Enum is { } enumeration)
+                {
+                    Add(module, token, symbols[enumeration]);
+                }
                 else if (bound is not null && EditorCatalog.ScalarType(bound) is { } scalar)
                 {
                     Add(module, token, scalar);
@@ -468,11 +508,17 @@ namespace Rukbat
             IEnumerable<EditorSymbol> candidates;
             if (receiver is not null)
             {
-                if (Entry.Imports.TryGetValue(receiver, out var imported))
+                var hole = checker?.Types.Keys.OfType<Member>().FirstOrDefault(m => m.Token.Text == "__completion" && m.Token.Offset == offset - prefix.Length);
+                if (hole is not null && checker!.EnumQualifiers.TryGetValue(hole.Receiver, out var enumeration))
+                {
+                    candidates = enumeration.Members.Values.Select(member => symbols[member]);
+                }
+                else if (Entry.Imports.TryGetValue(receiver, out var imported))
                 {
                     candidates = imported.StandardName is { } standard
                         ? EditorCatalog.Standard.Where(s => s.Detail.StartsWith(standard + ".", StringComparison.Ordinal)).Concat(imported.Structs.Values.Select(s => symbols[s]))
                         : imported.Functions.Values.Select(f => symbols[checker!.Functions[f]]).Concat(imported.Structs.Values.Select(s => symbols[s]));
+                    candidates = candidates.Concat(imported.Enums.Values.Select(e => symbols[e]));
                     if (imported.StandardName is { } moduleName)
                     {
                         candidates = candidates.Concat(EditorCatalog.TypesForModule(moduleName));
@@ -492,7 +538,6 @@ namespace Rukbat
                         receiverEnd--;
                     }
 
-                    var hole = checker?.Types.Keys.OfType<Member>().FirstOrDefault(m => m.Token.Text == "__completion" && m.Token.Offset == offset - prefix.Length);
                     var type = hole is not null ? checker!.Types.GetValueOrDefault(hole.Receiver)
                         : occurrences.LastOrDefault(o => o.Module == Entry && o.Token.Offset + o.Token.Text.Length == receiverEnd)?.Symbol.Type
                         ?? scope?.Visible(offset).FirstOrDefault(s => s.Name == receiver)?.Type;

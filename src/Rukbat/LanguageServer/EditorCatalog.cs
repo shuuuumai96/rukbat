@@ -70,6 +70,7 @@ namespace Rukbat
         public static readonly string[] Keywords = ["import",
             "fn",
             "struct",
+            "enum",
             "impl",
             "return",
             "if",
