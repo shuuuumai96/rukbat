@@ -93,7 +93,7 @@ namespace Rukbat
 
         private object? ReferenceFeature(string method, JsonElement parameters, string path, int offset)
         {
-            if (method != "textDocument/references" && !renameSupported)
+            if (method != ReferencesMethod && !renameSupported)
             {
                 throw new EditorRequestFailure(RequestFailed, "Rename needs a client supporting versioned, transactional text document edits.");
             }
@@ -103,12 +103,12 @@ namespace Rukbat
                 var buffers = documents.ToDictionary(p => p.Key, p => p.Value.Text, EditorPaths.Comparer);
                 var workspace = new EditorWorkspace(workspaceRoots.ToArray(), path, buffers);
                 workspace.Capture();
-                if (method == "textDocument/references")
+                if (method == ReferencesMethod)
                 {
                     return workspace.References(offset, parameters.GetProperty("context").GetProperty("includeDeclaration").GetBoolean());
                 }
 
-                if (method == "textDocument/prepareRename")
+                if (method == PrepareRenameMethod)
                 {
                     var target = workspace.PrepareRename(offset);
                     return new

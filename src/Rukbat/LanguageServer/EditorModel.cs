@@ -42,7 +42,20 @@ namespace Rukbat
         public EditorRange Range(int start, int length) => new(Position(start), Position(start + length));
     }
 
-    internal sealed record EditorSymbol(string Name, string Detail, int Kind, string Documentation = "",
+    internal enum CompletionKind
+    {
+        Function = 3,
+        Field = 5,
+        Variable = 6,
+        Module = 9,
+        Enum = 13,
+        Keyword = 14,
+        EnumMember = 20,
+        Constant = 21,
+        Struct = 22
+    }
+
+    internal sealed record EditorSymbol(string Name, string Detail, CompletionKind Kind, string Documentation = "",
         Module? Module = null, Token? Declaration = null, ValueType? Type = null, bool IsFixed = false, bool IsModuleVariable = false)
     {
         public int AvailableFrom { get; init; } = Declaration?.Offset ?? 0;

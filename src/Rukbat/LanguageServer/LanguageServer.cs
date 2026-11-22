@@ -8,6 +8,10 @@ namespace Rukbat
     // A stdio LSP server. It checks source, but never generates or executes PowerShell.
     public sealed partial class LanguageServer
     {
+        private const string ProtocolVersion = "2.0";
+        private const string InitializeMethod = "initialize";
+        private const int FullDocumentSync = 1;
+
         private const int MaximumHeaderBytes = 8192;
         private const int MaximumMessageBytes = 16 * 1024 * 1024;
         private const int ParseError = -32700;
@@ -49,6 +53,83 @@ namespace Rukbat
             }
         }
 
+        private const string ReferencesMethod = "textDocument/references";
+        private const string PrepareRenameMethod = "textDocument/prepareRename";
+        private const string RenameMethod = "textDocument/rename";
+
+        private static readonly IReadOnlyDictionary<string, Action<LanguageServer, object?, JsonElement>> RequestHandlers =
+            new Dictionary<string, Action<LanguageServer, object?, JsonElement>>(StringComparer.Ordinal)
+            {
+                [InitializeMethod] = static (server, id, parameters) => server.Initialize(id, parameters),
+                ["shutdown"] = static (server, id, _) => server.Shutdown(id),
+                ["initialized"] = static (_, _, _) => { },
+                ["$/cancelRequest"] = static (_, _, _) => { },
+                ["$/setTrace"] = static (_, _, _) => { },
+                ["textDocument/didOpen"] = static (server, _, parameters) => server.Open(parameters),
+                ["textDocument/didChange"] = static (server, _, parameters) => server.Change(parameters),
+                ["textDocument/didClose"] = static (server, _, parameters) => server.Close(parameters),
+                ["textDocument/didSave"] = static (server, _, _) => server.Recheck(),
+                ["workspace/didChangeWatchedFiles"] = static (server, _, _) => server.Recheck(),
+                ["workspace/didChangeWorkspaceFolders"] = static (server, _, parameters) => server.ChangeWorkspace(parameters),
+                ["textDocument/hover"] = static (server, id, parameters) => server.Result(id, server.AtPosition(parameters, static (s, path, _, offset) => s.analyses[path].Hover(offset))),
+                ["textDocument/definition"] = static (server, id, parameters) => server.Result(id, server.AtPosition(parameters, static (s, path, _, offset) => s.analyses[path].Definition(offset))),
+                ["textDocument/completion"] = static (server, id, parameters) => server.Result(id, server.AtPosition(parameters, static (s, path, document, offset) => s.CompleteDocument(path, document, offset))),
+                ["textDocument/formatting"] = static (server, id, parameters) => server.Result(id, server.FormatDocument(parameters)),
+                ["textDocument/signatureHelp"] = static (server, id, parameters) => server.Result(id, server.AtPosition(parameters, static (s, path, document, offset) => SignatureHelp.Get(document.Text, path, offset, s.ReadSource, s.signatureLabelOffsets, s.signatureMarkdown))),
+                [ReferencesMethod] = static (server, id, parameters) => server.Result(id, server.ReferencesAtPosition(parameters, ReferencesMethod)),
+                [PrepareRenameMethod] = static (server, id, parameters) => server.Result(id, server.ReferencesAtPosition(parameters, PrepareRenameMethod)),
+                [RenameMethod] = static (server, id, parameters) => server.Result(id, server.ReferencesAtPosition(parameters, RenameMethod))
+            };
+
+        private void Initialize(object? id, JsonElement parameters)
+        {
+        if (initialized)
+        {
+            Error(id, InvalidRequest, "Server is already initialized.");
+            return;
+        }
+        initialized = true;
+        ConfigureWorkspace(parameters);
+        Result(id, new
+        {
+            capabilities = new
+            {
+                positionEncoding = "utf-16",
+                textDocumentSync = new
+                {
+                    openClose = true,
+                    change = FullDocumentSync,
+                    save = new
+                    {
+                        includeText = false
+                    }
+                },
+                completionProvider = new
+                {
+                    triggerCharacters = new[] { "." }
+                },
+                hoverProvider = true,
+                definitionProvider = true,
+                referencesProvider = true,
+                renameProvider = RenameCapability(),
+                signatureHelpProvider = SignatureCapability(),
+                workspace = new { workspaceFolders = new { supported = true, changeNotifications = true } },
+                documentFormattingProvider = true
+            },
+            serverInfo = new
+            {
+                name = "Rukbat",
+                version = typeof(LanguageServer).Assembly.GetName().Version?.ToString()
+            }
+        });
+        }
+
+        private void Shutdown(object? id)
+        {
+            shutdown = true;
+            Result(id, null);
+        }
+
         private int Listen()
         {
             while (ReadMessage() is { } bytes)
@@ -62,7 +143,7 @@ namespace Rukbat
                 using (message)
                 {
                     var root = message.RootElement;
-                    if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("jsonrpc", out var protocol) || protocol.ValueKind != JsonValueKind.String || protocol.GetString() != "2.0" ||
+                    if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("jsonrpc", out var protocol) || protocol.ValueKind != JsonValueKind.String || protocol.GetString() != ProtocolVersion ||
                         !root.TryGetProperty("method", out var methodValue) || methodValue.ValueKind != JsonValueKind.String)
                     {
                         Error(null, InvalidRequest, "Expected a JSON-RPC 2.0 request or notification.");
@@ -82,7 +163,7 @@ namespace Rukbat
                         return shutdown ? 0 : 1;
                     }
 
-                    if (!initialized && method != "initialize")
+                    if (!initialized && method != InitializeMethod)
                     {
                         if (request)
                         {
@@ -102,90 +183,13 @@ namespace Rukbat
                     }
                     try
                     {
-                        switch (method)
+                        if (RequestHandlers.TryGetValue(method, out var handler))
                         {
-                            case "initialize":
-                                if (initialized)
-                                {
-                                    Error(id, InvalidRequest, "Server is already initialized.");
-                                    break;
-                                }
-                                initialized = true;
-                                ConfigureWorkspace(parameters);
-                                Result(id, new
-                                {
-                                    capabilities = new
-                                    {
-                                        positionEncoding = "utf-16",
-                                        textDocumentSync = new
-                                        {
-                                            openClose = true,
-                                            change = 1,
-                                            save = new
-                                            {
-                                                includeText = false
-                                            }
-                                        },
-                                        completionProvider = new
-                                        {
-                                            triggerCharacters = new[] { "." }
-                                        },
-                                        hoverProvider = true,
-                                        definitionProvider = true,
-                                        referencesProvider = true,
-                                        renameProvider = RenameCapability(),
-                                        signatureHelpProvider = SignatureCapability(),
-                                        workspace = new { workspaceFolders = new { supported = true, changeNotifications = true } },
-                                        documentFormattingProvider = true
-                                    },
-                                    serverInfo = new
-                                    {
-                                        name = "Rukbat",
-                                        version = typeof(LanguageServer).Assembly.GetName().Version?.ToString()
-                                    }
-                                });
-                                break;
-                            case "shutdown":
-                                shutdown = true;
-                                Result(id, null);
-                                break;
-                            case "initialized":
-                            case "$/cancelRequest":
-                            case "$/setTrace":
-                                break;
-                            case "textDocument/didOpen":
-                                Open(parameters);
-                                break;
-                            case "textDocument/didChange":
-                                Change(parameters);
-                                break;
-                            case "textDocument/didClose":
-                                Close(parameters);
-                                break;
-                            case "textDocument/didSave":
-                            case "workspace/didChangeWatchedFiles":
-                                Recheck();
-                                break;
-                            case "workspace/didChangeWorkspaceFolders":
-                                ChangeWorkspace(parameters);
-                                break;
-                            case "textDocument/hover":
-                            case "textDocument/definition":
-                            case "textDocument/completion":
-                            case "textDocument/formatting":
-                            case "textDocument/references":
-                            case "textDocument/prepareRename":
-                            case "textDocument/rename":
-                            case "textDocument/signatureHelp":
-                                Result(id, Feature(method, parameters));
-                                break;
-                            default:
-                                if (request)
-                                {
-                                    Error(id, MethodNotFound, $"Unknown method '{method}'.");
-                                }
-
-                                break;
+                            handler(this, id, parameters);
+                        }
+                        else if (request)
+                        {
+                            Error(id, MethodNotFound, $"Unknown method '{method}'.");
                         }
                     }
                     catch (EditorRequestFailure error)
@@ -344,43 +348,39 @@ namespace Rukbat
             published.UnionWith(diagnostics.Keys);
         }
 
-        private object? Feature(string method, JsonElement parameters)
+        private (string Path, Document Document) OpenDocument(JsonElement parameters)
         {
             var path = FilePath(parameters.GetProperty("textDocument").GetProperty("uri").GetString()!);
-            if (!documents.TryGetValue(path, out var document))
-            {
-                throw new ArgumentException("Document is not open.");
-            }
+            return documents.TryGetValue(path, out var document)
+                ? (path, document)
+                : throw new ArgumentException("Document is not open.");
+        }
 
-            var map = new EditorText(document.Text);
-            if (method == "textDocument/formatting")
-            {
-                var formatted = Formatter.Format(document.Text, path);
-                return !formatted.Success || formatted.Output == document.Text ? Array.Empty<object>()
-                    : new object[] { new { range = map.Range(0, document.Text.Length), newText = formatted.Output } };
-            }
-            var offset = map.Offset(Position(parameters.GetProperty("position")));
+        private object FormatDocument(JsonElement parameters)
+        {
+            var (path, document) = OpenDocument(parameters);
+            var formatted = Formatter.Format(document.Text, path);
+            return !formatted.Success || formatted.Output == document.Text ? Array.Empty<object>()
+                : new object[] { new { range = new EditorText(document.Text).Range(0, document.Text.Length), newText = formatted.Output } };
+        }
+
+        private object? AtPosition(JsonElement parameters, Func<LanguageServer, string, Document, int, object?> read)
+        {
+            var (path, document) = OpenDocument(parameters);
+            var offset = new EditorText(document.Text).Offset(Position(parameters.GetProperty("position")));
+            return read(this, path, document, offset);
+        }
+
+        private object? ReferencesAtPosition(JsonElement parameters, string method)
+        {
+            var (path, document) = OpenDocument(parameters);
+            var offset = new EditorText(document.Text).Offset(Position(parameters.GetProperty("position")));
+            return ReferenceFeature(method, parameters, path, offset);
+        }
+
+        private object CompleteDocument(string path, Document document, int offset)
+        {
             var analysis = analyses[path];
-            if (method is "textDocument/references" or "textDocument/prepareRename" or "textDocument/rename")
-            {
-                return ReferenceFeature(method, parameters, path, offset);
-            }
-
-            if (method == "textDocument/signatureHelp")
-            {
-                return SignatureHelp.Get(document.Text, path, offset, ReadSource, signatureLabelOffsets, signatureMarkdown);
-            }
-
-            if (method == "textDocument/hover")
-            {
-                return analysis.Hover(offset);
-            }
-
-            if (method == "textDocument/definition")
-            {
-                return analysis.Definition(offset);
-            }
-
             var source = new Source(document.Text, path);
             var tokens = new Lexer(source).Scan();
             // Do not complete inside strings or comments (which the compiler lexer omits).
@@ -389,7 +389,7 @@ namespace Rukbat
                 return Array.Empty<object>();
             }
 
-            var prior = tokens.LastOrDefault(t => t.Offset < offset && t.Text != "<eof>");
+            var prior = tokens.LastOrDefault(t => t.Offset < offset && t.Text != TokenFacts.EndOfFile);
             var gapStart = prior is null ? 0 : Math.Min(offset, prior.Offset + prior.Text.Length);
             if (document.Text[gapStart..offset].Contains("//", StringComparison.Ordinal))
             {
@@ -406,7 +406,7 @@ namespace Rukbat
             var before = document.Text[..start];
             if (Regex.IsMatch(before, @"\bimport\s+$"))
             {
-                return EditorCatalog.Modules.Where(m => m.StartsWith(prefix, StringComparison.Ordinal)).Select(m => new EditorSymbol(m, $"import {m}", 9).Completion).ToArray();
+                return EditorCatalog.Modules.Where(m => m.StartsWith(prefix, StringComparison.Ordinal)).Select(m => new EditorSymbol(m, $"import {m}", CompletionKind.Module).Completion).ToArray();
             }
 
             var member = Regex.Match(before, @"(?<receiver>[\p{L}\p{N}_]+)\s*\.\s*$");
@@ -467,9 +467,9 @@ namespace Rukbat
 
             return Path.GetFullPath(path);
         }
-        private void Result(object? id, object? result) => Write(new { jsonrpc = "2.0", id, result });
-        private void Error(object? id, int code, string message) => Write(new { jsonrpc = "2.0", id, error = new { code, message } });
-        private void Notify(string method, object parameters) => Write(new { jsonrpc = "2.0", method, @params = parameters });
+        private void Result(object? id, object? result) => Write(new { jsonrpc = ProtocolVersion, id, result });
+        private void Error(object? id, int code, string message) => Write(new { jsonrpc = ProtocolVersion, id, error = new { code, message } });
+        private void Notify(string method, object parameters) => Write(new { jsonrpc = ProtocolVersion, method, @params = parameters });
         private void Write(object message)
         {
             var bytes = JsonSerializer.SerializeToUtf8Bytes(message, JsonOptions);

@@ -87,7 +87,7 @@ namespace Rukbat
 
         private List<LanguageAnalysis> Related(EditorOccurrence target)
         {
-            var local = target.Symbol.Kind == 9 || target.Symbol.Kind is 6 or 21 && !target.Symbol.IsModuleVariable;
+            var local = target.Symbol.Kind == CompletionKind.Module || target.Symbol.Kind is CompletionKind.Variable or CompletionKind.Constant && !target.Symbol.IsModuleVariable;
             var declarationPath = target.Symbol.Module?.Source.Path;
             var result = new List<LanguageAnalysis>();
             foreach (var path in local ? [entry] : candidates)
@@ -196,7 +196,7 @@ namespace Rukbat
                 throw new InvalidOperationException("The declaration is outside the workspace. Open its folder before renaming it.");
             }
 
-            if (roots.Length == 0 && target.Symbol.Kind is 3 or 5 or 22)
+            if (roots.Length == 0 && target.Symbol.Kind is CompletionKind.Function or CompletionKind.Field or CompletionKind.Struct)
             {
                 throw new InvalidOperationException("Open a workspace folder to find all callers before renaming an exported declaration.");
             }

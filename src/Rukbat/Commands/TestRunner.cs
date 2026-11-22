@@ -168,12 +168,41 @@ namespace Rukbat
             return status;
         }
 
+        private const string WindowsPowerShell = "powershell";
+        private const string PowerShell = "pwsh";
+        private const string FilterOption = "--filter";
+        private const string ShellOption = "--shell";
+        private const string TimeoutOption = "--timeout";
+
+        private static readonly IReadOnlyDictionary<string, Func<Options, string, Options>> OptionHandlers =
+            new Dictionary<string, Func<Options, string, Options>>(StringComparer.Ordinal)
+            {
+                [FilterOption] = static (options, value) => options with
+                {
+                    Filter = !string.IsNullOrEmpty(value) ? value : throw new ArgumentException($"{FilterOption} requires nonempty text.")
+                },
+                [ShellOption] = static (options, value) => options with
+                {
+                    Shell = value is WindowsPowerShell or PowerShell ? value :
+                        throw new ArgumentException($"{ShellOption} must be {WindowsPowerShell} or {PowerShell}.")
+                },
+                [TimeoutOption] = static (options, value) => options with { TimeoutSeconds = ParseTimeout(value) }
+            };
+
+        private static int ParseTimeout(string value)
+        {
+            if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var seconds) ||
+                seconds < 1 || seconds > MaximumTimeoutSeconds)
+            {
+                throw new ArgumentException($"{TimeoutOption} must be an integer from 1 to {MaximumTimeoutSeconds} seconds.");
+            }
+            return seconds;
+        }
+
         private static Options ParseOptions(string[] args)
         {
             string? path = null;
-            string? filter = null;
-            var shell = "powershell";
-            var timeout = DefaultTimeoutSeconds;
+            var options = new Options(".", null, WindowsPowerShell, DefaultTimeoutSeconds);
             var seen = new HashSet<string>(StringComparer.Ordinal);
             for (var index = 0; index < args.Length; index++)
             {
@@ -187,36 +216,14 @@ namespace Rukbat
                     path = argument;
                     continue;
                 }
-                if (argument is not ("--filter" or "--shell" or "--timeout") || !seen.Add(argument) || ++index == args.Length)
+
+                if (!OptionHandlers.TryGetValue(argument, out var apply) || !seen.Add(argument) || ++index == args.Length)
                 {
-                    throw new ArgumentException("Usage: rukbat test [path] [--filter text] [--timeout seconds] [--shell powershell|pwsh]");
+                    throw new ArgumentException($"Usage: rukbat test [path] [{FilterOption} text] [{ShellOption} {WindowsPowerShell}|{PowerShell}] [{TimeoutOption} seconds]");
                 }
-                var value = args[index];
-                switch (argument)
-                {
-                    case "--filter":
-                        if (string.IsNullOrEmpty(value))
-                        {
-                            throw new ArgumentException("--filter requires nonempty text.");
-                        }
-                        filter = value;
-                        break;
-                    case "--shell":
-                        if (value is not ("powershell" or "pwsh"))
-                        {
-                            throw new ArgumentException("--shell must be powershell or pwsh.");
-                        }
-                        shell = value;
-                        break;
-                    case "--timeout":
-                        if (!int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out timeout) || timeout < 1 || timeout > MaximumTimeoutSeconds)
-                        {
-                            throw new ArgumentException($"--timeout must be an integer from 1 to {MaximumTimeoutSeconds} seconds.");
-                        }
-                        break;
-                }
+                options = apply(options, args[index]);
             }
-            return new(path ?? ".", filter, shell, timeout);
+            return path is null ? options : options with { Path = path };
         }
 
         private static IEnumerable<string> Discover(string path)

@@ -49,7 +49,7 @@ namespace Rukbat
         }
     }
 
-    internal sealed record DocumentationDeclaration(Node Node, int Start, string Name, string Kind, StructDeclaration? Owner = null);
+    internal sealed record DocumentationDeclaration(Node Node, int Start, string Name, string Kind);
 
     internal sealed class ModuleDocumentation
     {
@@ -74,43 +74,14 @@ namespace Rukbat
             }
         }
 
+        private readonly Source source;
+
         public ModuleDocumentation(Module module)
         {
-            var source = module.Source;
+            source = module.Source;
             foreach (var statement in module.Statements)
             {
-                if (statement is Function function)
-                {
-                    Add(function, function.Name, "function");
-                }
-                else if (statement is Variable variable)
-                {
-                    Add(variable, variable.Token.Text, "variable");
-                }
-                else if (statement is StructDeclaration structure)
-                {
-                    Add(structure, structure.Token.Text, "struct");
-                    foreach (var field in structure.Fields)
-                    {
-                        Add(field, structure.Token.Text + "." + field.Token.Text, "field", structure);
-                    }
-                }
-                else if (statement is EnumDeclaration enumeration)
-                {
-                    Add(enumeration, enumeration.Token.Text, "enum");
-                    foreach (var member in enumeration.Members)
-                    {
-                        Add(member, enumeration.Token.Text + "." + member.Token.Text, "enum-member");
-                    }
-                }
-                else if (statement is ImplDeclaration implementation)
-                {
-                    var owner = module.Statements.OfType<StructDeclaration>().FirstOrDefault(structure => structure.Token.Text == implementation.Token.Text);
-                    foreach (var method in implementation.Methods)
-                    {
-                        Add(method, implementation.Token.Text + "." + method.Name, "method", owner);
-                    }
-                }
+                DeclarationReaders.DispatchIfRegistered(this, statement);
             }
             Declarations.Sort((left, right) => left.Start.CompareTo(right.Start));
 
@@ -160,13 +131,46 @@ namespace Rukbat
                     }
                 }
             }
+        }
 
-            void Add(Node node, string name, string kind, StructDeclaration? owner = null)
+        private static readonly NodeHandlers<ModuleDocumentation> DeclarationReaders = new(
+            NodeHandlers<ModuleDocumentation>.For<Function>(static (documentation, node) => documentation.Add(node, node.Name, "function")),
+            NodeHandlers<ModuleDocumentation>.For<Variable>(static (documentation, node) => documentation.Add(node, node.Token.Text, "variable")),
+            NodeHandlers<ModuleDocumentation>.For<StructDeclaration>(static (documentation, node) => documentation.ReadStruct(node)),
+            NodeHandlers<ModuleDocumentation>.For<EnumDeclaration>(static (documentation, node) => documentation.ReadEnum(node)),
+            NodeHandlers<ModuleDocumentation>.For<ImplDeclaration>(static (documentation, node) => documentation.ReadImpl(node)));
+
+        private void Add(Node node, string name, string kind)
+        {
+            if (source.DeclarationStarts.TryGetValue(node, out var start))
             {
-                if (source.DeclarationStarts.TryGetValue(node, out var start))
-                {
-                    Declarations.Add(new(node, start, name, kind, owner));
-                }
+                Declarations.Add(new(node, start, name, kind));
+            }
+        }
+
+        private void ReadStruct(StructDeclaration structure)
+        {
+            Add(structure, structure.Token.Text, "struct");
+            foreach (var field in structure.Fields)
+            {
+                Add(field, structure.Token.Text + "." + field.Token.Text, "field");
+            }
+        }
+
+        private void ReadEnum(EnumDeclaration enumeration)
+        {
+            Add(enumeration, enumeration.Token.Text, "enum");
+            foreach (var member in enumeration.Members)
+            {
+                Add(member, enumeration.Token.Text + "." + member.Token.Text, "enum-member");
+            }
+        }
+
+        private void ReadImpl(ImplDeclaration implementation)
+        {
+            foreach (var method in implementation.Methods)
+            {
+                Add(method, implementation.Token.Text + "." + method.Name, "method");
             }
         }
 

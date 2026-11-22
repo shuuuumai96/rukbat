@@ -7,7 +7,7 @@ namespace Rukbat
         public Dictionary<Call, BoundCall> Calls { get; } = new(ReferenceEqualityComparer.Instance);
         public Dictionary<Expression, ValueType> Types { get; } = new(ReferenceEqualityComparer.Instance);
         public Dictionary<For, BoundIteration> Iterations { get; } = new(ReferenceEqualityComparer.Instance);
-        public Dictionary<Member, StandardConstant> Constants { get; } = new(ReferenceEqualityComparer.Instance);
+        public Dictionary<Member, BoundMember> Members { get; } = new(ReferenceEqualityComparer.Instance);
         private Dictionary<VariableSymbol, ValueType> refinements = [];
         private int variableId;
         private bool reachable = true;

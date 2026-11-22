@@ -11,7 +11,7 @@ namespace Rukbat
                 OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
     }
 
-    internal sealed record EditorSymbolId(string Path, int Offset, int Kind);
+    internal sealed record EditorSymbolId(string Path, int Offset, CompletionKind Kind);
     internal sealed record EditorOccurrence(Module Module, Token Token, EditorSymbol Symbol, bool Searchable = true)
     {
         public EditorSymbolId Identity => Symbol.Identity;
@@ -116,7 +116,7 @@ namespace Rukbat
                         var owner = module;
                         if (parts.Length > 1 && module.Imports.TryGetValue(parts[0], out var imported))
                         {
-                            var alias = scopes.First(s => s.Module == module && s.Parent is null).Symbols.First(s => s.Kind == 9 && s.Name == parts[0]);
+                            var alias = scopes.First(s => s.Module == module && s.Parent is null).Symbols.First(s => s.Kind == CompletionKind.Module && s.Name == parts[0]);
                             Add(module, new(parts[0], text.SourceOffset(partOffset)), alias);
                             owner = imported;
                             partOffset += parts[0].Length + 1;

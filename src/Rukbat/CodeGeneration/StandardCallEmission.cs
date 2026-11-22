@@ -62,6 +62,8 @@ namespace Rukbat
                 ["json.parse_strict"] = static (emitter, call) => emitter.JsonDecode(call, false, strict: true),
                 ["json.parse"] = static (emitter, call) => emitter.JsonDecode(call, false),
                 ["json.as"] = static (emitter, call) => emitter.JsonDecode(call, true),
+                ["csv.stringify_table"] = static (emitter, call) => emitter.CsvTableCall(call, "csv.stringify_table", stringify: true),
+                ["csv.has_column"] = static (emitter, call) => emitter.CsvTableCall(call, "csv.has_column", stringify: false),
                 ["json.stringify"] = static (emitter, call) => emitter.JsonEncode(call),
                 ["text.parse_enum"] = static (emitter, call) => emitter.ParseEnum(call),
                 ["text.from_enum"] = static (emitter, call) => emitter.Expr(call.Arguments[0].Value)
@@ -82,6 +84,62 @@ namespace Rukbat
             $"(& $script:__rukbat_json_decode ({Expr(call.Arguments[0].Value)}) {Schema(checker.Types[call])} " +
             (fromValue ? "$true" : "$false") + " $script:__rukbat_dictionary " + (strict ? "$true)" : "$false)");
 
+        private static readonly IReadOnlyDictionary<string, Action<Emitter, Call, string[]>> StandardArgumentAdapters =
+            new Dictionary<string, Action<Emitter, Call, string[]>>(StringComparer.Ordinal)
+            {
+                ["zip.list"] = static (emitter, call, arguments) => emitter.AdaptZipOptions(call, arguments),
+                ["zip.extract"] = static (emitter, call, arguments) => emitter.AdaptZipOptions(call, arguments),
+                ["process.run"] = static (emitter, call, arguments) => emitter.AdaptProcessOptions(call, arguments),
+                ["process.run_to_files"] = static (emitter, call, arguments) => emitter.AdaptProcessOptions(call, arguments),
+                ["json.set"] = static (emitter, call, arguments) => emitter.AdaptJsonReplacement(call, arguments),
+                ["json.set_at"] = static (emitter, call, arguments) => emitter.AdaptJsonReplacement(call, arguments),
+                ["json.append"] = static (emitter, call, arguments) => emitter.AdaptJsonReplacement(call, arguments)
+            };
+
+        private void AdaptZipOptions(Call call, string[] argumentExpressions)
+        {
+            var index = call.Arguments.Count - 1;
+            var fields = checker.Types[call.Arguments[index].Value].Struct!.Fields;
+            argumentExpressions[index] = "(& { $options = " + argumentExpressions[index] + "; return ,([object[]]@(" +
+                $"$options[{Quote(fields["name_encoding"].Key)}]; $options[{Quote(fields["max_entries"].Key)}]; " +
+                $"$options[{Quote(fields["max_total_bytes"].Key)}]" + ")) })";
+        }
+
+        private void AdaptProcessOptions(Call call, string[] argumentExpressions)
+        {
+            var options = checker.Types[call.Arguments[2].Value].Struct!.Fields;
+            var environment = options["environment"].Type.Element!.Struct!.Fields;
+            var input = options["stdin"].Type.NonNullable.Struct!.Fields;
+            argumentExpressions[2] = "(& { $options = " + argumentExpressions[2] + "; " +
+                "$changes = [System.Collections.Generic.List[object]]::new(); " +
+                $"foreach ($entry in $options[{Quote(options["environment"].Key)}]) {{ " +
+                $"$changes.Add([object[]]@($entry[{Quote(environment["name"].Key)}], $entry[{Quote(environment["value"].Key)}])) }}; " +
+                $"$inputValue = $options[{Quote(options["stdin"].Key)}]; $inputData = $null; " +
+                $"if ($null -ne $inputValue) {{ $inputData = [object[]]@($inputValue[{Quote(input["text"].Key)}], $inputValue[{Quote(input["encoding"].Key)}]) }}; " +
+                "return ,([object[]]@(" +
+                $"$options[{Quote(options["timeout_ms"].Key)}]; $options[{Quote(options["output_encoding"].Key)}]; " +
+                $"$options[{Quote(options["working_dir"].Key)}]; (,$changes); (,$inputData)))" + " })";
+        }
+
+        private void AdaptJsonReplacement(Call call, string[] argumentExpressions)
+        {
+            var replacement = call.Arguments[^1].Value;
+            var replacementType = checker.Types[replacement];
+            argumentExpressions[^1] = replacementType == ValueType.Null ? "[RukbatJsonValue]::new($null)" :
+                replacementType.IsJsonValue ? argumentExpressions[^1] :
+                $"[RukbatJsonValue]::new([RukbatJsonParser]::Parse((& $script:__rukbat_json_encode ({argumentExpressions[^1]}) {Schema(replacementType)})))";
+        }
+
+        private string CsvTableCall(Call call, string standardCall, bool stringify)
+        {
+            var argumentExpressions = call.Arguments.Select(argument => Expr(argument.Value)).ToArray();
+            var fields = checker.Types[call.Arguments[0].Value].Struct!.Fields;
+            var secondArgument = stringify
+                ? $"$table[{Quote(fields["rows"].Key)}]" : argumentExpressions[1];
+            // Evaluate the table expression once before extracting its two fields.
+            return $"(& {{ $table = {argumentExpressions[0]}; return (& $script:__rukbat_standard {Quote(standardCall)} @((,$table[{Quote(fields["columns"].Key)}]); (,({secondArgument})))) }})";
+        }
+
         private string StandardCall(Call call, string standardCall)
         {
             var moduleName = standardCall[..standardCall.IndexOf('.')];
@@ -95,44 +153,9 @@ namespace Rukbat
             }
 
             var argumentExpressions = call.Arguments.Select(argument => Expr(argument.Value)).ToArray();
-            if (standardCall is "zip.list" or "zip.extract")
+            if (StandardArgumentAdapters.TryGetValue(standardCall, out var adaptArguments))
             {
-                var index = call.Arguments.Count - 1;
-                var fields = checker.Types[call.Arguments[index].Value].Struct!.Fields;
-                argumentExpressions[index] = "(& { $options = " + argumentExpressions[index] + "; return ,([object[]]@(" +
-                    $"$options[{Quote(fields["name_encoding"].Key)}]; $options[{Quote(fields["max_entries"].Key)}]; " +
-                    $"$options[{Quote(fields["max_total_bytes"].Key)}]" + ")) })";
-            }
-            if (standardCall is "process.run" or "process.run_to_files")
-            {
-                var options = checker.Types[call.Arguments[2].Value].Struct!.Fields;
-                var environment = options["environment"].Type.Element!.Struct!.Fields;
-                var input = options["stdin"].Type.NonNullable.Struct!.Fields;
-                argumentExpressions[2] = "(& { $options = " + argumentExpressions[2] + "; " +
-                    "$changes = [System.Collections.Generic.List[object]]::new(); " +
-                    $"foreach ($entry in $options[{Quote(options["environment"].Key)}]) {{ " +
-                    $"$changes.Add([object[]]@($entry[{Quote(environment["name"].Key)}], $entry[{Quote(environment["value"].Key)}])) }}; " +
-                    $"$inputValue = $options[{Quote(options["stdin"].Key)}]; $inputData = $null; " +
-                    $"if ($null -ne $inputValue) {{ $inputData = [object[]]@($inputValue[{Quote(input["text"].Key)}], $inputValue[{Quote(input["encoding"].Key)}]) }}; " +
-                    "return ,([object[]]@(" +
-                    $"$options[{Quote(options["timeout_ms"].Key)}]; $options[{Quote(options["output_encoding"].Key)}]; " +
-                    $"$options[{Quote(options["working_dir"].Key)}]; (,$changes); (,$inputData)))" + " })";
-            }
-            if (standardCall is "json.set" or "json.set_at" or "json.append")
-            {
-                var replacement = call.Arguments[^1].Value;
-                var replacementType = checker.Types[replacement];
-                argumentExpressions[^1] = replacementType == ValueType.Null ? "[RukbatJsonValue]::new($null)" :
-                    replacementType.IsJsonValue ? argumentExpressions[^1] :
-                    $"[RukbatJsonValue]::new([RukbatJsonParser]::Parse((& $script:__rukbat_json_encode ({argumentExpressions[^1]}) {Schema(replacementType)})))";
-            }
-            if (standardCall is "csv.stringify_table" or "csv.has_column")
-            {
-                var fields = checker.Types[call.Arguments[0].Value].Struct!.Fields;
-                var secondArgument = standardCall == "csv.stringify_table"
-                    ? $"$table[{Quote(fields["rows"].Key)}]" : argumentExpressions[1];
-                // Evaluate the table expression once before extracting its two fields.
-                return $"(& {{ $table = {argumentExpressions[0]}; return (& $script:__rukbat_standard {Quote(standardCall)} @((,$table[{Quote(fields["columns"].Key)}]); (,({secondArgument})))) }})";
+                adaptArguments(this, call, argumentExpressions);
             }
             var standardArguments = string.Join("; ", argumentExpressions.Select(expression => ",(" + expression + ")"));
             var invocation = $"(& $script:__rukbat_standard {Quote(standardCall)} @({standardArguments}))";

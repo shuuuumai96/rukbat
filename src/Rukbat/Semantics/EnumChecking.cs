@@ -11,7 +11,6 @@ namespace Rukbat
     internal sealed partial class TypeChecker
     {
         public Dictionary<Expression, EnumSymbol> EnumQualifiers { get; } = new(ReferenceEqualityComparer.Instance);
-        public Dictionary<Member, EnumMember> EnumMembers { get; } = new(ReferenceEqualityComparer.Instance);
 
         private void RegisterEnums(Module current)
         {

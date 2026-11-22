@@ -33,7 +33,6 @@ namespace Rukbat
         }
 
         public Dictionary<Node, ValueType> DeclaredTypes { get; } = new(ReferenceEqualityComparer.Instance);
-        public Dictionary<Member, FieldSymbol> Fields { get; } = new(ReferenceEqualityComparer.Instance);
         public Dictionary<Argument, FieldSymbol> ConstructionFields { get; } = new(ReferenceEqualityComparer.Instance);
         public Dictionary<ImplDeclaration, StructSymbol> Implementations { get; } = new(ReferenceEqualityComparer.Instance);
 
@@ -274,7 +273,7 @@ namespace Rukbat
                 EnumQualifiers[member.Receiver] = enumeration;
                 if (enumeration.Members.TryGetValue(member.Name, out var enumMember))
                 {
-                    EnumMembers[member] = enumMember;
+                    Members[member] = new(MemberKind.EnumMember, EnumMember: enumMember);
                     return enumeration.Type;
                 }
 
@@ -290,7 +289,7 @@ namespace Rukbat
                     Error(DiagnosticCode.UnknownName, $"Unknown {group.Description} '{member.Name}'.", member);
                     return ValueType.Error;
                 }
-                Constants[member] = constant;
+                Members[member] = new(MemberKind.StandardConstant, Constant: constant);
                 return constant.Type;
             }
             var type = TypeOf(member.Receiver, scope);
@@ -299,8 +298,9 @@ namespace Rukbat
                 return type;
             }
 
-            if ((type.Element is not null || type.DictionaryKey is not null) && member.Name == "length")
+            if ((type.Element is not null || type.DictionaryKey is not null) && member.Name == ContainerMember.Length)
             {
+                Members[member] = new(type.Element is not null ? MemberKind.ArrayLength : MemberKind.DictionaryLength);
                 return ValueType.Int;
             }
 
@@ -314,7 +314,7 @@ namespace Rukbat
                 Error(DiagnosticCode.UnknownName, $"Unknown field '{member.Name}' on {type}.", member);
                 return ValueType.Error;
             }
-            Fields[member] = field;
+            Members[member] = new(MemberKind.Field, Field: field);
             return field.Type;
         }
 
@@ -356,7 +356,7 @@ namespace Rukbat
                     return DictionaryCallType(call, receiverType, scope);
                 }
 
-                if (receiverType.Element is { } element && call.Name == "append")
+                if (receiverType.Element is { } element && call.Name == ContainerMember.Append)
                 {
                     if (!RequireCallParentheses(call))
                     {

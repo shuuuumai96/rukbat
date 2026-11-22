@@ -48,7 +48,7 @@ namespace Rukbat
         {
             var receiver = "$__rukbat_receiver" + temporaryId++;
             Line($"{receiver} = {RawExpr(member.Receiver)}");
-            return $"{receiver}[{Quote(checker.Fields[member].Key)}]";
+            return $"{receiver}[{Quote(checker.Members[member].Field!.Key)}]";
         }
 
         private string RawExpr(Expression expression) => expression switch
@@ -67,11 +67,7 @@ namespace Rukbat
             Index index when checker.Types[index.Receiver].DictionaryKey is not null => $"(& $script:__rukbat_dictionary 'get' ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) $null {Location(index)} $script:__rukbat_raise)",
             Index index => $"(& $script:__rukbat_index ({RawExpr(index.Receiver)}) ({Expr(index.Offset)}) {Location(index)} $false $script:__rukbat_raise)",
             Name name => checker.Variables[name].PowerShellName,
-            Member member when checker.EnumMembers.TryGetValue(member, out var enumMember) => Quote(enumMember.Token.Text),
-            Member member when checker.Constants.TryGetValue(member, out var constant) => Constant(constant),
-            Member member when checker.Types[member.Receiver].Element is not null => $"([long]({RawExpr(member.Receiver)}).Count)",
-            Member member when checker.Types[member.Receiver].DictionaryKey is not null => $"([long]({RawExpr(member.Receiver)})['entries'].Count)",
-            Member member => $"(({RawExpr(member.Receiver)})[{Quote(checker.Fields[member].Key)}])",
+            Member member => EmitMember(member),
             Unary unary => unary.Token.Text == "!"
                 ? $"(-not {Expr(unary.Value)})"
                 : checker.Types[unary] == ValueType.Float
@@ -81,6 +77,22 @@ namespace Rukbat
             Call call => Call(call),
             _ => throw new InvalidOperationException("Unbound expression.")
         };
+
+        private static readonly IReadOnlyDictionary<MemberKind, Func<Emitter, Member, BoundMember, string>> MemberEmitters =
+            new Dictionary<MemberKind, Func<Emitter, Member, BoundMember, string>>
+            {
+                [MemberKind.EnumMember] = static (_, _, binding) => Quote(binding.EnumMember!.Token.Text),
+                [MemberKind.StandardConstant] = static (_, _, binding) => Constant(binding.Constant!),
+                [MemberKind.ArrayLength] = static (emitter, member, _) => $"([long]({emitter.RawExpr(member.Receiver)}).Count)",
+                [MemberKind.DictionaryLength] = static (emitter, member, _) => $"([long]({emitter.RawExpr(member.Receiver)})['entries'].Count)",
+                [MemberKind.Field] = static (emitter, member, binding) => $"(({emitter.RawExpr(member.Receiver)})[{Quote(binding.Field!.Key)}])"
+            };
+
+        private string EmitMember(Member member)
+        {
+            var binding = checker.Members[member];
+            return MemberEmitters[binding.Kind](this, member, binding);
+        }
 
         private static string Constant(StandardConstant constant) => constant.Definition switch
         {

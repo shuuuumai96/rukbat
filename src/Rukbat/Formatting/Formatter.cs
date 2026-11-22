@@ -32,7 +32,7 @@ namespace Rukbat
         {
             var items = new List<Item>();
             var end = 0;
-            foreach (var token in tokens.Where(token => token.Text != "<eof>"))
+            foreach (var token in tokens.Where(token => token.Text != TokenFacts.EndOfFile))
             {
                 if (token.Offset > end)
                 {
@@ -200,58 +200,30 @@ namespace Rukbat
                         NewLine();
                         commentContinuation = false;
                         break;
-                    case "(":
-                        Append("(", syntax.ExpressionOpenings.Contains(item.Offset) && NeedsWordSpace(previous));
+                    case "(" or "[":
+                        Append(token, syntax.ExpressionOpenings.Contains(item.Offset) && NeedsWordSpace(previous));
                         continuations.Push(indentation);
                         break;
-                    case ")":
+                    case ")" or "]":
                         continuations.Pop();
                         TrimSpace(line);
-                        Append(")", indentContinuation: false);
+                        Append(token, indentContinuation: false);
                         break;
-                    case "[":
-                        Append("[", syntax.ExpressionOpenings.Contains(item.Offset) && NeedsWordSpace(previous));
-                        continuations.Push(indentation);
-                        break;
-                    case "]":
-                        continuations.Pop();
+                    case "," or ":":
                         TrimSpace(line);
-                        Append("]", indentContinuation: false);
-                        break;
-                    case ",":
-                        TrimSpace(line);
-                        Append(",");
+                        Append(token);
                         Space();
                         break;
-                    case ".":
+                    case "." or "?":
+                    case "<" or ">" when syntax.GenericDelimiters.Contains(item.Offset):
                         TrimSpace(line);
-                        Append(".");
-                        break;
-                    case ":":
-                        TrimSpace(line);
-                        Append(":");
-                        Space();
-                        break;
-                    case "?":
-                        TrimSpace(line);
-                        Append("?");
-                        break;
-                    case "<" when syntax.GenericDelimiters.Contains(item.Offset):
-                        TrimSpace(line);
-                        Append("<");
-                        break;
-                    case ">" when syntax.GenericDelimiters.Contains(item.Offset):
-                        TrimSpace(line);
-                        Append(">");
+                        Append(token);
                         break;
                     case "!":
-                        Append("!", NeedsWordSpace(previous));
-                        break;
                     case "+" or "-" when syntax.UnaryOperators.Contains(item.Offset):
                         Append(token, NeedsWordSpace(previous));
                         break;
-                    case ":=" or "=" or "==" or "!=" or "<=" or ">=" or "<" or ">" or
-                         "+" or "-" or "*" or "/" or "%" or "&&" or "||":
+                    case string _ when TokenFacts.IsOperator(token):
                         Space();
                         Append(token);
                         Space();
@@ -311,11 +283,7 @@ namespace Rukbat
 
         private static bool NeedsWordSpace(string? previous) => previous is not null &&
             previous is not ("(" or "[" or "." or "<" or "!" or "+" or "-") &&
-            !IsOperator(previous);
-
-        private static bool IsOperator(string token) => token is
-            ":=" or "=" or "==" or "!=" or "<=" or ">=" or "<" or ">" or
-            "+" or "-" or "*" or "/" or "%" or "&&" or "||";
+            !TokenFacts.IsOperator(previous);
 
         private static string? NextToken(List<Item> items, int index)
         {

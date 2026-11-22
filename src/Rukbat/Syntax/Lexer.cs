@@ -4,6 +4,17 @@ namespace Rukbat
 {
     internal sealed class Lexer(Source source)
     {
+        private const string SingleCharacterTokens = "(){}[]:,.=+-*/%!<>;?";
+        private static readonly IReadOnlyDictionary<char, char> Escapes = new Dictionary<char, char>
+        {
+            ['n'] = '\n',
+            ['r'] = '\r',
+            ['t'] = '\t',
+            ['\\'] = '\\',
+            ['\''] = '\'',
+            ['"'] = '"'
+        };
+
         private int position;
         public List<Token> Scan()
         {
@@ -96,18 +107,14 @@ namespace Rukbat
                             }
 
                             next = source.Text[position++];
-                            if (next is not ('n' or 'r' or 't' or '\\' or '\'' or '"'))
+                            if (Escapes.TryGetValue(next, out var decoded))
+                            {
+                                next = decoded;
+                            }
+                            else
                             {
                                 source.Error(DiagnosticCode.SyntaxError, $"Unsupported escape '\\{next}'.", new("", position - 2));
                             }
-
-                            next = next switch
-                            {
-                                'n' => '\n',
-                                'r' => '\r',
-                                't' => '\t',
-                                _ => next
-                            };
                         }
                         value.Append(next);
                     }
@@ -121,12 +128,12 @@ namespace Rukbat
                 else
                 {
                     var pair = c.ToString() + Peek();
-                    if (pair is ":=" or "==" or "!=" or "<=" or ">=" or "&&" or "||")
+                    if (TokenFacts.IsOperator(pair))
                     {
                         position++;
                         tokens.Add(new(pair, start));
                     }
-                    else if ("(){}[]:,.=+-*/%!<>;?".Contains(c))
+                    else if (SingleCharacterTokens.Contains(c))
                     {
                         tokens.Add(new(c.ToString(), start));
                     }
@@ -138,8 +145,8 @@ namespace Rukbat
                     }
                 }
             }
-            tokens.Add(new("<eof>", source.Text.Length));
-            source.FirstCodeOffset = tokens.FirstOrDefault(token => token.Text is not ("\n" or "<eof>"))?.Offset ?? source.Text.Length;
+            tokens.Add(new(TokenFacts.EndOfFile, source.Text.Length));
+            source.FirstCodeOffset = tokens.FirstOrDefault(token => token.Text is not ("\n" or TokenFacts.EndOfFile))?.Offset ?? source.Text.Length;
             return tokens;
         }
 

@@ -15,7 +15,7 @@ namespace Rukbat
             public IEnumerable<EditorSymbol> Visible(int offset, bool insideFunction = false)
             {
                 insideFunction |= Function;
-                var own = Symbols.Where(s => s.Kind is not (6 or 21) || s.AvailableFrom < offset || Parent is null && insideFunction).ToList();
+                var own = Symbols.Where(s => s.Kind is not (CompletionKind.Variable or CompletionKind.Constant) || s.AvailableFrom < offset || Parent is null && insideFunction).ToList();
                 return own.Concat(Parent?.Visible(offset, insideFunction) ?? []).DistinctBy(s => s.Name);
             }
         }
@@ -86,7 +86,7 @@ namespace Rukbat
 
                     foreach (var import in module.Statements.OfType<Import>())
                     {
-                        var symbol = new EditorSymbol(import.Name, $"import {import.Path}", 9,
+                        var symbol = new EditorSymbol(import.Name, $"import {import.Path}", CompletionKind.Module,
                             module.Imports[import.Name].Documentation.Overview?.Markdown ?? "", Module: module, Declaration: import.NameToken, IsFixed: import.IsStandard);
                         root.Symbols.Add(symbol);
                         Add(module, import.NameToken, symbol);
@@ -115,18 +115,18 @@ namespace Rukbat
             {
                 var parameters = string.Join(", ", function.Function.Parameters.Select(p => $"{p.Token.Text}: {checker.DeclaredTypes[p]}"));
                 var result = function.ReturnType == ValueType.Void ? "" : $": {function.ReturnType}";
-                symbols[function] = new(function.Function.Name, $"fn {function.Function.Name}({parameters}){result}", 3,
+                symbols[function] = new(function.Function.Name, $"fn {function.Function.Name}({parameters}){result}", CompletionKind.Function,
                     Description(function.Module, function.Function),
                     Module: function.Module, Declaration: function.Function.Token);
             }
             foreach (var structure in Modules.SelectMany(m => m.Structs.Values).Append(checker.ErrorStructure))
             {
-                symbols[structure] = new(structure.Declaration.Token.Text, $"struct {structure.Type}", 22,
+                symbols[structure] = new(structure.Declaration.Token.Text, $"struct {structure.Type}", CompletionKind.Struct,
                     Description(structure.Module, structure.Declaration),
                     Module: structure.Module, Declaration: structure.Declaration.Token, Type: structure.BoundType);
                 foreach (var field in structure.Fields.Values)
                 {
-                    symbols[field] = new(field.Field.Token.Text, $"{field.Field.Token.Text}: {field.Type}", 5,
+                    symbols[field] = new(field.Field.Token.Text, $"{field.Field.Token.Text}: {field.Type}", CompletionKind.Field,
                         Description(structure.Module, field.Field),
                         Module: structure.Module, Declaration: field.Field.Token, Type: field.Type);
                 }
@@ -134,11 +134,11 @@ namespace Rukbat
             foreach (var enumeration in Modules.SelectMany(m => m.Enums.Values))
             {
                 var declaration = enumeration.Declaration;
-                symbols[enumeration] = new(declaration.Token.Text, $"enum {enumeration.Type}", 13,
+                symbols[enumeration] = new(declaration.Token.Text, $"enum {enumeration.Type}", CompletionKind.Enum,
                     Description(enumeration.Module, declaration), Module: enumeration.Module, Declaration: declaration.Token);
                 foreach (var member in enumeration.Members.Values)
                 {
-                    symbols[member] = new(member.Token.Text, $"{enumeration.Type}.{member.Token.Text}: {enumeration.Type}", 20,
+                    symbols[member] = new(member.Token.Text, $"{enumeration.Type}.{member.Token.Text}: {enumeration.Type}", CompletionKind.EnumMember,
                         Description(enumeration.Module, member), Module: enumeration.Module, Declaration: member.Token, Type: enumeration.Type);
                 }
             }
@@ -146,7 +146,7 @@ namespace Rukbat
             foreach (var (node, variable) in checker.Variables.Where(p => p.Key is Variable or Parameter or For or Catch))
             {
                 // The module is attached when its declaration is visited below.
-                symbols[variable] = new(variable.Name, $"{(variable.IsConst ? "const " : "")}{variable.Name}: {variable.Type}", variable.IsConst ? 21 : 6,
+                symbols[variable] = new(variable.Name, $"{(variable.IsConst ? "const " : "")}{variable.Name}: {variable.Type}", variable.IsConst ? CompletionKind.Constant : CompletionKind.Variable,
                     Declaration: node.Token, Type: variable.Type, IsModuleVariable: variable.IsGlobal);
             }
         }
@@ -199,215 +199,278 @@ namespace Rukbat
             Add(scope.Module, node.Token, symbol);
         }
         private void Add(Module module, Token token, EditorSymbol symbol) => occurrences.Add(new(module, token, symbol));
+        private readonly record struct VisitContext(LanguageAnalysis Analysis, Scope Scope);
+
+        private static readonly NodeHandlers<VisitContext> StatementVisitors = new(
+            NodeHandlers<VisitContext>.For<Function>(static (context, node) => context.Analysis.VisitFunction(node, context.Scope)),
+            NodeHandlers<VisitContext>.For<EnumDeclaration>(static (context, node) => context.Analysis.VisitEnumDeclaration(node, context.Scope)),
+            NodeHandlers<VisitContext>.For<StructDeclaration>(static (context, node) => context.Analysis.VisitStructDeclaration(node, context.Scope)),
+            NodeHandlers<VisitContext>.For<ImplDeclaration>(static (context, node) => context.Analysis.VisitImplDeclaration(node, context.Scope)),
+            NodeHandlers<VisitContext>.For<Variable>(static (context, node) => context.Analysis.VisitVariable(node, context.Scope)),
+            NodeHandlers<VisitContext>.For<Assignment>(static (context, node) => context.Analysis.VisitAssignment(node, context.Scope)),
+            NodeHandlers<VisitContext>.For<FieldAssignment>(static (context, node) => context.Analysis.VisitFieldAssignment(node, context.Scope)),
+            NodeHandlers<VisitContext>.For<IndexAssignment>(static (context, node) => context.Analysis.VisitIndexAssignment(node, context.Scope)),
+            NodeHandlers<VisitContext>.For<ExpressionStatement>(static (context, node) => context.Analysis.VisitExpressionStatement(node, context.Scope)),
+            NodeHandlers<VisitContext>.For<Return>(static (context, node) => context.Analysis.VisitReturn(node, context.Scope)),
+            NodeHandlers<VisitContext>.For<Throw>(static (context, node) => context.Analysis.VisitThrow(node, context.Scope)),
+            NodeHandlers<VisitContext>.For<For>(static (context, node) => context.Analysis.VisitFor(node, context.Scope)),
+            NodeHandlers<VisitContext>.For<While>(static (context, node) => context.Analysis.VisitWhile(node, context.Scope)),
+            NodeHandlers<VisitContext>.For<Conditional>(static (context, node) => context.Analysis.VisitConditional(node, context.Scope)),
+            NodeHandlers<VisitContext>.For<TryCatch>(static (context, node) => context.Analysis.VisitTryCatch(node, context.Scope)));
+
+        private static readonly NodeHandlers<VisitContext> ExpressionVisitors = new(
+            NodeHandlers<VisitContext>.For<Name>(static (context, node) => context.Analysis.VisitName(node, context.Scope)),
+            NodeHandlers<VisitContext>.For<Member>(static (context, node) => context.Analysis.VisitMember(node, context.Scope)),
+            NodeHandlers<VisitContext>.For<Call>(static (context, node) => context.Analysis.VisitCall(node, context.Scope)),
+            NodeHandlers<VisitContext>.For<Binary>(static (context, node) => context.Analysis.VisitBinary(node, context.Scope)),
+            NodeHandlers<VisitContext>.For<Unary>(static (context, node) => context.Analysis.VisitUnary(node, context.Scope)),
+            NodeHandlers<VisitContext>.For<ArrayLiteral>(static (context, node) => context.Analysis.VisitArrayLiteral(node, context.Scope)),
+            NodeHandlers<VisitContext>.For<DictionaryLiteral>(static (context, node) => context.Analysis.VisitDictionaryLiteral(node, context.Scope)),
+            NodeHandlers<VisitContext>.For<Index>(static (context, node) => context.Analysis.VisitIndex(node, context.Scope)));
+
         private void WalkStatements(List<Statement> statements, Scope scope)
         {
             foreach (var statement in statements)
             {
-                switch (statement)
+                StatementVisitors.DispatchIfRegistered(new(this, scope), statement);
+            }
+        }
+
+        private void Walk(Expression expression, Scope scope) => ExpressionVisitors.DispatchIfRegistered(new(this, scope), expression);
+
+        private void VisitFunction(Function function, Scope scope)
+        {
+            Add(scope.Module, function.Token, symbols[checker!.Functions[function]]);
+            var local = Block(function.Body, scope, function: true);
+            if (checker.Functions[function].Owner is { } owner)
+            {
+                local.Symbols.Add(new("self", $"self: {owner.Type}", CompletionKind.Variable, Module: scope.Module, Declaration: function.Token, Type: owner.BoundType));
+            }
+
+            foreach (var parameter in function.Parameters)
+            {
+                Declare(parameter, local);
+            }
+
+            WalkStatements(function.Body, local);
+        }
+
+        private void VisitEnumDeclaration(EnumDeclaration enumeration, Scope scope)
+        {
+            if (scope.Module.Enums.TryGetValue(enumeration.Token.Text, out var boundEnum) && boundEnum.Declaration == enumeration)
+            {
+                Add(scope.Module, enumeration.Token, symbols[boundEnum]);
+                foreach (var member in boundEnum.Members.Values)
                 {
-                    case Function function:
-                        Add(scope.Module, function.Token, symbols[checker!.Functions[function]]);
-                        var local = Block(function.Body, scope, function: true);
-                        if (checker.Functions[function].Owner is { } owner)
-                        {
-                            local.Symbols.Add(new("self", $"self: {owner.Type}", 6, Module: scope.Module, Declaration: function.Token, Type: owner.BoundType));
-                        }
-
-                        foreach (var parameter in function.Parameters)
-                        {
-                            Declare(parameter, local);
-                        }
-
-                        WalkStatements(function.Body, local);
-                        break;
-                    case EnumDeclaration enumeration:
-                        if (scope.Module.Enums.TryGetValue(enumeration.Token.Text, out var boundEnum) && boundEnum.Declaration == enumeration)
-                        {
-                            Add(scope.Module, enumeration.Token, symbols[boundEnum]);
-                            foreach (var member in boundEnum.Members.Values)
-                            {
-                                Add(scope.Module, member.Token, symbols[member]);
-                            }
-                        }
-                        break;
-                    case StructDeclaration structure:
-                        if (!scope.Module.Structs.TryGetValue(structure.Token.Text, out var bound))
-                        {
-                            break;
-                        }
-
-                        Add(scope.Module, structure.Token, symbols[bound]);
-                        foreach (var field in bound.Fields.Values)
-                        {
-                            Add(scope.Module, field.Field.Token, symbols[field]);
-                        }
-
-                        break;
-                    case ImplDeclaration implementation:
-                        if (!checker!.Implementations.TryGetValue(implementation, out var implemented))
-                        {
-                            break;
-                        }
-
-                        Add(scope.Module, implementation.Token, symbols[implemented]);
-                        WalkStatements(implementation.Methods.Cast<Statement>().ToList(), scope);
-                        break;
-                    case Variable variable:
-                        Walk(variable.Value, scope);
-                        Declare(variable, scope);
-                        break;
-                    case Assignment assignment:
-                        if (checker!.Variables.TryGetValue(assignment, out var target) && symbols.TryGetValue(target, out var targetSymbol))
-                        {
-                            Add(scope.Module, assignment.Token, targetSymbol);
-                        }
-
-                        Walk(assignment.Value, scope);
-                        break;
-                    case FieldAssignment assignment:
-                        Walk(assignment.Target, scope);
-                        Walk(assignment.Value, scope);
-                        break;
-                    case IndexAssignment assignment:
-                        Walk(assignment.Target, scope);
-                        Walk(assignment.Value, scope);
-                        break;
-                    case ExpressionStatement expression:
-                        Walk(expression.Value, scope);
-                        break;
-                    case Return result when result.Value is not null:
-                        Walk(result.Value, scope);
-                        break;
-                    case Throw failure:
-                        Walk(failure.Value, scope);
-                        break;
-                    case For loop:
-                        Walk(loop.Items, scope);
-                        var loopScope = Block(loop.Body, scope);
-                        Declare(loop, loopScope);
-                        WalkStatements(loop.Body, loopScope);
-                        break;
-                    case While loop:
-                        Walk(loop.Condition, scope);
-                        WalkStatements(loop.Body, Block(loop.Body, scope));
-                        break;
-                    case Conditional condition:
-                        Walk(condition.Condition, scope);
-                        WalkStatements(condition.Then, Block(condition.Then, scope));
-                        WalkStatements(condition.Else, Block(condition.Else, scope));
-                        break;
-                    case TryCatch guarded:
-                        WalkStatements(guarded.Body, Block(guarded.Body, scope));
-                        var handler = Block(guarded.Handler.Body, scope);
-                        Declare(guarded.Handler, handler);
-                        WalkStatements(guarded.Handler.Body, handler);
-                        break;
+                    Add(scope.Module, member.Token, symbols[member]);
                 }
             }
         }
-        private void Walk(Expression expression, Scope scope)
+
+        private void VisitStructDeclaration(StructDeclaration structure, Scope scope)
         {
-            switch (expression)
+            if (!scope.Module.Structs.TryGetValue(structure.Token.Text, out var bound))
             {
-                case Name name:
-                    if (checker!.Variables.TryGetValue(name, out var variable))
-                    {
-                        if (symbols.TryGetValue(variable, out var symbol))
-                        {
-                            var type = checker.Types.GetValueOrDefault(name, variable.Type);
-                            Add(scope.Module, name.Token, symbol with
-                            {
-                                Detail = $"{(variable.IsConst ? "const " : "")}{name.Token.Text}: {type}",
-                                Type = type
-                            });
-                        }
-                        else if (name.Token.Text == "self")
-                        {
-                            Add(scope.Module, name.Token, scope.Visible(name.Token.Offset).First(s => s.Name == "self"));
-                        }
-                    }
-                    else if (scope.Module.Imports.ContainsKey(name.Token.Text))
-                    {
-                        Add(scope.Module, name.Token, scopes.First(s => s.Module == scope.Module && s.Parent is null).Symbols.First(s => s.Name == name.Token.Text));
-                    }
-
-                    break;
-                case Member member:
-                    Walk(member.Receiver, scope);
-                    if (checker!.EnumQualifiers.TryGetValue(member.Receiver, out var enumeration))
-                    {
-                        Add(scope.Module, member.Receiver.Token, symbols[enumeration]);
-                    }
-
-                    if (checker.EnumMembers.TryGetValue(member, out var enumMember))
-                    {
-                        Add(scope.Module, member.Token, symbols[enumMember]);
-                    }
-                    else if (checker.Constants.TryGetValue(member, out var constant))
-                    {
-                        Add(scope.Module, member.Token, EditorCatalog.Constant(constant));
-                    }
-                    else if (checker.Fields.TryGetValue(member, out var field))
-                    {
-                        Add(scope.Module, member.Token, symbols[field]);
-                    }
-                    else if (member.Name == "length" && checker.Types.GetValueOrDefault(member.Receiver) is { DictionaryKey: not null } dictionaryType)
-                    {
-                        Add(scope.Module, member.Token, EditorCatalog.DictionaryMembers(dictionaryType).First(s => s.Name == "length"));
-                    }
-                    else if (member.Name == "length" && checker.Types.GetValueOrDefault(member.Receiver)?.Element is not null)
-                    {
-                        Add(scope.Module, member.Token, new("length", "length: int", 5, "The number of array elements."));
-                    }
-
-                    break;
-                case Call call:
-                    if (call.Receiver is not null)
-                    {
-                        Walk(call.Receiver, scope);
-                    }
-
-                    if (FindCallSymbol(call) is { } callable)
-                    {
-                        Add(scope.Module, call.Token, callable);
-                    }
-
-                    foreach (var argument in call.Arguments)
-                    {
-                        if (checker!.ConstructionFields.TryGetValue(argument, out var argumentField))
-                        {
-                            Add(scope.Module, argument.Token, symbols[argumentField]);
-                        }
-
-                        Walk(argument.Value, scope);
-                    }
-                    break;
-                case Binary binary:
-                    Walk(binary.Left, scope);
-                    Walk(binary.Right, scope);
-                    break;
-                case Unary unary:
-                    Walk(unary.Value, scope);
-                    break;
-                case ArrayLiteral array:
-                    foreach (var item in array.Items)
-                    {
-                        Walk(item, scope);
-                    }
-
-                    break;
-                case DictionaryLiteral dictionary:
-                    foreach (var entry in dictionary.Entries)
-                    {
-                        Walk(entry.Key, scope);
-                        Walk(entry.Value, scope);
-                    }
-                    break;
-                case Index index:
-                    Walk(index.Receiver, scope);
-                    Walk(index.Offset, scope);
-                    break;
+                return;
             }
+
+            Add(scope.Module, structure.Token, symbols[bound]);
+            foreach (var field in bound.Fields.Values)
+            {
+                Add(scope.Module, field.Field.Token, symbols[field]);
+            }
+        }
+
+        private void VisitImplDeclaration(ImplDeclaration implementation, Scope scope)
+        {
+            if (!checker!.Implementations.TryGetValue(implementation, out var implemented))
+            {
+                return;
+            }
+
+            Add(scope.Module, implementation.Token, symbols[implemented]);
+            WalkStatements(implementation.Methods.Cast<Statement>().ToList(), scope);
+        }
+
+        private void VisitVariable(Variable variable, Scope scope)
+        {
+            Walk(variable.Value, scope);
+            Declare(variable, scope);
+        }
+
+        private void VisitAssignment(Assignment assignment, Scope scope)
+        {
+            if (checker!.Variables.TryGetValue(assignment, out var target) && symbols.TryGetValue(target, out var targetSymbol))
+            {
+                Add(scope.Module, assignment.Token, targetSymbol);
+            }
+
+            Walk(assignment.Value, scope);
+        }
+
+        private void VisitFieldAssignment(FieldAssignment assignment, Scope scope)
+        {
+            Walk(assignment.Target, scope);
+            Walk(assignment.Value, scope);
+        }
+
+        private void VisitIndexAssignment(IndexAssignment assignment, Scope scope)
+        {
+            Walk(assignment.Target, scope);
+            Walk(assignment.Value, scope);
+        }
+
+        private void VisitExpressionStatement(ExpressionStatement expression, Scope scope)
+        {
+            Walk(expression.Value, scope);
+        }
+
+        private void VisitReturn(Return result, Scope scope)
+        {
+            if (result.Value is { } value)
+            {
+                Walk(value, scope);
+            }
+        }
+
+        private void VisitThrow(Throw failure, Scope scope)
+        {
+            Walk(failure.Value, scope);
+        }
+
+        private void VisitFor(For loop, Scope scope)
+        {
+            Walk(loop.Items, scope);
+            var loopScope = Block(loop.Body, scope);
+            Declare(loop, loopScope);
+            WalkStatements(loop.Body, loopScope);
+        }
+
+        private void VisitWhile(While loop, Scope scope)
+        {
+            Walk(loop.Condition, scope);
+            WalkStatements(loop.Body, Block(loop.Body, scope));
+        }
+
+        private void VisitConditional(Conditional condition, Scope scope)
+        {
+            Walk(condition.Condition, scope);
+            WalkStatements(condition.Then, Block(condition.Then, scope));
+            WalkStatements(condition.Else, Block(condition.Else, scope));
+        }
+
+        private void VisitTryCatch(TryCatch guarded, Scope scope)
+        {
+            WalkStatements(guarded.Body, Block(guarded.Body, scope));
+            var handler = Block(guarded.Handler.Body, scope);
+            Declare(guarded.Handler, handler);
+            WalkStatements(guarded.Handler.Body, handler);
+        }
+
+        private void VisitName(Name name, Scope scope)
+        {
+            if (checker!.Variables.TryGetValue(name, out var variable))
+            {
+                if (symbols.TryGetValue(variable, out var symbol))
+                {
+                    var type = checker.Types.GetValueOrDefault(name, variable.Type);
+                    Add(scope.Module, name.Token, symbol with
+                    {
+                        Detail = $"{(variable.IsConst ? "const " : "")}{name.Token.Text}: {type}",
+                        Type = type
+                    });
+                }
+                else if (name.Token.Text == "self")
+                {
+                    Add(scope.Module, name.Token, scope.Visible(name.Token.Offset).First(s => s.Name == "self"));
+                }
+            }
+            else if (scope.Module.Imports.ContainsKey(name.Token.Text))
+            {
+                Add(scope.Module, name.Token, scopes.First(s => s.Module == scope.Module && s.Parent is null).Symbols.First(s => s.Name == name.Token.Text));
+            }
+        }
+
+        private static readonly IReadOnlyDictionary<MemberKind, Func<LanguageAnalysis, BoundMember, EditorSymbol>> MemberReaders =
+            new Dictionary<MemberKind, Func<LanguageAnalysis, BoundMember, EditorSymbol>>
+            {
+                [MemberKind.EnumMember] = static (analysis, binding) => analysis.symbols[binding.EnumMember!],
+                [MemberKind.StandardConstant] = static (_, binding) => EditorCatalog.Constant(binding.Constant!),
+                [MemberKind.Field] = static (analysis, binding) => analysis.symbols[binding.Field!],
+                [MemberKind.ArrayLength] = static (_, _) => EditorCatalog.ArrayLength,
+                [MemberKind.DictionaryLength] = static (_, _) => EditorCatalog.DictionaryLength
+            };
+
+        private void VisitMember(Member member, Scope scope)
+        {
+            Walk(member.Receiver, scope);
+            if (checker!.EnumQualifiers.TryGetValue(member.Receiver, out var enumeration))
+            {
+                Add(scope.Module, member.Receiver.Token, symbols[enumeration]);
+            }
+
+            var binding = checker.Members.GetValueOrDefault(member);
+            if (MemberReaders.TryGetValue(binding.Kind, out var read))
+            {
+                Add(scope.Module, member.Token, read(this, binding));
+            }
+        }
+
+        private void VisitCall(Call call, Scope scope)
+        {
+            if (call.Receiver is not null)
+            {
+                Walk(call.Receiver, scope);
+            }
+
+            if (FindCallSymbol(call) is { } callable)
+            {
+                Add(scope.Module, call.Token, callable);
+            }
+
+            foreach (var argument in call.Arguments)
+            {
+                if (checker!.ConstructionFields.TryGetValue(argument, out var argumentField))
+                {
+                    Add(scope.Module, argument.Token, symbols[argumentField]);
+                }
+
+                Walk(argument.Value, scope);
+            }
+        }
+
+        private void VisitBinary(Binary binary, Scope scope)
+        {
+            Walk(binary.Left, scope);
+            Walk(binary.Right, scope);
+        }
+
+        private void VisitUnary(Unary unary, Scope scope)
+        {
+            Walk(unary.Value, scope);
+        }
+
+        private void VisitArrayLiteral(ArrayLiteral array, Scope scope)
+        {
+            foreach (var item in array.Items)
+            {
+                Walk(item, scope);
+            }
+        }
+
+        private void VisitDictionaryLiteral(DictionaryLiteral dictionary, Scope scope)
+        {
+            foreach (var entry in dictionary.Entries)
+            {
+                Walk(entry.Key, scope);
+                Walk(entry.Value, scope);
+            }
+        }
+
+        private void VisitIndex(Index index, Scope scope)
+        {
+            Walk(index.Receiver, scope);
+            Walk(index.Offset, scope);
         }
 
         private EditorSymbol? FindCallSymbol(Call call)
@@ -419,7 +482,7 @@ namespace Rukbat
                 CallKind.StructLiteral => symbols[binding.Structure!],
                 CallKind.Standard => FindStandardCallSymbol(call, binding.StandardOperation!),
                 CallKind.DictionaryMethod => EditorCatalog.DictionaryMembers(checker.Types[call.Receiver!]).First(symbol => symbol.Name == call.Name),
-                CallKind.ArrayAppend => new("append", $"append(value: {checker.Types[call.Receiver!].Element}): void", 3),
+                CallKind.ArrayAppend => EditorCatalog.ArrayAppend(checker.Types[call.Receiver!].Element!),
                 _ => call.Receiver is null ? EditorCatalog.Builtins.FirstOrDefault(symbol => symbol.Name == call.Name) : null
             };
         }
@@ -457,7 +520,7 @@ namespace Rukbat
             {
                 if (module.TypeQualifiers?.TryGetValue(syntaxType, out var qualifier) == true)
                 {
-                    var import = scopes.First(s => s.Module == module && s.Parent is null).Symbols.FirstOrDefault(s => s.Kind == 9 && s.Name == qualifier.Text);
+                    var import = scopes.First(s => s.Module == module && s.Parent is null).Symbols.FirstOrDefault(s => s.Kind == CompletionKind.Module && s.Name == qualifier.Text);
                     if (import is not null)
                     {
                         Add(module, qualifier, import);
@@ -497,7 +560,7 @@ namespace Rukbat
                     offset >= d.Node.Token.Offset && offset < d.Node.Token.Offset + d.Node.Token.Text.Length);
                 if (declaration is not null && Entry.Documentation.Comments.ContainsKey(declaration.Node))
                 {
-                    found = new(Entry, declaration.Node.Token, new(declaration.Name, declaration.Name, 3,
+                    found = new(Entry, declaration.Node.Token, new(declaration.Name, declaration.Name, CompletionKind.Function,
                         Description(Entry, declaration.Node), Module: Entry, Declaration: declaration.Node.Token));
                 }
             }
@@ -556,12 +619,12 @@ namespace Rukbat
                         ? structure.Fields.Values.Select(f => symbols[f]).Concat(structure.Methods.Values.Select(f => symbols[f]))
                         : type?.DictionaryKey is not null ? EditorCatalog.DictionaryMembers(type)
                         : type?.Element is { } element
-                            ? [new("length", "length: int", 5), new("append", $"append(value: {element}): void", 3)] : [];
+                            ? [EditorCatalog.ArrayLength, EditorCatalog.ArrayAppend(element)] : [];
                 }
             }
             else
             {
-                candidates = (scope?.Visible(offset) ?? []).Concat(EditorCatalog.Builtins).Concat(EditorCatalog.Keywords.Select(k => new EditorSymbol(k, k, 14)));
+                candidates = (scope?.Visible(offset) ?? []).Concat(EditorCatalog.Builtins).Concat(EditorCatalog.Keywords.Select(k => new EditorSymbol(k, k, CompletionKind.Keyword)));
             }
 
             return candidates.Where(s => s.Name.StartsWith(prefix, StringComparison.Ordinal)).DistinctBy(s => s.Name).OrderBy(s => s.Name);

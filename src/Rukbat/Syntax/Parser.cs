@@ -81,7 +81,7 @@ namespace Rukbat
             try
             {
                 Separators();
-                while (Current.Text != "<eof>")
+                while (Current.Text != TokenFacts.EndOfFile)
                 {
                     var start = Current.Offset;
                     var statement = Statement();
@@ -104,7 +104,7 @@ namespace Rukbat
 
         private void EndStatement()
         {
-            if (Current.Text is not ("\n" or ";" or "}" or "<eof>"))
+            if (Current.Text is not ("\n" or ";" or "}" or TokenFacts.EndOfFile))
             {
                 Fail("Expected a newline or ';' between statements.");
             }
@@ -118,7 +118,7 @@ namespace Rukbat
             var opening = Expect("{");
             Separators();
             var statements = new List<Statement>();
-            while (Current.Text is not ("}" or "<eof>"))
+            while (Current.Text is not ("}" or TokenFacts.EndOfFile))
             {
                 var start = Current.Offset;
                 var statement = Statement();
@@ -219,7 +219,7 @@ namespace Rukbat
             Expect("{");
             Separators();
             var fields = new List<Field>();
-            while (Current.Text is not ("}" or "<eof>"))
+            while (Current.Text is not ("}" or TokenFacts.EndOfFile))
             {
                 var start = Current.Offset;
                 if (Current.Text == "fn")
@@ -245,7 +245,7 @@ namespace Rukbat
             Expect("{");
             Separators();
             var members = new List<EnumMember>();
-            while (Current.Text is not ("}" or "<eof>"))
+            while (Current.Text is not ("}" or TokenFacts.EndOfFile))
             {
                 var member = new EnumMember(Identifier());
                 members.Add(member);
@@ -263,7 +263,7 @@ namespace Rukbat
             Expect("{");
             Separators();
             var methods = new List<Function>();
-            while (Current.Text is not ("}" or "<eof>"))
+            while (Current.Text is not ("}" or TokenFacts.EndOfFile))
             {
                 var start = Current.Offset;
                 if (!Match("fn"))
@@ -294,7 +294,7 @@ namespace Rukbat
                 ["impl"] = static (parser, _) => parser.ImplementationDeclaration(),
                 ["fn"] = static (parser, _) => parser.FunctionDeclaration(),
                 ["return"] = static (parser, token) => new Return(token,
-                    parser.Current.Text is "\n" or ";" or "}" or "<eof>" ? null : parser.Expression()),
+                    parser.Current.Text is "\n" or ";" or "}" or TokenFacts.EndOfFile ? null : parser.Expression()),
                 ["throw"] = static (parser, token) => new Throw(token, parser.Expression()),
                 ["try"] = static (parser, token) => parser.TryStatement(token),
                 ["for"] = static (parser, _) => parser.ForStatement(),
@@ -409,26 +409,15 @@ namespace Rukbat
             return new Import(token, alias.Text, nameToken.Text, true) { NameToken = alias };
         }
 
-        private static int Precedence(string op) => op switch
-        {
-            "||" => 1,
-            "&&" => 2,
-            "==" or "!=" => 3,
-            "<" or "<=" or ">" or ">=" => 4,
-            "+" or "-" => 5,
-            "*" or "/" or "%" => 6,
-            _ => 0
-        };
-
         private Expression Expression(bool allowStructLiteral = true, int minimum = 1)
         {
             var left = Primary(allowStructLiteral);
-            while (Precedence(Current.Text) >= minimum)
+            for (var precedence = TokenFacts.Precedence(Current.Text); precedence >= minimum; precedence = TokenFacts.Precedence(Current.Text))
             {
                 var op = Take();
                 NewLines();
                 // Consume only stronger operators on the right, keeping equal precedence left-associative.
-                left = new Binary(op, left, Expression(allowStructLiteral, Precedence(op.Text) + 1));
+                left = new Binary(op, left, Expression(allowStructLiteral, precedence + 1));
             }
             return left;
         }

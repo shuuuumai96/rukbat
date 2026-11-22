@@ -46,7 +46,7 @@ namespace Rukbat
 
                     var binding = Calls.GetValueOrDefault(call);
                     writesSelf |= binding.Kind == CallKind.ArrayAppend ||
-                        binding.Kind == CallKind.DictionaryMethod && call.Name == "remove";
+                        binding.Kind == CallKind.DictionaryMethod && call.Name == ContainerMember.Remove;
                     if (binding.Function is { Owner: not null } target)
                     {
                         targets.Add(target);

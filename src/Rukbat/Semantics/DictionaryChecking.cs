@@ -48,9 +48,17 @@ namespace Rukbat
             _ => null
         };
 
+        private static readonly IReadOnlyDictionary<string, (int Arguments, bool Mutates, Func<ValueType, ValueType> Result)> DictionaryMethods =
+            new Dictionary<string, (int, bool, Func<ValueType, ValueType>)>(StringComparer.Ordinal)
+            {
+                [ContainerMember.Has] = (1, false, static _ => ValueType.Bool),
+                [ContainerMember.Remove] = (1, true, static _ => ValueType.Void),
+                [ContainerMember.Keys] = (0, false, ValueType.ArrayOf)
+            };
+
         private ValueType DictionaryCallType(Call call, ValueType receiver, Symbols scope)
         {
-            if (call.Name is not ("has" or "remove" or "keys"))
+            if (!DictionaryMethods.TryGetValue(call.Name, out var operation))
             {
                 foreach (var argument in call.Arguments)
                 {
@@ -66,7 +74,7 @@ namespace Rukbat
                 return ValueType.Error;
             }
 
-            var count = call.Name == "keys" ? 0 : 1;
+            var count = operation.Arguments;
             if (call.Arguments.Count != count || call.Arguments.Any(argument => argument.Name is not null))
             {
                 Error(DiagnosticCode.InvalidCall, $"{call.Name} requires {count} positional arguments.", call);
@@ -77,7 +85,7 @@ namespace Rukbat
                 Match(receiver.DictionaryKey!, TypeOf(argument.Value, scope, receiver.DictionaryKey), argument.Value, "dictionary key");
             }
 
-            if (call.Name == "remove")
+            if (operation.Mutates)
             {
                 RequireWritable(RootVariable(call.Receiver!), call);
                 if (!IsVariablePath(call.Receiver!))
@@ -86,12 +94,7 @@ namespace Rukbat
                 }
             }
             Calls[call] = new(CallKind.DictionaryMethod);
-            return call.Name switch
-            {
-                "keys" => ValueType.ArrayOf(receiver.DictionaryKey!),
-                "has" => ValueType.Bool,
-                _ => ValueType.Void
-            };
+            return operation.Result(receiver.DictionaryKey!);
         }
     }
 }

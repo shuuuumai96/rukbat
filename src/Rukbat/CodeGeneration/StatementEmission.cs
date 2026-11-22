@@ -2,6 +2,20 @@ namespace Rukbat
 {
     internal sealed partial class Emitter
     {
+        private static readonly NodeHandlers<Emitter> StatementEmitters = new(
+            NodeHandlers<Emitter>.For<Variable>(static (emitter, node) => emitter.EmitVariable(node)),
+            NodeHandlers<Emitter>.For<Assignment>(static (emitter, node) => emitter.EmitAssignment(node)),
+            NodeHandlers<Emitter>.For<FieldAssignment>(static (emitter, node) => emitter.Line($"{emitter.Address(node.Target)} = {emitter.Expr(node.Value)}")),
+            NodeHandlers<Emitter>.For<IndexAssignment>(static (emitter, node) => emitter.EmitIndexAssignment(node)),
+            NodeHandlers<Emitter>.For<Return>(static (emitter, node) => emitter.EmitReturn(node)),
+            NodeHandlers<Emitter>.For<Throw>(static (emitter, node) => emitter.Line($"& $script:__rukbat_raise ({emitter.Expr(node.Value)}) {emitter.Location(node)}")),
+            NodeHandlers<Emitter>.For<TryCatch>(static (emitter, node) => emitter.EmitTryCatch(node)),
+            NodeHandlers<Emitter>.For<For>(static (emitter, node) => emitter.EmitFor(node)),
+            NodeHandlers<Emitter>.For<While>(static (emitter, node) => emitter.EmitWhile(node)),
+            NodeHandlers<Emitter>.For<LoopControl>(static (emitter, node) => emitter.Line(node.Token.Text)),
+            NodeHandlers<Emitter>.For<ExpressionStatement>(static (emitter, node) => emitter.EmitExpressionStatement(node)),
+            NodeHandlers<Emitter>.For<Conditional>(static (emitter, node) => emitter.EmitConditional(node)));
+
         private void EmitStatements(List<Statement> statements)
         {
             var outerDebugVariables = debugVariables;
@@ -29,102 +43,105 @@ namespace Rukbat
                 DebugPoint(statement);
                 // A function has its own location variable, so calls cannot overwrite their caller's location.
                 Line($"$__rukbat_location = {Location(statement)}");
-                switch (statement)
-                {
-                    case Variable variable:
-                        var symbol = checker.Variables[variable];
-                        Line($"[{TypeName(symbol.Type)}]{symbol.PowerShellName} = {Expr(variable.Value)}");
-                        debugVariables.RemoveAll(existing => existing.Name == symbol.Name);
-                        debugVariables.Insert(0, symbol);
-                        break;
-                    case Assignment assignment:
-                        Line($"{checker.Variables[assignment].PowerShellName} = {Expr(assignment.Value)}");
-                        break;
-                    case FieldAssignment assignment:
-                        Line($"{Address(assignment.Target)} = {Expr(assignment.Value)}");
-                        break;
-                    case IndexAssignment assignment:
-                        if (checker.Types[assignment.Target.Receiver].DictionaryKey is not null)
-                        {
-                            EmitDictionaryAssignment(assignment);
-                        }
-                        else
-                        {
-                            Line($"{Address(assignment.Target)} = {Expr(assignment.Value)}");
-                        }
-
-                        break;
-                    case Return result:
-                        EmitReturn(result);
-                        break;
-                    case Throw failure:
-                        Line($"& $script:__rukbat_raise ({Expr(failure.Value)}) {Location(failure)}");
-                        break;
-                    case TryCatch guarded:
-                        Line("try {");
-                        indentation++;
-                        EmitStatements(guarded.Body);
-                        indentation--;
-                        Line("} catch {");
-                        indentation++;
-                        Line($"[hashtable]{checker.Variables[guarded.Handler].PowerShellName} = & $script:__rukbat_error $_ $__rukbat_location");
-                        var beforeHandler = debugVariables;
-                        debugVariables = [checker.Variables[guarded.Handler], .. debugVariables];
-                        EmitStatements(guarded.Handler.Body);
-                        debugVariables = beforeHandler;
-                        indentation--;
-                        Line("}");
-                        break;
-                    case For loop:
-                        if (checker.Iterations[loop].Kind == IterationKind.OwnedCursor)
-                        {
-                            EmitOwnedIteration(loop);
-                            break;
-                        }
-                        var item = "$__rukbat_item" + temporaryId++;
-                        Line($"foreach ({item} in {Expr(loop.Items)}) {{");
-                        indentation++;
-                        var loopVariable = checker.Variables[loop];
-                        Line($"[{TypeName(loopVariable.Type)}]{loopVariable.PowerShellName} = {Clone(item, loopVariable.Type)}");
-                        var beforeLoop = debugVariables;
-                        debugVariables = [loopVariable, .. debugVariables];
-                        EmitStatements(loop.Body);
-                        debugVariables = beforeLoop;
-                        indentation--;
-                        Line("}");
-                        break;
-                    case While loop:
-                        Line($"while ({Expr(loop.Condition)}) {{");
-                        indentation++;
-                        EmitStatements(loop.Body);
-                        indentation--;
-                        Line("}");
-                        break;
-                    case LoopControl control:
-                        Line(control.Token.Text);
-                        break;
-                    case ExpressionStatement expression:
-                        // Suppress unused values to prevent PowerShell's implicit function output.
-                        Line($"$null = {Expr(expression.Value)}");
-                        break;
-                    case Conditional conditional:
-                        Line($"if ({Expr(conditional.Condition)}) {{");
-                        indentation++;
-                        EmitStatements(conditional.Then);
-                        indentation--;
-                        Line("}");
-                        if (conditional.Else.Count != 0)
-                        {
-                            Line("else {");
-                            indentation++;
-                            EmitStatements(conditional.Else);
-                            indentation--;
-                            Line("}");
-                        }
-                        break;
-                }
+                StatementEmitters.Dispatch(this, statement);
             }
             debugVariables = outerDebugVariables;
+        }
+
+        private static readonly IReadOnlyDictionary<IterationKind, Action<Emitter, For>> IterationEmitters =
+            new Dictionary<IterationKind, Action<Emitter, For>>
+            {
+                [IterationKind.ArraySnapshot] = static (emitter, loop) => emitter.EmitArrayIteration(loop),
+                [IterationKind.OwnedCursor] = static (emitter, loop) => emitter.EmitOwnedIteration(loop)
+            };
+
+        private void EmitFor(For loop) => IterationEmitters[checker.Iterations[loop].Kind](this, loop);
+
+        private void EmitAssignment(Assignment assignment) =>
+            Line($"{checker.Variables[assignment].PowerShellName} = {Expr(assignment.Value)}");
+
+        private void EmitVariable(Variable variable)
+        {
+            var symbol = checker.Variables[variable];
+            Line($"[{TypeName(symbol.Type)}]{symbol.PowerShellName} = {Expr(variable.Value)}");
+            debugVariables.RemoveAll(existing => existing.Name == symbol.Name);
+            debugVariables.Insert(0, symbol);
+        }
+
+        private void EmitIndexAssignment(IndexAssignment assignment)
+        {
+            if (checker.Types[assignment.Target.Receiver].DictionaryKey is not null)
+            {
+                EmitDictionaryAssignment(assignment);
+            }
+            else
+            {
+                Line($"{Address(assignment.Target)} = {Expr(assignment.Value)}");
+            }
+        }
+
+        private void EmitTryCatch(TryCatch guarded)
+        {
+            Line("try {");
+            indentation++;
+            EmitStatements(guarded.Body);
+            indentation--;
+            Line("} catch {");
+            indentation++;
+            Line($"[hashtable]{checker.Variables[guarded.Handler].PowerShellName} = & $script:__rukbat_error $_ $__rukbat_location");
+            var beforeHandler = debugVariables;
+            debugVariables = [checker.Variables[guarded.Handler], .. debugVariables];
+            EmitStatements(guarded.Handler.Body);
+            debugVariables = beforeHandler;
+            indentation--;
+            Line("}");
+        }
+
+        private void EmitArrayIteration(For loop)
+        {
+            var item = "$__rukbat_item" + temporaryId++;
+            Line($"foreach ({item} in {Expr(loop.Items)}) {{");
+            indentation++;
+            var loopVariable = checker.Variables[loop];
+            Line($"[{TypeName(loopVariable.Type)}]{loopVariable.PowerShellName} = {Clone(item, loopVariable.Type)}");
+            var beforeLoop = debugVariables;
+            debugVariables = [loopVariable, .. debugVariables];
+            EmitStatements(loop.Body);
+            debugVariables = beforeLoop;
+            indentation--;
+            Line("}");
+        }
+
+        private void EmitWhile(While loop)
+        {
+            Line($"while ({Expr(loop.Condition)}) {{");
+            indentation++;
+            EmitStatements(loop.Body);
+            indentation--;
+            Line("}");
+        }
+
+        private void EmitExpressionStatement(ExpressionStatement expression)
+        {
+            // Suppress unused values to prevent PowerShell's implicit function output.
+            Line($"$null = {Expr(expression.Value)}");
+        }
+
+        private void EmitConditional(Conditional conditional)
+        {
+            Line($"if ({Expr(conditional.Condition)}) {{");
+            indentation++;
+            EmitStatements(conditional.Then);
+            indentation--;
+            Line("}");
+            if (conditional.Else.Count != 0)
+            {
+                Line("else {");
+                indentation++;
+                EmitStatements(conditional.Else);
+                indentation--;
+                Line("}");
+            }
         }
 
         private void EmitReturn(Return result)
