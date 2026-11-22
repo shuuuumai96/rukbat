@@ -53,7 +53,7 @@ namespace Rukbat
                     Error("RUK2001", "Sort keys must be a non-null array.", call.Arguments[1]);
                 }
             }
-            StandardCalls[call] = "array." + call.Name;
+            Calls[call] = new(CallKind.Standard, StandardOperation: "array." + call.Name);
             return values.Element is null ? ValueType.Error : values;
         }
 

@@ -64,7 +64,7 @@ namespace Rukbat
 
         private bool ContainsCurrentModuleCall(List<Statement> body) => NestedStatements(body)
             .SelectMany(StatementExpressions).SelectMany(Expressions).OfType<Call>()
-            .Any(call => Calls.TryGetValue(call, out var target) && target.Module == module);
+            .Any(call => Calls.GetValueOrDefault(call).Kind == CallKind.LocalFunction);
 
         private LoopFlow CheckLoopBody(List<Statement> body, Symbols scope, ValueType? returnType,
             FlowState baseline, For? iteration = null, VariableSymbol? nonNullCondition = null)

@@ -28,22 +28,36 @@ namespace Rukbat
             foreach (var method in Functions.Values.Where(function => function.Owner is not null))
             {
                 var statements = NestedStatements(method.Function.Body).ToArray();
-                var calls = statements.SelectMany(StatementExpressions).SelectMany(Expressions).OfType<Call>().ToArray();
                 var writesSelf = statements.Any(statement => statement switch
                 {
                     Assignment assignment => Variables.GetValueOrDefault(assignment)?.Name == "self",
                     FieldAssignment assignment => IsSelf(assignment.Target),
                     IndexAssignment assignment => IsSelf(assignment.Target),
                     _ => false
-                }) || calls.Any(call => (ArrayAppends.Contains(call) || DictionaryCalls.Contains(call) && call.Name == "remove") && IsSelf(call.Receiver!));
+                });
+
+                var targets = new List<FunctionSymbol>();
+                foreach (var call in statements.SelectMany(StatementExpressions).SelectMany(Expressions).OfType<Call>())
+                {
+                    if (call.Receiver is null || !IsSelf(call.Receiver))
+                    {
+                        continue;
+                    }
+
+                    var binding = Calls.GetValueOrDefault(call);
+                    writesSelf |= binding.Kind == CallKind.ArrayAppend ||
+                        binding.Kind == CallKind.DictionaryMethod && call.Name == "remove";
+                    if (binding.Function is { Owner: not null } target)
+                    {
+                        targets.Add(target);
+                    }
+                }
                 if (writesSelf)
                 {
                     mutating.Add(method);
                 }
 
-                forwarding.Add(method, calls.Where(call => call.Receiver is not null && IsSelf(call.Receiver) &&
-                        Calls.TryGetValue(call, out var target) && target.Owner is not null)
-                    .Select(call => Calls[call]).ToList());
+                forwarding.Add(method, targets);
             }
             bool changed;
             do
@@ -64,7 +78,7 @@ namespace Rukbat
                 foreach (var call in NestedStatements(current.Statements).SelectMany(StatementExpressions)
                     .SelectMany(Expressions).OfType<Call>())
                 {
-                    if (call.Receiver is not null && Calls.TryGetValue(call, out var target) && mutating.Contains(target))
+                    if (call.Receiver is not null && Calls.GetValueOrDefault(call).Function is { } target && mutating.Contains(target))
                     {
                         RequireWritable(RootVariable(call.Receiver), call);
                         if (!IsVariablePath(call.Receiver))

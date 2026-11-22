@@ -53,7 +53,7 @@ namespace Rukbat
                 Error("RUK2005", $"{moduleName}.{call.Name} does not accept a type argument.", call);
             }
             CheckStandardArguments(call, scope, signature.Parameters, $"{moduleName}.{call.Name}");
-            StandardCalls[call] = $"{moduleName}.{call.Name}";
+            Calls[call] = new(CallKind.Standard, StandardOperation: $"{moduleName}.{call.Name}");
             return signature.Result;
         }
 

@@ -2,7 +2,6 @@ namespace Rukbat
 {
     internal sealed partial class TypeChecker
     {
-        public HashSet<Call> DictionaryCalls { get; } = new(ReferenceEqualityComparer.Instance);
 
         private ValueType DictionaryType(DictionaryLiteral dictionary, Symbols scope, ValueType? expected)
         {
@@ -86,7 +85,7 @@ namespace Rukbat
                     Error("RUK2010", "Dictionary remove requires a variable, not a temporary value.", call.Receiver!);
                 }
             }
-            DictionaryCalls.Add(call);
+            Calls[call] = new(CallKind.DictionaryMethod);
             return call.Name switch
             {
                 "keys" => ValueType.ArrayOf(receiver.DictionaryKey!),

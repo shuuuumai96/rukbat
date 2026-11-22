@@ -71,7 +71,7 @@ namespace Rukbat
                 Error("RUK2001", $"{operation} requires a non-null enum type, got {enumType}.", call);
             }
 
-            StandardCalls[call] = operation;
+            Calls[call] = new(CallKind.Standard, StandardOperation: operation);
             return parse ? target : ValueType.String;
         }
 

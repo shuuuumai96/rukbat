@@ -367,39 +367,14 @@ namespace Rukbat
                         Walk(call.Receiver, scope);
                     }
 
-                    if (checker!.Calls.TryGetValue(call, out var function))
+                    if (FindCallSymbol(call) is { } callable)
                     {
-                        Add(scope.Module, call.Token, symbols[function]);
-                    }
-                    else if (checker.Constructions.TryGetValue(call, out var structure))
-                    {
-                        Add(scope.Module, call.Token, symbols[structure]);
-                    }
-                    else if (checker.StandardCalls.TryGetValue(call, out var standard))
-                    {
-                        var candidates = EditorCatalog.Standard.Where(s => s.Detail.StartsWith(standard + "(", StringComparison.Ordinal) || s.Detail.StartsWith(standard + "<", StringComparison.Ordinal));
-                        var signature = candidates.FirstOrDefault(s => s.Detail.Contains("<T>") == (call.TypeArgument is not null)) ?? candidates.FirstOrDefault();
-                        if (signature is not null)
-                        {
-                            Add(scope.Module, call.Token, signature);
-                        }
-                    }
-                    else if (call.Receiver is null && EditorCatalog.Builtins.FirstOrDefault(s => s.Name == call.Name) is { } builtin)
-                    {
-                        Add(scope.Module, call.Token, builtin);
-                    }
-                    else if (checker.DictionaryCalls.Contains(call))
-                    {
-                        Add(scope.Module, call.Token, EditorCatalog.DictionaryMembers(checker.Types[call.Receiver!]).First(s => s.Name == call.Name));
-                    }
-                    else if (checker.ArrayAppends.Contains(call))
-                    {
-                        Add(scope.Module, call.Token, new("append", $"append(value: {checker.Types[call.Receiver!].Element}): void", 3));
+                        Add(scope.Module, call.Token, callable);
                     }
 
                     foreach (var argument in call.Arguments)
                     {
-                        if (checker.ConstructionFields.TryGetValue(argument, out var argumentField))
+                        if (checker!.ConstructionFields.TryGetValue(argument, out var argumentField))
                         {
                             Add(scope.Module, argument.Token, symbols[argumentField]);
                         }
@@ -433,6 +408,42 @@ namespace Rukbat
                     Walk(index.Offset, scope);
                     break;
             }
+        }
+
+        private EditorSymbol? FindCallSymbol(Call call)
+        {
+            var binding = checker!.Calls.GetValueOrDefault(call);
+            return binding.Kind switch
+            {
+                CallKind.LocalFunction or CallKind.ImportedFunction => symbols[binding.Function!],
+                CallKind.StructLiteral => symbols[binding.Structure!],
+                CallKind.Standard => FindStandardCallSymbol(call, binding.StandardOperation!),
+                CallKind.DictionaryMethod => EditorCatalog.DictionaryMembers(checker.Types[call.Receiver!]).First(symbol => symbol.Name == call.Name),
+                CallKind.ArrayAppend => new("append", $"append(value: {checker.Types[call.Receiver!].Element}): void", 3),
+                _ => call.Receiver is null ? EditorCatalog.Builtins.FirstOrDefault(symbol => symbol.Name == call.Name) : null
+            };
+        }
+
+        private static EditorSymbol? FindStandardCallSymbol(Call call, string operation)
+        {
+            var ordinary = operation + "(";
+            var generic = operation + "<";
+            EditorSymbol? first = null;
+            foreach (var symbol in EditorCatalog.Standard)
+            {
+                if (!symbol.Detail.StartsWith(ordinary, StringComparison.Ordinal) &&
+                    !symbol.Detail.StartsWith(generic, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                first ??= symbol;
+                if (symbol.Detail.Contains("<T>") == (call.TypeArgument is not null))
+                {
+                    return symbol;
+                }
+            }
+            return first;
         }
 
         private void AddTypeReferences(Module module)

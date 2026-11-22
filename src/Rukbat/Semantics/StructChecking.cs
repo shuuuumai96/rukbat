@@ -34,7 +34,6 @@ namespace Rukbat
 
         public Dictionary<Node, ValueType> DeclaredTypes { get; } = new(ReferenceEqualityComparer.Instance);
         public Dictionary<Member, FieldSymbol> Fields { get; } = new(ReferenceEqualityComparer.Instance);
-        public Dictionary<Call, StructSymbol> Constructions { get; } = new(ReferenceEqualityComparer.Instance);
         public Dictionary<Argument, FieldSymbol> ConstructionFields { get; } = new(ReferenceEqualityComparer.Instance);
         public Dictionary<ImplDeclaration, StructSymbol> Implementations { get; } = new(ReferenceEqualityComparer.Instance);
 
@@ -378,7 +377,7 @@ namespace Rukbat
                         Match(element, TypeOf(call.Arguments[0].Value, scope, element), call.Arguments[0].Value, "append value");
                     }
 
-                    ArrayAppends.Add(call);
+                    Calls[call] = new(CallKind.ArrayAppend);
                     return ValueType.Void;
                 }
 
@@ -412,7 +411,8 @@ namespace Rukbat
                 return ValueType.Error;
             }
 
-            Calls[call] = function;
+            var isLocal = function.Module == module;
+            Calls[call] = new(isLocal ? CallKind.LocalFunction : CallKind.ImportedFunction, Function: function);
             var signature = function.Function.Parameters;
             var arguments = call.Arguments
                 .Select((argument, index) => TypeOf(
@@ -435,7 +435,7 @@ namespace Rukbat
                 Match(DeclaredTypes[signature[i]], arguments[i], call.Arguments[i].Value, $"argument '{signature[i].Token.Text}'");
             }
 
-            if (function.Module == module)
+            if (isLocal)
             {
                 InvalidateGlobalRefinements();
             }
@@ -450,7 +450,7 @@ namespace Rukbat
                 Error("RUK2005", $"Struct '{structure.Type}' literals use '{{ field: value }}' syntax.", call);
                 return ValueType.Error;
             }
-            Constructions[call] = structure;
+            Calls[call] = new(CallKind.StructLiteral, Structure: structure);
             var supplied = new HashSet<string>(StringComparer.Ordinal);
             for (var i = 0; i < call.Arguments.Count; i++)
             {

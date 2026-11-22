@@ -18,7 +18,7 @@ namespace Rukbat
                 {
                     Error("RUK2010", $"Type {resultType} cannot be read from JSON.", call);
                 }
-                StandardCalls[call] = $"json.{call.Name}";
+                Calls[call] = new(CallKind.Standard, StandardOperation: $"json.{call.Name}");
                 return resultType;
             }
             if (call.Arguments.Count != 1 || call.Arguments.Any(argument => argument.Name is not null))
@@ -35,7 +35,7 @@ namespace Rukbat
             {
                 Error("RUK2010", $"Type {argumentType} cannot be encoded as JSON.", call);
             }
-            StandardCalls[call] = "json.stringify";
+            Calls[call] = new(CallKind.Standard, StandardOperation: "json.stringify");
             return ValueType.String;
         }
 
@@ -67,7 +67,7 @@ namespace Rukbat
                     Error("RUK2010", $"Type {actual} cannot be encoded as JSON.", call.Arguments[index].Value);
                 }
             }
-            StandardCalls[call] = $"json.{call.Name}";
+            Calls[call] = new(CallKind.Standard, StandardOperation: $"json.{call.Name}");
             return jsonValue;
         }
 
