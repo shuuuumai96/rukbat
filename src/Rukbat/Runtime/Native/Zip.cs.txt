@@ -8,12 +8,60 @@ using System.Runtime.InteropServices;
 using System.Text;
 
 public static class RukbatZip {
-    private const int BufferSize = 65536;
+    public const long DefaultMaxEntries = 100000;
+    public const long DefaultMaxTotalBytes = 10L * 1024 * 1024 * 1024;
+
+    private const int BufferSize = 64 * 1024;
     private const long MetadataLimit = 64 * 1024 * 1024;
     private const int DepthLimit = 256;
     private const ushort Utf8Flag = 0x800, DescriptorFlag = 8;
     private const uint LocalSignature = 0x04034b50, CentralSignature = 0x02014b50;
     private const uint EndSignature = 0x06054b50, Zip64EndSignature = 0x06064b50, Zip64LocatorSignature = 0x07064b50;
+
+    private const int EndRecordSize = 22;
+    private const int EndRecordDiskOffset = 4;
+    private const int EndRecordCentralDiskOffset = 6;
+    private const int EndRecordDiskCountOffset = 8;
+    private const int EndRecordCountOffset = 10;
+    private const int EndRecordCentralSizeOffset = 12;
+    private const int EndRecordCentralOffset = 16;
+    private const int EndRecordCommentLengthOffset = 20;
+    private const int Zip64LocatorSize = 20;
+    private const int Zip64EndMinimumSize = 56;
+    private const int Zip64RecordPrefixSize = 12;
+    private const int Zip64EndPayloadMinimumSize = Zip64EndMinimumSize - Zip64RecordPrefixSize;
+    private const int CentralHeaderSize = 46;
+    private const int CentralFlagsOffset = 8;
+    private const int CentralMethodOffset = 10;
+    private const int CentralCrcOffset = 16;
+    private const int CentralCompressedSizeOffset = 20;
+    private const int CentralUncompressedSizeOffset = 24;
+    private const int CentralNameLengthOffset = 28;
+    private const int CentralExtraLengthOffset = 30;
+    private const int CentralCommentLengthOffset = 32;
+    private const int CentralDiskOffset = 34;
+    private const int CentralAttributesOffset = 38;
+    private const int CentralLocalOffset = 42;
+    private const int LocalHeaderSize = 30;
+    private const int LocalFlagsOffset = 6;
+    private const int LocalMethodOffset = 8;
+    private const int LocalCrcOffset = 14;
+    private const int LocalCompressedSizeOffset = 18;
+    private const int LocalUncompressedSizeOffset = 22;
+    private const int LocalNameLengthOffset = 26;
+    private const int LocalExtraLengthOffset = 28;
+    private const int ExtraFieldHeaderSize = 4;
+    private const int Zip64ExtraFieldId = 1;
+    private const int StoredMethod = 0;
+    private const int DeflateMethod = 8;
+    private const int CompressionLevelFlags = 6;
+    private const int UnixModeShift = 16;
+    private const uint UnixFileTypeMask = 0xf000;
+    private const uint UnixRegularFile = 0x8000;
+    private const uint UnixDirectory = 0x4000;
+    private const long PathIndexEntryOverhead = 64;
+    private const uint Crc32Polynomial = 0xedb88320U;
+
     private static readonly Encoding Utf8 = new UTF8Encoding(false, true);
     private static readonly uint[] CrcTable = BuildCrcTable();
     [DllImport("kernel32.dll", EntryPoint = "CreateDirectoryW", CharSet = CharSet.Unicode, SetLastError = true)]
@@ -130,10 +178,10 @@ public static class RukbatZip {
         byte[] found = null;
         using (var reader = new BinaryReader(new MemoryStream(extra))) {
             while (reader.BaseStream.Position < extra.Length) {
-                if (extra.Length - reader.BaseStream.Position < 4) throw new InvalidDataException("Invalid ZIP extra field.");
+                if (extra.Length - reader.BaseStream.Position < ExtraFieldHeaderSize) throw new InvalidDataException("Invalid ZIP extra field.");
                 ushort type = reader.ReadUInt16(), length = reader.ReadUInt16();
                 byte[] value = Bytes(reader, length);
-                if (type == 1) {
+                if (type == Zip64ExtraFieldId) {
                     if (found != null) throw new InvalidDataException("Duplicate ZIP64 extra field.");
                     found = value;
                 }
@@ -143,32 +191,32 @@ public static class RukbatZip {
     }
     private static List<Entry> Read(FileStream stream, object encoding, long maxEntries, long maxBytes) {
         if (maxEntries <= 0 || maxEntries > Int32.MaxValue || maxBytes <= 0) throw new ArgumentException("Invalid ZIP limits.");
-        if (stream.Length < 22) throw new InvalidDataException("ZIP end record is missing.");
+        if (stream.Length < EndRecordSize) throw new InvalidDataException("ZIP end record is missing.");
         var reader = new BinaryReader(stream, Encoding.UTF8, true);
-        int tailLength = (int)Math.Min(stream.Length, 65535 + 22);
+        int tailLength = (int)Math.Min(stream.Length, UInt16.MaxValue + EndRecordSize);
         stream.Position = stream.Length - tailLength;
         byte[] tail = Bytes(reader, tailLength);
         int end = -1;
-        for (int i = tail.Length - 22; i >= 0; i--) {
-            if (BitConverter.ToUInt32(tail, i) == EndSignature && i + 22 + BitConverter.ToUInt16(tail, i + 20) == tail.Length) { end = i; break; }
+        for (int i = tail.Length - EndRecordSize; i >= 0; i--) {
+            if (BitConverter.ToUInt32(tail, i) == EndSignature && i + EndRecordSize + BitConverter.ToUInt16(tail, i + EndRecordCommentLengthOffset) == tail.Length) { end = i; break; }
         }
         if (end < 0) throw new InvalidDataException("ZIP end record is missing or truncated.");
         long endOffset = stream.Length - tailLength + end;
-        if (BitConverter.ToUInt16(tail, end + 4) != 0 || BitConverter.ToUInt16(tail, end + 6) != 0 ||
-            BitConverter.ToUInt16(tail, end + 8) != BitConverter.ToUInt16(tail, end + 10))
+        if (BitConverter.ToUInt16(tail, end + EndRecordDiskOffset) != 0 || BitConverter.ToUInt16(tail, end + EndRecordCentralDiskOffset) != 0 ||
+            BitConverter.ToUInt16(tail, end + EndRecordDiskCountOffset) != BitConverter.ToUInt16(tail, end + EndRecordCountOffset))
             throw new InvalidDataException("Split ZIP archives are unsupported.");
-        long count = BitConverter.ToUInt16(tail, end + 10), size = BitConverter.ToUInt32(tail, end + 12), offset = BitConverter.ToUInt32(tail, end + 16);
+        long count = BitConverter.ToUInt16(tail, end + EndRecordCountOffset), size = BitConverter.ToUInt32(tail, end + EndRecordCentralSizeOffset), offset = BitConverter.ToUInt32(tail, end + EndRecordCentralOffset);
         long centralEnd = endOffset;
         if (count == UInt16.MaxValue || size == UInt32.MaxValue || offset == UInt32.MaxValue) {
-            if (endOffset < 20) throw new InvalidDataException("ZIP64 locator is missing.");
-            stream.Position = endOffset - 20;
+            if (endOffset < Zip64LocatorSize) throw new InvalidDataException("ZIP64 locator is missing.");
+            stream.Position = endOffset - Zip64LocatorSize;
             if (reader.ReadUInt32() != Zip64LocatorSignature || reader.ReadUInt32() != 0) throw new InvalidDataException("Invalid ZIP64 locator.");
             long zip64Offset = Signed(reader.ReadUInt64());
-            if (reader.ReadUInt32() != 1 || zip64Offset > endOffset - 20 - 56) throw new InvalidDataException("Invalid or split ZIP64 archive.");
+            if (reader.ReadUInt32() != 1 || zip64Offset > endOffset - Zip64LocatorSize - Zip64EndMinimumSize) throw new InvalidDataException("Invalid or split ZIP64 archive.");
             stream.Position = zip64Offset;
             if (reader.ReadUInt32() != Zip64EndSignature) throw new InvalidDataException("ZIP64 end record is missing.");
             long recordSize = Signed(reader.ReadUInt64());
-            if (recordSize < 44 || recordSize > endOffset - 20 - zip64Offset - 12) throw new InvalidDataException("Invalid ZIP64 end record size.");
+            if (recordSize < Zip64EndPayloadMinimumSize || recordSize > endOffset - Zip64LocatorSize - zip64Offset - Zip64RecordPrefixSize) throw new InvalidDataException("Invalid ZIP64 end record size.");
             reader.ReadUInt16(); reader.ReadUInt16();
             if (reader.ReadUInt32() != 0 || reader.ReadUInt32() != 0) throw new InvalidDataException("Split ZIP64 archives are unsupported.");
             long diskCount = Signed(reader.ReadUInt64());
@@ -178,34 +226,34 @@ public static class RukbatZip {
         }
         if (count > maxEntries) throw new InvalidDataException("ZIP entry count exceeded max_entries.");
         if (size > MetadataLimit) throw new InvalidDataException("ZIP central metadata exceeded 64 MiB.");
-        if (offset > centralEnd || size > centralEnd - offset || count > size / 46) throw new InvalidDataException("Invalid ZIP central directory bounds.");
+        if (offset > centralEnd || size > centralEnd - offset || count > size / CentralHeaderSize) throw new InvalidDataException("Invalid ZIP central directory bounds.");
         stream.Position = offset;
         var entries = new List<Entry>();
         var names = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         var directories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         long total = 0, indexBytes = 0;
         for (long i = 0; i < count; i++) {
-            if (stream.Position > offset + size - 46) throw new InvalidDataException("Truncated ZIP central directory.");
-            byte[] header = Bytes(reader, 46);
+            if (stream.Position > offset + size - CentralHeaderSize) throw new InvalidDataException("Truncated ZIP central directory.");
+            byte[] header = Bytes(reader, CentralHeaderSize);
             if (BitConverter.ToUInt32(header, 0) != CentralSignature) throw new InvalidDataException("Invalid ZIP central entry.");
-            ushort flags = BitConverter.ToUInt16(header, 8), method = BitConverter.ToUInt16(header, 10);
-            if ((flags & ~(Utf8Flag | DescriptorFlag | 6)) != 0 || (method != 0 && method != 8))
+            ushort flags = BitConverter.ToUInt16(header, CentralFlagsOffset), method = BitConverter.ToUInt16(header, CentralMethodOffset);
+            if ((flags & ~(Utf8Flag | DescriptorFlag | CompressionLevelFlags)) != 0 || (method != StoredMethod && method != DeflateMethod))
                 throw new InvalidDataException("Encrypted or unsupported ZIP compression/flags.");
-            int nameLength = BitConverter.ToUInt16(header, 28), extraLength = BitConverter.ToUInt16(header, 30), commentLength = BitConverter.ToUInt16(header, 32);
+            int nameLength = BitConverter.ToUInt16(header, CentralNameLengthOffset), extraLength = BitConverter.ToUInt16(header, CentralExtraLengthOffset), commentLength = BitConverter.ToUInt16(header, CentralCommentLengthOffset);
             if (stream.Position + nameLength + extraLength + commentLength > offset + size) throw new InvalidDataException("Truncated ZIP entry metadata.");
             byte[] rawName = Bytes(reader, nameLength), extra = Bytes(reader, extraLength);
             stream.Position += commentLength;
             string name = EntryName((flags & Utf8Flag) != 0 ? Utf8.GetString(rawName) : Decode(encoding, rawName));
-            uint attributes = BitConverter.ToUInt32(header, 38);
-            uint unixType = (attributes >> 16) & 0xf000;
-            if ((attributes & (uint)FileAttributes.ReparsePoint) != 0 || (unixType != 0 && unixType != 0x8000 && unixType != 0x4000))
+            uint attributes = BitConverter.ToUInt32(header, CentralAttributesOffset);
+            uint unixType = (attributes >> UnixModeShift) & UnixFileTypeMask;
+            if ((attributes & (uint)FileAttributes.ReparsePoint) != 0 || (unixType != 0 && unixType != UnixRegularFile && unixType != UnixDirectory))
                 throw new InvalidDataException("ZIP links and special files are unsupported.");
             bool directory = name.EndsWith("/", StringComparison.Ordinal);
-            if (((attributes & (uint)FileAttributes.Directory) != 0 || unixType == 0x4000) && !directory)
+            if (((attributes & (uint)FileAttributes.Directory) != 0 || unixType == UnixDirectory) && !directory)
                 throw new InvalidDataException("ZIP directory entry must end in '/'.");
             var entry = new Entry { Name = name, Directory = directory, Flags = flags, Method = method, RawName = rawName,
-                Crc = BitConverter.ToUInt32(header, 16), CompressedSize = BitConverter.ToUInt32(header, 20), Size = BitConverter.ToUInt32(header, 24), Offset = BitConverter.ToUInt32(header, 42) };
-            uint disk = BitConverter.ToUInt16(header, 34);
+                Crc = BitConverter.ToUInt32(header, CentralCrcOffset), CompressedSize = BitConverter.ToUInt32(header, CentralCompressedSizeOffset), Size = BitConverter.ToUInt32(header, CentralUncompressedSizeOffset), Offset = BitConverter.ToUInt32(header, CentralLocalOffset) };
+            uint disk = BitConverter.ToUInt16(header, CentralDiskOffset);
             using (var z64 = new BinaryReader(new MemoryStream(Zip64(extra)))) {
                 if (entry.Size == UInt32.MaxValue) entry.Size = Signed(z64.ReadUInt64());
                 if (entry.CompressedSize == UInt32.MaxValue) entry.CompressedSize = Signed(z64.ReadUInt64());
@@ -217,7 +265,7 @@ public static class RukbatZip {
             if (entry.Size > maxBytes - total) throw new InvalidDataException("ZIP declared size exceeded max_total_bytes.");
             total += entry.Size;
             string key = directory ? name.Substring(0, name.Length - 1) : name;
-            indexBytes += key.Length * 2L + 64;
+            indexBytes += (long)key.Length * sizeof(char) + PathIndexEntryOverhead;
             if (indexBytes > MetadataLimit) throw new InvalidDataException("ZIP decoded path index exceeded 64 MiB.");
             if (names.ContainsKey(key) || (!directory && directories.Contains(key))) throw new InvalidDataException("ZIP entries collide on Windows: " + name);
             names.Add(key, directory);
@@ -228,7 +276,7 @@ public static class RukbatZip {
                 bool parentDirectory;
                 if (names.TryGetValue(parent, out parentDirectory) && !parentDirectory) throw new InvalidDataException("ZIP file/directory name collision.");
                 if (directories.Add(parent)) {
-                    indexBytes += parent.Length * 2L + 64;
+                    indexBytes += (long)parent.Length * sizeof(char) + PathIndexEntryOverhead;
                     if (indexBytes > MetadataLimit) throw new InvalidDataException("ZIP decoded path index exceeded 64 MiB.");
                 }
                 slash = parent.LastIndexOf('/');
@@ -245,24 +293,24 @@ public static class RukbatZip {
         return entries;
     }
     private static void ValidateLocal(FileStream stream, BinaryReader reader, Entry entry, long centralOffset) {
-        if (entry.Offset > centralOffset - 30) throw new InvalidDataException("Invalid ZIP local entry offset.");
+        if (entry.Offset > centralOffset - LocalHeaderSize) throw new InvalidDataException("Invalid ZIP local entry offset.");
         stream.Position = entry.Offset;
-        byte[] local = Bytes(reader, 30);
-        if (BitConverter.ToUInt32(local, 0) != LocalSignature || BitConverter.ToUInt16(local, 6) != entry.Flags || BitConverter.ToUInt16(local, 8) != entry.Method)
+        byte[] local = Bytes(reader, LocalHeaderSize);
+        if (BitConverter.ToUInt32(local, 0) != LocalSignature || BitConverter.ToUInt16(local, LocalFlagsOffset) != entry.Flags || BitConverter.ToUInt16(local, LocalMethodOffset) != entry.Method)
             throw new InvalidDataException("ZIP local and central metadata disagree.");
-        int nameLength = BitConverter.ToUInt16(local, 26), extraLength = BitConverter.ToUInt16(local, 28);
+        int nameLength = BitConverter.ToUInt16(local, LocalNameLengthOffset), extraLength = BitConverter.ToUInt16(local, LocalExtraLengthOffset);
         if (stream.Position + nameLength + extraLength > centralOffset) throw new InvalidDataException("Truncated ZIP local name.");
         if (!Bytes(reader, nameLength).SequenceEqual(entry.RawName)) throw new InvalidDataException("ZIP local and central names disagree.");
         byte[] extra = Bytes(reader, extraLength);
         entry.DataStart = stream.Position;
         if (entry.CompressedSize > centralOffset - entry.DataStart) throw new InvalidDataException("ZIP compressed data is truncated.");
         if ((entry.Flags & DescriptorFlag) == 0) {
-            long size = BitConverter.ToUInt32(local, 22), compressed = BitConverter.ToUInt32(local, 18);
+            long size = BitConverter.ToUInt32(local, LocalUncompressedSizeOffset), compressed = BitConverter.ToUInt32(local, LocalCompressedSizeOffset);
             using (var z64 = new BinaryReader(new MemoryStream(Zip64(extra)))) {
                 if (size == UInt32.MaxValue) size = Signed(z64.ReadUInt64());
                 if (compressed == UInt32.MaxValue) compressed = Signed(z64.ReadUInt64());
             }
-            if (size != entry.Size || compressed != entry.CompressedSize || BitConverter.ToUInt32(local, 14) != entry.Crc)
+            if (size != entry.Size || compressed != entry.CompressedSize || BitConverter.ToUInt32(local, LocalCrcOffset) != entry.Crc)
                 throw new InvalidDataException("ZIP local and central sizes/CRC disagree.");
         }
     }
@@ -316,10 +364,10 @@ public static class RukbatZip {
         } finally { if (created) System.IO.Directory.Delete(temporary, true); }
     }
     private static uint[] BuildCrcTable() {
-        var result = new uint[256];
+        var result = new uint[Byte.MaxValue + 1];
         for (int i = 0; i < result.Length; i++) {
             uint value = (uint)i;
-            for (int j = 0; j < 8; j++) value = (value & 1) != 0 ? 0xedb88320U ^ (value >> 1) : value >> 1;
+            for (int j = 0; j < 8; j++) value = (value & 1) != 0 ? Crc32Polynomial ^ (value >> 1) : value >> 1;
             result[i] = value;
         }
         return result;

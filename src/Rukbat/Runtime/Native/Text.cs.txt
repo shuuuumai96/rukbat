@@ -2,6 +2,12 @@ using System;
 using System.Collections.Generic;
 
 public static class RukbatText {
+    // Unicode White_Space, fixed by the standard-library contract.
+    private static readonly char[] WhiteSpace = (
+        "\u0009\u000a\u000b\u000c\u000d\u0020\u0085\u00a0\u1680" +
+        "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009" +
+        "\u200a\u2028\u2029\u202f\u205f\u3000").ToCharArray();
+
     private static int NextIndex(string value, int index) {
         if (Char.IsHighSurrogate(value[index])) {
             if (index + 1 == value.Length || !Char.IsLowSurrogate(value[index + 1]))
@@ -50,6 +56,7 @@ public static class RukbatText {
         return Slice((string)values[0], Convert.ToInt64(values[1]), Convert.ToInt64(values[2]));
     }
     public static long? IndexOf(object[] values) { return IndexOf((string)values[0], (string)values[1]); }
+    public static string Trim(object[] values) { return ((string)values[0]).Trim(WhiteSpace); }
     public static string Upper(object[] values) { return Upper((string)values[0]); }
     public static string Lower(object[] values) { return Lower((string)values[0]); }
 }

@@ -149,7 +149,8 @@ public static class RukbatProcessJob
         using (var stream = new FileStream(new SafeFileHandle(handle, true), FileAccess.Read))
         using (var output = new MemoryStream())
         {
-            byte[] buffer = new byte[8192];
+            const int StreamReadBufferSize = 8 * 1024;
+            byte[] buffer = new byte[StreamReadBufferSize];
             int count;
             while ((count = stream.Read(buffer, 0, buffer.Length)) != 0)
             {
