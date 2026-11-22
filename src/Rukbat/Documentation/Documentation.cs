@@ -42,7 +42,7 @@ namespace Rukbat
             {
                 if (Resolve(module, reference.Name) is null)
                 {
-                    yield return text.Error("RUK6001", $"Unknown documentation reference '{reference.Name}'.", reference.Span.Start);
+                    yield return text.Error(DiagnosticCode.UnknownDocumentationReference, $"Unknown documentation reference '{reference.Name}'.", reference.Span.Start);
                 }
             }
         }

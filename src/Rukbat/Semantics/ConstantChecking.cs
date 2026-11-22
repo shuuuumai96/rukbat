@@ -14,7 +14,7 @@ namespace Rukbat
         {
             if (variable is { IsConst: true })
             {
-                Error("RUK2011", $"Cannot modify const '{variable.Name}'. Copy its value to a mutable variable first.", operation);
+                Error(DiagnosticCode.ConstMutation, $"Cannot modify const '{variable.Name}'. Copy its value to a mutable variable first.", operation);
             }
         }
 
@@ -83,7 +83,7 @@ namespace Rukbat
                         RequireWritable(RootVariable(call.Receiver), call);
                         if (!IsVariablePath(call.Receiver))
                         {
-                            Error("RUK2010", "A mutating method requires a variable, not a temporary value.", call.Receiver);
+                            Error(DiagnosticCode.InvalidOperation, "A mutating method requires a variable, not a temporary value.", call.Receiver);
                         }
                     }
                 }

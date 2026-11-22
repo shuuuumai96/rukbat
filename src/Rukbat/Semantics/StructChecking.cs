@@ -46,7 +46,7 @@ namespace Rukbat
                 module = current;
                 if (current.Imports.ContainsKey("Error"))
                 {
-                    Error("RUK2002", "Import name 'Error' conflicts with the built-in type.",
+                    Error(DiagnosticCode.ConflictingName, "Import name 'Error' conflicts with the built-in type.",
                         current.Statements.OfType<Import>().First(import => import.Name == "Error"));
                 }
                 foreach (var declaration in current.Statements.OfType<StructDeclaration>())
@@ -54,12 +54,12 @@ namespace Rukbat
                     var name = declaration.Token.Text;
                     if (!current.Structs.TryAdd(name, new(current, declaration)))
                     {
-                        Error("RUK2002", $"Duplicate struct '{name}'.", declaration);
+                        Error(DiagnosticCode.ConflictingName, $"Duplicate struct '{name}'.", declaration);
                     }
 
                     if (IsPrimitive(name) || name is "Error" or "dict" || current.Imports.ContainsKey(name))
                     {
-                        Error("RUK2002", $"Struct name '{name}' conflicts with an existing type or import.", declaration);
+                        Error(DiagnosticCode.ConflictingName, $"Struct name '{name}' conflicts with an existing type or import.", declaration);
                     }
                 }
                 RegisterEnums(current);
@@ -67,20 +67,20 @@ namespace Rukbat
                 {
                     if (!current.Functions.TryAdd(function.Name, function))
                     {
-                        Error("RUK2002", $"Duplicate function '{function.Name}'.", function);
+                        Error(DiagnosticCode.ConflictingName, $"Duplicate function '{function.Name}'.", function);
                     }
 
                     if (current.Structs.ContainsKey(function.Name))
                     {
-                        Error("RUK2002", $"Function '{function.Name}' conflicts with a struct.", function);
+                        Error(DiagnosticCode.ConflictingName, $"Function '{function.Name}' conflicts with a struct.", function);
                     }
                     if (current.Enums.ContainsKey(function.Name))
                     {
-                        Error("RUK2002", $"Function '{function.Name}' conflicts with an enum.", function);
+                        Error(DiagnosticCode.ConflictingName, $"Function '{function.Name}' conflicts with an enum.", function);
                     }
                     if (function.Name == "Error")
                     {
-                        Error("RUK2002", "Function 'Error' conflicts with the built-in type.", function);
+                        Error(DiagnosticCode.ConflictingName, "Function 'Error' conflicts with the built-in type.", function);
                     }
 
                     Functions[function] = new(current, function, $"__rukbat_f{Functions.Count}");
@@ -96,13 +96,13 @@ namespace Rukbat
                         var type = BindType(field.Type, field);
                         if (type == ValueType.Void)
                         {
-                            Error("RUK2001", $"Field '{field.Token.Text}' cannot have type void.", field);
+                            Error(DiagnosticCode.InvalidType, $"Field '{field.Token.Text}' cannot have type void.", field);
                         }
 
                         var symbol = new FieldSymbol(field, type, $"__rukbat_field{structure.Fields.Count}");
                         if (!structure.Fields.TryAdd(field.Token.Text, symbol))
                         {
-                            Error("RUK2002", $"Duplicate field '{field.Token.Text}'.", field);
+                            Error(DiagnosticCode.ConflictingName, $"Duplicate field '{field.Token.Text}'.", field);
                         }
                     }
                 }
@@ -111,12 +111,12 @@ namespace Rukbat
                 {
                     if (!current.Structs.TryGetValue(implementation.Token.Text, out var structure))
                     {
-                        Error("RUK2004", $"Impl target '{implementation.Token.Text}' must be a struct declared in the same module.", implementation);
+                        Error(DiagnosticCode.UnknownName, $"Impl target '{implementation.Token.Text}' must be a struct declared in the same module.", implementation);
                         continue;
                     }
                     if (!implemented.Add(structure))
                     {
-                        Error("RUK2002", $"Duplicate impl for struct '{implementation.Token.Text}'. Define its methods in one impl block.", implementation);
+                        Error(DiagnosticCode.ConflictingName, $"Duplicate impl for struct '{implementation.Token.Text}'. Define its methods in one impl block.", implementation);
                     }
 
                     Implementations[implementation] = structure;
@@ -126,12 +126,12 @@ namespace Rukbat
                         Functions[method] = symbol;
                         if (!structure.Methods.TryAdd(method.Name, symbol))
                         {
-                            Error("RUK2002", $"Duplicate method '{method.Name}'.", method);
+                            Error(DiagnosticCode.ConflictingName, $"Duplicate method '{method.Name}'.", method);
                         }
 
                         if (structure.Fields.ContainsKey(method.Name))
                         {
-                            Error("RUK2002", $"Method '{method.Name}' conflicts with a field.", method);
+                            Error(DiagnosticCode.ConflictingName, $"Method '{method.Name}' conflicts with a field.", method);
                         }
                     }
                 }
@@ -166,12 +166,12 @@ namespace Rukbat
                 var boundValue = BindType(type.DictionaryValue!, node);
                 if (boundKey != ValueType.String && boundKey != ValueType.Int && boundKey != ValueType.Error)
                 {
-                    Error("RUK2001", "Dictionary keys must be non-null string or int values.", node);
+                    Error(DiagnosticCode.InvalidType, "Dictionary keys must be non-null string or int values.", node);
                 }
 
                 if (boundValue == ValueType.Void)
                 {
-                    Error("RUK2001", "Dictionary values cannot have type void.", node);
+                    Error(DiagnosticCode.InvalidType, "Dictionary values cannot have type void.", node);
                 }
 
                 return DeclaredTypes[node] = ValueType.DictionaryOf(boundKey, boundValue);
@@ -180,14 +180,14 @@ namespace Rukbat
             {
                 if (nullableElement.NullableElement is not null)
                 {
-                    Error("RUK2001", "Nested nullable types such as T?? are not supported.", node);
+                    Error(DiagnosticCode.InvalidType, "Nested nullable types such as T?? are not supported.", node);
                     return DeclaredTypes[node] = ValueType.Error;
                 }
 
                 var bound = BindType(nullableElement, node);
                 if (bound == ValueType.Void)
                 {
-                    Error("RUK2001", "void cannot be nullable.", node);
+                    Error(DiagnosticCode.InvalidType, "void cannot be nullable.", node);
                     return DeclaredTypes[node] = ValueType.Error;
                 }
 
@@ -198,7 +198,7 @@ namespace Rukbat
                 var bound = BindType(element, node);
                 if (bound == ValueType.Void)
                 {
-                    Error("RUK2001", "Array elements cannot have type void.", node);
+                    Error(DiagnosticCode.InvalidType, "Array elements cannot have type void.", node);
                 }
 
                 return DeclaredTypes[node] = ValueType.ArrayOf(bound);
@@ -229,7 +229,7 @@ namespace Rukbat
                 return DeclaredTypes[node] = enumeration.Type;
             }
 
-            Error("RUK2004", $"Unknown struct/type '{type.Name}'.", node);
+            Error(DiagnosticCode.UnknownName, $"Unknown struct/type '{type.Name}'.", node);
             return DeclaredTypes[node] = ValueType.Error;
         }
 
@@ -256,7 +256,7 @@ namespace Rukbat
 
                 if (active.Contains(nested))
                 {
-                    structure.Module.Source.Error("RUK2010", $"Recursive value field '{field.Field.Token.Text}' is not supported.", field.Field.Token);
+                    structure.Module.Source.Error(DiagnosticCode.InvalidOperation, $"Recursive value field '{field.Field.Token.Text}' is not supported.", field.Field.Token);
                 }
                 else
                 {
@@ -278,7 +278,7 @@ namespace Rukbat
                     return enumeration.Type;
                 }
 
-                Error("RUK2004", $"Unknown member '{member.Name}' on enum {enumeration.Type}.", member);
+                Error(DiagnosticCode.UnknownName, $"Unknown member '{member.Name}' on enum {enumeration.Type}.", member);
                 return ValueType.Error;
             }
 
@@ -287,7 +287,7 @@ namespace Rukbat
             {
                 if (!group.Values.TryGetValue(member.Name, out var constant))
                 {
-                    Error("RUK2004", $"Unknown {group.Description} '{member.Name}'.", member);
+                    Error(DiagnosticCode.UnknownName, $"Unknown {group.Description} '{member.Name}'.", member);
                     return ValueType.Error;
                 }
                 Constants[member] = constant;
@@ -306,12 +306,12 @@ namespace Rukbat
 
             if (type.Struct is not { } structure)
             {
-                Error("RUK2004", $"Cannot access field '{member.Name}' on {type}.", member);
+                Error(DiagnosticCode.UnknownName, $"Cannot access field '{member.Name}' on {type}.", member);
                 return ValueType.Error;
             }
             if (!structure.Fields.TryGetValue(member.Name, out var field))
             {
-                Error("RUK2004", $"Unknown field '{member.Name}' on {type}.", member);
+                Error(DiagnosticCode.UnknownName, $"Unknown field '{member.Name}' on {type}.", member);
                 return ValueType.Error;
             }
             Fields[member] = field;
@@ -330,7 +330,7 @@ namespace Rukbat
         {
             if (call.TypeArgument is not null)
             {
-                Error("RUK2005", "Explicit type arguments are supported only by designated built-in operations.", call);
+                Error(DiagnosticCode.InvalidCall, "Explicit type arguments are supported only by designated built-in operations.", call);
             }
             if (call.Receiver is null && call.Name == "Error")
             {
@@ -366,11 +366,11 @@ namespace Rukbat
                     RequireWritable(RootVariable(call.Receiver), call);
                     if (!IsVariablePath(call.Receiver))
                     {
-                        Error("RUK2010", "Array append requires a variable, not a temporary value.", call.Receiver);
+                        Error(DiagnosticCode.InvalidOperation, "Array append requires a variable, not a temporary value.", call.Receiver);
                     }
                     if (call.Arguments.Count != 1 || call.Arguments[0].Name is not null)
                     {
-                        Error("RUK2005", "append requires one positional argument.", call);
+                        Error(DiagnosticCode.InvalidCall, "append requires one positional argument.", call);
                     }
                     else
                     {
@@ -383,7 +383,7 @@ namespace Rukbat
 
                 if (receiverType.Struct is not { } structure || !structure.Methods.TryGetValue(call.Name, out function))
                 {
-                    Error("RUK2004", $"Unknown method '{call.Name}' on {receiverType}.", call);
+                    Error(DiagnosticCode.UnknownName, $"Unknown method '{call.Name}' on {receiverType}.", call);
                     return ValueType.Error;
                 }
                 owner = null;
@@ -402,7 +402,7 @@ namespace Rukbat
             }
             if (function is null)
             {
-                Error("RUK2004", $"Unknown function or struct '{call.Name}'.", call);
+                Error(DiagnosticCode.UnknownName, $"Unknown function or struct '{call.Name}'.", call);
                 return ValueType.Error;
             }
 
@@ -422,12 +422,12 @@ namespace Rukbat
                 .ToArray();
             if (call.Arguments.Any(a => a.Name is not null))
             {
-                Error("RUK2005", "Function and method calls currently use positional arguments.", call);
+                Error(DiagnosticCode.InvalidCall, "Function and method calls currently use positional arguments.", call);
             }
 
             if (arguments.Length != signature.Count)
             {
-                Error("RUK2005", $"'{call.Name}' expects {signature.Count} arguments, got {arguments.Length}.", call);
+                Error(DiagnosticCode.InvalidCall, $"'{call.Name}' expects {signature.Count} arguments, got {arguments.Length}.", call);
             }
 
             for (var i = 0; i < Math.Min(arguments.Length, signature.Count); i++)
@@ -447,7 +447,7 @@ namespace Rukbat
         {
             if (!call.IsStructLiteral)
             {
-                Error("RUK2005", $"Struct '{structure.Type}' literals use '{{ field: value }}' syntax.", call);
+                Error(DiagnosticCode.InvalidCall, $"Struct '{structure.Type}' literals use '{{ field: value }}' syntax.", call);
                 return ValueType.Error;
             }
             Calls[call] = new(CallKind.StructLiteral, Structure: structure);
@@ -457,17 +457,17 @@ namespace Rukbat
                 var argument = call.Arguments[i];
                 if (argument.Name is not { } name)
                 {
-                    Error("RUK2005", $"Struct '{structure.Type}' requires named field arguments.", argument);
+                    Error(DiagnosticCode.InvalidCall, $"Struct '{structure.Type}' requires named field arguments.", argument);
                     continue;
                 }
                 if (!supplied.Add(name))
                 {
-                    Error("RUK2002", $"Duplicate initializer for field '{name}'.", argument);
+                    Error(DiagnosticCode.ConflictingName, $"Duplicate initializer for field '{name}'.", argument);
                 }
 
                 if (!structure.Fields.TryGetValue(name, out var field))
                 {
-                    Error("RUK2004", $"Unknown field '{name}' on {structure.Type}.", argument);
+                    Error(DiagnosticCode.UnknownName, $"Unknown field '{name}' on {structure.Type}.", argument);
                     continue;
                 }
                 ConstructionFields[argument] = field;
@@ -475,7 +475,7 @@ namespace Rukbat
             }
             foreach (var field in structure.Fields.Keys.Where(f => !supplied.Contains(f)))
             {
-                Error("RUK2005", $"Missing required field '{field}' for {structure.Type}.", call);
+                Error(DiagnosticCode.InvalidCall, $"Missing required field '{field}' for {structure.Type}.", call);
             }
 
             return structure.BoundType;

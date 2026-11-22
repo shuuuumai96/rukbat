@@ -66,7 +66,7 @@ namespace Rukbat
                         }
                         if (!char.IsAsciiDigit(Peek()))
                         {
-                            source.Error("RUK1001", "Float exponent requires at least one digit.", new("", start));
+                            source.Error(DiagnosticCode.InvalidLiteral, "Float exponent requires at least one digit.", new("", start));
                         }
                         while (char.IsAsciiDigit(Peek()))
                         {
@@ -98,7 +98,7 @@ namespace Rukbat
                             next = source.Text[position++];
                             if (next is not ('n' or 'r' or 't' or '\\' or '\'' or '"'))
                             {
-                                source.Error("RUK1000", $"Unsupported escape '\\{next}'.", new("", position - 2));
+                                source.Error(DiagnosticCode.SyntaxError, $"Unsupported escape '\\{next}'.", new("", position - 2));
                             }
 
                             next = next switch
@@ -113,7 +113,7 @@ namespace Rukbat
                     }
                     if (!closed)
                     {
-                        source.Error("RUK1000", "Unterminated string.", new("", start));
+                        source.Error(DiagnosticCode.SyntaxError, "Unterminated string.", new("", start));
                     }
 
                     tokens.Add(new(source.Text[start..position], start, value.ToString()));
@@ -132,7 +132,7 @@ namespace Rukbat
                     }
                     else
                     {
-                        source.Error("RUK1000", c == '$'
+                        source.Error(DiagnosticCode.SyntaxError, c == '$'
                         ? "Rukbat variables have no '$' prefix. Use 'name: string = ...'."
                         : $"Unexpected character '{c}'.", new(c.ToString(), start));
                     }

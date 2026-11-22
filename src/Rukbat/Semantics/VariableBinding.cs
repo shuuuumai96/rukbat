@@ -9,25 +9,25 @@ namespace Rukbat
             DeclaredTypes[node] = type;
             if (type == ValueType.Void)
             {
-                Error("RUK2001", "Variables and parameters cannot have type void.", node);
+                Error(DiagnosticCode.InvalidType, "Variables and parameters cannot have type void.", node);
             }
 
             var name = node.Token.Text;
             if (name == "Error" || module.Functions.ContainsKey(name) || module.Imports.ContainsKey(name) || module.Structs.ContainsKey(name))
             {
-                Error("RUK2002", $"Name '{name}' is already a function, struct or import.", node);
+                Error(DiagnosticCode.ConflictingName, $"Name '{name}' is already a function, struct or import.", node);
             }
 
             if (module.Enums.ContainsKey(name))
             {
-                Error("RUK2002", $"Name '{name}' is already an enum.", node);
+                Error(DiagnosticCode.ConflictingName, $"Name '{name}' is already an enum.", node);
             }
 
             var symbol = new VariableSymbol(name, type, $"${(global ? "script:" : "")}__rukbat_v{variableId++}", global,
                 node is Variable { IsConst: true });
             if (!scope.Variables.TryAdd(name, symbol))
             {
-                Error("RUK2002", $"Duplicate declaration '{name}'.", node);
+                Error(DiagnosticCode.ConflictingName, $"Duplicate declaration '{name}'.", node);
             }
 
             Variables[node] = symbol;
@@ -41,7 +41,7 @@ namespace Rukbat
                 var message = name.Token.Text == "self"
                     ? "self is available only inside a struct method."
                     : $"Unknown variable '{name.Token.Text}'.";
-                Error("RUK2004", message, name);
+                Error(DiagnosticCode.UnknownName, message, name);
                 return ValueType.Error;
             }
             Variables[name] = symbol;

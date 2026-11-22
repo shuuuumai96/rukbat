@@ -47,7 +47,7 @@ namespace Rukbat
                     var function = symbol.Function;
                     if (symbol.Owner is null && current.Imports.ContainsKey(function.Name))
                     {
-                        Error("RUK2002", $"Name '{function.Name}' is already an import.", function);
+                        Error(DiagnosticCode.ConflictingName, $"Name '{function.Name}' is already an import.", function);
                     }
 
                     // Functions capture their defining module's scope, never the caller's locals.
@@ -65,7 +65,7 @@ namespace Rukbat
                     CheckStatements(function.Body, locals, symbol.ReturnType, false);
                     if (symbol.ReturnType != ValueType.Void && reachable)
                     {
-                        Error("RUK2003", $"Function '{function.Name}' must return a value or throw on every path.", function);
+                        Error(DiagnosticCode.InvalidReturn, $"Function '{function.Name}' must return a value or throw on every path.", function);
                     }
                 }
             }

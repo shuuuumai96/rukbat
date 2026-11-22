@@ -21,25 +21,25 @@ namespace Rukbat
                 var enumeration = new EnumSymbol(current, declaration);
                 if (!current.Enums.TryAdd(name, enumeration))
                 {
-                    Error("RUK2002", $"Duplicate enum '{name}'.", declaration);
+                    Error(DiagnosticCode.ConflictingName, $"Duplicate enum '{name}'.", declaration);
                 }
 
                 if (IsPrimitive(name) || name is "Error" or "dict" ||
                     current.Structs.ContainsKey(name) || current.Imports.ContainsKey(name))
                 {
-                    Error("RUK2002", $"Enum name '{name}' conflicts with an existing type or import.", declaration);
+                    Error(DiagnosticCode.ConflictingName, $"Enum name '{name}' conflicts with an existing type or import.", declaration);
                 }
 
                 if (declaration.Members.Count == 0)
                 {
-                    Error("RUK2001", $"Enum '{name}' must declare at least one member.", declaration);
+                    Error(DiagnosticCode.InvalidType, $"Enum '{name}' must declare at least one member.", declaration);
                 }
 
                 foreach (var member in declaration.Members)
                 {
                     if (!enumeration.Members.TryAdd(member.Token.Text, member))
                     {
-                        Error("RUK2002", $"Duplicate member '{member.Token.Text}' on enum {name}.", member);
+                        Error(DiagnosticCode.ConflictingName, $"Duplicate member '{member.Token.Text}' on enum {name}.", member);
                     }
                 }
             }
@@ -56,11 +56,11 @@ namespace Rukbat
             var parse = call.Name == "parse_enum";
             if (parse && call.TypeArgument is null)
             {
-                Error("RUK2005", $"{operation} requires an explicit enum type.", call);
+                Error(DiagnosticCode.InvalidCall, $"{operation} requires an explicit enum type.", call);
             }
             else if (!parse && call.TypeArgument is not null)
             {
-                Error("RUK2005", $"{operation} infers its enum type and does not accept a type argument.", call);
+                Error(DiagnosticCode.InvalidCall, $"{operation} infers its enum type and does not accept a type argument.", call);
             }
 
             var target = parse && call.TypeArgument is not null ? BindType(call.TypeArgument, call) : ValueType.Error;
@@ -68,7 +68,7 @@ namespace Rukbat
             var enumType = parse ? target : call.Arguments.Count == 1 ? Types[call.Arguments[0].Value] : ValueType.Error;
             if (enumType != ValueType.Error && enumType.Enum is null)
             {
-                Error("RUK2001", $"{operation} requires a non-null enum type, got {enumType}.", call);
+                Error(DiagnosticCode.InvalidType, $"{operation} requires a non-null enum type, got {enumType}.", call);
             }
 
             Calls[call] = new(CallKind.Standard, StandardOperation: operation);

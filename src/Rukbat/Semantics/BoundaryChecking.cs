@@ -10,30 +10,30 @@ namespace Rukbat
                 if (call.Name != "parse" && call.TypeArgument is null)
                 {
                     var argument = call.Name == "as" ? "value" : "text";
-                    Error("RUK2005", $"json.{call.Name} requires an explicit result type: json.{call.Name}<T>({argument}).", call);
+                    Error(DiagnosticCode.InvalidCall, $"json.{call.Name} requires an explicit result type: json.{call.Name}<T>({argument}).", call);
                     return ValueType.Error;
                 }
                 var resultType = call.TypeArgument is null ? jsonValue : BindType(call.TypeArgument, call);
                 if (!SupportsJson(resultType))
                 {
-                    Error("RUK2010", $"Type {resultType} cannot be read from JSON.", call);
+                    Error(DiagnosticCode.InvalidOperation, $"Type {resultType} cannot be read from JSON.", call);
                 }
                 Calls[call] = new(CallKind.Standard, StandardOperation: $"json.{call.Name}");
                 return resultType;
             }
             if (call.Arguments.Count != 1 || call.Arguments.Any(argument => argument.Name is not null))
             {
-                Error("RUK2005", $"json.{call.Name} requires one positional argument.", call);
+                Error(DiagnosticCode.InvalidCall, $"json.{call.Name} requires one positional argument.", call);
             }
             var argumentTypes = call.Arguments.Select(argument => TypeOf(argument.Value, scope)).ToArray();
             var argumentType = argumentTypes.FirstOrDefault() ?? ValueType.Error;
             if (call.TypeArgument is not null)
             {
-                Error("RUK2005", "json.stringify infers its input type and does not accept a type argument.", call);
+                Error(DiagnosticCode.InvalidCall, "json.stringify infers its input type and does not accept a type argument.", call);
             }
             if (!SupportsJson(argumentType))
             {
-                Error("RUK2010", $"Type {argumentType} cannot be encoded as JSON.", call);
+                Error(DiagnosticCode.InvalidOperation, $"Type {argumentType} cannot be encoded as JSON.", call);
             }
             Calls[call] = new(CallKind.Standard, StandardOperation: "json.stringify");
             return ValueType.String;
@@ -47,12 +47,12 @@ namespace Rukbat
                 [jsonValue, call.Name == "set" ? ValueType.String : ValueType.Int];
             if (call.TypeArgument is not null)
             {
-                Error("RUK2005", $"json.{call.Name} infers its replacement type and does not accept a type argument.", call);
+                Error(DiagnosticCode.InvalidCall, $"json.{call.Name} infers its replacement type and does not accept a type argument.", call);
             }
 
             if (call.Arguments.Count != prefix.Length + 1 || call.Arguments.Any(a => a.Name is not null))
             {
-                Error("RUK2005", $"json.{call.Name} expects {prefix.Length + 1} positional arguments.", call);
+                Error(DiagnosticCode.InvalidCall, $"json.{call.Name} expects {prefix.Length + 1} positional arguments.", call);
             }
 
             for (var index = 0; index < call.Arguments.Count; index++)
@@ -64,7 +64,7 @@ namespace Rukbat
                 }
                 else if (actual != ValueType.Null && !SupportsJson(actual))
                 {
-                    Error("RUK2010", $"Type {actual} cannot be encoded as JSON.", call.Arguments[index].Value);
+                    Error(DiagnosticCode.InvalidOperation, $"Type {actual} cannot be encoded as JSON.", call.Arguments[index].Value);
                 }
             }
             Calls[call] = new(CallKind.Standard, StandardOperation: $"json.{call.Name}");

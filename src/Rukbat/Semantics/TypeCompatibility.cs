@@ -38,7 +38,7 @@ namespace Rukbat
                 expectedName = QualifiedTypeName(expected);
                 actualName = QualifiedTypeName(actual);
             }
-            Error("RUK2001", $"Expected {expectedName}{(context is null ? "" : " for " + context)}, got {actualName}.", node);
+            Error(DiagnosticCode.InvalidType, $"Expected {expectedName}{(context is null ? "" : " for " + context)}, got {actualName}.", node);
         }
 
         private static string QualifiedTypeName(ValueType type)

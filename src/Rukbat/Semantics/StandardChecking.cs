@@ -39,7 +39,7 @@ namespace Rukbat
                 : StandardSignatures.Find(standardModule, call.Name);
             if (signature is null)
             {
-                Error("RUK2004", $"Unknown standard-library function '{moduleName}.{call.Name}'.", call);
+                Error(DiagnosticCode.UnknownName, $"Unknown standard-library function '{moduleName}.{call.Name}'.", call);
                 return ValueType.Error;
             }
 
@@ -50,7 +50,7 @@ namespace Rukbat
 
             if (call.TypeArgument is not null)
             {
-                Error("RUK2005", $"{moduleName}.{call.Name} does not accept a type argument.", call);
+                Error(DiagnosticCode.InvalidCall, $"{moduleName}.{call.Name} does not accept a type argument.", call);
             }
             CheckStandardArguments(call, scope, signature.Parameters, $"{moduleName}.{call.Name}");
             Calls[call] = new(CallKind.Standard, StandardOperation: $"{moduleName}.{call.Name}");
@@ -61,11 +61,11 @@ namespace Rukbat
         {
             if (call.Arguments.Count != parameters.Count)
             {
-                Error("RUK2005", $"{name} expects {parameters.Count} positional arguments, got {call.Arguments.Count}.", call);
+                Error(DiagnosticCode.InvalidCall, $"{name} expects {parameters.Count} positional arguments, got {call.Arguments.Count}.", call);
             }
             if (call.Arguments.Any(argument => argument.Name is not null))
             {
-                Error("RUK2005", $"{name} accepts positional arguments only. Remove the argument names.", call);
+                Error(DiagnosticCode.InvalidCall, $"{name} accepts positional arguments only. Remove the argument names.", call);
             }
             for (var index = 0; index < call.Arguments.Count; index++)
             {

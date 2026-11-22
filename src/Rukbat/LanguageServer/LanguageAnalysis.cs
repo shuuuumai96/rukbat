@@ -48,7 +48,7 @@ namespace Rukbat
             var documentationDiagnostics = new List<Diagnostic>();
             foreach (var module in Modules.Where(m => m.StandardName is null))
             {
-                if (!module.Source.Diagnostics.Any(d => d.Code == "RUK1000"))
+                if (!module.Source.Diagnostics.Any(d => d.Code == DiagnosticCode.SyntaxError))
                 {
                     documentationDiagnostics.AddRange(module.Documentation.Diagnostics);
                 }

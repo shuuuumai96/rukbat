@@ -9,7 +9,7 @@ namespace Rukbat
             var value = expected?.NonNullable.DictionaryValue;
             if (dictionary.Entries.Count == 0 && key is null)
             {
-                Error("RUK2001", "An empty dictionary requires an explicit dictionary type from a declaration, argument or return.", dictionary);
+                Error(DiagnosticCode.InvalidType, "An empty dictionary requires an explicit dictionary type from a declaration, argument or return.", dictionary);
                 return ValueType.Error;
             }
             var literalKeys = new HashSet<object>();
@@ -23,18 +23,18 @@ namespace Rukbat
                 Match(value, actualValue, entry.Value, "dictionary value");
                 if (value == ValueType.Void || value == ValueType.Null)
                 {
-                    Error("RUK2001", "Dictionary values require a storable type; null needs an explicit nullable value type.", entry.Value);
+                    Error(DiagnosticCode.InvalidType, "Dictionary values require a storable type; null needs an explicit nullable value type.", entry.Value);
                 }
 
                 var literal = LiteralKey(entry.Key);
                 if (literal is not null && !literalKeys.Add(literal))
                 {
-                    Error("RUK2002", $"Duplicate dictionary key '{literal}'.", entry.Key);
+                    Error(DiagnosticCode.ConflictingName, $"Duplicate dictionary key '{literal}'.", entry.Key);
                 }
             }
             if (key != ValueType.String && key != ValueType.Int && key != ValueType.Error)
             {
-                Error("RUK2001", "Dictionary keys must be non-null string or int values.", dictionary);
+                Error(DiagnosticCode.InvalidType, "Dictionary keys must be non-null string or int values.", dictionary);
             }
 
             return ValueType.DictionaryOf(key!, value!);
@@ -57,7 +57,7 @@ namespace Rukbat
                     TypeOf(argument.Value, scope);
                 }
 
-                Error("RUK2004", $"Unknown method '{call.Name}' on {receiver}.", call);
+                Error(DiagnosticCode.UnknownName, $"Unknown method '{call.Name}' on {receiver}.", call);
                 return ValueType.Error;
             }
 
@@ -69,7 +69,7 @@ namespace Rukbat
             var count = call.Name == "keys" ? 0 : 1;
             if (call.Arguments.Count != count || call.Arguments.Any(argument => argument.Name is not null))
             {
-                Error("RUK2005", $"{call.Name} requires {count} positional arguments.", call);
+                Error(DiagnosticCode.InvalidCall, $"{call.Name} requires {count} positional arguments.", call);
             }
 
             foreach (var argument in call.Arguments)
@@ -82,7 +82,7 @@ namespace Rukbat
                 RequireWritable(RootVariable(call.Receiver!), call);
                 if (!IsVariablePath(call.Receiver!))
                 {
-                    Error("RUK2010", "Dictionary remove requires a variable, not a temporary value.", call.Receiver!);
+                    Error(DiagnosticCode.InvalidOperation, "Dictionary remove requires a variable, not a temporary value.", call.Receiver!);
                 }
             }
             Calls[call] = new(CallKind.DictionaryMethod);

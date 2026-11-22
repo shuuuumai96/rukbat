@@ -134,13 +134,13 @@ namespace Rukbat
                 var text = new DocumentationText(source, group);
                 if (!first.IsStandalone(source))
                 {
-                    Diagnostics.Add(text.Error("RUK6000", "A documentation comment must occupy its own line."));
+                    Diagnostics.Add(text.Error(DiagnosticCode.InvalidDocumentation, "A documentation comment must occupy its own line."));
                 }
                 else if (first.IsModule)
                 {
                     if (first.Start >= source.FirstCodeOffset || Overview is not null)
                     {
-                        Diagnostics.Add(text.Error("RUK6000", "Place one module documentation block before the first code statement."));
+                        Diagnostics.Add(text.Error(DiagnosticCode.InvalidDocumentation, "Place one module documentation block before the first code statement."));
                     }
                     else
                     {
@@ -152,7 +152,7 @@ namespace Rukbat
                     var declaration = Declarations.FirstOrDefault(d => d.Start >= text.End && Adjacent(source, text.End, d.Start));
                     if (declaration is null)
                     {
-                        Diagnostics.Add(text.Error("RUK6000", "Place documentation immediately before a top-level declaration, struct field, method, or enum member."));
+                        Diagnostics.Add(text.Error(DiagnosticCode.InvalidDocumentation, "Place documentation immediately before a top-level declaration, struct field, method, or enum member."));
                     }
                     else
                     {

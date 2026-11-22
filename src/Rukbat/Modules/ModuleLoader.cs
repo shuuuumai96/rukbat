@@ -34,19 +34,19 @@ namespace Rukbat
             {
                 if (module.Imports.ContainsKey(import.Name))
                 {
-                    source.Error("RUK3000", $"Duplicate import '{import.Name}'.", import.Token);
+                    source.Error(DiagnosticCode.InvalidImport, $"Duplicate import '{import.Name}'.", import.Token);
                     continue;
                 }
                 if (import.IsStandard)
                 {
                     if (!StandardModules.Names.Contains(import.Path))
                     {
-                        source.Error("RUK3002", $"Unknown standard module '{import.Path}'.", import.Token);
+                        source.Error(DiagnosticCode.ImportResolution, $"Unknown standard module '{import.Path}'.", import.Token);
                         continue;
                     }
                     if (import.Name != import.Path)
                     {
-                        source.Error("RUK3002", "Standard modules use their canonical name and cannot be aliased.", import.Token);
+                        source.Error(DiagnosticCode.ImportResolution, "Standard modules use their canonical name and cannot be aliased.", import.Token);
                         continue;
                     }
                     var standardPath = $"<stdlib:{import.Path}>";
@@ -76,17 +76,17 @@ namespace Rukbat
                 }
                 if (StandardModules.Names.Contains(import.Name))
                 {
-                    source.Error("RUK3002", $"Import alias '{import.Name}' is reserved for a standard module.", import.Token);
+                    source.Error(DiagnosticCode.ImportResolution, $"Import alias '{import.Name}' is reserved for a standard module.", import.Token);
                     continue;
                 }
                 if (!resolveImports)
                 {
-                    source.Error("RUK3000", "Imports require CompileFile or 'rukbat build file.rukbat'.", import.Token);
+                    source.Error(DiagnosticCode.InvalidImport, "Imports require CompileFile or 'rukbat build file.rukbat'.", import.Token);
                     continue;
                 }
                 if (!IsRelativeModulePath(import.Path))
                 {
-                    source.Error("RUK3002", "Import path must be a relative .rukbat file path using '/' separators.", import.Token);
+                    source.Error(DiagnosticCode.ImportResolution, "Import path must be a relative .rukbat file path using '/' separators.", import.Token);
                     continue;
                 }
                 string importedPath;
@@ -96,14 +96,14 @@ namespace Rukbat
                 }
                 catch (Exception error) when (error is ArgumentException or IOException or NotSupportedException)
                 {
-                    source.Error("RUK3002", $"Invalid import path '{import.Path}': {error.Message}", import.Token);
+                    source.Error(DiagnosticCode.ImportResolution, $"Invalid import path '{import.Path}': {error.Message}", import.Token);
                     continue;
                 }
                 if (modules.TryGetValue(importedPath, out var imported))
                 {
                     if (visiting.Contains(imported))
                     {
-                        source.Error("RUK3001", $"Import cycle involving '{import.Name}'.", import.Token);
+                        source.Error(DiagnosticCode.ImportCycle, $"Import cycle involving '{import.Name}'.", import.Token);
                         continue;
                     }
                 }
@@ -115,7 +115,7 @@ namespace Rukbat
                     }
                     catch (Exception error) when (error is IOException or UnauthorizedAccessException)
                     {
-                        source.Error("RUK3002", $"Cannot read module '{import.Path}' as '{import.Name}': {error.Message}", import.Token);
+                        source.Error(DiagnosticCode.ImportResolution, $"Cannot read module '{import.Path}' as '{import.Name}': {error.Message}", import.Token);
                         continue;
                     }
                 }

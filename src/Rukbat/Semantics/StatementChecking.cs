@@ -17,26 +17,26 @@ namespace Rukbat
                 switch (statement)
                 {
                     case Import import when !topLevel:
-                        Error("RUK3000", "Imports are allowed only at module level.", import);
+                        Error(DiagnosticCode.InvalidImport, "Imports are allowed only at module level.", import);
                         break;
                     case StructDeclaration structure:
-                        Error("RUK1002", "Structs are allowed only at module level.", structure);
+                        Error(DiagnosticCode.InvalidDeclarationScope, "Structs are allowed only at module level.", structure);
                         break;
                     case EnumDeclaration enumeration:
-                        Error("RUK1002", "Enums are allowed only at module level.", enumeration);
+                        Error(DiagnosticCode.InvalidDeclarationScope, "Enums are allowed only at module level.", enumeration);
                         break;
                     case ImplDeclaration implementation:
-                        Error("RUK1002", "Impl blocks are allowed only at module level.", implementation);
+                        Error(DiagnosticCode.InvalidDeclarationScope, "Impl blocks are allowed only at module level.", implementation);
                         break;
                     case Function function:
-                        Error("RUK1002", "Nested functions are not supported yet.", function);
+                        Error(DiagnosticCode.InvalidDeclarationScope, "Nested functions are not supported yet.", function);
                         break;
                     case Variable variable:
                         var declaredType = variable.IsInferred ? null : BindType(variable.Type, variable);
                         var actual = TypeOf(variable.Value, scope, declaredType);
                         if (variable.IsInferred && actual == ValueType.Null)
                         {
-                            Error("RUK2001", "A null literal requires an explicit nullable type.", variable.Value);
+                            Error(DiagnosticCode.InvalidType, "A null literal requires an explicit nullable type.", variable.Value);
                             actual = ValueType.Error;
                         }
                         Declare(variable, declaredType ?? actual, scope, topLevel);
@@ -47,7 +47,7 @@ namespace Rukbat
                         var target = scope.Find(assignment.Token.Text);
                         if (target is null)
                         {
-                            Error("RUK2004", $"Unknown variable '{assignment.Token.Text}'. Declare it with a type first.", assignment);
+                            Error(DiagnosticCode.UnknownName, $"Unknown variable '{assignment.Token.Text}'. Declare it with a type first.", assignment);
                         }
                         else
                         {
@@ -63,21 +63,21 @@ namespace Rukbat
                         RequireWritable(RootVariable(assignment.Target), assignment);
                         if (Constants.ContainsKey(assignment.Target))
                         {
-                            Error("RUK2010", "Standard-library constants are read-only.", assignment);
+                            Error(DiagnosticCode.InvalidOperation, "Standard-library constants are read-only.", assignment);
                         }
                         if (EnumMembers.ContainsKey(assignment.Target))
                         {
-                            Error("RUK2010", "Enum members are read-only.", assignment);
+                            Error(DiagnosticCode.InvalidOperation, "Enum members are read-only.", assignment);
                         }
                         if (!IsVariablePath(assignment.Target))
                         {
-                            Error("RUK2010", "Field assignment requires a variable, not a temporary value.", assignment);
+                            Error(DiagnosticCode.InvalidOperation, "Field assignment requires a variable, not a temporary value.", assignment);
                         }
 
                         if (assignment.Target.Receiver is { } receiver && Types.GetValueOrDefault(receiver) is { } receiverType &&
                             (receiverType.Element is not null || receiverType.DictionaryKey is not null))
                         {
-                            Error("RUK2010", "Container length is read-only.", assignment);
+                            Error(DiagnosticCode.InvalidOperation, "Container length is read-only.", assignment);
                         }
 
                         Match(fieldType, TypeOf(assignment.Value, scope, fieldType), assignment.Value, $"field '{assignment.Target.Name}'");
@@ -87,7 +87,7 @@ namespace Rukbat
                         RequireWritable(RootVariable(assignment.Target), assignment);
                         if (!IsVariablePath(assignment.Target))
                         {
-                            Error("RUK2010", "Array assignment requires a variable, not a temporary value.", assignment);
+                            Error(DiagnosticCode.InvalidOperation, "Array assignment requires a variable, not a temporary value.", assignment);
                         }
 
                         Match(elementType, TypeOf(assignment.Value, scope, elementType), assignment.Value);
@@ -99,7 +99,7 @@ namespace Rukbat
                         Iterations[loop] = iteration;
                         if (iteration.Kind == IterationKind.ArraySnapshot && collectionType.Element is null && collectionType != ValueType.Error)
                         {
-                            Error("RUK2001", "for ... in requires an array or a standard traversal descriptor.", loop.Items);
+                            Error(DiagnosticCode.InvalidType, "for ... in requires an array or a standard traversal descriptor.", loop.Items);
                         }
 
                         var beforeLoop = SnapshotFlow();
@@ -141,7 +141,7 @@ namespace Rukbat
                     case LoopControl control:
                         if (loops.Count == 0)
                         {
-                            Error("RUK2010", $"{control.Token.Text} is allowed only inside a loop.", control);
+                            Error(DiagnosticCode.InvalidOperation, $"{control.Token.Text} is allowed only inside a loop.", control);
                         }
                         else if (reachable)
                         {
@@ -154,7 +154,7 @@ namespace Rukbat
                         var resultType = result.Value is null ? ValueType.Void : TypeOf(result.Value, scope, returnType);
                         if (returnType is null)
                         {
-                            Error("RUK2003", "return is allowed only inside a function.", result);
+                            Error(DiagnosticCode.InvalidReturn, "return is allowed only inside a function.", result);
                         }
                         else
                         {

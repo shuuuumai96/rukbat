@@ -34,7 +34,7 @@ namespace Rukbat
         private Token Expect(string text) => Current.Text == text ? Take() : Fail($"Expected '{text}', got '{Current.Text}'.");
         private Token Fail(string message)
         {
-            source.Error("RUK1000", message, Current);
+            source.Error(DiagnosticCode.SyntaxError, message, Current);
             throw new ParseFailure();
         }
 
@@ -638,14 +638,14 @@ namespace Rukbat
                         !double.IsFinite(floatValue) ||
                         floatValue == 0 && token.Text.Split('e', 'E')[0].Any(c => c is >= '1' and <= '9'))
                     {
-                        source.Error("RUK1001", "Float literal must be a finite IEEE 754 binary64 value.", token);
+                        source.Error(DiagnosticCode.InvalidLiteral, "Float literal must be a finite IEEE 754 binary64 value.", token);
                     }
 
                     return new Literal(token, floatValue);
                 }
                 if (!long.TryParse(token.Text, NumberStyles.None, CultureInfo.InvariantCulture, out var value))
                 {
-                    source.Error("RUK1001", "Integer literal is outside Int64 range.", token);
+                    source.Error(DiagnosticCode.InvalidLiteral, "Integer literal is outside Int64 range.", token);
                 }
 
                 return new Literal(token, value);

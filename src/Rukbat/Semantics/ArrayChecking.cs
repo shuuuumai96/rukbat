@@ -6,7 +6,7 @@ namespace Rukbat
         {
             if (call.Name is not ("slice" or "remove_at" or "sort" or "sort_descending" or "sort_by" or "sort_by_descending"))
             {
-                Error("RUK2004", $"Unknown standard-library function 'array.{call.Name}'.", call);
+                Error(DiagnosticCode.UnknownName, $"Unknown standard-library function 'array.{call.Name}'.", call);
                 return ValueType.Error;
             }
 
@@ -18,7 +18,7 @@ namespace Rukbat
             int count = call.Name == "slice" ? 3 : call.Name is "sort" or "sort_descending" ? 1 : 2;
             if (call.TypeArgument is not null || call.Arguments.Count != count || call.Arguments.Any(argument => argument.Name is not null))
             {
-                Error("RUK2005", $"array.{call.Name} expects {count} positional arguments and infers its types.", call);
+                Error(DiagnosticCode.InvalidCall, $"array.{call.Name} expects {count} positional arguments and infers its types.", call);
             }
 
             var types = call.Arguments.Select(argument => TypeOf(argument.Value, scope)).ToArray();
@@ -30,7 +30,7 @@ namespace Rukbat
             var values = types[0];
             if (values.Element is null && values != ValueType.Error)
             {
-                Error("RUK2001", "Array operations require a non-null array; empty literals need a declared element type.", call.Arguments[0]);
+                Error(DiagnosticCode.InvalidType, "Array operations require a non-null array; empty literals need a declared element type.", call.Arguments[0]);
             }
 
             if (call.Name is "slice" or "remove_at")
@@ -45,12 +45,12 @@ namespace Rukbat
                 var keys = call.Name is "sort_by" or "sort_by_descending" ? types.ElementAtOrDefault(1)?.Element : values.Element;
                 if (keys is not null && keys != ValueType.Error && keys != ValueType.Int && keys != ValueType.Float && keys != ValueType.String && !DateTimeValues.Ordered(keys))
                 {
-                    Error("RUK2001", "Sort keys must be non-null int, float, string, datetime.Timestamp, datetime.Date or datetime.Duration values.", call);
+                    Error(DiagnosticCode.InvalidType, "Sort keys must be non-null int, float, string, datetime.Timestamp, datetime.Date or datetime.Duration values.", call);
                 }
 
                 if (call.Name is "sort_by" or "sort_by_descending" && types.Length > 1 && types[1].Element is null && types[1] != ValueType.Error)
                 {
-                    Error("RUK2001", "Sort keys must be a non-null array.", call.Arguments[1]);
+                    Error(DiagnosticCode.InvalidType, "Sort keys must be a non-null array.", call.Arguments[1]);
                 }
             }
             Calls[call] = new(CallKind.Standard, StandardOperation: "array." + call.Name);
@@ -68,7 +68,7 @@ namespace Rukbat
             var element = expected?.NonNullable.Element;
             if (element is null && array.Items.Count == 0)
             {
-                Error("RUK2001", "An empty array requires an explicit array type from a declaration, argument or return.", array);
+                Error(DiagnosticCode.InvalidType, "An empty array requires an explicit array type from a declaration, argument or return.", array);
                 return ValueType.Error;
             }
             foreach (var item in array.Items)
@@ -76,14 +76,14 @@ namespace Rukbat
                 var actual = TypeOf(item, scope, element);
                 if (element is null && actual == ValueType.Null)
                 {
-                    Error("RUK2001", "A null array element requires an explicit nullable element type.", item);
+                    Error(DiagnosticCode.InvalidType, "A null array element requires an explicit nullable element type.", item);
                     element = ValueType.Error;
                 }
 
                 element ??= actual;
                 if (actual == ValueType.Void)
                 {
-                    Error("RUK2001", "Array elements cannot have type void.", item);
+                    Error(DiagnosticCode.InvalidType, "Array elements cannot have type void.", item);
                 }
 
                 Match(element, actual, item, "array element");
@@ -107,7 +107,7 @@ namespace Rukbat
 
             if (receiver != ValueType.Error)
             {
-                Error("RUK2001", $"Cannot index {receiver}; expected an array.", index);
+                Error(DiagnosticCode.InvalidType, $"Cannot index {receiver}; expected an array.", index);
             }
 
             return ValueType.Error;

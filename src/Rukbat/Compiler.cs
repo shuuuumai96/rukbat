@@ -39,7 +39,7 @@ namespace Rukbat
             var diagnostics = new List<Diagnostic>();
             PowerShellParser.ParseInput(output, out _, out var errors);
             diagnostics.AddRange(errors.Select(error => new Diagnostic(
-                "RUK9000",
+                DiagnosticCode.InternalError,
                 $"Invalid generated PowerShell: {error.Message}",
                 1,
                 1,
@@ -66,7 +66,7 @@ namespace Rukbat
                     structure.Module.StandardName == "test" && structure.Declaration.Token.Text == "Context";
                 if (symbol.ReturnType != ValueType.Void || !validParameter)
                 {
-                    entry.Source.Error("RUK5000", "A test must return void and take either no parameters or one test.Context parameter.", function.Token);
+                    entry.Source.Error(DiagnosticCode.InvalidGeneratedPowerShell, "A test must return void and take either no parameters or one test.Context parameter.", function.Token);
                     continue;
                 }
 

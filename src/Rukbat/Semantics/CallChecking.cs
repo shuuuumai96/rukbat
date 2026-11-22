@@ -43,7 +43,7 @@ namespace Rukbat
         {
             if (arguments.Length != 0)
             {
-                Error("RUK2005", "args requires no arguments.", call);
+                Error(DiagnosticCode.InvalidCall, "args requires no arguments.", call);
             }
             return ValueType.ArrayOf(ValueType.String);
         }
@@ -52,7 +52,7 @@ namespace Rukbat
         {
             if (arguments.Length != 1 || call.Arguments.Any(argument => argument.Name is not null))
             {
-                Error("RUK2005", "exit requires one positional argument.", call);
+                Error(DiagnosticCode.InvalidCall, "exit requires one positional argument.", call);
             }
             else
             {
@@ -67,22 +67,22 @@ namespace Rukbat
             powerShellType = BindType(powerShellType, call);
             if (ContainsType(powerShellType, value => value.DictionaryKey is not null))
             {
-                Error("RUK2010", "Dictionaries cannot be returned directly from PowerShell. Convert primitive results explicitly.", call);
+                Error(DiagnosticCode.InvalidOperation, "Dictionaries cannot be returned directly from PowerShell. Convert primitive results explicitly.", call);
             }
 
             if (ContainsType(powerShellType, value => value.Enum is not null))
             {
-                Error("RUK2010", "PowerShell result types cannot contain enums. Convert returned text explicitly.", call);
+                Error(DiagnosticCode.InvalidOperation, "PowerShell result types cannot contain enums. Convert returned text explicitly.", call);
             }
 
             if (ContainsOpaqueStandardValue(powerShellType))
             {
-                Error("RUK2010", "PowerShell result types cannot contain re.Pattern, fs.Lines, json.Value, csv.Row, cli.Result, encoding.Encoding, hash.Algorithm, log.Level, datetime types, http.Method or http.Body. Read text and use the corresponding parser.", call);
+                Error(DiagnosticCode.InvalidOperation, "PowerShell result types cannot contain re.Pattern, fs.Lines, json.Value, csv.Row, cli.Result, encoding.Encoding, hash.Algorithm, log.Level, datetime types, http.Method or http.Body. Read text and use the corresponding parser.", call);
             }
 
             if (arguments.Length == 0 || call.Arguments[0].Name is not null)
             {
-                Error("RUK2005", "powershell<T> requires a command name as its first positional argument.", call);
+                Error(DiagnosticCode.InvalidCall, "powershell<T> requires a command name as its first positional argument.", call);
             }
             else
             {
@@ -96,27 +96,27 @@ namespace Rukbat
                 var argument = call.Arguments[i];
                 if (ContainsType(arguments[i], value => value.DictionaryKey is not null))
                 {
-                    Error("RUK2010", "Dictionaries cannot be passed directly to PowerShell. Pass primitive values.", argument);
+                    Error(DiagnosticCode.InvalidOperation, "Dictionaries cannot be passed directly to PowerShell. Pass primitive values.", argument);
                 }
 
                 if (ContainsType(arguments[i], value => value.Enum is not null))
                 {
-                    Error("RUK2010", "Enums cannot be passed directly to PowerShell. Convert them to text explicitly.", argument);
+                    Error(DiagnosticCode.InvalidOperation, "Enums cannot be passed directly to PowerShell. Convert them to text explicitly.", argument);
                 }
 
                 if (ContainsType(arguments[i], StandardValueTypes.IsOpaqueScalar))
                 {
-                    Error("RUK2010", "Use explicit standard-library conversions before passing opaque values to PowerShell.", argument);
+                    Error(DiagnosticCode.InvalidOperation, "Use explicit standard-library conversions before passing opaque values to PowerShell.", argument);
                 }
 
                 if (ContainsStruct(arguments[i]))
                 {
-                    Error("RUK2010", "Structs cannot be passed directly to PowerShell. Pass primitive fields.", argument);
+                    Error(DiagnosticCode.InvalidOperation, "Structs cannot be passed directly to PowerShell. Pass primitive fields.", argument);
                 }
 
                 if (arguments[i] == ValueType.Void)
                 {
-                    Error("RUK2001", "A void result cannot be passed as an argument.", argument);
+                    Error(DiagnosticCode.InvalidType, "A void result cannot be passed as an argument.", argument);
                 }
 
                 if (argument.Name is { } name)
@@ -124,12 +124,12 @@ namespace Rukbat
                     sawNamed = true;
                     if (!named.Add(name))
                     {
-                        Error("RUK2005", $"Duplicate PowerShell parameter '{name}'.", argument);
+                        Error(DiagnosticCode.InvalidCall, $"Duplicate PowerShell parameter '{name}'.", argument);
                     }
                 }
                 else if (sawNamed)
                 {
-                    Error("RUK2005", "Positional arguments must precede named arguments.", argument);
+                    Error(DiagnosticCode.InvalidCall, "Positional arguments must precede named arguments.", argument);
                 }
             }
             return powerShellType;
@@ -139,23 +139,23 @@ namespace Rukbat
         {
             if (arguments.Length != 1 || call.Arguments.Any(a => a.Name is not null))
             {
-                Error("RUK2005", $"{call.Name} requires one positional argument.", call);
+                Error(DiagnosticCode.InvalidCall, $"{call.Name} requires one positional argument.", call);
             }
             else if (StandardValueTypes.IsOpaqueScalar(arguments[0]) || ContainsType(arguments[0], value => value == ValueType.RegexPattern || value == LogValues.Level))
             {
-                Error("RUK2010", "Use an explicit standard-library conversion before printing this value.", call);
+                Error(DiagnosticCode.InvalidOperation, "Use an explicit standard-library conversion before printing this value.", call);
             }
             else if (arguments[0].IsComposite)
             {
-                Error("RUK2010", "Print individual struct fields or array elements rather than the composite value.", call);
+                Error(DiagnosticCode.InvalidOperation, "Print individual struct fields or array elements rather than the composite value.", call);
             }
             else if (arguments[0].IsNullable)
             {
-                Error("RUK2001", "A nullable value must be checked against null before it can be printed.", call.Arguments[0].Value);
+                Error(DiagnosticCode.InvalidType, "A nullable value must be checked against null before it can be printed.", call.Arguments[0].Value);
             }
             else if (arguments[0] == ValueType.Void)
             {
-                Error("RUK2001", "Cannot print a void result.", call);
+                Error(DiagnosticCode.InvalidType, "Cannot print a void result.", call);
             }
 
             return ValueType.Void;
@@ -168,7 +168,7 @@ namespace Rukbat
                 return true;
             }
 
-            Error("RUK2005", "Function and method calls use '(...)' syntax; braces are reserved for struct literals.", call);
+            Error(DiagnosticCode.InvalidCall, "Function and method calls use '(...)' syntax; braces are reserved for struct literals.", call);
             return false;
         }
     }

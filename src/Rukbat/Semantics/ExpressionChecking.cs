@@ -42,7 +42,7 @@ namespace Rukbat
             {
                 return actual;
             }
-            Error("RUK2001", $"Unary operator '{unary.Token.Text}' requires int or float, got {actual}.", unary);
+            Error(DiagnosticCode.InvalidType, $"Unary operator '{unary.Token.Text}' requires int or float, got {actual}.", unary);
             return ValueType.Error;
         }
 
@@ -105,7 +105,7 @@ namespace Rukbat
 
             ValueType Invalid()
             {
-                Error("RUK2001", $"Operator '{op}' cannot combine {left} and {right}.", binary);
+                Error(DiagnosticCode.InvalidType, $"Operator '{op}' cannot combine {left} and {right}.", binary);
                 return ValueType.Error;
             }
         }
