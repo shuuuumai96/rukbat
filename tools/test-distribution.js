@@ -9,8 +9,10 @@ const { spawnSync } = require('node:child_process');
 const directory = path.resolve(process.argv[2]);
 const executable = path.join(directory, 'rukbat.exe');
 const work = fs.mkdtempSync(path.join(directory, 'acceptance-'));
-const env = { ...process.env, PATH: `${process.env.SystemRoot}/System32;${process.env.SystemRoot}/System32/WindowsPowerShell/v1.0`,
-    DOTNET_ROOT: path.join(work, 'no-dotnet'), DOTNET_ROOT_X64: path.join(work, 'no-dotnet'), DOTNET_MULTILEVEL_LOOKUP: '0' };
+const env = {
+    ...process.env, PATH: `${process.env.SystemRoot}/System32;${process.env.SystemRoot}/System32/WindowsPowerShell/v1.0`,
+    DOTNET_ROOT: path.join(work, 'no-dotnet'), DOTNET_ROOT_X64: path.join(work, 'no-dotnet'), DOTNET_MULTILEVEL_LOOKUP: '0'
+};
 const config = JSON.parse(fs.readFileSync(path.join(directory, 'rukbat.runtimeconfig.json'), 'utf8'));
 assert.ok(config.runtimeOptions.includedFrameworks?.length);
 assert.equal(config.runtimeOptions.framework, undefined);
@@ -29,7 +31,7 @@ fs.writeFileSync(source, 'import encoding\nimport process\nimport http\nprint("s
 run(['check', source]);
 run(['fmt', source]);
 const documentationSource = path.join(work, 'documentation.rukbat');
-fs.writeFileSync(documentationSource, '//! Offline documentation.\n//! ```rukbat check\n//! const value := 1\n//! print(value)\n//! ```\n/// A helper.\nfn helper(): void {}\n/// Retry limit.\nconst limit := 3\n');
+fs.writeFileSync(documentationSource, '//! Offline documentation.\n//! ```rukbat check\n//! const value := 1\n//! print(value)\n//! ```\n/// A helper.\nfn helper() {}\n/// Retry limit.\nconst limit := 3\n');
 run(['doc', documentationSource, '--check']);
 run(['doc', documentationSource]);
 assert.match(fs.readFileSync(path.join(work, 'documentation.html'), 'utf8'), /Statically checked; not executed/);
@@ -46,7 +48,7 @@ const args = ['a b', '日本', '$(literal)', '"quoted"'];
 const output = run(['run', source, '--', ...args]);
 assert.match(output, /standalone/);
 for (const arg of args) assert.ok(output.includes(arg), output);
-fs.writeFileSync(path.join(work, 'test_main.rukbat'), 'import test\nfn test_ok(): void { test.assert(2 + 2 == 4) }\n');
+fs.writeFileSync(path.join(work, 'test_main.rukbat'), 'import test\nfn test_ok() { test.assert(2 + 2 == 4) }\n');
 assert.match(run(['test', work]), /PASS/);
 const requests = [
     { jsonrpc: '2.0', id: 1, method: 'initialize', params: { capabilities: {} } },
@@ -59,7 +61,7 @@ assert.match(lsp.stdout, /completionProvider/);
 fs.unlinkSync(source);
 fs.unlinkSync(path.join(work, 'test_main.rukbat'));
 for (const shell of [path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe'),
-    path.join(process.env.ProgramFiles, 'PowerShell/7/pwsh.exe')]) {
+path.join(process.env.ProgramFiles, 'PowerShell/7/pwsh.exe')]) {
     if (!fs.existsSync(shell)) continue;
     for (const script of [path.join(work, 'main.ps1'), debugScript]) {
         const result = spawnSync(shell, ['-NoLogo', '-NoProfile', '-File', script, ...args],

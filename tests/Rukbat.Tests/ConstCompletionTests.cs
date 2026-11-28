@@ -25,7 +25,7 @@ namespace Rukbat.Tests
         {
             using var project = new Project();
             var uri = UriFor(project);
-            const string source = "fn run(): void {\n    if true { const secret := 1 }\n    print(1)\n    const later := 2\n    print(later)\n}\n";
+            const string source = "fn run() {\n    if true { const secret := 1 }\n    print(1)\n    const later := 2\n    print(later)\n}\n";
             var messages = Session(Open(uri, source),
                 Feature(uri, "completion", 2, 4, "before"),
                 Feature(uri, "completion", 4, 4, "after"));
@@ -41,7 +41,7 @@ namespace Rukbat.Tests
         {
             using var project = new Project();
             var uri = UriFor(project);
-            const string source = "value := \"outer\"\n\nfn run(): void {\n    print(value)\n    const value := 2\n    print(value)\n}\n";
+            const string source = "value := \"outer\"\n\nfn run() {\n    print(value)\n    const value := 2\n    print(value)\n}\n";
             var messages = Session(Open(uri, source),
                 Feature(uri, "completion", 3, 4, "before"),
                 Feature(uri, "completion", 5, 4, "after"));
@@ -58,7 +58,7 @@ namespace Rukbat.Tests
         {
             using var project = new Project();
             var uri = UriFor(project);
-            const string source = "fn run(): void {\n    print(later)\n}\n\nconst later := 2\nrun()\n";
+            const string source = "fn run() {\n    print(later)\n}\n\nconst later := 2\nrun()\n";
             var messages = Session(Open(uri, source), Feature(uri, "completion", 1, 4));
 
             Assert.Empty(LastDiagnostics(messages, uri).GetProperty("diagnostics").EnumerateArray());
@@ -86,7 +86,7 @@ namespace Rukbat.Tests
         [InlineData("const ")]
         public void ConstCompletionInitializerStillUsesTheOuterBinding(string qualifier)
         {
-            var source = "value := [1]\n\nfn run(): void {\n    " + qualifier + "value := |value.length\n}\n";
+            var source = "value := [1]\n\nfn run() {\n    " + qualifier + "value := |value.length\n}\n";
             var completion = Assert.Single(CompletionAtDeclarationMarker(source).EnumerateArray(), item => item.GetProperty("label").GetString() == "value");
             Assert.Equal("value: int[]", completion.GetProperty("detail").GetString());
         }
@@ -95,9 +95,9 @@ namespace Rukbat.Tests
         [InlineData("const value := 1\n\n|", true)]
         [InlineData("const value := 1;|", true)]
         [InlineData("const value := \"one\"|;", false)]
-        [InlineData("fn run(): void { const value := 1 |}", false)]
-        [InlineData("fn run(): void { const value := 1 }\n|", false)]
-        [InlineData("fn run(): void { const value := 1; |print(value) }", true)]
+        [InlineData("fn run() { const value := 1 |}", false)]
+        [InlineData("fn run() { const value := 1 }\n|", false)]
+        [InlineData("fn run() { const value := 1; |print(value) }", true)]
         [InlineData("const value := [\n    1,\n    |2\n]\n", false)]
         [InlineData("const value := [\n    1,\n    2\n]|\n", false)]
         [InlineData("const value := [\n    1,\n    2\n]\n|", true)]

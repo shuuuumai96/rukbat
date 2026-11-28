@@ -2,7 +2,7 @@
 
 Download the Windows x64 VSIX, CLI ZIP, and `SHA256SUMS` from
 [GitHub Releases](https://github.com/shuuuumai96/rukbat/releases).
-See the [0.2.0 release notes](releases/0.2.0.md) for migration and limitations.
+See the [0.3.0 release notes](releases/0.3.0.md) for migration and limitations.
 
 ## VS Code: install one extension
 

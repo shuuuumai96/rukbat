@@ -23,7 +23,7 @@ namespace Rukbat.Tests
         [InlineData("items := [1, 2]\nprint(items.length)")]
         [InlineData("fn add(a: int, b: int): int { return a + b }\nprint(add(2, 3))")]
         [InlineData("flag: bool = true && !false\nif flag { print('ok') } else { print('no') }")]
-        [InlineData("fn f(): void { print('ok'); return }")]
+        [InlineData("fn f() { print('ok'); return }")]
         [InlineData("fn f(x: int): int { if x > 0 { return x } else { return -x } }")]
         [InlineData("x: int = -9223372036854775808\ny: int = 2147483647")]
         [InlineData("fn f(): string { return 'line\\nquote\\\" apostrophe\\\' slash\\\\' }")]
@@ -60,9 +60,8 @@ namespace Rukbat.Tests
         [InlineData("fn f(): int { return }")]
         [InlineData("fn f(): int { 1 }")]
         [InlineData("fn f(x: bool): int { if x { return 1 } }")]
-        [InlineData("fn f(): void { return 1 }")]
         [InlineData("fn f() { return 1 }")]
-        [InlineData("fn f(x: void): void {}")]
+        [InlineData("fn f(x: void) {}")]
         [InlineData("fn f(x: int, x: int): int { return x }")]
         [InlineData("fn f(): int { return 1 }; fn f(): int { return 2 }")]
         [InlineData("fn f(x: int): int { return x }\nf('bad')")]
@@ -102,7 +101,7 @@ namespace Rukbat.Tests
         [Theory]
         [InlineData("$name: string = 'Taro'")]
         [InlineData("fn f(): int { return 1")]
-        [InlineData("fn f(): void { function g(): void {} }")]
+        [InlineData("fn f() { function g(): void {} }")]
         [InlineData("func value(): int { return 1 }")]
         [InlineData("function value(): int { return 1 }")]
         [InlineData("x: object = 'bad'")]
@@ -111,7 +110,7 @@ namespace Rukbat.Tests
         [InlineData("x: string = 'bad\\q'")]
         [InlineData("x: int = 1 y: int = 2")]
         [InlineData("import '../outside'")]
-        [InlineData("fn print(): void {}")]
+        [InlineData("fn print() {}")]
         public void RejectsUnsupportedSyntax(string source)
         {
             var result = Compile(source);
@@ -167,7 +166,7 @@ namespace Rukbat.Tests
             project.Write("other.rukbat", "fn f(): int { return 1 }");
             project.Write("main.rukbat", "import './other.rukbat' as other\nimport './other.rukbat' as other");
             Assert.Contains(project.Compile().Diagnostics, d => d.Code == "RUK3000");
-            project.Write("main.rukbat", "fn f(): void { import './other.rukbat' as other }");
+            project.Write("main.rukbat", "fn f() { import './other.rukbat' as other }");
             Assert.Contains(project.Compile().Diagnostics, d => d.Code == "RUK3000");
             Assert.Contains(Compile("import './other.rukbat' as other").Diagnostics, d => d.Code == "RUK3000");
         }
@@ -175,7 +174,7 @@ namespace Rukbat.Tests
         [Trait("Category", "Runtime")]
         [Theory]
         [InlineData("fn f(): int { 99; powershell<int>('Write-Output', 88); print('log'); return 7 }\nx: int = f(); print(x)", "log\n7")]
-        [InlineData("fn f(): void { 99; powershell<int>('Write-Output', 88) }; f(); print('done')", "done")]
+        [InlineData("fn f() { 99; powershell<int>('Write-Output', 88) }; f(); print('done')", "done")]
         [InlineData("x: int = 1\nfn f(): int { x: int = 2; return x }\nprint(f()); print(x)", "2\n1")]
         [InlineData("x: int = 1\nif true { x: int = 2; print(x) }; print(x)", "2\n1")]
         [InlineData("x: int = 1\nX: int = 2\nprint(x + X)", "3")]

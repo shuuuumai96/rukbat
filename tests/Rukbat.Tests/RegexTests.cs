@@ -131,7 +131,7 @@ namespace Rukbat.Tests
         {
             await Verify(shell, """
             import re; import test
-            fn expect_group(found: re.Match, key: string, expected: string): void {
+            fn expect_group(found: re.Match, key: string, expected: string) {
                 value := found.groups[key]
                 if value == null { test.fail('Missing group: ' + key) }
                 else { test.assert(value == expected) }

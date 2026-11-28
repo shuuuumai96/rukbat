@@ -306,8 +306,11 @@ namespace Rukbat.Tests
             using var project = new Project();
             var parent = Directory.CreateDirectory(project.PathFor("denied"));
             var original = parent.GetAccessControl();
-            var restricted = parent.GetAccessControl();
+            var restricted = new DirectorySecurity();
+            restricted.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
             using var identity = WindowsIdentity.GetCurrent();
+            restricted.AddAccessRule(new FileSystemAccessRule(identity.User!,
+                FileSystemRights.FullControl, AccessControlType.Allow));
             restricted.AddAccessRule(new FileSystemAccessRule(identity.User!,
                 FileSystemRights.CreateFiles | FileSystemRights.CreateDirectories, AccessControlType.Deny));
             project.Write("main.rukbat", """

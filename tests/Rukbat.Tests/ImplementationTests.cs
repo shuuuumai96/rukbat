@@ -48,11 +48,11 @@ namespace Rukbat.Tests
         [InlineData("impl int {}", "RUK2004", "same module")]
         [InlineData("impl Error {}", "RUK2004", "same module")]
         [InlineData("struct Data {}; impl Data {}; impl Data {}", "RUK2002", "Duplicate impl")]
-        [InlineData("struct Data {}; fn f(): void { impl Data {} }", "RUK1002", "only at module level")]
+        [InlineData("struct Data {}; fn f() { impl Data {} }", "RUK1002", "only at module level")]
         [InlineData("struct Data {}; if true { impl Data {} }", "RUK1002", "only at module level")]
         [InlineData("struct Data { value: int }; impl Data { fn change(): Data { self.value = 2; return self } }; print(Data { value: 1 }.change().value)", "RUK2010", "temporary value")]
         [InlineData("impl := 1", "RUK1000", "identifier")]
-        [InlineData("fn impl(): void {}", "RUK1000", "identifier")]
+        [InlineData("fn impl() {}", "RUK1000", "identifier")]
         public void RejectsInvalidImplementationDeclarations(string source, string code, string message)
         {
             var result = Compile(source);
@@ -85,9 +85,9 @@ namespace Rukbat.Tests
             project.Write("model.rukbat", """
             impl Counter {
                 fn read(): int { return self.values[0] }
-                fn increment(): void { self.values[0] = self.values[0] + 1 }
-                fn twice(): void { self.increment(); self.increment() }
-                fn fail(): void { self.increment(); throw Error { message: "failed" } }
+                fn increment() { self.values[0] = self.values[0] + 1 }
+                fn twice() { self.increment(); self.increment() }
+                fn fail() { self.increment(); throw Error { message: "failed" } }
             }
             struct Counter {
                 values: int[]

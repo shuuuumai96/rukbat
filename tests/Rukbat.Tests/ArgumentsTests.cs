@@ -53,7 +53,7 @@ namespace Rukbat.Tests
         [InlineData("args(value: 'x')")]
         [InlineData("value: int = args()")]
         [InlineData("args: int = 1")]
-        [InlineData("fn args(): void {}")]
+        [InlineData("fn args() {}")]
         [InlineData("args()[0] = 'changed'")]
         public void RejectsInvalidArgumentsBuiltin(string source)
         {

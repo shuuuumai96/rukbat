@@ -174,11 +174,13 @@ namespace Rukbat.Tests
             using var project = new Project();
             File.WriteAllBytes(project.PathFor("le.bin"), [0xff, 0xfe, 0, 0, 65, 0, 0, 0]);
             File.WriteAllBytes(project.PathFor("be.bin"), [0, 0, 0xfe, 0xff, 0, 0, 0, 65]);
+            File.WriteAllBytes(project.PathFor("cp.bin"), [65]);
             var directory = project.DirectoryPath.Replace("\\", "/");
             project.Write("main.rukbat", $$"""
             import encoding; import fs; import test
             test.assert(fs.read_text('{{directory}}/le.bin', encoding.utf32_le) == 'A')
             test.assert(fs.read_text('{{directory}}/be.bin', encoding.utf32_be) == 'A')
+            test.assert(fs.read_text('{{directory}}/cp.bin', encoding.windows_932) == 'A')
             for selected in [encoding.utf32_le, encoding.utf32_be] {
                 rejected := false
                 filename := '{{directory}}/le.bin'

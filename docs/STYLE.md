@@ -39,12 +39,8 @@ type is needed or helps explain an interface, including empty arrays and nullabl
 initialization. Use `=` to update an existing binding.
 
 Omit the return-type annotation for functions and methods that return no value.
-Write `: Type` when returning a value. Explicit `: void` is accepted for compatibility;
-the formatter normalizes it to the omitted form. This does not infer a return type
-from the function body.
-
-The explicit declaration form is supported only in 0.2.x and will be removed in
-0.3.0. Run the 0.2.x formatter before upgrading.
+Write `: Type` when returning a value. This does not infer a return type from the
+function body. Explicit `: void` on function or method declarations is not allowed.
 
 ## Keep data and methods adjacent
 

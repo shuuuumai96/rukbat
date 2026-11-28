@@ -3,7 +3,7 @@
 [English](../../docs/DISTRIBUTION.md) | [日本語目次](README.md)
 
 [GitHub Releases](https://github.com/shuuuumai96/rukbat/releases)からWindows x64向けのVSIX、CLIのZIP、`SHA256SUMS`をダウンロードできます。
-0.2.0の互換性と制約は[リリースノート（英語）](../releases/0.2.0.md)を参照してください。
+0.3.0の互換性と制約は[リリースノート（英語）](../releases/0.3.0.md)を参照してください。
 
 <a id="vs-code-install-one-extension"></a>
 

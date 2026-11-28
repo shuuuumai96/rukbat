@@ -25,7 +25,7 @@ namespace Rukbat.Tests
                 item.GetProperty("label").GetString() == name));
             Assert.Equal(module + "." + name, item.GetProperty("detail").GetString());
 
-            source = $"import {module}\nfn accept(value: {module}.{name}?[]): void {{}}\n";
+            source = $"import {module}\nfn accept(value: {module}.{name}?[]) {{}}\n";
             var hover = Result(EditorSession(project, Open(uri, source),
                 Feature(uri, "hover", 1, "fn accept(value: ".Length + module.Length + 1)));
             Assert.Contains(module + "." + name, hover.GetProperty("contents").GetProperty("value").GetString());

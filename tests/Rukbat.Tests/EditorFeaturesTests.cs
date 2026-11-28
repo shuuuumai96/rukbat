@@ -100,12 +100,12 @@ namespace Rukbat.Tests
         {
             using var project = new Project();
             var uri = UriFor(project);
-            const string source = "value: string? = '東京'\nif value != null { print(value) }\nfn f(): void { value := 1; print(value) }\n";
+            const string source = "value: string? = '東京'\nif value != null { print(value) }\nfn f() { value := 1; print(value) }\n";
             var all = Result(EditorSession(project, Open(uri, source), References(uri, 0, 1)));
             Assert.Equal(3, all.GetArrayLength());
             Assert.DoesNotContain(all.EnumerateArray(), item => item.GetProperty("range").GetProperty("start").GetProperty("line").GetInt32() == 2);
             Assert.Equal(2, Result(EditorSession(project, Open(uri, source), References(uri, 0, 1, false))).GetArrayLength());
-            Assert.Equal(2, Result(EditorSession(project, Open(uri, source), References(uri, 2, 16))).GetArrayLength());
+            Assert.Equal(2, Result(EditorSession(project, Open(uri, source), References(uri, 2, 10))).GetArrayLength());
         }
 
         [Fact]
@@ -428,14 +428,12 @@ namespace Rukbat.Tests
             Assert.Equal("fn add(a: int, b: int): int", result.GetProperty("signatures")[0].GetProperty("label").GetString());
         }
 
-        [Theory]
-        [InlineData("fn save(value: int) {}")]
-        [InlineData("fn save(value: int): void {}")]
-        public void VoidFunctionSignaturesUseCanonicalOmission(string declaration)
+        [Fact]
+        public void VoidFunctionSignaturesUseCanonicalOmission()
         {
             using var project = new Project();
             var uri = UriFor(project);
-            var source = declaration + "\nsave(1)";
+            const string source = "fn save(value: int) {}\nsave(1)";
             var result = Result(EditorSession(project, Open(uri, source), Feature(uri, "signatureHelp", 1, 5)));
             Assert.Equal("fn save(value: int)", result.GetProperty("signatures")[0].GetProperty("label").GetString());
         }

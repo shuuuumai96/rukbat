@@ -32,9 +32,10 @@ namespace Rukbat
         }
 
         private Token Expect(string text) => Current.Text == text ? Take() : Fail($"Expected '{text}', got '{Current.Text}'.");
-        private Token Fail(string message)
+        private Token Fail(string message) => Fail(message, Current);
+        private Token Fail(string message, Token token)
         {
-            source.Error(DiagnosticCode.SyntaxError, message, Current);
+            source.Error(DiagnosticCode.SyntaxError, message, token);
             throw new ParseFailure();
         }
 
@@ -197,19 +198,20 @@ namespace Rukbat
             }
 
             Expect(")");
-            var type = ValueType.Void;
-            if (Current.Text == ":")
-            {
-                var colon = Take();
-                var typeToken = Current;
-                type = Type();
-                if (type == ValueType.Void)
-                {
-                    formatting?.OmittedTokens.Add(colon.Offset);
-                    formatting?.OmittedTokens.Add(typeToken.Offset);
-                }
-            }
+            var type = Match(":") ? ReturnType() : ValueType.Void;
             return new Function(name, name.Text, parameters, type, Block());
+        }
+
+        private ValueType ReturnType()
+        {
+            var token = Current;
+            var type = Type();
+            if (type == ValueType.Void)
+            {
+                Fail("Omit the return-type annotation for functions and methods that return no value; ': void' is not allowed.", token);
+            }
+
+            return type;
         }
 
         private StructDeclaration StructDeclaration()

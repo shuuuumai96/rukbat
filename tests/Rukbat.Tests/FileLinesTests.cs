@@ -224,8 +224,8 @@ namespace Rukbat.Tests
             fn optional(source: fs.Lines): int[]? {
                 try { for line in source { return [42] } } catch err { return null }; return []
             }
-            fn effect(): void { print('effect') }
-            fn action(source: fs.Lines): void { for line in source { return effect() } }
+            fn effect() { print('effect') }
+            fn action(source: fs.Lines) { for line in source { return effect() } }
             fn nested(source: fs.Lines): int {
                 try {
                     for outer in source {

@@ -82,7 +82,7 @@ namespace Rukbat.Tests
             project.Write("values.rukbat", """
             import text; import test
             struct Sample { value: string; offset: int }
-            fn verify(samples: Sample[]): void {
+            fn verify(samples: Sample[]) {
                 for sample in samples {
                     test.assert(text.length(sample.value) == 3)
                     test.assert(text.slice(sample.value, sample.offset, 1) == 'B')

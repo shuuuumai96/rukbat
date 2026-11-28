@@ -13,17 +13,17 @@ namespace Rukbat.Tests
         [InlineData("const arguments := args(); print(arguments.length)")]
         [InlineData("const items: int[] = []; copy := items; copy.append(1)")]
         [InlineData("const item: int? = null; print(item == null)")]
-        [InlineData("const count := 1; fn f(): void { count := 2; count = 3 }; f(); print(count)")]
-        [InlineData("const values := [1]; fn change(values: int[]): void { values[0] = 2; values.append(3) }; change(values)")]
+        [InlineData("const count := 1; fn f() { count := 2; count = 3 }; f(); print(count)")]
+        [InlineData("const values := [1]; fn change(values: int[]) { values[0] = 2; values.append(3) }; change(values)")]
         [InlineData("struct Item { value: int }; const items := [Item { value: 1 }]; for item in items { item.value = 2 }")]
-        [InlineData("const value: int? = 1; fn f(): void {}; if value != null { f(); print(value + 1) }")]
-        [InlineData("fn f(): void { if true { const value := 1; print(value) } }; f()")]
+        [InlineData("const value: int? = 1; fn f() {}; if value != null { f(); print(value + 1) }")]
+        [InlineData("fn f() { if true { const value := 1; print(value) } }; f()")]
         public void AcceptsInitializedConstantsAndMutableValueCopies(string source) => Success(source);
 
         [Theory]
         [InlineData("const count := 1; count = 2")]
-        [InlineData("const count := 1; fn change(): void { count = 2 }")]
-        [InlineData("fn f(): void { const count := 1; if true { count = 2 } }")]
+        [InlineData("const count := 1; fn change() { count = 2 }")]
+        [InlineData("fn f() { const count := 1; if true { count = 2 } }")]
         [InlineData("const items := [1]; items[0] = 2")]
         [InlineData("const items := [1]; items.append(2)")]
         [InlineData("const items: int[]? = []; if items != null { items.append(1) }")]
@@ -44,20 +44,20 @@ namespace Rukbat.Tests
             values: int[]
         }
         impl Counter {
-            fn increment(): void { self.value = self.value + 1 }
-            fn forward(): void { self.increment() }
-            fn append(): void { self.values.append(1) }
+            fn increment() { self.value = self.value + 1 }
+            fn forward() { self.increment() }
+            fn append() { self.values.append(1) }
             fn label(): int { return self.value }
             fn copied(): int { copy := self; copy.forward(); return copy.value }
-            fn recursive(count: int): void {
+            fn recursive(count: int) {
                 if count > 0 { self.recursive(count - 1) } else { self.forward() }
             }
             fn read_recursive(count: int): int {
                 if count > 0 { return self.read_recursive(count - 1) } else { return self.label() }
             }
-            fn argument_copy(): void { change(self) }
+            fn argument_copy() { change(self) }
         }
-        fn change(counter: Counter): void { counter.increment() }
+        fn change(counter: Counter) { counter.increment() }
         """;
 
         [Theory]
@@ -87,7 +87,7 @@ namespace Rukbat.Tests
         [InlineData("try { self.items[0].forward() } catch err {}")]
         public void TracksNestedReceiversAndControlFlow(string body)
         {
-            var source = Counter + "\nstruct Container { inner: Counter; items: Counter[] }; impl Container { fn change(): void { " + body + " } }\n" +
+            var source = Counter + "\nstruct Container { inner: Counter; items: Counter[] }; impl Container { fn change() { " + body + " } }\n" +
                 "const container := Container { inner: Counter { value: 1, values: [] }, items: [Counter { value: 1, values: [] }] }; container.change()";
             Assert.Contains(Compile(source).Diagnostics, diagnostic => diagnostic.Code == "RUK2011");
         }
@@ -95,7 +95,7 @@ namespace Rukbat.Tests
         [Fact]
         public void PropagatesMutationAcrossMutuallyRecursiveMethods()
         {
-            var source = "struct Item { value: int }; impl Item { fn first(): void { self.second() }; fn second(): void { self.first(); self.value = 2 } }; const item := Item { value: 1 }; item.first()";
+            var source = "struct Item { value: int }; impl Item { fn first() { self.second() }; fn second() { self.first(); self.value = 2 } }; const item := Item { value: 1 }; item.first()";
             Assert.Contains(Compile(source).Diagnostics, diagnostic => diagnostic.Code == "RUK2011");
         }
 
@@ -116,11 +116,11 @@ namespace Rukbat.Tests
         [InlineData("const value", "RUK1000")]
         [InlineData("const value = 1", "RUK1000")]
         [InlineData("const value: int", "RUK1000")]
-        [InlineData("const fn f(): void {}", "RUK1000")]
-        [InlineData("fn f(const value: int): void {}", "RUK1000")]
+        [InlineData("const fn f() {}", "RUK1000")]
+        [InlineData("fn f(const value: int) {}", "RUK1000")]
         [InlineData("struct Item { const value: int }", "RUK1000")]
         [InlineData("const := 1", "RUK1000")]
-        [InlineData("fn const(): void {}", "RUK1000")]
+        [InlineData("fn const() {}", "RUK1000")]
         [InlineData("const value := null", "RUK2001")]
         [InlineData("const items := []", "RUK2001")]
         [InlineData("const value: int = 'wrong'", "RUK2001")]

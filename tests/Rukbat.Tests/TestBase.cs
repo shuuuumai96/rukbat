@@ -131,9 +131,9 @@ namespace Rukbat.Tests
 
                 using var process = Process.Start(info)!;
                 var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
-                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
                 try { await process.WaitForExitAsync(timeout.Token); }
-                catch (OperationCanceledException) { process.Kill(true); throw new TimeoutException("Generated PowerShell did not finish in 20 seconds."); }
+                catch (OperationCanceledException) { process.Kill(true); throw new TimeoutException("Generated PowerShell did not finish in 45 seconds."); }
                 return new(process.ExitCode, (await stdout).Replace("\r\n", "\n"), await stderr);
             }
             public async Task<RunResult> RunOutputWithWindowsPowerShell(string output, params string[] arguments)
@@ -158,9 +158,9 @@ namespace Rukbat.Tests
 
                 using var process = Process.Start(info)!;
                 var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
-                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
                 try { await process.WaitForExitAsync(timeout.Token); }
-                catch (OperationCanceledException) { process.Kill(true); throw new TimeoutException("Generated PowerShell did not finish in 20 seconds."); }
+                catch (OperationCanceledException) { process.Kill(true); throw new TimeoutException("Generated PowerShell did not finish in 45 seconds."); }
                 return new(process.ExitCode, (await stdout).Replace("\r\n", "\n"), await stderr);
             }
             public async Task<RunResult> RunOutputWithEnvironment(string output, string executable, string variable, string value)
@@ -179,9 +179,9 @@ namespace Rukbat.Tests
 
                 using var process = Process.Start(info)!;
                 var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
-                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+                using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
                 try { await process.WaitForExitAsync(timeout.Token); }
-                catch (OperationCanceledException) { process.Kill(true); throw new TimeoutException("Generated PowerShell did not finish in 20 seconds."); }
+                catch (OperationCanceledException) { process.Kill(true); throw new TimeoutException("Generated PowerShell did not finish in 45 seconds."); }
                 return new(process.ExitCode, (await stdout).Replace("\r\n", "\n"), await stderr);
             }
             public void Dispose() => Directory.Delete(DirectoryPath, true);

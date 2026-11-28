@@ -17,7 +17,7 @@ namespace Rukbat.Tests
                 values: int[]
             }
             impl Counter {
-                fn add(): void { self.values.append(2) }
+                fn add() { self.values.append(2) }
                 fn count(): int { return self.values.length }
                 fn copied_count(): int { copy := self; copy.add(); return copy.count() }
             }

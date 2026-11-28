@@ -65,7 +65,7 @@ namespace Rukbat.Tests
         [InlineData("import './models/user.rukbat' as fn", "RUK1000")]
         [InlineData("import './models/user.rukbat' as model\nimport './models/user.rukbat' as model", "RUK3000")]
         [InlineData("import './models/user.rukbat' as model\nmodel: int = 1", "RUK2002")]
-        [InlineData("fn f(): void { import './models/user.rukbat' as model }", "RUK3000")]
+        [InlineData("fn f() { import './models/user.rukbat' as model }", "RUK3000")]
         public void RejectsInvalidDirectoryImports(string source, string code)
         {
             using var project = new Project();

@@ -116,11 +116,6 @@ namespace Rukbat
                 for (index = 0; index < items.Count; index++)
                 {
                     var item = items[index];
-                    if (item.Kind != ItemKind.Comment && syntax.OmittedTokens.Contains(item.Offset))
-                    {
-                        continue;
-                    }
-
                     if (requiredBlankLines.Contains(index))
                     {
                         NewLine();

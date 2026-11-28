@@ -9,7 +9,7 @@ namespace Rukbat.Tests
         [InlineData("fn f(): int { throw Error {message: 'failed'} }; try { print(f()) } catch err { print(err.message) }", "failed")]
         [InlineData("fn f(): int { try { throw Error {message: 'failed'} } catch err { return 42 } }; print(f())", "42")]
         [InlineData("fn f(): int { try { return 42 } catch err { throw err } }; print(f())", "42")]
-        [InlineData("fn f(): void { try { return } catch err { print('unexpected') }; print('unreachable') }; f(); print('after')", "after")]
+        [InlineData("fn f() { try { return } catch err { print('unexpected') }; print('unreachable') }; f(); print('after')", "after")]
         [InlineData("try { try { throw Error {message: 'original'} } catch inner { throw inner } } catch outer { print(outer.message) }", "original")]
         [InlineData("try { try { throw Error {message: 'original'} } catch inner { throw Error {message: 'replacement'} } } catch outer { print(outer.message) }", "replacement")]
         [InlineData("err: string = 'outer'; try { throw Error {message: 'inner'} } catch err { print(err.message) }; print(err)", "inner\nouter")]
@@ -22,7 +22,7 @@ namespace Rukbat.Tests
         [InlineData("try { powershell<void>('Missing-Rukbat-Command') }\ncatch err { print('missing') }", "missing")]
         [InlineData("try { print(9223372036854775807 + 1) } catch err { print('overflow') }", "overflow")]
         [InlineData("try { powershell<void>('pwsh', '-NoLogo', '-NoProfile', '-Command', 'exit 0'); print('success') } catch err { print('wrong') }", "success")]
-        [InlineData("struct S { n: int }; impl S { fn fail(): void { self.n = 2; throw Error {message: 'failure'} } }; s: S = S {n: 1}; try { s.fail() } catch err { print(s.n) }", "2")]
+        [InlineData("struct S { n: int }; impl S { fn fail() { self.n = 2; throw Error {message: 'failure'} } }; s: S = S {n: 1}; try { s.fail() } catch err { print(s.n) }", "2")]
         [InlineData("fn message(err: Error): string { err.message = 'local'; return err.message }; try { throw Error {message: 'original'} } catch err { print(message(err)); print(err.message) }", "local\noriginal")]
         public async Task ExecutesErrorHandling(string source, string expected)
         {

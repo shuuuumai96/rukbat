@@ -50,7 +50,7 @@ namespace Rukbat
                 var selected = tests.Where(test => options.Filter is null || Name(test).Contains(options.Filter, StringComparison.Ordinal)).ToArray();
                 if (selected.Length == 0)
                 {
-                    stderr.WriteLine("No tests collected. Use test_*.rukbat files containing fn test_name(): void, or fn test_name(ctx: test.Context): void.");
+                    stderr.WriteLine("No tests collected. Use test_*.rukbat files containing fn test_name(), or fn test_name(ctx: test.Context).");
                     return NoTests;
                 }
 

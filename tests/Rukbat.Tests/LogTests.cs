@@ -192,7 +192,7 @@ namespace Rukbat.Tests
             Directory.CreateDirectory(project.PathFor("changed"));
             project.Write("lib/worker.rukbat", """
             import log
-            fn emit(logger: log.Logger, message: string): void {
+            fn emit(logger: log.Logger, message: string) {
                 log.info(logger, message)
                 logger.file = 'local-copy.log'
             }

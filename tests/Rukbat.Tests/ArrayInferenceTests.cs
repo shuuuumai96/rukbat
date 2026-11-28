@@ -28,7 +28,7 @@ namespace Rukbat.Tests
         [InlineData("items: string?[]? = [null]")]
         [InlineData("items: string?[][] = [[null], []]")]
         [InlineData("items: dict[string, string?[]] = {\"values\": [null]}")]
-        [InlineData("fn accept(items: string?[]): void {}\naccept([null])")]
+        [InlineData("fn accept(items: string?[]) {}\naccept([null])")]
         [InlineData("fn create(): string?[] { return [null] }")]
         [InlineData("struct Batch { items: string?[] }\nbatch := Batch { items: [null] }")]
         [InlineData("item: string? = null\nitems := [item, null]")]

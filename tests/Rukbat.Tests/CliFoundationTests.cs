@@ -136,7 +136,7 @@ namespace Rukbat.Tests
         [InlineData("exit('2')")]
         [InlineData("exit(code: 2)")]
         [InlineData("x := exit(0)")]
-        [InlineData("fn exit(): void {}")]
+        [InlineData("fn exit() {}")]
         [InlineData("eprint()")]
         [InlineData("import text; text.from_int(true)")]
         [InlineData("import text; text.parse_bool(1)")]

@@ -32,13 +32,13 @@ Windows PowerShell 5.1で実行できるので、配布先にRukbatをインス�
 
 ## はじめに
 
-[GitHub Releases](https://github.com/shuuuumai96/rukbat/releases/tag/v0.2.0)からWindows x64向けの **0.2.0 preview** をダウンロードできます。
-0.1.0から更新する場合は、[移行案内](releases/0.2.0-migration.md)を参照してください。
+[GitHub Releases](https://github.com/shuuuumai96/rukbat/releases/tag/v0.3.0)からWindows x64向けの **0.3.0 preview** をダウンロードできます。
+0.2.0から更新する場合は、[移行案内](releases/0.3.0-migration.md)を参照してください。
 
 | ファイル | 用途 |
 |---|---|
-| `rukbat-0.2.0-win32-x64.vsix` | コンパイラと言語サーバーを同梱したVS Code拡張機能。 |
-| `rukbat-0.2.0-win-x64.zip` | 展開して使えるコマンドライン版。 |
+| `rukbat-0.3.0-win32-x64.vsix` | コンパイラと言語サーバーを同梱したVS Code拡張機能。 |
+| `rukbat-0.3.0-win-x64.zip` | 展開して使えるコマンドライン版。 |
 | `SHA256SUMS` | 両パッケージのSHA-256ハッシュ一覧。 |
 
 [パッケージ作成手順](DISTRIBUTION.md#build-the-distribution-maintainers)に沿って、ソースからビルドすることもできます。
@@ -77,13 +77,13 @@ powershell -NoProfile -File .\example\hello.ps1
 
 ## プレビュー版の位置づけと互換性
 
-0.2.0は評価版です。クリーンなWindows環境でのオフライン動作は未検証のため、利用は自己責任でお願いします。
+0.3.0は評価版です。クリーンなWindows環境でのオフライン動作は未検証のため、利用は自己責任でお願いします。
 今後の0.x版では、構文、標準ライブラリのAPI、開発ツールの動作が変わる場合があります。
 自動処理で使うコンパイラのバージョンは固定し、更新時にはソースの静的検査、再ビルド、テストを行ってください。
 
 配布パッケージの対象はWindows x64です。プログラムの実行にはWindows PowerShell 5.1を使います。PowerShell 7のインストールは任意です。
 プロセスの封じ込めにはWindows 10 / Server 2016以降、HTTPには実行先の.NET Framework 4.7.1以降が必要です。
-対応範囲と制約は[0.2.0のリリースノート（英語）](../releases/0.2.0.md)にまとめています。
+対応範囲と制約は[0.3.0のリリースノート（英語）](../releases/0.3.0.md)にまとめています。
 
 不具合は[GitHub Issues](https://github.com/shuuuumai96/rukbat/issues)に報告してください。
 `rukbat --version`と`rukbat doctor`の結果、再現する最小限のソース、期待した結果と実際の結果を添えてください。

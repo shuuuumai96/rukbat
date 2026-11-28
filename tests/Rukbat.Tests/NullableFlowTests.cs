@@ -14,9 +14,9 @@ namespace Rukbat.Tests
         [InlineData("items: int[]? = [1]; while items.length > 0 { for n in [1] { items = null; break } }")]
         [InlineData("items: int[]? = [1]; while items.length > 0 { try { items = null; continue } catch err { items = [] }; items = [] }")]
         [InlineData("items: int[]? = [1]; for n in [1] { try { items = null; break } catch err { items = [1] }; items = [1] }; print(items.length)")]
-        [InlineData("items: int[]? = [1]; struct S { n: int }; impl S { fn clear(): void { items = null } }; s := S { n: 0 }; if items != null { s.clear(); print(items.length) }")]
-        [InlineData("items: int[]? = [1]; struct S { n: int }; impl S { fn clear(): void { items = null } }; s := S { n: 0 }; for n in [1, 2] { print(items.length); s.clear() }")]
-        [InlineData("items: int[]? = [1]; struct S { n: int }; impl S { fn clear(): void { items = null } }; s := S { n: 0 }; try { s.clear(); throw Error { message: 'failed' } } catch err { print(items.length) }")]
+        [InlineData("items: int[]? = [1]; struct S { n: int }; impl S { fn clear() { items = null } }; s := S { n: 0 }; if items != null { s.clear(); print(items.length) }")]
+        [InlineData("items: int[]? = [1]; struct S { n: int }; impl S { fn clear() { items = null } }; s := S { n: 0 }; for n in [1, 2] { print(items.length); s.clear() }")]
+        [InlineData("items: int[]? = [1]; struct S { n: int }; impl S { fn clear() { items = null } }; s := S { n: 0 }; try { s.clear(); throw Error { message: 'failed' } } catch err { print(items.length) }")]
         public void RejectsNullableUsesAcrossLoopAndMethodPaths(string source)
         {
             var result = Compile(source);
@@ -43,10 +43,10 @@ namespace Rukbat.Tests
 
         [Trait("Category", "Unit")]
         [Theory]
-        [InlineData("fn f(): void { return; const items := [1]; items.append(2) }", "RUK2011")]
-        [InlineData("struct S { value: int }; impl S { fn change(): void { return; self.value = 2 } }; const s := S { value: 1 }; s.change()", "RUK2011")]
-        [InlineData("fn f(): void { return; print(missing) }", "RUK2004")]
-        [InlineData("fn f(): void { return; count: int = 'wrong' }", "RUK2001")]
+        [InlineData("fn f() { return; const items := [1]; items.append(2) }", "RUK2011")]
+        [InlineData("struct S { value: int }; impl S { fn change() { return; self.value = 2 } }; const s := S { value: 1 }; s.change()", "RUK2011")]
+        [InlineData("fn f() { return; print(missing) }", "RUK2004")]
+        [InlineData("fn f() { return; count: int = 'wrong' }", "RUK2001")]
         public void StillChecksUnreachableStatements(string source, string code) =>
             Assert.Contains(Compile(source).Diagnostics, diagnostic => diagnostic.Code == code);
 

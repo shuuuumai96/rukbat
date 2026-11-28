@@ -58,8 +58,8 @@ namespace Rukbat.Tests
         public void GeneratesOfflineDocumentationInSourceOrderAndLinksBoundTypes()
         {
             using var project = new Project();
-            project.Write("models.rukbat", "//! Shared records.\n/// A person.\nstruct Person {\n    /// Display name.\n    name: string\n}\nimpl Person {\n    /// Changes the display name.\n    fn rename(name: string): void { self.name = name }\n}\n");
-            project.Write("main.rukbat", "//! # Usage\n//! Creates a report without changing input.\nimport './models.rukbat' as model\nimport './models.rukbat' as again\n/// Creates a [`model.Person`].\nfn make(): model.Person { return model.Person { name: 'Taro' } }\nworking := 'not documentation'\n/// Configured report title.\ntitle := 'Report'\nfn undocumented(): void {}\n");
+            project.Write("models.rukbat", "//! Shared records.\n/// A person.\nstruct Person {\n    /// Display name.\n    name: string\n}\nimpl Person {\n    /// Changes the display name.\n    fn rename(name: string) { self.name = name }\n}\n");
+            project.Write("main.rukbat", "//! # Usage\n//! Creates a report without changing input.\nimport './models.rukbat' as model\nimport './models.rukbat' as again\n/// Creates a [`model.Person`].\nfn make(): model.Person { return model.Person { name: 'Taro' } }\nworking := 'not documentation'\n/// Configured report title.\ntitle := 'Report'\nfn undocumented() {}\n");
             var result = Doc(project);
             Assert.True(result.Code == 0, result.Errors);
             var html = File.ReadAllText(project.PathFor("main.html"));
@@ -122,12 +122,12 @@ namespace Rukbat.Tests
         }
 
         [Theory]
-        [InlineData("/// Orphan\n\nfn f(): void {}", "RUK6000")]
+        [InlineData("/// Orphan\n\nfn f() {}", "RUK6000")]
         [InlineData("x := 1 // normal\n//! Late overview", "RUK6000")]
         [InlineData("//! First\n\n//! Second", "RUK6000")]
-        [InlineData("fn f(): void {\n/// Local\nx := 1\n}", "RUK6000")]
+        [InlineData("fn f() {\n/// Local\nx := 1\n}", "RUK6000")]
         [InlineData("x := 1 /// Inline", "RUK6000")]
-        [InlineData("/// See [`missing`].\nfn f(): void {}", "RUK6001")]
+        [InlineData("/// See [`missing`].\nfn f() {}", "RUK6001")]
         [InlineData("//! ```rukbat check\n//! x: int = 'wrong'\n//! ```", "RUK2001")]
         [InlineData("//! ```rukbat check\n//! import './missing.rukbat' as missing\n//! ```", "RUK3002")]
         public void InvalidDocumentationLeavesExistingOutputAndOrdinaryCheckUnaffected(string source, string code)
@@ -159,7 +159,7 @@ namespace Rukbat.Tests
             using var project = new Project();
             project.Write("main.rukbat", "import './lib/helper.rukbat' as helper\n");
             project.Write("lib/other.rukbat", "fn value(): int { return 1 }");
-            project.Write("lib/helper.rukbat", "//! ```rukbat check\n//! import './other.rukbat' as other\n//! value: int = other.value()\n//! ```\nfn f(): void {}\n");
+            project.Write("lib/helper.rukbat", "//! ```rukbat check\n//! import './other.rukbat' as other\n//! value: int = other.value()\n//! ```\nfn f() {}\n");
             var result = Doc(project, "--output", project.PathFor("elsewhere.html"));
             Assert.True(result.Code == 0, result.Errors);
             Assert.True(File.Exists(project.PathFor("elsewhere.html")));

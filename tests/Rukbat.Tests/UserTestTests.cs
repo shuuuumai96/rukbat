@@ -18,7 +18,7 @@ namespace Rukbat.Tests
             project.Write("test_error.rukbat", $$"""
             import test
             import text
-            fn test_expected_error(): void {
+            fn test_expected_error() {
                 try {
                     text.parse_int('{{input}}')
                 } catch err {
@@ -71,7 +71,7 @@ namespace Rukbat.Tests
             import test
             import fs
             import path
-            fn test_link(ctx: test.Context): void {
+            fn test_link(ctx: test.Context) {
                 link := path.join([ctx.temp_dir, 'link'])
                 script := path.join([ctx.source_dir, 'make-link.ps1'])
                 powershell<void>(script, link, ctx.source_dir)
@@ -98,7 +98,7 @@ namespace Rukbat.Tests
             import text
             count := 0
             fn next(): int { count = count + 1; return count }
-            fn test_conditions(): void {
+            fn test_conditions() {
                 test.assert(args().length == 0)
                 test.assert(next() == 1)
                 test.assert(next() < 3)
@@ -147,7 +147,7 @@ namespace Rukbat.Tests
             import test
             import encoding; import fs
             import path
-            fn test_a_timeout(ctx: test.Context): void {
+            fn test_a_timeout(ctx: test.Context) {
                 script := path.join([ctx.temp_dir, 'child.ps1'])
                 pid_file := path.join([ctx.source_dir, 'child.pid'])
                 marker := path.join([ctx.source_dir, 'late.txt'])
@@ -157,7 +157,7 @@ namespace Rukbat.Tests
                 powershell<void>('Start-Process', FilePath: 'powershell', ArgumentList: ['-NoProfile', '-File', script], WindowStyle: 'Hidden')
                 powershell<void>('Start-Sleep', Seconds: 20)
             }
-            fn test_b_success(): void { test.assert(true) }
+            fn test_b_success() { test.assert(true) }
             """);
             var result = await RunCli(project, ["test", "--timeout", "4", "--shell", shell]);
             Assert.Equal(1, result.ExitCode);
@@ -182,7 +182,7 @@ namespace Rukbat.Tests
         public async Task MissingHostFailsBeforeExecutingAnyTest()
         {
             using var project = new Project();
-            project.Write("test_host.rukbat", "fn test_host(): void { exit(99) }");
+            project.Write("test_host.rukbat", "fn test_host() { exit(99) }");
             var result = await RunCli(project, ["test"], hidePowerShell: true);
             Assert.Equal(2, result.ExitCode);
             Assert.Contains("Cannot find 'powershell.exe'", result.Error);
@@ -194,8 +194,8 @@ namespace Rukbat.Tests
         public void ImportedTestsAndStructMethodsAreNotCollected()
         {
             using var project = new Project();
-            project.Write("helper.rukbat", "fn test_imported(): void { exit(99) }");
-            project.Write("test_empty.rukbat", "import './helper.rukbat' as helper; struct Example {}; impl Example { fn test_method(): void {} }");
+            project.Write("helper.rukbat", "fn test_imported() { exit(99) }");
+            project.Write("test_empty.rukbat", "import './helper.rukbat' as helper; struct Example {}; impl Example { fn test_method() {} }");
             using var stdout = new StringWriter();
             using var stderr = new StringWriter();
             Assert.Equal(5, Cli.Run(["test", project.DirectoryPath], stdout, stderr));
@@ -220,7 +220,7 @@ namespace Rukbat.Tests
         [Fact]
         public void AssertionsUseOrdinarySyntaxAndFormatting()
         {
-            const string source = "import test; fn test_example(ctx: test.Context): void { test.assert(ctx.temp_dir != ''); test.fail('reason') }";
+            const string source = "import test; fn test_example(ctx: test.Context) { test.assert(ctx.temp_dir != ''); test.fail('reason') }";
             Success(source);
             using var project = new Project();
             project.Write("test_example.rukbat", source);
@@ -249,13 +249,13 @@ namespace Rukbat.Tests
             import "../math.rukbat" as arithmetic
             count := 0
             fn next(): int { count = count + 1; return count }
-            fn helper(): void { test.fail('helper must not run') }
-            fn test_a_failure(): void {
+            fn helper() { test.fail('helper must not run') }
+            fn test_a_failure() {
                 print('日本語の出力')
                 eprint('diagnostic output')
                 test.assert(arithmetic.add(next(), 1) == 9)
             }
-            fn test_b_isolated(ctx: test.Context): void {
+            fn test_b_isolated(ctx: test.Context) {
                 test.assert(next() == 1)
                 test.assert(!fs.is_file('result.txt'))
                 fs.write_text('result.txt', '内容', encoding.utf8)
@@ -263,7 +263,7 @@ namespace Rukbat.Tests
                 test.assert(fs.is_file(path.join([ctx.source_dir, 'test_sample.rukbat'])))
                 env.set('RUKBAT_USER_TEST_LOCAL', 'value')
             }
-            fn test_c_isolated(): void {
+            fn test_c_isolated() {
                 test.assert(count == 0)
                 test.assert(!fs.is_file('result.txt'))
                 test.assert(env.get('RUKBAT_USER_TEST_LOCAL') == null)
@@ -292,10 +292,10 @@ namespace Rukbat.Tests
         [Trait("Category", "Unit")]
         [Theory]
         [InlineData("fn test_wrong(): int { return 1 }")]
-        [InlineData("fn test_wrong(value: int): void {}")]
-        [InlineData("import test; fn test_wrong(a: test.Context, b: test.Context): void {}")]
-        [InlineData("import test; fn test_wrong(a: test.Context?): void {}")]
-        [InlineData("struct Context { temp_dir: string }; fn test_wrong(ctx: Context): void {}")]
+        [InlineData("fn test_wrong(value: int) {}")]
+        [InlineData("import test; fn test_wrong(a: test.Context, b: test.Context) {}")]
+        [InlineData("import test; fn test_wrong(a: test.Context?) {}")]
+        [InlineData("struct Context { temp_dir: string }; fn test_wrong(ctx: Context) {}")]
         public void CollectionRejectsInvalidSignatures(string source)
         {
             using var project = new Project();
@@ -313,8 +313,8 @@ namespace Rukbat.Tests
         public void ChecksEveryFileBeforeAnyUserCodeExecutes()
         {
             using var project = new Project();
-            project.Write("test_a.rukbat", "exit(99); fn test_a(): void {}");
-            project.Write("test_b.rukbat", "fn test_b(): void { missing() }");
+            project.Write("test_a.rukbat", "exit(99); fn test_a() {}");
+            project.Write("test_b.rukbat", "fn test_b() { missing() }");
             using var stdout = new StringWriter();
             using var stderr = new StringWriter();
             Assert.Equal(1, Cli.Run(["test", project.DirectoryPath], stdout, stderr));
@@ -345,8 +345,8 @@ namespace Rukbat.Tests
             using var project = new Project();
             project.Write("test_exit.rukbat", """
             import test
-            fn test_a_exit(): void { exit(0) }
-            fn test_b_success(): void { test.assert(true) }
+            fn test_a_exit() { exit(0) }
+            fn test_b_success() { test.assert(true) }
             """);
             var result = await RunCli(project, ["test", "--shell", shell]);
             Assert.Equal(1, result.ExitCode);

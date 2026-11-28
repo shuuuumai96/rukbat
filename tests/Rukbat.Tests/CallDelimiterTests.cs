@@ -7,7 +7,7 @@ namespace Rukbat.Tests
         [InlineData("fn value(number: int): int { return number }; print(value { 7 })")]
         [InlineData("fn value(): int { return 7 }; print(value {})")]
         [InlineData("struct Item { number: int }; impl Item { fn read(): int { return self.number } }; item := Item { number: 7 }; print(item.read {})")]
-        [InlineData("struct Item { number: int }; impl Item { fn set(number: int): void { self.number = number } }; item := Item { number: 7 }; item.set { 8 }")]
+        [InlineData("struct Item { number: int }; impl Item { fn set(number: int) { self.number = number } }; item := Item { number: 7 }; item.set { 8 }")]
         [InlineData("items := [1]; items.append { 2 }")]
         [InlineData("items := {\"one\": 1}; items.keys {}")]
         [InlineData("items := {\"one\": 1}; items.has { \"one\" }")]

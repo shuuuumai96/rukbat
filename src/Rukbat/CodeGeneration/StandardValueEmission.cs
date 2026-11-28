@@ -49,7 +49,7 @@ namespace Rukbat
 
         private static string AdaptNullableValue(string expression, ValueType type, StandardValueContext context)
         {
-            if (!NeedsStandardValueAdaptation(type.NullableElement!))
+            if (context.Result && !NeedsStandardValueAdaptation(type.NullableElement!))
             {
                 return expression;
             }
@@ -60,11 +60,9 @@ namespace Rukbat
 
         private static string AdaptArrayValue(string expression, ValueType type, StandardValueContext context)
         {
-            if (!NeedsStandardValueAdaptation(type.Element!))
+            if (context.Result && !NeedsStandardValueAdaptation(type.Element!))
             {
-                return context.Result
-                    ? $"(& $script:__rukbat_array ({expression}))"
-                    : $"([object[]]({expression}))";
+                return $"(& $script:__rukbat_array ({expression}))";
             }
             var items = context.Variable("Items");
             var list = context.Variable("List");

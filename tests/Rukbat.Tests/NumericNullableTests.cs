@@ -18,13 +18,13 @@ namespace Rukbat.Tests
         [InlineData("x: float = 1.0; print(x + 0.5)", "1.5")]
         [InlineData("fn widen(x: float?): float? { return x }; y: float? = widen(2.0); if y != null { print(y + 0.5) }", "2.5")]
         [InlineData("fn widen(x: float?): float? { return x }; y: float? = widen(null); print(y == null)", "True")]
-        [InlineData("fn show(x: string?): void { if x == null { return }; print(x) }; show(null); show('ok')", "ok")]
+        [InlineData("fn show(x: string?) { if x == null { return }; print(x) }; show(null); show('ok')", "ok")]
         [InlineData("name: string? = null; if name == null { name = 'Taro' }; print(name)", "Taro")]
         [InlineData("xs: string?[] = ['one', null]; first: string? = xs[0]; if first != null { print(first) }; print(xs[1] == null); ys: string[]? = ['x']; if ys != null { print(ys.length) }", "one\nTrue\n1")]
         [InlineData("struct U { name: string?; score: float? }; u: U = U {name: null, score: 1.0}; print(u.name == null); score: float? = u.score; if score != null { print(score) }", "True\n1")]
         [InlineData("fn values(ok: bool): string[]? { if ok { return ['x'] }; return null }; a: string[]? = values(true); if a != null { print(a[0]) }; b: string[]? = values(false); print(b == null)", "x\nTrue")]
         [InlineData("print(1.0 == 1.0); print(1.0 < 1.5)", "True\nTrue")]
-        [InlineData("fn show(x: string?): void { if x != null { try { print('try') } catch err { print(x) } } }; show('ok')", "try")]
+        [InlineData("fn show(x: string?) { if x != null { try { print('try') } catch err { print(x) } } }; show('ok')", "try")]
         public async Task ExecutesFloatAndNullableValues(string source, string expected)
         {
             using var project = new Project();
@@ -89,7 +89,7 @@ namespace Rukbat.Tests
         [Fact]
         public void SameModuleCallsInvalidateGlobalNarrowing()
         {
-            var result = Compile("name: string? = 'Taro'; fn clear(): void { name = null }; if name != null { clear(); print(name) }");
+            var result = Compile("name: string? = 'Taro'; fn clear() { name = null }; if name != null { clear(); print(name) }");
             Assert.False(result.Success);
             Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Message.Contains("nullable value"));
         }

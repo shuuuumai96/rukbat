@@ -6,11 +6,24 @@ namespace Rukbat.Tests
         [Theory]
         [InlineData("fn f() {}")]
         [InlineData("fn f()\n{ return }")]
-        [InlineData("fn f(): void {}")]
         [InlineData("fn f(): int { return 1 }")]
         [InlineData("fn f() { 1 }")]
         [InlineData("struct Item {}; impl Item { fn f() { return } }")]
         public void AcceptsVoidDefaultsAndExplicitResults(string source) => Success(source);
+
+        [Trait("Category", "Unit")]
+        [Theory]
+        [InlineData("fn f(): void {}")]
+        [InlineData("fn f(value: int): void {}")]
+        [InlineData("struct Item {}; impl Item { fn f(): void {} }")]
+        public void RejectsExplicitVoidReturnAnnotations(string source)
+        {
+            var result = Compile(source);
+            Assert.False(result.Success);
+            var diagnostic = Assert.Single(result.Diagnostics);
+            Assert.Equal("RUK1000", diagnostic.Code);
+            Assert.Contains("Omit the return-type annotation", diagnostic.Message);
+        }
 
         [Trait("Category", "Unit")]
         [Theory]

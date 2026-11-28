@@ -35,7 +35,7 @@ namespace Rukbat.Tests
         [InlineData("import cli", "cli.Result", "object")]
         public void EmitsParameterStorageType(string declarations, string type, string storageType)
         {
-            var output = Success($"{declarations}\nfn accept(value: {type}): void {{}}\n");
+            var output = Success($"{declarations}\nfn accept(value: {type}) {{}}\n");
             Assert.Matches(@"param\(\[" + Regex.Escape(storageType) + @"\]\$[^,)]+\)", output);
         }
 
@@ -48,7 +48,7 @@ namespace Rukbat.Tests
         [InlineData("", "encoding.Encoding")]
         public void ScalarNamesRequireTheirCanonicalImportedModule(string imports, string type)
         {
-            var result = Compile($"{imports}\nfn accept(value: {type}): void {{}}\n");
+            var result = Compile($"{imports}\nfn accept(value: {type}) {{}}\n");
             Assert.False(result.Success);
             Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "RUK2004");
         }
@@ -58,7 +58,7 @@ namespace Rukbat.Tests
         public void LocalStructDoesNotAcquireStandardScalarIdentity()
         {
             var output = Success("import encoding\nstruct Encoding { value: int }\n" +
-                "fn local(value: Encoding): void {}\nfn standard(value: encoding.Encoding): void {}\n");
+                "fn local(value: Encoding) {}\nfn standard(value: encoding.Encoding) {}\n");
             Assert.Contains("param([hashtable]", output);
             Assert.Contains("param([string]", output);
         }

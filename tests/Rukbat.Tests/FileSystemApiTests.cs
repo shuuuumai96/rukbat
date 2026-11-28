@@ -29,7 +29,7 @@ namespace Rukbat.Tests
             var source = $"import encoding; import fs\nfn operation(): {type} {{ return fs.{operation} }}";
             if (type == "void")
             {
-                source = $"import encoding; import fs\nfn operation(): void {{ fs.{operation} }}";
+                source = $"import encoding; import fs\nfn operation() {{ fs.{operation} }}";
             }
 
             Assert.Empty(new Rukbat.Compiler().Check(source));

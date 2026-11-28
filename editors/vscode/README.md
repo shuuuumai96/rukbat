@@ -87,7 +87,7 @@ guides are also included in the VSIX under `runtime/win-x64/docs/STYLE.md` and
 Later 0.x versions may change syntax, standard-library APIs and tooling behavior.
 Pin the compiler version used by automation and recheck, rebuild and test before
 upgrading. See the repository's
-[0.2.0 release notes](https://github.com/shuuuumai96/rukbat/blob/main/docs/releases/0.2.0.md)
+[0.3.0 release notes](https://github.com/shuuuumai96/rukbat/blob/main/docs/releases/0.3.0.md)
 for requirements and limitations.
 
 Rukbat is available under the MIT License. The packaged extension includes

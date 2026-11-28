@@ -103,7 +103,7 @@ namespace Rukbat.Tests
             import fs
             import path
             import encoding
-            fn process(): void {
+            fn process() {
                 fs.create_dir_all('processed')
                 for directory in fs.list_dirs('incoming', 'batch*') {
                     destination := path.resolve(path.resolve(path.working_dir(), 'processed'), path.filename(directory))
@@ -162,7 +162,7 @@ namespace Rukbat.Tests
             project.Write("main.rukbat", $$"""
             import fs
             import test
-            fn reject(source: string, target: string): void {
+            fn reject(source: string, target: string) {
                 failed := false
                 try { fs.move_dir(source, target) } catch err { failed = true }
                 test.assert(failed)

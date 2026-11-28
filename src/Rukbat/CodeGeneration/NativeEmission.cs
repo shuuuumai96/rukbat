@@ -69,7 +69,9 @@ namespace Rukbat
                 while (reader.ReadLine() is { } line)
                 {
                     var trimmed = line.Trim();
-                    if (trimmed.StartsWith(UsingPrefix, StringComparison.Ordinal) && trimmed.EndsWith(';'))
+                    if (line.StartsWith(UsingPrefix, StringComparison.Ordinal) &&
+                        !line.StartsWith("using (", StringComparison.Ordinal) &&
+                        trimmed.EndsWith(';'))
                     {
                         if (seenUsings.Add(trimmed))
                         {

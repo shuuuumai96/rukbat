@@ -261,7 +261,7 @@ test('methods, shadowed bindings, nullable arrays and breakpoint interruption of
         '    count: int',
         '}',
         'impl Counter {',
-        '    fn increment(): void {',
+        '    fn increment() {',
         '        self.count = self.count + 1',
         '        print(self.count)',
         '    }',

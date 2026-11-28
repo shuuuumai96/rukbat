@@ -117,9 +117,9 @@ namespace Rukbat.Tests
         public void DocumentationIsAvailableOnStructFieldsMethodsVariablesAndImports()
         {
             using var project = new Project();
-            project.Write("helper.rukbat", "//! Helper overview.\nfn f(): void {}");
+            project.Write("helper.rukbat", "//! Helper overview.\nfn f() {}");
             var uri = UriFor(project);
-            var source = "import './helper.rukbat' as helper\n/// Record description.\nstruct Record {\n/// Name description.\nname: string\n}\nimpl Record {\n/// Method description.\nfn f(): void {}\n}\n/// Variable description.\nvalue := Record { name: 'one' }\nvalue.f()\nprint(value.name)\n";
+            var source = "import './helper.rukbat' as helper\n/// Record description.\nstruct Record {\n/// Name description.\nname: string\n}\nimpl Record {\n/// Method description.\nfn f() {}\n}\n/// Variable description.\nvalue := Record { name: 'one' }\nvalue.f()\nprint(value.name)\n";
             var messages = Session(Open(uri, source), Feature(uri, "hover", 0, 0, "import"),
                 Feature(uri, "hover", 11, 10, "struct"), Feature(uri, "hover", 11, 1, "variable"),
                 Feature(uri, "hover", 12, 6, "method"), Feature(uri, "hover", 13, 13, "field"));
@@ -135,7 +135,7 @@ namespace Rukbat.Tests
         {
             using var project = new Project();
             var uri = UriFor(project);
-            var source = "import './missing.rukbat' as missing\n/// Explains this function.\nfn f(): void {}\n/// orphan\n";
+            var source = "import './missing.rukbat' as missing\n/// Explains this function.\nfn f() {}\n/// orphan\n";
             var messages = Session(Open(uri, source), Feature(uri, "hover", 2, 3));
             Assert.Contains("Explains this function.", Result(messages).GetProperty("contents").GetProperty("value").GetString());
             var diagnostics = LastDiagnostics(messages, uri).GetProperty("diagnostics").EnumerateArray().ToArray();
@@ -148,7 +148,7 @@ namespace Rukbat.Tests
         {
             using var project = new Project();
             var uri = UriFor(project);
-            var source = "/// See [`f`].\n///\n/// ```rukbat check\n/// missing()\n/// ```\nfn f(): void {}\nf()";
+            var source = "/// See [`f`].\n///\n/// ```rukbat check\n/// missing()\n/// ```\nfn f() {}\nf()";
             var messages = Session(Open(uri, source), Feature(uri, "hover", 6, 0));
             Assert.Contains(uri + "#L6", Result(messages).GetProperty("contents").GetProperty("value").GetString());
             Assert.Empty(LastDiagnostics(messages, uri).GetProperty("diagnostics").EnumerateArray());
@@ -458,7 +458,7 @@ namespace Rukbat.Tests
         {
             using var project = new Project();
             var uri = UriFor(project);
-            const string source = "fn other(): void { private_name := 1 }\nfn current(parameter: int): void {\n    local_name := 1\n    lo";
+            const string source = "fn other() { private_name := 1 }\nfn current(parameter: int) {\n    local_name := 1\n    lo";
             var result = Result(Session(Open(uri, source), Feature(uri, "completion", 3, 6)));
             Assert.Contains(result.EnumerateArray(), s => s.GetProperty("label").GetString() == "local_name");
             Assert.DoesNotContain(result.EnumerateArray(), s => s.GetProperty("label").GetString() == "private_name");
@@ -494,7 +494,7 @@ namespace Rukbat.Tests
         {
             using var project = new Project();
             var uri = UriFor(project);
-            const string source = "fn run(parameter: int): void {\n    if true { secret := 1 }\n    \n    future := 1\n}";
+            const string source = "fn run(parameter: int) {\n    if true { secret := 1 }\n    \n    future := 1\n}";
             var result = Result(Session(Open(uri, source), Feature(uri, "completion", 2, 4)));
             Assert.Contains(result.EnumerateArray(), s => s.GetProperty("label").GetString() == "parameter");
             Assert.DoesNotContain(result.EnumerateArray(), s => s.GetProperty("label").GetString() is "secret" or "future");
@@ -699,7 +699,7 @@ namespace Rukbat.Tests
         {
             using var project = new Project();
             var uri = UriFor(project);
-            const string source = "value := 1\nfn run(): void {\n    value := \"local\"\n    print(value)\n}\nprint(value)";
+            const string source = "value := 1\nfn run() {\n    value := \"local\"\n    print(value)\n}\nprint(value)";
             var messages = Session(Open(uri, source), Feature(uri, "definition", 3, 11, "local"), Feature(uri, "definition", 5, 7, "global"));
             Assert.Equal(2, Result(messages, "local").GetProperty("range").GetProperty("start").GetProperty("line").GetInt32());
             Assert.Equal(0, Result(messages, "global").GetProperty("range").GetProperty("start").GetProperty("line").GetInt32());

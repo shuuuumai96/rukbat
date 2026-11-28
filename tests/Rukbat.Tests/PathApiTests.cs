@@ -82,11 +82,11 @@ namespace Rukbat.Tests
             await AssertProgram(shell, """
             import path
             import test
-            fn reject(value: string): void {
+            fn reject(value: string) {
                 try { path.resolve('C:/work', value) } catch err { return }
                 test.fail('Expected path.resolve to reject ' + value)
             }
-            fn reject_relative(base: string, target: string): void {
+            fn reject_relative(base: string, target: string) {
                 try { path.relative(base, target) } catch err { return }
                 test.fail('Expected path.relative to reject its inputs')
             }
@@ -143,7 +143,7 @@ namespace Rukbat.Tests
             test.assert(path.change_extension('README', '') == 'README')
             test.assert(path.change_extension('C:/dir/日本語.csv', '.json') == 'C:/dir/日本語.json')
             test.assert(path.change_extension('//server/share/file.csv', '.json') == '//server/share/file.json')
-            fn reject_extension(extension: string): void {
+            fn reject_extension(extension: string) {
                 try { path.change_extension('report.csv', extension) } catch err { return }
                 test.fail('Expected invalid extension to fail')
             }

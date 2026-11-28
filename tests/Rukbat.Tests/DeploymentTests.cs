@@ -125,7 +125,7 @@ namespace Rukbat.Tests
         {
             using var project = new Project();
             var imported = "source/" + name;
-            project.Write(imported, "fn fail(): void {\n    throw Error {message: 'origin'}\n}");
+            project.Write(imported, "fn fail() {\n    throw Error {message: 'origin'}\n}");
             project.Write("source/main.rukbat", $"import '{import}' as service\ntry {{ service.fail() }} catch err {{ throw err }}");
             var compiled = new Compiler().CompileFile(project.PathFor("source/main.rukbat"));
             Assert.True(compiled.Success, string.Join("\n", compiled.Diagnostics));
@@ -200,7 +200,7 @@ namespace Rukbat.Tests
         [Theory]
         [InlineData("import stderr")]
         [InlineData("stderr.print('removed')")]
-        [InlineData("fn eprint(): void {}")]
+        [InlineData("fn eprint() {}")]
         [InlineData("eprint(text: 'named')")]
         [InlineData("eprint([1])")]
         [InlineData("value: string? = null; eprint(value)")]

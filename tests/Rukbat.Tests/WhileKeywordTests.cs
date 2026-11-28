@@ -4,11 +4,11 @@ namespace Rukbat.Tests
     {
         [Trait("Category", "Unit")]
         [Theory]
-        [InlineData("fn while(): void {}")]
+        [InlineData("fn while() {}")]
         [InlineData("fn identity(while: int): int { return while }")]
         [InlineData("struct while { value: int }")]
         [InlineData("struct Item { while: int }")]
-        [InlineData("struct Item {}; impl Item { fn while(): void {} }")]
+        [InlineData("struct Item {}; impl Item { fn while() {} }")]
         [InlineData("const while := 1")]
         [InlineData("while := 1")]
         [InlineData("while: int = 1")]
@@ -43,7 +43,7 @@ namespace Rukbat.Tests
                 }
 
                 impl WhileState {
-                    fn while_increment(): void {
+                    fn while_increment() {
                         self.while_count = self.while_count + 1
                     }
                 }

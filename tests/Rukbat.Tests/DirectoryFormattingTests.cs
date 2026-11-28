@@ -12,7 +12,7 @@ namespace Rukbat.Tests
         {
             using var project = new Project();
             project.Write("main.rukbat", "value:=1");
-            project.Write("nested/deeper/module.RUKBAT", "fn f():void{print(2)}");
+            project.Write("nested/deeper/module.RUKBAT", "fn f(){print(2)}");
             project.Write("keep.txt", "value:=3");
             foreach (var directory in new[] { ".git", "bin", "obj" })
             {

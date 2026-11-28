@@ -25,7 +25,7 @@ namespace Rukbat.Tests
         {
             var diagnostics = new Compiler().Check(Imports + $$"""
             struct Wrapper { values: {{type}}?[] }
-            fn transfer(value: Wrapper): void {
+            fn transfer(value: Wrapper) {
                 json.stringify(value)
                 powershell<void>('Write-Output', value)
                 powershell<Wrapper>('Read-Host')
@@ -53,7 +53,7 @@ namespace Rukbat.Tests
         public void PreservesPrintDiagnosticPriority(string type, string message)
         {
             var diagnostics = new Compiler().Check(Imports + $$"""
-            fn output(value: {{type}}): void { print(value); eprint(value) }
+            fn output(value: {{type}}) { print(value); eprint(value) }
             """);
 
             Assert.Equal(new[] { message, message }, diagnostics.Select(diagnostic => diagnostic.Message));
@@ -64,7 +64,7 @@ namespace Rukbat.Tests
         {
             var diagnostics = new Compiler().Check(Imports + """
             struct Wrapper { values: dict[string, json.Value?[]] }
-            fn transfer(value: Wrapper): void {
+            fn transfer(value: Wrapper) {
                 json.stringify(value)
                 json.parse<Wrapper>('{}')
                 powershell<Wrapper>('Read-Host')
@@ -84,7 +84,7 @@ namespace Rukbat.Tests
         {
             var diagnostics = new Compiler().Check(Imports + $$"""
             struct Wrapper { values: {{type}}?[] }
-            fn transfer(value: Wrapper): void {
+            fn transfer(value: Wrapper) {
                 json.stringify(value)
                 powershell<void>('Write-Output', value)
                 powershell<Wrapper>('Read-Host')
@@ -107,7 +107,7 @@ namespace Rukbat.Tests
             struct Row { value: string }
             struct Result { value: string }
             struct Wrapper { encoding: Encoding; level: Level; pattern: Pattern; row: Row; result: Result }
-            fn transfer(value: Wrapper): void {
+            fn transfer(value: Wrapper) {
                 json.stringify(value)
                 json.parse<Wrapper>('{}')
                 powershell<Wrapper>('Read-Host')
